@@ -25,126 +25,112 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import java.lang.invoke.MethodHandle;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import org.objectweb.asm.Type;
+import static java.lang.constant.ConstantDescs.CD_Class;
+import static java.lang.constant.ConstantDescs.CD_MethodHandle;
+import static java.lang.constant.ConstantDescs.CD_Object;
+import static java.lang.constant.ConstantDescs.CD_String;
+import static java.lang.constant.ConstantDescs.CD_boolean;
+import static java.lang.constant.ConstantDescs.CD_int;
+import static java.lang.constant.ConstantDescs.CD_void;
+
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 
 /**
- * String constants used for code generation/instrumentation.
+ * Names and descriptors used for code generation/instrumentation.
+ *
+ * Class references are {@link ClassDesc} and method signatures are
+ * {@link MethodTypeDesc}, the currency of {@code java.lang.classfile}. The
+ * {@code CD_} / {@code MTD_} prefixes follow {@link java.lang.constant.ConstantDescs}.
  */
 @SuppressWarnings("javadoc")
 public interface StringConstants {
-    static final String NASHORN_INTERNAL = "org/openjdk/nashorn/internal/";
-    static final String OBJ_PKG = NASHORN_INTERNAL + "objects/";
-    static final String OBJ_ANNO_PKG = OBJ_PKG + "annotations/";
-    static final String RUNTIME_PKG = NASHORN_INTERNAL + "runtime/";
-    static final String SCRIPTS_PKG = NASHORN_INTERNAL + "scripts/";
+    String OBJ_PKG      = "org.openjdk.nashorn.internal.objects";
+    String OBJ_ANNO_PKG = OBJ_PKG + ".annotations";
+    String RUNTIME_PKG  = "org.openjdk.nashorn.internal.runtime";
+    String SCRIPTS_PKG  = "org.openjdk.nashorn.internal.scripts";
 
-    // standard jdk types, methods
-    static final Type TYPE_METHODHANDLE         = Type.getType(MethodHandle.class);
-    static final Type TYPE_SPECIALIZATION       = Type.getType("L" + RUNTIME_PKG + "Specialization;");
-    static final Type TYPE_SPECIALIZATION_ARRAY = Type.getType("[L" + RUNTIME_PKG + "Specialization;");
-    static final Type TYPE_OBJECT               = Type.getType(Object.class);
-    static final Type TYPE_STRING               = Type.getType(String.class);
-    static final Type TYPE_CLASS                = Type.getType(Class.class);
-    static final Type TYPE_COLLECTION           = Type.getType(Collection.class);
-    static final Type TYPE_COLLECTIONS          = Type.getType(Collections.class);
-    static final Type TYPE_ARRAYLIST            = Type.getType(ArrayList.class);
-    static final Type TYPE_LIST                 = Type.getType(List.class);
+    // standard jdk types
+    ClassDesc CD_Collection  = ClassDesc.of("java.util.Collection");
+    ClassDesc CD_Collections = ClassDesc.of("java.util.Collections");
+    ClassDesc CD_ArrayList   = ClassDesc.of("java.util.ArrayList");
+    ClassDesc CD_List        = ClassDesc.of("java.util.List");
+    ClassDesc CD_ObjectArray = CD_Object.arrayType();
 
-    static final String CLINIT = "<clinit>";
-    static final String INIT = "<init>";
-    static final String DEFAULT_INIT_DESC = Type.getMethodDescriptor(Type.VOID_TYPE);
+    String CLINIT = "<clinit>";
+    String INIT   = "<init>";
+    MethodTypeDesc MTD_void = MethodTypeDesc.of(CD_void);
 
-    static final String SPECIALIZATION_TYPE = TYPE_SPECIALIZATION.getInternalName();
-    static final String SPECIALIZATION_INIT2 = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_METHODHANDLE, Type.BOOLEAN_TYPE, Type.BOOLEAN_TYPE);
-    static final String SPECIALIZATION_INIT3 = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_METHODHANDLE, TYPE_CLASS, Type.BOOLEAN_TYPE, Type.BOOLEAN_TYPE);
-    static final String OBJECT_TYPE = TYPE_OBJECT.getInternalName();
-    static final String OBJECT_DESC = TYPE_OBJECT.getDescriptor();
-    static final String STRING_DESC = TYPE_STRING.getDescriptor();
-    static final String OBJECT_ARRAY_DESC = Type.getDescriptor(Object[].class);
-    static final String ARRAYLIST_TYPE = TYPE_ARRAYLIST.getInternalName();
-    static final String COLLECTION_TYPE = TYPE_COLLECTION.getInternalName();
-    static final String COLLECTIONS_TYPE = TYPE_COLLECTIONS.getInternalName();
+    // Nashorn types
+    ClassDesc CD_AccessorProperty     = ClassDesc.of(RUNTIME_PKG, "AccessorProperty");
+    ClassDesc CD_PropertyMap          = ClassDesc.of(RUNTIME_PKG, "PropertyMap");
+    ClassDesc CD_PrototypeObject      = ClassDesc.of(RUNTIME_PKG, "PrototypeObject");
+    ClassDesc CD_ScriptFunction       = ClassDesc.of(RUNTIME_PKG, "ScriptFunction");
+    ClassDesc CD_ScriptObject         = ClassDesc.of(RUNTIME_PKG, "ScriptObject");
+    ClassDesc CD_Specialization       = ClassDesc.of(RUNTIME_PKG, "Specialization");
+    ClassDesc CD_SpecializationArray  = CD_Specialization.arrayType();
+    ClassDesc CD_Symbol               = ClassDesc.of(RUNTIME_PKG, "Symbol");
+    ClassDesc CD_NativeSymbol         = ClassDesc.of(OBJ_PKG, "NativeSymbol");
 
-    // java.util.Collection.add(Object)
-    static final String COLLECTION_ADD = "add";
-    static final String COLLECTION_ADD_DESC = Type.getMethodDescriptor(Type.BOOLEAN_TYPE, TYPE_OBJECT);
-    // java.util.ArrayList.<init>(int)
-    static final String ARRAYLIST_INIT_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, Type.INT_TYPE);
-    // java.util.Collections.EMPTY_LIST
-    static final String COLLECTIONS_EMPTY_LIST = "EMPTY_LIST";
-    static final String LIST_DESC = TYPE_LIST.getDescriptor();
-
-    // Nashorn types, methods
-    static final Type TYPE_ACCESSORPROPERTY   = Type.getType("L" + RUNTIME_PKG + "AccessorProperty;");
-    static final Type TYPE_PROPERTYMAP        = Type.getType("L" + RUNTIME_PKG + "PropertyMap;");
-    static final Type TYPE_PROTOTYPEOBJECT    = Type.getType("L" + RUNTIME_PKG + "PrototypeObject;");
-    static final Type TYPE_SCRIPTFUNCTION     = Type.getType("L" + RUNTIME_PKG + "ScriptFunction;");
-    static final Type TYPE_SCRIPTOBJECT       = Type.getType("L" + RUNTIME_PKG + "ScriptObject;");
-    static final Type TYPE_NATIVESYMBOL       = Type.getType("L" + OBJ_PKG + "NativeSymbol;");
-    static final Type TYPE_SYMBOL             = Type.getType("L" + RUNTIME_PKG + "Symbol;");
-
-    static final String PROTOTYPE_SUFFIX = "$Prototype";
-    static final String CONSTRUCTOR_SUFFIX = "$Constructor";
+    String PROTOTYPE_SUFFIX   = "$Prototype";
+    String CONSTRUCTOR_SUFFIX = "$Constructor";
 
     // This field name is known to Nashorn runtime (Context).
     // Synchronize the name change, if needed at all.
-    static final String PROPERTYMAP_FIELD_NAME = "$nasgenmap$";
-    static final String $CLINIT$ = "$clinit$";
+    String PROPERTYMAP_FIELD_NAME = "$nasgenmap$";
+    String $CLINIT$               = "$clinit$";
+
+    // java.util.Collection.add(Object)
+    String COLLECTION_ADD = "add";
+    MethodTypeDesc MTD_Collection_add = MethodTypeDesc.of(CD_boolean, CD_Object);
+    // java.util.ArrayList.<init>(int)
+    MethodTypeDesc MTD_ArrayList_init = MethodTypeDesc.of(CD_void, CD_int);
+    // java.util.Collections.EMPTY_LIST
+    String COLLECTIONS_EMPTY_LIST = "EMPTY_LIST";
+
+    // Specialization.<init>
+    MethodTypeDesc MTD_Specialization_init2 = MethodTypeDesc.of(CD_void, CD_MethodHandle, CD_boolean, CD_boolean);
+    MethodTypeDesc MTD_Specialization_init3 = MethodTypeDesc.of(CD_void, CD_MethodHandle, CD_Class, CD_boolean, CD_boolean);
 
     // AccessorProperty
-    static final String ACCESSORPROPERTY_TYPE = TYPE_ACCESSORPROPERTY.getInternalName();
-    static final String ACCESSORPROPERTY_CREATE = "create";
-    static final String ACCESSORPROPERTY_CREATE_DESC =
-        Type.getMethodDescriptor(TYPE_ACCESSORPROPERTY, TYPE_OBJECT, Type.INT_TYPE, TYPE_METHODHANDLE, TYPE_METHODHANDLE);
+    String ACCESSORPROPERTY_CREATE = "create";
+    MethodTypeDesc MTD_AccessorProperty_create =
+        MethodTypeDesc.of(CD_AccessorProperty, CD_Object, CD_int, CD_MethodHandle, CD_MethodHandle);
 
     // PropertyMap
-    static final String PROPERTYMAP_TYPE = TYPE_PROPERTYMAP.getInternalName();
-    static final String PROPERTYMAP_DESC = TYPE_PROPERTYMAP.getDescriptor();
-    static final String PROPERTYMAP_NEWMAP = "newMap";
-    static final String PROPERTYMAP_NEWMAP_DESC = Type.getMethodDescriptor(TYPE_PROPERTYMAP, TYPE_COLLECTION);
+    String PROPERTYMAP_NEWMAP = "newMap";
+    MethodTypeDesc MTD_PropertyMap_newMap = MethodTypeDesc.of(CD_PropertyMap, CD_Collection);
 
     // PrototypeObject
-    static final String PROTOTYPEOBJECT_TYPE = TYPE_PROTOTYPEOBJECT.getInternalName();
-    static final String PROTOTYPEOBJECT_SETCONSTRUCTOR = "setConstructor";
-    static final String PROTOTYPEOBJECT_SETCONSTRUCTOR_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_OBJECT, TYPE_OBJECT);
+    String PROTOTYPEOBJECT_SETCONSTRUCTOR = "setConstructor";
+    MethodTypeDesc MTD_PrototypeObject_setConstructor = MethodTypeDesc.of(CD_void, CD_Object, CD_Object);
 
     // ScriptFunction
-    static final String SCRIPTFUNCTION_TYPE = TYPE_SCRIPTFUNCTION.getInternalName();
-    static final String SCRIPTFUNCTION_SETARITY = "setArity";
-    static final String SCRIPTFUNCTION_SETARITY_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, Type.INT_TYPE);
-    static final String SCRIPTFUNCTION_SETDOCUMENTATIONKEY = "setDocumentationKey";
-    static final String SCRIPTFUNCTION_SETDOCUMENTATIONKEY_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_STRING);
-    static final String SCRIPTFUNCTION_SETPROTOTYPE = "setPrototype";
-    static final String SCRIPTFUNCTION_SETPROTOTYPE_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_OBJECT);
-    static final String SCRIPTFUNCTION_CREATEBUILTIN = "createBuiltin";
-    static final String SCRIPTFUNCTION_CREATEBUILTIN_DESC =
-        Type.getMethodDescriptor(TYPE_SCRIPTFUNCTION, TYPE_STRING, TYPE_METHODHANDLE);
-    static final String SCRIPTFUNCTION_CREATEBUILTIN_SPECS_DESC =
-        Type.getMethodDescriptor(TYPE_SCRIPTFUNCTION, TYPE_STRING, TYPE_METHODHANDLE, TYPE_SPECIALIZATION_ARRAY);
-    static final String SCRIPTFUNCTION_INIT_DESC3 =
-        Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_STRING, TYPE_METHODHANDLE, TYPE_SPECIALIZATION_ARRAY);
-    static final String SCRIPTFUNCTION_INIT_DESC4 =
-        Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_STRING, TYPE_METHODHANDLE, TYPE_PROPERTYMAP, TYPE_SPECIALIZATION_ARRAY);
+    String SCRIPTFUNCTION_SETARITY = "setArity";
+    MethodTypeDesc MTD_ScriptFunction_setArity = MethodTypeDesc.of(CD_void, CD_int);
+    String SCRIPTFUNCTION_SETDOCUMENTATIONKEY = "setDocumentationKey";
+    MethodTypeDesc MTD_ScriptFunction_setDocumentationKey = MethodTypeDesc.of(CD_void, CD_String);
+    String SCRIPTFUNCTION_SETPROTOTYPE = "setPrototype";
+    MethodTypeDesc MTD_ScriptFunction_setPrototype = MethodTypeDesc.of(CD_void, CD_Object);
+    String SCRIPTFUNCTION_CREATEBUILTIN = "createBuiltin";
+    MethodTypeDesc MTD_ScriptFunction_createBuiltin =
+        MethodTypeDesc.of(CD_ScriptFunction, CD_String, CD_MethodHandle);
+    MethodTypeDesc MTD_ScriptFunction_createBuiltinSpecs =
+        MethodTypeDesc.of(CD_ScriptFunction, CD_String, CD_MethodHandle, CD_SpecializationArray);
+    MethodTypeDesc MTD_ScriptFunction_init3 =
+        MethodTypeDesc.of(CD_void, CD_String, CD_MethodHandle, CD_SpecializationArray);
+    MethodTypeDesc MTD_ScriptFunction_init4 =
+        MethodTypeDesc.of(CD_void, CD_String, CD_MethodHandle, CD_PropertyMap, CD_SpecializationArray);
 
     // ScriptObject
-    static final String SCRIPTOBJECT_TYPE = TYPE_SCRIPTOBJECT.getInternalName();
-    static final String SCRIPTOBJECT_DESC = TYPE_SCRIPTOBJECT.getDescriptor();
-    static final String SCRIPTOBJECT_INIT_DESC = Type.getMethodDescriptor(Type.VOID_TYPE, TYPE_PROPERTYMAP);
+    MethodTypeDesc MTD_ScriptObject_init = MethodTypeDesc.of(CD_void, CD_PropertyMap);
 
-    static final String GETTER_PREFIX = "G$";
-    static final String SETTER_PREFIX = "S$";
+    String GETTER_PREFIX = "G$";
+    String SETTER_PREFIX = "S$";
 
     // ScriptObject.getClassName() method.
-    static final String GET_CLASS_NAME = "getClassName";
-    static final String GET_CLASS_NAME_DESC = Type.getMethodDescriptor(TYPE_STRING);
+    String GET_CLASS_NAME = "getClassName";
+    MethodTypeDesc MTD_getClassName = MethodTypeDesc.of(CD_String);
 
-    // NativeSymbol
-    static final String NATIVESYMBOL_TYPE = TYPE_NATIVESYMBOL.getInternalName();
-    static final String SYMBOL_DESC = TYPE_SYMBOL.getDescriptor();
-    static final String SYMBOL_PREFIX = "@@";
+    String SYMBOL_PREFIX = "@@";
 }

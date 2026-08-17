@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,26 +25,19 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.util.CheckClassAdapter;
+import java.lang.classfile.ClassModel;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Main class for the "nasgen" tool.
  *
  */
 public class Main {
-    /**
-     * ASM version to be used by nasgen tool.
-     */
-    public static final int ASM_VERSION = Opcodes.ASM9;
-
     private static final boolean DEBUG = Boolean.getBoolean("nasgen.debug");
 
     private interface ErrorReporter {
@@ -58,12 +51,7 @@ public class Main {
      * @param args argument vector
      */
     public static void main(final String[] args) {
-        final ErrorReporter reporter = new ErrorReporter() {
-            @Override
-            public void error(final String msg) {
-                Main.error(msg, 1);
-            }
-        };
+        final ErrorReporter reporter = msg -> Main.error(msg, 1);
         if (args.length == 3) {
             processAll(args[0], args[1], args[2], reporter);
         } else {
@@ -72,42 +60,46 @@ public class Main {
     }
 
     private static void processAll(final String in, final String pkgList, final String out, final ErrorReporter reporter) {
-        final File inDir = new File(in);
-        if (!inDir.exists() || !inDir.isDirectory()) {
+        final Path inDir = Path.of(in);
+        if (!Files.isDirectory(inDir)) {
             reporter.error(in + " does not exist or not a directory");
             return;
         }
 
-        final File outDir = new File(out);
-        if (!outDir.exists() || !outDir.isDirectory()) {
+        final Path outDir = Path.of(out);
+        if (!Files.isDirectory(outDir)) {
             reporter.error(out + " does not exist or not a directory");
             return;
         }
 
-        final String[] packages = pkgList.split(":");
-        for (String pkg : packages) {
-            pkg = pkg.replace('.', File.separatorChar);
-            final File dir = new File(inDir, pkg);
-            final File[] classes = dir.listFiles();
-            for (final File clazz : classes) {
-                if (clazz.isFile() && clazz.getName().endsWith(".class")) {
-                    if (! process(clazz, new File(outDir, pkg), reporter)) {
-                        return;
-                    }
+        for (final String pkg : pkgList.split(":")) {
+            final String pkgPath = pkg.replace('.', '/');
+            for (final Path clazz : classFilesIn(inDir.resolve(pkgPath), reporter)) {
+                if (! process(clazz, outDir.resolve(pkgPath), reporter)) {
+                    return;
                 }
             }
         }
     }
 
-    private static boolean process(final File inFile, final File outDir, final ErrorReporter reporter) {
-        try {
-            byte[] buf = new byte[(int)inFile.length()];
-
-            try (FileInputStream fin = new FileInputStream(inFile)) {
-                fin.read(buf);
+    private static List<Path> classFilesIn(final Path dir, final ErrorReporter reporter) {
+        final List<Path> classes = new ArrayList<>();
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(dir, "*.class")) {
+            for (final Path entry : entries) {
+                if (Files.isRegularFile(entry)) {
+                    classes.add(entry);
+                }
             }
+        } catch (final IOException e) {
+            reporter.error(e.getMessage());
+        }
+        return classes;
+    }
 
-            final ScriptClassInfo sci = ClassGenerator.getScriptClassInfo(buf);
+    private static boolean process(final Path inFile, final Path outDir, final ErrorReporter reporter) {
+        try {
+            final ClassModel cm = ClassGenerator.CLASS_FILE.parse(Files.readAllBytes(inFile));
+            final ScriptClassInfo sci = ScriptClassInfoCollector.collect(cm);
 
             if (sci != null) {
                 try {
@@ -118,50 +110,23 @@ public class Main {
                 }
 
                 // create necessary output package dir
-                outDir.mkdirs();
+                Files.createDirectories(outDir);
 
                 // instrument @ScriptClass
-                final ClassWriter writer = ClassGenerator.makeClassWriter();
-                final ClassReader reader = new ClassReader(buf);
-                final ScriptClassInstrumentor inst = new ScriptClassInstrumentor(writer, sci);
-                reader.accept(inst, 0);
-                //noinspection UnusedAssignment
-
-                // write instrumented class
-                try (FileOutputStream fos = new FileOutputStream(new File(outDir, inFile.getName()))) {
-                    buf = writer.toByteArray();
-                    if (DEBUG) {
-                        verify(buf);
-                    }
-                    fos.write(buf);
-                }
+                final String fileName = inFile.getFileName().toString();
+                write(outDir.resolve(fileName), ScriptClassInstrumentor.instrument(cm, sci));
 
                 // simple class name without package prefix
-                String simpleName = inFile.getName();
-                simpleName = simpleName.substring(0, simpleName.indexOf(".class"));
+                final String simpleName = fileName.substring(0, fileName.indexOf(".class"));
 
                 if (sci.isPrototypeNeeded()) {
-                    // generate prototype class
-                    final PrototypeGenerator protGen = new PrototypeGenerator(sci);
-                    buf = protGen.getClassBytes();
-                    if (DEBUG) {
-                        verify(buf);
-                    }
-                    try (FileOutputStream fos = new FileOutputStream(new File(outDir, simpleName + StringConstants.PROTOTYPE_SUFFIX + ".class"))) {
-                        fos.write(buf);
-                    }
+                    write(outDir.resolve(simpleName + StringConstants.PROTOTYPE_SUFFIX + ".class"),
+                          new PrototypeGenerator(sci).getClassBytes());
                 }
 
                 if (sci.isConstructorNeeded()) {
-                    // generate constructor class
-                    final ConstructorGenerator consGen = new ConstructorGenerator(sci);
-                    buf = consGen.getClassBytes();
-                    if (DEBUG) {
-                        verify(buf);
-                    }
-                    try (FileOutputStream fos = new FileOutputStream(new File(outDir, simpleName + StringConstants.CONSTRUCTOR_SUFFIX + ".class"))) {
-                        fos.write(buf);
-                    }
+                    write(outDir.resolve(simpleName + StringConstants.CONSTRUCTOR_SUFFIX + ".class"),
+                          new ConstructorGenerator(sci).getClassBytes());
                 }
             }
             return true;
@@ -169,15 +134,23 @@ public class Main {
             if (DEBUG) {
                 e.printStackTrace(System.err);
             }
-            reporter.error(e.getMessage());
+            reporter.error(inFile + ": " + e);
 
             return false;
         }
     }
 
-    private static void verify(final byte[] buf) {
-        final ClassReader cr = new ClassReader(buf);
-        CheckClassAdapter.verify(cr, false, new PrintWriter(System.err));
+    private static void write(final Path file, final byte[] classBytes) throws IOException {
+        if (DEBUG) {
+            verify(classBytes);
+        }
+        Files.write(file, classBytes);
+    }
+
+    private static void verify(final byte[] classBytes) {
+        for (final VerifyError error : ClassGenerator.CLASS_FILE.verify(classBytes)) {
+            System.err.println(error.getMessage());
+        }
     }
 
     private static void error(final String msg, final int exitCode) {

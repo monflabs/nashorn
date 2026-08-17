@@ -25,430 +25,161 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import static org.objectweb.asm.Opcodes.AALOAD;
-import static org.objectweb.asm.Opcodes.AASTORE;
-import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.ACONST_NULL;
-import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.ANEWARRAY;
-import static org.objectweb.asm.Opcodes.ARETURN;
-import static org.objectweb.asm.Opcodes.ASTORE;
-import static org.objectweb.asm.Opcodes.BALOAD;
-import static org.objectweb.asm.Opcodes.BASTORE;
-import static org.objectweb.asm.Opcodes.BIPUSH;
-import static org.objectweb.asm.Opcodes.CALOAD;
-import static org.objectweb.asm.Opcodes.CASTORE;
-import static org.objectweb.asm.Opcodes.CHECKCAST;
-import static org.objectweb.asm.Opcodes.DALOAD;
-import static org.objectweb.asm.Opcodes.DASTORE;
-import static org.objectweb.asm.Opcodes.DCONST_0;
-import static org.objectweb.asm.Opcodes.DRETURN;
-import static org.objectweb.asm.Opcodes.DUP;
-import static org.objectweb.asm.Opcodes.DUP2;
-import static org.objectweb.asm.Opcodes.FALOAD;
-import static org.objectweb.asm.Opcodes.FASTORE;
-import static org.objectweb.asm.Opcodes.FCONST_0;
-import static org.objectweb.asm.Opcodes.FRETURN;
-import static org.objectweb.asm.Opcodes.GETFIELD;
-import static org.objectweb.asm.Opcodes.GETSTATIC;
-import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.IALOAD;
-import static org.objectweb.asm.Opcodes.IASTORE;
-import static org.objectweb.asm.Opcodes.ICONST_0;
-import static org.objectweb.asm.Opcodes.ICONST_1;
-import static org.objectweb.asm.Opcodes.ILOAD;
-import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
-import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
-import static org.objectweb.asm.Opcodes.IRETURN;
-import static org.objectweb.asm.Opcodes.ISTORE;
-import static org.objectweb.asm.Opcodes.LALOAD;
-import static org.objectweb.asm.Opcodes.LASTORE;
-import static org.objectweb.asm.Opcodes.LCONST_0;
-import static org.objectweb.asm.Opcodes.LRETURN;
-import static org.objectweb.asm.Opcodes.NEW;
-import static org.objectweb.asm.Opcodes.POP;
-import static org.objectweb.asm.Opcodes.PUTFIELD;
-import static org.objectweb.asm.Opcodes.PUTSTATIC;
-import static org.objectweb.asm.Opcodes.RETURN;
-import static org.objectweb.asm.Opcodes.SALOAD;
-import static org.objectweb.asm.Opcodes.SASTORE;
-import static org.objectweb.asm.Opcodes.SIPUSH;
-import static org.objectweb.asm.Opcodes.SWAP;
+import static java.lang.constant.ConstantDescs.CD_void;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CD_Specialization;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.INIT;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.MTD_Specialization_init2;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.MTD_Specialization_init3;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.OBJ_ANNO_PKG;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.SPECIALIZATION_INIT2;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.SPECIALIZATION_INIT3;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.SPECIALIZATION_TYPE;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.TYPE_SPECIALIZATION;
+
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.TypeKind;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDesc;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.util.List;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Type;
 
 /**
- * Base class for all method generating classes.
+ * Emits the bytecode nasgen generates, on top of a {@link CodeBuilder}.
  *
+ * The builder already knows how to pick instruction forms (iconst/bipush/ldc and
+ * so on) and computes maxs and stack maps, so this only adds the shorthands the
+ * generators speak in.
  */
-public class MethodGenerator extends MethodVisitor {
-    private final int access;
-    private final String name;
-    private final String descriptor;
-    private final Type returnType;
-    private final Type[] argumentTypes;
+final class MethodGenerator {
+    static final ClassDesc EMPTY_LINK_LOGIC_TYPE = ClassDesc.of(OBJ_ANNO_PKG, "SpecializedFunction$LinkLogic$Empty");
 
-    static final Type EMPTY_LINK_LOGIC_TYPE = Type.getType("L" + OBJ_ANNO_PKG + "SpecializedFunction$LinkLogic$Empty;");
+    private final CodeBuilder cb;
+    private final MethodTypeDesc type;
 
-    MethodGenerator(final MethodVisitor mv, final int access, final String name, final String descriptor) {
-        super(Main.ASM_VERSION, mv);
-        this.access        = access;
-        this.name          = name;
-        this.descriptor    = descriptor;
-        this.returnType    = Type.getReturnType(descriptor);
-        this.argumentTypes = Type.getArgumentTypes(descriptor);
+    MethodGenerator(final CodeBuilder cb, final MethodTypeDesc type) {
+        this.cb = cb;
+        this.type = type;
     }
 
-    int getAccess() {
-        return access;
+    void newObject(final ClassDesc clazz) {
+        cb.new_(clazz);
     }
 
-    final String getName() {
-        return name;
-    }
-
-    final String getDescriptor() {
-        return descriptor;
-    }
-
-    final Type getReturnType() {
-        return returnType;
-    }
-
-    final Type[] getArgumentTypes() {
-        return argumentTypes;
-    }
-
-    /**
-     * Check whether access for this method is static
-     * @return true if static
-     */
-    protected final boolean isStatic() {
-        return (getAccess() & ACC_STATIC) != 0;
-    }
-
-    /**
-     * Check whether this method is a constructor
-     * @return true if constructor
-     */
-    protected final boolean isConstructor() {
-        return "<init>".equals(name);
-    }
-
-    void newObject(final String type) {
-        super.visitTypeInsn(NEW, type);
-    }
-
-    void newObjectArray(final String type) {
-        super.visitTypeInsn(ANEWARRAY, type);
-    }
-
+    /** Loads {@code this}; fails if the method being generated is static. */
     void loadThis() {
-        if ((access & ACC_STATIC) != 0) {
-            throw new IllegalStateException("no 'this' inside static method");
-        }
-        super.visitVarInsn(ALOAD, 0);
-    }
-
-    void returnValue() {
-        super.visitInsn(returnType.getOpcode(IRETURN));
-    }
-
-    void returnVoid() {
-        super.visitInsn(RETURN);
-    }
-
-    // load, store
-    void arrayLoad(final Type type) {
-        super.visitInsn(type.getOpcode(IALOAD));
-    }
-
-    void arrayLoad() {
-        super.visitInsn(AALOAD);
-    }
-
-    void arrayStore(final Type type) {
-        super.visitInsn(type.getOpcode(IASTORE));
-    }
-
-    void arrayStore() {
-        super.visitInsn(AASTORE);
-    }
-
-    void loadLiteral(final Object value) {
-        super.visitLdcInsn(value);
-    }
-
-    void classLiteral(final String className) {
-        super.visitLdcInsn(className);
-    }
-
-    void loadLocal(final Type type, final int index) {
-        super.visitVarInsn(type.getOpcode(ILOAD), index);
+        cb.aload(cb.receiverSlot());
     }
 
     void loadLocal(final int index) {
-        super.visitVarInsn(ALOAD, index);
+        cb.aload(index);
     }
 
-    void storeLocal(final Type type, final int index) {
-        super.visitVarInsn(type.getOpcode(ISTORE), index);
+    void returnValue() {
+        cb.return_(TypeKind.from(type.returnType()));
     }
 
-    void storeLocal(final int index) {
-        super.visitVarInsn(ASTORE, index);
+    void returnVoid() {
+        assert CD_void.equals(type.returnType()) : type;
+        cb.return_();
     }
 
-    void checkcast(final String type) {
-        super.visitTypeInsn(CHECKCAST, type);
+    void loadLiteral(final ConstantDesc value) {
+        cb.loadConstant(value);
     }
 
-    // push constants/literals
     void pushNull() {
-        super.visitInsn(ACONST_NULL);
+        cb.aconst_null();
     }
 
     void push(final int value) {
-        if (value >= -1 && value <= 5) {
-            super.visitInsn(ICONST_0 + value);
-        } else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
-            super.visitIntInsn(BIPUSH, value);
-        } else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
-            super.visitIntInsn(SIPUSH, value);
-        } else {
-            super.visitLdcInsn(value);
-        }
-    }
-
-    void loadClass(final String className) {
-        super.visitLdcInsn(Type.getObjectType(className));
+        cb.loadConstant(value);
     }
 
     void pop() {
-        super.visitInsn(POP);
+        cb.pop();
     }
 
-    // various "dups"
     void dup() {
-        super.visitInsn(DUP);
+        cb.dup();
     }
 
-    void dup2() {
-        super.visitInsn(DUP2);
+    /** Pushes a method handle for a static method. */
+    void loadStaticHandle(final ClassDesc owner, final String name, final MethodTypeDesc methodType) {
+        cb.loadConstant(MethodHandleDesc.ofMethod(DirectMethodHandleDesc.Kind.STATIC, owner, name, methodType));
     }
 
-    void swap() {
-        super.visitInsn(SWAP);
-    }
-
-    void dupArrayValue(final int arrayOpcode) {
-        switch (arrayOpcode) {
-            case IALOAD: case FALOAD:
-            case AALOAD: case BALOAD:
-            case CALOAD: case SALOAD:
-            case IASTORE: case FASTORE:
-            case AASTORE: case BASTORE:
-            case CASTORE: case SASTORE:
-                dup();
-            break;
-
-            case LALOAD: case DALOAD:
-            case LASTORE: case DASTORE:
-                dup2();
-            break;
-            default:
-                throw new AssertionError("invalid dup");
-        }
-    }
-
-    void dupReturnValue(final int returnOpcode) {
-        switch (returnOpcode) {
-            case IRETURN:
-            case FRETURN:
-            case ARETURN:
-                super.visitInsn(DUP);
-                return;
-            case LRETURN:
-            case DRETURN:
-                super.visitInsn(DUP2);
-                return;
-            case RETURN:
-                return;
-            default:
-                throw new IllegalArgumentException("not return");
-        }
-    }
-
-    void dupValue(final Type type) {
-        switch (type.getSize()) {
-            case 1:
-                dup();
-            break;
-            case 2:
-                dup2();
-            break;
-            default:
-                throw new AssertionError("invalid dup");
-        }
-    }
-
-    void dupValue(final String desc) {
-        final int typeCode = desc.charAt(0);
-        switch (typeCode) {
-            case '[':
-            case 'L':
-            case 'Z':
-            case 'C':
-            case 'B':
-            case 'S':
-            case 'I':
-                super.visitInsn(DUP);
-                break;
-            case 'J':
-            case 'D':
-                super.visitInsn(DUP2);
-                break;
-            default:
-                throw new RuntimeException("invalid signature");
-        }
-    }
-
-    // push default value of given type desc
-    void defaultValue(final String desc) {
-        final int typeCode = desc.charAt(0);
-        switch (typeCode) {
-            case '[':
-            case 'L':
-                super.visitInsn(ACONST_NULL);
-                break;
-            case 'Z':
-            case 'C':
-            case 'B':
-            case 'S':
-            case 'I':
-                super.visitInsn(ICONST_0);
-                break;
-            case 'J':
-                super.visitInsn(LCONST_0);
-                break;
-            case 'F':
-                super.visitInsn(FCONST_0);
-                break;
-            case 'D':
-                super.visitInsn(DCONST_0);
-                break;
-            default:
-                throw new AssertionError("invalid desc " + desc);
-        }
+    /** Pushes a method handle for a virtual method. */
+    void loadVirtualHandle(final ClassDesc owner, final String name, final MethodTypeDesc methodType) {
+        cb.loadConstant(MethodHandleDesc.ofMethod(DirectMethodHandleDesc.Kind.VIRTUAL, owner, name, methodType));
     }
 
     // invokes, field get/sets
-    void invokeInterface(final String owner, final String method, final String desc) {
-        super.visitMethodInsn(INVOKEINTERFACE, owner, method, desc, true);
+    void invokeInterface(final ClassDesc owner, final String method, final MethodTypeDesc desc) {
+        cb.invokeinterface(owner, method, desc);
     }
 
-    void invokeVirtual(final String owner, final String method, final String desc) {
-        super.visitMethodInsn(INVOKEVIRTUAL, owner, method, desc, false);
+    void invokeVirtual(final ClassDesc owner, final String method, final MethodTypeDesc desc) {
+        cb.invokevirtual(owner, method, desc);
     }
 
-    void invokeSpecial(final String owner, final String method, final String desc) {
-        super.visitMethodInsn(INVOKESPECIAL, owner, method, desc, false);
+    void invokeSpecial(final ClassDesc owner, final String method, final MethodTypeDesc desc) {
+        cb.invokespecial(owner, method, desc);
     }
 
-    void invokeStatic(final String owner, final String method, final String desc) {
-        super.visitMethodInsn(INVOKESTATIC, owner, method, desc, false);
+    void invokeStatic(final ClassDesc owner, final String method, final MethodTypeDesc desc) {
+        cb.invokestatic(owner, method, desc);
     }
 
-    void putStatic(final String owner, final String field, final String desc) {
-        super.visitFieldInsn(PUTSTATIC, owner, field, desc);
+    void putStatic(final ClassDesc owner, final String field, final ClassDesc desc) {
+        cb.putstatic(owner, field, desc);
     }
 
-    void getStatic(final String owner, final String field, final String desc) {
-        super.visitFieldInsn(GETSTATIC, owner, field, desc);
+    void getStatic(final ClassDesc owner, final String field, final ClassDesc desc) {
+        cb.getstatic(owner, field, desc);
     }
 
-    void putField(final String owner, final String field, final String desc) {
-        super.visitFieldInsn(PUTFIELD, owner, field, desc);
+    void putField(final ClassDesc owner, final String field, final ClassDesc desc) {
+        cb.putfield(owner, field, desc);
     }
 
-    void getField(final String owner, final String field, final String desc) {
-        super.visitFieldInsn(GETFIELD, owner, field, desc);
+    void getField(final ClassDesc owner, final String field, final ClassDesc desc) {
+        cb.getfield(owner, field, desc);
     }
 
-    private static boolean linkLogicIsEmpty(final Type type) {
-        assert EMPTY_LINK_LOGIC_TYPE != null; //type is ok for null if we are a @SpecializedFunction without any attribs
-        return EMPTY_LINK_LOGIC_TYPE.equals(type);
-    }
-
-    void memberInfoArray(final String className, final List<MemberInfo> mis) {
+    /**
+     * Pushes a {@code Specialization[]} built from the given members, or null if
+     * there are none.
+     */
+    void memberInfoArray(final ClassDesc className, final List<MemberInfo> mis) {
         if (mis.isEmpty()) {
             pushNull();
             return;
         }
 
-        int pos = 0;
         push(mis.size());
-        newObjectArray(SPECIALIZATION_TYPE);
+        cb.anewarray(CD_Specialization);
+        int pos = 0;
         for (final MemberInfo mi : mis) {
             dup();
             push(pos++);
-            visitTypeInsn(NEW, SPECIALIZATION_TYPE);
+            cb.new_(CD_Specialization);
             dup();
-            visitLdcInsn(new Handle(H_INVOKESTATIC, className, mi.getJavaName(), mi.getJavaDesc(), false));
-            final Type    linkLogicClass = mi.getLinkLogicClass();
-            final boolean linkLogic      = !linkLogicIsEmpty(linkLogicClass);
-            final String  ctor           = linkLogic ? SPECIALIZATION_INIT3 : SPECIALIZATION_INIT2;
-            if (linkLogic) {
-                visitLdcInsn(linkLogicClass);
+            loadStaticHandle(className, mi.getJavaName(), mi.getMethodType());
+            final ClassDesc linkLogicClass = mi.getLinkLogicClass();
+            final boolean hasLinkLogic = !EMPTY_LINK_LOGIC_TYPE.equals(linkLogicClass);
+            if (hasLinkLogic) {
+                cb.loadConstant(linkLogicClass);
             }
-            visitInsn(mi.isOptimistic() ? ICONST_1 : ICONST_0);
-            visitInsn(mi.convertsNumericArgs() ? ICONST_1 : ICONST_0);
-            visitMethodInsn(INVOKESPECIAL, SPECIALIZATION_TYPE, INIT, ctor, false);
-            arrayStore(TYPE_SPECIALIZATION);
+            cb.loadConstant(mi.isOptimistic() ? 1 : 0);
+            cb.loadConstant(mi.convertsNumericArgs() ? 1 : 0);
+            invokeSpecial(CD_Specialization, INIT, hasLinkLogic ? MTD_Specialization_init3 : MTD_Specialization_init2);
+            cb.aastore();
         }
     }
 
-    void computeMaxs() {
-        // These values are ignored as we create class writer
-        // with ClassWriter.COMPUTE_MAXS flag.
-        super.visitMaxs(Short.MAX_VALUE, Short.MAX_VALUE);
-    }
-
-    // debugging support - print calls
-    void println(final String msg) {
-        super.visitFieldInsn(GETSTATIC,
-                    "java/lang/System",
-                    "out",
-                    "Ljava/io/PrintStream;");
-        super.visitLdcInsn(msg);
-        super.visitMethodInsn(INVOKEVIRTUAL,
-                    "java/io/PrintStream",
-                    "println",
-                    "(Ljava/lang/String;)V",
-                    false);
-    }
-
-    // print the object on the top of the stack
-    void printObject() {
-        super.visitFieldInsn(GETSTATIC,
-                    "java/lang/System",
-                    "out",
-                    "Ljava/io/PrintStream;");
-        super.visitInsn(SWAP);
-        super.visitMethodInsn(INVOKEVIRTUAL,
-                    "java/io/PrintStream",
-                    "println",
-                    "(Ljava/lang/Object;)V",
-                    false);
+    /**
+     * Continues an instruction the surrounding transform is relaying through unchanged.
+     */
+    void relay(final Opcode opcode, final ClassDesc owner, final String name, final MethodTypeDesc desc) {
+        cb.invoke(opcode, owner, name, desc, opcode == Opcode.INVOKEINTERFACE);
     }
 }

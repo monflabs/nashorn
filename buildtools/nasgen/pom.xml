@@ -47,17 +47,7 @@ questions.
     Not published: this is a build tool, not part of the distribution.
   </description>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.ow2.asm</groupId>
-      <artifactId>asm</artifactId>
-    </dependency>
-    <dependency>
-      <!-- for CheckClassAdapter, used when nasgen's DEBUG flag is on -->
-      <groupId>org.ow2.asm</groupId>
-      <artifactId>asm-util</artifactId>
-    </dependency>
-  </dependencies>
+  <!-- No dependencies: the bytecode work is done with java.lang.classfile. -->
 
   <build>
     <plugins>

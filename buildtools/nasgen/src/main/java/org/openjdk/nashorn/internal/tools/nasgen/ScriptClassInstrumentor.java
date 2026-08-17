@@ -25,31 +25,34 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.DUP;
-import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.NEW;
-import static org.objectweb.asm.Opcodes.PUTFIELD;
-import static org.objectweb.asm.Opcodes.RETURN;
+import static java.lang.constant.ConstantDescs.CD_Object;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.$CLINIT$;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CD_ScriptObject;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CLINIT;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.DEFAULT_INIT_DESC;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.INIT;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.OBJECT_DESC;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.SCRIPTOBJECT_TYPE;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.MTD_void;
+
 import java.io.IOException;
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.Attribute;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.FieldVisitor;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.util.CheckClassAdapter;
+import java.lang.classfile.Annotation;
+import java.lang.classfile.ClassBuilder;
+import java.lang.classfile.ClassElement;
+import java.lang.classfile.ClassModel;
+import java.lang.classfile.ClassTransform;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.CodeElement;
+import java.lang.classfile.CodeModel;
+import java.lang.classfile.CodeTransform;
+import java.lang.classfile.FieldModel;
+import java.lang.classfile.MethodModel;
+import java.lang.classfile.Opcode;
+import java.lang.classfile.attribute.RuntimeVisibleAnnotationsAttribute;
+import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.classfile.instruction.ReturnInstruction;
+import java.lang.constant.ClassDesc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.function.Consumer;
 import org.openjdk.nashorn.internal.tools.nasgen.MemberInfo.Kind;
 
 /**
@@ -63,202 +66,209 @@ import org.openjdk.nashorn.internal.tools.nasgen.MemberInfo.Kind;
  * 2) add "Map" type static field named "$map".
  * 3) add static initializer block to initialize map.
  */
-public class ScriptClassInstrumentor extends ClassVisitor {
+public final class ScriptClassInstrumentor implements ClassTransform {
     private final ScriptClassInfo scriptClassInfo;
+    private final ClassDesc className;
     private final int memberCount;
-    private boolean staticInitFound;
+    private final boolean staticInitFound;
 
-    ScriptClassInstrumentor(final ClassVisitor visitor, final ScriptClassInfo sci) {
-        super(Main.ASM_VERSION, visitor);
+    private ScriptClassInstrumentor(final ClassModel cm, final ScriptClassInfo sci) {
         if (sci == null) {
             throw new IllegalArgumentException("Null ScriptClassInfo, is the class annotated?");
         }
         this.scriptClassInfo = sci;
-        this.memberCount = scriptClassInfo.getInstancePropertyCount();
+        this.className = sci.getJavaType();
+        this.memberCount = sci.getInstancePropertyCount();
+        this.staticInitFound = cm.methods().stream()
+                                 .anyMatch(m -> m.methodName().equalsString(CLINIT));
+    }
+
+    /**
+     * Instruments a {@code @ScriptClass} annotated class.
+     *
+     * @param cm  the parsed class
+     * @param sci the nasgen annotations found on it
+     * @return the instrumented class
+     */
+    static byte[] instrument(final ClassModel cm, final ScriptClassInfo sci) {
+        final ScriptClassInstrumentor instrumentor = new ScriptClassInstrumentor(cm, sci);
+        return ClassGenerator.CLASS_FILE.transformClass(cm,
+                instrumentor.andThen(ClassTransform.endHandler(instrumentor::emitAdditions)));
     }
 
     @Override
-    public AnnotationVisitor visitAnnotation(final String desc, final boolean visible) {
-        if (ScriptClassInfo.annotations.containsKey(desc)) {
-            // ignore @ScriptClass
-            return null;
+    public void accept(final ClassBuilder clb, final ClassElement element) {
+        switch (element) {
+            case RuntimeVisibleAnnotationsAttribute annos -> stripAnnotations(annos, clb::with);
+            case FieldModel field -> transformField(clb, field);
+            case MethodModel method -> transformMethod(clb, method);
+            default -> clb.with(element);
         }
-
-        return super.visitAnnotation(desc, visible);
     }
 
-    @Override
-    public FieldVisitor visitField(final int fieldAccess, final String fieldName,
-            final String fieldDesc, final String signature, final Object value) {
-        final MemberInfo memInfo = scriptClassInfo.find(fieldName, fieldDesc, fieldAccess);
+    private void transformField(final ClassBuilder clb, final FieldModel field) {
+        final MemberInfo memInfo = scriptClassInfo.find(field.fieldName().stringValue(),
+                field.fieldType().stringValue(), field.flags().flagsMask());
         if (memInfo != null && memInfo.getKind() == Kind.PROPERTY &&
                 memInfo.getWhere() != Where.INSTANCE && !memInfo.isStaticFinal()) {
             // non-instance @Property fields - these have to go elsewhere unless 'static final'
-            return null;
+            return;
         }
 
-        final FieldVisitor delegateFV = super.visitField(fieldAccess, fieldName, fieldDesc,
-                signature, value);
-        return new FieldVisitor(Main.ASM_VERSION, delegateFV) {
-            @Override
-            public AnnotationVisitor visitAnnotation(final String desc, final boolean visible) {
-                if (ScriptClassInfo.annotations.containsKey(desc)) {
-                    // ignore script field annotations
-                    return null;
-                }
+        clb.transformField(field, (fb, element) -> {
+            switch (element) {
+                case RuntimeVisibleAnnotationsAttribute annos -> stripAnnotations(annos, fb::with);
+                default -> fb.with(element);
+            }
+        });
+    }
 
-                return fv.visitAnnotation(desc, visible);
+    private void transformMethod(final ClassBuilder clb, final MethodModel method) {
+        final boolean isConstructor = method.methodName().equalsString(INIT);
+        final boolean isStaticInit  = method.methodName().equalsString(CLINIT);
+
+        clb.transformMethod(method, (mb, element) -> {
+            switch (element) {
+                case RuntimeVisibleAnnotationsAttribute annos -> stripAnnotations(annos, mb::with);
+                case CodeModel code -> mb.transformCode(code, bodyTransform(isConstructor, isStaticInit));
+                default -> mb.with(element);
+            }
+        });
+    }
+
+    /**
+     * Hooks the two places nasgen injects code into hand written methods: the
+     * end of {@code <clinit>}, and the point in a constructor right after the
+     * super call.
+     */
+    private CodeTransform bodyTransform(final boolean isConstructor, final boolean isStaticInit) {
+        return (CodeBuilder cb, CodeElement element) -> {
+            // call $clinit$ just before return from <clinit>
+            if (isStaticInit && element instanceof ReturnInstruction) {
+                cb.invokestatic(className, $CLINIT$, MTD_void);
+                cb.with(element);
+                return;
             }
 
-            @Override
-            public void visitAttribute(final Attribute attr) {
-                fv.visitAttribute(attr);
-            }
+            cb.with(element);
 
-            @Override
-            public void visitEnd() {
-                fv.visitEnd();
+            if (isConstructor && memberCount > 0 && isSuperConstructorCall(element)) {
+                initInstanceMembers(cb);
             }
         };
     }
 
-    @Override
-    public MethodVisitor visitMethod(final int methodAccess, final String methodName,
-            final String methodDesc, final String signature, final String[] exceptions) {
+    private static boolean isSuperConstructorCall(final CodeElement element) {
+        return element instanceof InvokeInstruction invoke
+            && invoke.opcode() == Opcode.INVOKESPECIAL
+            && invoke.name().equalsString(INIT)
+            && CD_ScriptObject.equals(invoke.owner().asSymbol());
+    }
 
-        final boolean isConstructor = INIT.equals(methodName);
-        final boolean isStaticInit  = CLINIT.equals(methodName);
+    /** Initializes the @Property and @Function fields that live on the instance. */
+    private void initInstanceMembers(final CodeBuilder cb) {
+        final MethodGenerator mi = new MethodGenerator(cb, MTD_void);
+        for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
+            if (memInfo.isInstanceProperty() && !memInfo.getInitClass().isEmpty()) {
+                final ClassDesc clazz = ClassDesc.of(memInfo.getInitClass());
+                mi.loadThis();
+                mi.newObject(clazz);
+                mi.dup();
+                mi.invokeSpecial(clazz, INIT, MTD_void);
+                mi.putField(className, memInfo.getJavaName(), memInfo.getFieldType());
+            }
 
-        if (isStaticInit) {
-            staticInitFound = true;
+            if (memInfo.isInstanceFunction()) {
+                mi.loadThis();
+                ClassGenerator.newFunction(mi, scriptClassInfo.getName(), className, memInfo,
+                        scriptClassInfo.findSpecializations(memInfo.getJavaName()));
+                mi.putField(className, memInfo.getJavaName(), CD_Object);
+            }
         }
-
-        final MethodGenerator delegateMV = new MethodGenerator(super.visitMethod(methodAccess, methodName, methodDesc,
-                signature, exceptions), methodAccess, methodName, methodDesc);
-
-        return new MethodVisitor(Main.ASM_VERSION, delegateMV) {
-            @Override
-            public void visitInsn(final int opcode) {
-                // call $clinit$ just before return from <clinit>
-                if (isStaticInit && opcode == RETURN) {
-                    super.visitMethodInsn(INVOKESTATIC, scriptClassInfo.getJavaName(),
-                            $CLINIT$, DEFAULT_INIT_DESC, false);
-                }
-                super.visitInsn(opcode);
-            }
-
-            @Override
-            public void visitMethodInsn(final int opcode, final String owner, final String name, final String desc, final boolean itf) {
-                if (isConstructor && opcode == INVOKESPECIAL &&
-                        INIT.equals(name) && SCRIPTOBJECT_TYPE.equals(owner)) {
-                    super.visitMethodInsn(opcode, owner, name, desc, false);
-
-                    if (memberCount > 0) {
-                        // initialize @Property fields if needed
-                        for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
-                            if (memInfo.isInstanceProperty() && !memInfo.getInitClass().isEmpty()) {
-                                final String clazz = memInfo.getInitClass();
-                                super.visitVarInsn(ALOAD, 0);
-                                super.visitTypeInsn(NEW, clazz);
-                                super.visitInsn(DUP);
-                                super.visitMethodInsn(INVOKESPECIAL, clazz,
-                                    INIT, DEFAULT_INIT_DESC, false);
-                                super.visitFieldInsn(PUTFIELD, scriptClassInfo.getJavaName(),
-                                    memInfo.getJavaName(), memInfo.getJavaDesc());
-                            }
-
-                            if (memInfo.isInstanceFunction()) {
-                                super.visitVarInsn(ALOAD, 0);
-                                ClassGenerator.newFunction(delegateMV, scriptClassInfo.getName(), scriptClassInfo.getJavaName(), memInfo, scriptClassInfo.findSpecializations(memInfo.getJavaName()));
-                                super.visitFieldInsn(PUTFIELD, scriptClassInfo.getJavaName(),
-                                    memInfo.getJavaName(), OBJECT_DESC);
-                            }
-                        }
-                    }
-                } else {
-                    super.visitMethodInsn(opcode, owner, name, desc, itf);
-                }
-            }
-
-            @Override
-            public AnnotationVisitor visitAnnotation(final String desc, final boolean visible) {
-                if (ScriptClassInfo.annotations.containsKey(desc)) {
-                    // ignore script method annotations
-                    return null;
-                }
-                return super.visitAnnotation(desc, visible);
-            }
-        };
     }
 
-    @Override
-    public void visitEnd() {
-        emitFields();
-        emitStaticInitializer();
-        emitGettersSetters();
-        super.visitEnd();
+    /** Everything nasgen appends to the class it instruments. */
+    private void emitAdditions(final ClassBuilder clb) {
+        emitFields(clb);
+        emitStaticInitializer(clb);
+        emitGettersSetters(clb);
     }
 
-    private void emitFields() {
+    private void emitFields(final ClassBuilder clb) {
         // introduce "Function" type instance fields for each
         // instance @Function in script class info
-        final String className = scriptClassInfo.getJavaName();
         for (MemberInfo memInfo : scriptClassInfo.getMembers()) {
             if (memInfo.isInstanceFunction()) {
-                ClassGenerator.addFunctionField(cv, memInfo.getJavaName());
+                ClassGenerator.addFunctionField(clb, memInfo.getJavaName());
                 memInfo = (MemberInfo)memInfo.clone();
-                memInfo.setJavaDesc(OBJECT_DESC);
-                ClassGenerator.addGetter(cv, className, memInfo);
-                ClassGenerator.addSetter(cv, className, memInfo);
+                memInfo.setJavaDesc(CD_Object.descriptorString());
+                ClassGenerator.addGetter(clb, className, memInfo);
+                ClassGenerator.addSetter(clb, className, memInfo);
             }
         }
         // omit addMapField() since instance classes already define a static PropertyMap field
     }
 
-    void emitGettersSetters() {
+    private void emitGettersSetters(final ClassBuilder clb) {
         if (memberCount > 0) {
             for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
-                final String className = scriptClassInfo.getJavaName();
                 if (memInfo.isInstanceProperty()) {
-                    ClassGenerator.addGetter(cv, className, memInfo);
+                    ClassGenerator.addGetter(clb, className, memInfo);
                     if (! memInfo.isFinal()) {
-                        ClassGenerator.addSetter(cv, className, memInfo);
+                        ClassGenerator.addSetter(clb, className, memInfo);
                     }
                 }
             }
         }
     }
 
-    private void emitStaticInitializer() {
-        final String className = scriptClassInfo.getJavaName();
+    private void emitStaticInitializer(final ClassBuilder clb) {
         if (! staticInitFound) {
-            // no user written <clinit> and so create one
-            final MethodVisitor mv = ClassGenerator.makeStaticInitializer(this);
-            mv.visitCode();
-            mv.visitInsn(RETURN);
-            mv.visitMaxs(Short.MAX_VALUE, 0);
-            mv.visitEnd();
+            // no user written <clinit> and so create one - the same one the
+            // body transform would have produced for an empty static initializer
+            ClassGenerator.withStaticInitializer(clb, CLINIT, mi -> {
+                mi.invokeStatic(className, $CLINIT$, MTD_void);
+                mi.returnVoid();
+            });
         }
+
         // Now generate $clinit$
-        final MethodGenerator mi = ClassGenerator.makeStaticInitializer(this, $CLINIT$);
-        ClassGenerator.emitStaticInitPrefix(mi, className, memberCount);
-        if (memberCount > 0) {
-            for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
-                if (memInfo.isInstanceProperty() || memInfo.isInstanceFunction()) {
-                    ClassGenerator.linkerAddGetterSetter(mi, className, memInfo);
-                } else if (memInfo.isInstanceGetter()) {
-                    final MemberInfo setter = scriptClassInfo.findSetter(memInfo);
-                    ClassGenerator.linkerAddGetterSetter(mi, className, memInfo, setter);
+        ClassGenerator.withStaticInitializer(clb, $CLINIT$, mi -> {
+            ClassGenerator.emitStaticInitPrefix(mi, memberCount);
+            if (memberCount > 0) {
+                for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
+                    if (memInfo.isInstanceProperty() || memInfo.isInstanceFunction()) {
+                        ClassGenerator.linkerAddGetterSetter(mi, className, memInfo);
+                    } else if (memInfo.isInstanceGetter()) {
+                        final MemberInfo setter = scriptClassInfo.findSetter(memInfo);
+                        ClassGenerator.linkerAddGetterSetter(mi, className, memInfo, setter);
+                    }
                 }
             }
-        }
-        ClassGenerator.emitStaticInitSuffix(mi, className);
+            ClassGenerator.emitStaticInitSuffix(mi, className);
+        });
     }
 
     /**
-     * External entry point for ScriptClassInfoCollector if run from the command line
+     * Relays the annotations nasgen does not own, dropping the attribute entirely
+     * if that leaves nothing. Only the runtime visible attribute is filtered: every
+     * annotation in {@link ScriptClassInfo#annotations} has RUNTIME retention, so
+     * the invisible one cannot hold any of them.
+     */
+    private static void stripAnnotations(final RuntimeVisibleAnnotationsAttribute annos,
+            final Consumer<RuntimeVisibleAnnotationsAttribute> emit) {
+        final List<Annotation> kept = annos.annotations().stream()
+                .filter(anno -> !ScriptClassInfo.annotations.containsKey(anno.classSymbol()))
+                .toList();
+        if (!kept.isEmpty()) {
+            emit.accept(RuntimeVisibleAnnotationsAttribute.of(kept));
+        }
+    }
+
+    /**
+     * External entry point for ScriptClassInstrumentor if run from the command line
      *
-     * @param args arguments - one argument is needed, the name of the class to collect info from
+     * @param args arguments - one argument is needed, the name of the class to instrument
      *
      * @throws IOException if there are problems reading class
      */
@@ -268,10 +278,11 @@ public class ScriptClassInstrumentor extends ClassVisitor {
             System.exit(1);
         }
 
-        final String fileName = args[0].replace('.', '/') + ".class";
-        final ScriptClassInfo sci = ClassGenerator.getScriptClassInfo(fileName);
+        final Path file = Path.of(args[0].replace('.', '/') + ".class");
+        final ClassModel cm = ClassGenerator.CLASS_FILE.parse(Files.readAllBytes(file));
+        final ScriptClassInfo sci = ScriptClassInfoCollector.collect(cm);
         if (sci == null) {
-            System.err.println("No @ScriptClass in " + fileName);
+            System.err.println("No @ScriptClass in " + file);
             System.exit(2);
             throw new AssertionError(); //guard against warning that sci is null below
         }
@@ -283,16 +294,6 @@ public class ScriptClassInstrumentor extends ClassVisitor {
             System.exit(3);
         }
 
-        final ClassWriter writer = ClassGenerator.makeClassWriter();
-        try (final BufferedInputStream bis = new BufferedInputStream(new FileInputStream(fileName))) {
-            final ClassReader reader = new ClassReader(bis);
-            final CheckClassAdapter checker = new CheckClassAdapter(writer);
-            final ScriptClassInstrumentor instr = new ScriptClassInstrumentor(checker, sci);
-            reader.accept(instr, 0);
-        }
-
-        try (FileOutputStream fos = new FileOutputStream(fileName)) {
-            fos.write(writer.toByteArray());
-        }
+        Files.write(file, instrument(cm, sci));
     }
 }

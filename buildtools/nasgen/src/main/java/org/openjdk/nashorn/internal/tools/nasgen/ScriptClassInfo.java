@@ -25,16 +25,14 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.OBJ_ANNO_PKG;
+
+import java.lang.constant.ClassDesc;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import org.objectweb.asm.Type;
 import org.openjdk.nashorn.internal.tools.nasgen.MemberInfo.Kind;
-
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.OBJ_ANNO_PKG;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.RUNTIME_PKG;
 
 /**
  * All annotation information from a class that is annotated with
@@ -42,39 +40,31 @@ import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.RUNTIME_
  *
  */
 public final class ScriptClassInfo {
-    private static String getTypeDescriptor(final String pkg, final String name) {
-        return "L" + pkg + name + ";";
-    }
+    // the annotations nasgen reacts to
+    static final ClassDesc SCRIPT_CLASS_ANNO = ClassDesc.of(OBJ_ANNO_PKG, "ScriptClass");
+    static final ClassDesc CONSTRUCTOR_ANNO  = ClassDesc.of(OBJ_ANNO_PKG, "Constructor");
+    static final ClassDesc FUNCTION_ANNO     = ClassDesc.of(OBJ_ANNO_PKG, "Function");
+    static final ClassDesc GETTER_ANNO       = ClassDesc.of(OBJ_ANNO_PKG, "Getter");
+    static final ClassDesc SETTER_ANNO       = ClassDesc.of(OBJ_ANNO_PKG, "Setter");
+    static final ClassDesc PROPERTY_ANNO     = ClassDesc.of(OBJ_ANNO_PKG, "Property");
+    static final ClassDesc SPECIALIZED_FUNCTION_ANNO = ClassDesc.of(OBJ_ANNO_PKG, "SpecializedFunction");
+    static final ClassDesc WHERE_ENUM        = ClassDesc.of(OBJ_ANNO_PKG, "Where");
 
-    // descriptors for various annotations
-    static final String SCRIPT_CLASS_ANNO_DESC  = getTypeDescriptor(OBJ_ANNO_PKG, "ScriptClass");
-    static final String CONSTRUCTOR_ANNO_DESC   = getTypeDescriptor(OBJ_ANNO_PKG, "Constructor");
-    static final String FUNCTION_ANNO_DESC      = getTypeDescriptor(OBJ_ANNO_PKG, "Function");
-    static final String GETTER_ANNO_DESC        = getTypeDescriptor(OBJ_ANNO_PKG, "Getter");
-    static final String SETTER_ANNO_DESC        = getTypeDescriptor(OBJ_ANNO_PKG, "Setter");
-    static final String PROPERTY_ANNO_DESC      = getTypeDescriptor(OBJ_ANNO_PKG, "Property");
-    static final String WHERE_ENUM_DESC         = getTypeDescriptor(OBJ_ANNO_PKG, "Where");
-    static final String LINK_LOGIC_DESC         = getTypeDescriptor(OBJ_ANNO_PKG, "SpecializedFunction$LinkLogic");
-    static final String SPECIALIZED_FUNCTION    = getTypeDescriptor(OBJ_ANNO_PKG, "SpecializedFunction");
-
-    static final Map<String, Kind> annotations = new HashMap<>();
-
-    static {
-        annotations.put(SCRIPT_CLASS_ANNO_DESC, Kind.SCRIPT_CLASS);
-        annotations.put(FUNCTION_ANNO_DESC, Kind.FUNCTION);
-        annotations.put(CONSTRUCTOR_ANNO_DESC, Kind.CONSTRUCTOR);
-        annotations.put(GETTER_ANNO_DESC, Kind.GETTER);
-        annotations.put(SETTER_ANNO_DESC, Kind.SETTER);
-        annotations.put(PROPERTY_ANNO_DESC, Kind.PROPERTY);
-        annotations.put(SPECIALIZED_FUNCTION, Kind.SPECIALIZED_FUNCTION);
-    }
+    static final Map<ClassDesc, Kind> annotations = Map.of(
+        SCRIPT_CLASS_ANNO,          Kind.SCRIPT_CLASS,
+        FUNCTION_ANNO,              Kind.FUNCTION,
+        CONSTRUCTOR_ANNO,           Kind.CONSTRUCTOR,
+        GETTER_ANNO,                Kind.GETTER,
+        SETTER_ANNO,                Kind.SETTER,
+        PROPERTY_ANNO,              Kind.PROPERTY,
+        SPECIALIZED_FUNCTION_ANNO,  Kind.SPECIALIZED_FUNCTION);
 
     // name of the script class
     private String name;
     // member info for script properties
     private List<MemberInfo> members = Collections.emptyList();
-    // java class name that is annotated with @ScriptClass
-    private String javaName;
+    // java class that is annotated with @ScriptClass
+    private ClassDesc javaType;
 
     /**
      * @return the name
@@ -241,25 +231,32 @@ public final class ScriptClassInfo {
     }
 
     /**
-     * @return the javaName
+     * @return the java class annotated with {@code @ScriptClass}
      */
-    public String getJavaName() {
-        return javaName;
+    public ClassDesc getJavaType() {
+        return javaType;
     }
 
     /**
-     * @param javaName the javaName to set
+     * @param javaType the java class to set
      */
-    void setJavaName(final String javaName) {
-        this.javaName = javaName;
+    void setJavaType(final ClassDesc javaType) {
+        this.javaType = javaType;
     }
 
-    String getConstructorClassName() {
-        return getJavaName() + StringConstants.CONSTRUCTOR_SUFFIX;
+    ClassDesc getConstructorClass() {
+        return nested(StringConstants.CONSTRUCTOR_SUFFIX);
     }
 
-    String getPrototypeClassName() {
-        return getJavaName() + StringConstants.PROTOTYPE_SUFFIX;
+    ClassDesc getPrototypeClass() {
+        return nested(StringConstants.PROTOTYPE_SUFFIX);
+    }
+
+    private ClassDesc nested(final String suffix) {
+        final String pkg = javaType.packageName();
+        return pkg.isEmpty()
+            ? ClassDesc.of(javaType.displayName() + suffix)
+            : ClassDesc.of(pkg, javaType.displayName() + suffix);
     }
 
     void verify() {
@@ -281,6 +278,6 @@ public final class ScriptClassInfo {
     }
 
     private void error(final String msg) throws RuntimeException {
-        throw new RuntimeException(javaName + " : " + msg);
+        throw new RuntimeException(javaType.displayName() + " : " + msg);
     }
 }

@@ -25,21 +25,24 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import static org.objectweb.asm.Opcodes.ACC_FINAL;
-import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
-import static org.objectweb.asm.Opcodes.ACC_SUPER;
-import static org.objectweb.asm.Opcodes.V1_7;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.DEFAULT_INIT_DESC;
+import static java.lang.classfile.ClassFile.ACC_FINAL;
+import static java.lang.classfile.ClassFile.ACC_PUBLIC;
+import static java.lang.classfile.ClassFile.ACC_SUPER;
+import static java.lang.constant.ConstantDescs.CD_Object;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CD_PropertyMap;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CD_PrototypeObject;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.CLINIT;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.INIT;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.OBJECT_DESC;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.PROPERTYMAP_DESC;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.MTD_ScriptObject_init;
+import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.MTD_void;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.PROPERTYMAP_FIELD_NAME;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.PROTOTYPEOBJECT_TYPE;
 import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.PROTOTYPE_SUFFIX;
-import static org.openjdk.nashorn.internal.tools.nasgen.StringConstants.SCRIPTOBJECT_INIT_DESC;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.classfile.ClassBuilder;
+import java.lang.constant.ClassDesc;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * This class generates prototype class for a @ScriptClass annotated class.
@@ -47,93 +50,89 @@ import java.io.IOException;
  */
 public class PrototypeGenerator extends ClassGenerator {
     private final ScriptClassInfo scriptClassInfo;
-    private final String className;
+    private final ClassDesc className;
     private final int memberCount;
 
     PrototypeGenerator(final ScriptClassInfo sci) {
         this.scriptClassInfo = sci;
-        this.className = scriptClassInfo.getPrototypeClassName();
+        this.className = scriptClassInfo.getPrototypeClass();
         this.memberCount = scriptClassInfo.getPrototypeMemberCount();
     }
 
     byte[] getClassBytes() {
-        // new class extending from ScriptObject
-        cw.visit(V1_7, ACC_FINAL | ACC_SUPER, className, null, PROTOTYPEOBJECT_TYPE, null);
-        if (memberCount > 0) {
-            // add fields
-            emitFields();
-            // add <clinit>
-            emitStaticInitializer();
-        }
+        // new class extending from PrototypeObject
+        return CLASS_FILE.build(className, clb -> {
+            clb.withVersion(CLASS_VERSION, 0);
+            clb.withFlags(ACC_FINAL | ACC_SUPER);
+            clb.withSuperclass(CD_PrototypeObject);
 
-        // add <init>
-        emitConstructor();
+            if (memberCount > 0) {
+                emitFields(clb);
+                emitStaticInitializer(clb);
+            }
 
-        // add getClassName()
-        emitGetClassName(scriptClassInfo.getName());
-
-        cw.visitEnd();
-        return cw.toByteArray();
+            emitConstructor(clb);
+            emitGetClassName(clb, scriptClassInfo.getName());
+        });
     }
 
     // --Internals only below this point
-    private void emitFields() {
+    private void emitFields(final ClassBuilder clb) {
         // introduce "Function" type instance fields for each
         // prototype @Function in script class info
         for (MemberInfo memInfo : scriptClassInfo.getMembers()) {
             if (memInfo.isPrototypeFunction()) {
-                addFunctionField(memInfo.getJavaName());
+                addFunctionField(clb, memInfo.getJavaName());
                 memInfo = (MemberInfo)memInfo.clone();
-                memInfo.setJavaDesc(OBJECT_DESC);
-                addGetter(className, memInfo);
-                addSetter(className, memInfo);
+                memInfo.setJavaDesc(CD_Object.descriptorString());
+                addGetter(clb, className, memInfo);
+                addSetter(clb, className, memInfo);
             } else if (memInfo.isPrototypeProperty()) {
                 if (memInfo.isStaticFinal()) {
-                    addGetter(scriptClassInfo.getJavaName(), memInfo);
+                    addGetter(clb, scriptClassInfo.getJavaType(), memInfo);
                 } else {
-                    addField(memInfo.getJavaName(), memInfo.getJavaDesc());
+                    addField(clb, memInfo.getJavaName(), memInfo.getFieldType());
                     memInfo = (MemberInfo)memInfo.clone();
                     memInfo.setJavaAccess(ACC_PUBLIC);
-                    addGetter(className, memInfo);
-                    addSetter(className, memInfo);
+                    addGetter(clb, className, memInfo);
+                    addSetter(clb, className, memInfo);
                 }
             }
         }
 
-        addMapField();
+        addMapField(clb);
     }
 
-    private void emitStaticInitializer() {
-        final MethodGenerator mi = makeStaticInitializer();
-        emitStaticInitPrefix(mi, className, memberCount);
-        for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
-            if (memInfo.isPrototypeFunction() || memInfo.isPrototypeProperty()) {
-                linkerAddGetterSetter(mi, className, memInfo);
-            } else if (memInfo.isPrototypeGetter()) {
-                final MemberInfo setter = scriptClassInfo.findSetter(memInfo);
-                linkerAddGetterSetter(mi, scriptClassInfo.getJavaName(), memInfo, setter);
+    private void emitStaticInitializer(final ClassBuilder clb) {
+        withStaticInitializer(clb, CLINIT, mi -> {
+            emitStaticInitPrefix(mi, memberCount);
+            for (final MemberInfo memInfo : scriptClassInfo.getMembers()) {
+                if (memInfo.isPrototypeFunction() || memInfo.isPrototypeProperty()) {
+                    linkerAddGetterSetter(mi, className, memInfo);
+                } else if (memInfo.isPrototypeGetter()) {
+                    final MemberInfo setter = scriptClassInfo.findSetter(memInfo);
+                    linkerAddGetterSetter(mi, scriptClassInfo.getJavaType(), memInfo, setter);
+                }
             }
-        }
-        emitStaticInitSuffix(mi, className);
+            emitStaticInitSuffix(mi, className);
+        });
     }
 
-    private void emitConstructor() {
-        final MethodGenerator mi = makeConstructor();
-        mi.visitCode();
-        mi.loadThis();
-        if (memberCount > 0) {
-            // call "super(map$)"
-            mi.getStatic(className, PROPERTYMAP_FIELD_NAME, PROPERTYMAP_DESC);
-            mi.invokeSpecial(PROTOTYPEOBJECT_TYPE, INIT, SCRIPTOBJECT_INIT_DESC);
-            // initialize Function type fields
-            initFunctionFields(mi);
-        } else {
-            // call "super()"
-            mi.invokeSpecial(PROTOTYPEOBJECT_TYPE, INIT, DEFAULT_INIT_DESC);
-        }
-        mi.returnVoid();
-        mi.computeMaxs();
-        mi.visitEnd();
+    private void emitConstructor(final ClassBuilder clb) {
+        withConstructor(clb, mi -> {
+            mi.loadThis();
+            if (memberCount > 0) {
+                // call "super(map$)"
+                mi.getStatic(className, PROPERTYMAP_FIELD_NAME, CD_PropertyMap);
+                mi.invokeSpecial(CD_PrototypeObject, INIT, MTD_ScriptObject_init);
+                // initialize Function type fields
+                initFunctionFields(mi);
+            } else {
+                // call "super()"
+                mi.invokeSpecial(CD_PrototypeObject, INIT, MTD_void);
+            }
+            mi.returnVoid();
+        });
     }
 
     private void initFunctionFields(final MethodGenerator mi) {
@@ -142,8 +141,9 @@ public class PrototypeGenerator extends ClassGenerator {
                 continue;
             }
             mi.loadThis();
-            newFunction(mi, scriptClassInfo.getName(), scriptClassInfo.getJavaName(), memInfo, scriptClassInfo.findSpecializations(memInfo.getJavaName()));
-            mi.putField(className, memInfo.getJavaName(), OBJECT_DESC);
+            newFunction(mi, scriptClassInfo.getName(), scriptClassInfo.getJavaType(), memInfo,
+                    scriptClassInfo.findSpecializations(memInfo.getJavaName()));
+            mi.putField(className, memInfo.getJavaName(), CD_Object);
         }
     }
 
@@ -160,7 +160,7 @@ public class PrototypeGenerator extends ClassGenerator {
         }
 
         final String className = args[0].replace('.', '/');
-        final ScriptClassInfo sci = getScriptClassInfo(className + ".class");
+        final ScriptClassInfo sci = getScriptClassInfo(Path.of(className + ".class"));
         if (sci == null) {
             System.err.println("No @ScriptClass in " + className);
             System.exit(2);
@@ -173,8 +173,6 @@ public class PrototypeGenerator extends ClassGenerator {
             System.exit(3);
         }
         final PrototypeGenerator gen = new PrototypeGenerator(sci);
-        try (FileOutputStream fos = new FileOutputStream(className + PROTOTYPE_SUFFIX + ".class")) {
-            fos.write(gen.getClassBytes());
-        }
+        Files.write(Path.of(className + PROTOTYPE_SUFFIX + ".class"), gen.getClassBytes());
     }
 }

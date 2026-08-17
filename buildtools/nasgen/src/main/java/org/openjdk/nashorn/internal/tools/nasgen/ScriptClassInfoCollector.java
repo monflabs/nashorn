@@ -25,306 +25,195 @@
 
 package org.openjdk.nashorn.internal.tools.nasgen;
 
-import static org.openjdk.nashorn.internal.tools.nasgen.ScriptClassInfo.SCRIPT_CLASS_ANNO_DESC;
-import static org.openjdk.nashorn.internal.tools.nasgen.ScriptClassInfo.WHERE_ENUM_DESC;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
+import static java.lang.classfile.ClassFile.ACC_STATIC;
+import static org.openjdk.nashorn.internal.tools.nasgen.ScriptClassInfo.PROPERTY_ANNO;
+import static org.openjdk.nashorn.internal.tools.nasgen.ScriptClassInfo.SCRIPT_CLASS_ANNO;
+import static org.openjdk.nashorn.internal.tools.nasgen.ScriptClassInfo.WHERE_ENUM;
+
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.classfile.AttributedElement;
+import java.lang.classfile.Annotation;
+import java.lang.classfile.AnnotationValue;
+import java.lang.classfile.Attributes;
+import java.lang.classfile.ClassModel;
+import java.lang.classfile.FieldModel;
+import java.lang.classfile.MethodModel;
+import java.lang.constant.ClassDesc;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import org.objectweb.asm.AnnotationVisitor;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.FieldVisitor;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
+import java.util.Optional;
 import org.openjdk.nashorn.internal.tools.nasgen.MemberInfo.Kind;
 
 /**
- * This class collects all @ScriptClass and other annotation information from a
- * compiled .class file. Enforces that @Function/@Getter/@Setter/@Constructor
- * methods are declared to be 'static'.
+ * Collects all @ScriptClass and other annotation information from a compiled
+ * .class file. Enforces that @Function/@Getter/@Setter/@Constructor methods are
+ * declared to be 'static'.
  */
-public class ScriptClassInfoCollector extends ClassVisitor {
-    private String scriptClassName;
-    private List<MemberInfo> scriptMembers;
-    private String javaClassName;
-
-    ScriptClassInfoCollector(final ClassVisitor visitor) {
-        super(Main.ASM_VERSION, visitor);
+public final class ScriptClassInfoCollector {
+    private ScriptClassInfoCollector() {
     }
 
-    ScriptClassInfoCollector() {
-        this(new NullVisitor());
-    }
-
-    private void addScriptMember(final MemberInfo memInfo) {
-        if (scriptMembers == null) {
-            scriptMembers = new ArrayList<>();
-        }
-        scriptMembers.add(memInfo);
-    }
-
-    @Override
-    public void visit(final int version, final int access, final String name, final String signature,
-           final String superName, final String[] interfaces) {
-        super.visit(version, access, name, signature, superName, interfaces);
-        javaClassName = name;
-    }
-
-    @Override
-    public AnnotationVisitor visitAnnotation(final String desc, final boolean visible) {
-        final AnnotationVisitor delegateAV = super.visitAnnotation(desc, visible);
-        if (SCRIPT_CLASS_ANNO_DESC.equals(desc)) {
-            return new AnnotationVisitor(Main.ASM_VERSION, delegateAV) {
-                @Override
-                public void visit(final String name, final Object value) {
-                    if ("value".equals(name)) {
-                        scriptClassName = (String) value;
-                    }
-                    super.visit(name, value);
-                }
-            };
+    /**
+     * Reads the nasgen annotations off a class.
+     *
+     * @param cm the parsed class
+     * @return its script class info, or null if the class is not a {@code @ScriptClass}
+     */
+    static ScriptClassInfo collect(final ClassModel cm) {
+        final Optional<Annotation> scriptClass = findAnnotation(cm, SCRIPT_CLASS_ANNO);
+        if (scriptClass.isEmpty()) {
+            return null;
         }
 
-        return delegateAV;
-    }
+        final ClassDesc javaType = cm.thisClass().asSymbol();
+        final String scriptClassName = stringElement(scriptClass.get(), "value").orElse(null);
 
-    @Override
-    public FieldVisitor visitField(final int fieldAccess, final String fieldName, final String fieldDesc, final String signature, final Object value) {
-        final FieldVisitor delegateFV = super.visitField(fieldAccess, fieldName, fieldDesc, signature, value);
-
-        return new FieldVisitor(Main.ASM_VERSION, delegateFV) {
-            @Override
-            public AnnotationVisitor visitAnnotation(final String descriptor, final boolean visible) {
-                final AnnotationVisitor delegateAV = super.visitAnnotation(descriptor, visible);
-
-                if (ScriptClassInfo.PROPERTY_ANNO_DESC.equals(descriptor)) {
-                    final MemberInfo memInfo = new MemberInfo();
-
-                    memInfo.setKind(Kind.PROPERTY);
-                    memInfo.setJavaName(fieldName);
-                    memInfo.setJavaDesc(fieldDesc);
-                    memInfo.setJavaAccess(fieldAccess);
-
-                    if ((fieldAccess & Opcodes.ACC_STATIC) != 0) {
-                        memInfo.setValue(value);
-                    }
-
-                    addScriptMember(memInfo);
-
-                    return new AnnotationVisitor(Main.ASM_VERSION, delegateAV) {
-                        // These could be "null" if values are not supplied,
-                        // in which case we have to use the default values.
-                        private String  name;
-                        private Integer attributes;
-                        private String  clazz = "";
-                        private Where   where;
-
-                        @Override
-                        public void visit(final String annotationName, final Object annotationValue) {
-                            switch (annotationName) {
-                            case "name":
-                                this.name = (String) annotationValue;
-                                break;
-                            case "attributes":
-                                this.attributes = (Integer) annotationValue;
-                                break;
-                            case "clazz":
-                                this.clazz = (annotationValue == null) ? "" : annotationValue.toString();
-                                break;
-                            default:
-                                break;
-                            }
-                            super.visit(annotationName, annotationValue);
-                        }
-
-                        @Override
-                        public void visitEnum(final String enumName, final String desc, final String enumValue) {
-                            if ("where".equals(enumName) && WHERE_ENUM_DESC.equals(desc)) {
-                                this.where = Where.valueOf(enumValue);
-                            }
-                            super.visitEnum(enumName, desc, enumValue);
-                        }
-
-                        @Override
-                        public void visitEnd() {
-                            super.visitEnd();
-                            memInfo.setName(name == null ? fieldName : name);
-                            memInfo.setAttributes(attributes == null
-                                    ? MemberInfo.DEFAULT_ATTRIBUTES : attributes);
-                            clazz = clazz.replace('.', '/');
-                            memInfo.setInitClass(clazz);
-                            memInfo.setWhere(where == null? Where.INSTANCE : where);
-                        }
-                    };
-                }
-
-                return delegateAV;
-            }
-        };
-    }
-
-    private void error(final String javaName, final String javaDesc, final String msg) {
-        throw new RuntimeException(scriptClassName + "." + javaName + javaDesc + " : " + msg);
-    }
-
-    @Override
-    public MethodVisitor visitMethod(final int methodAccess, final String methodName,
-            final String methodDesc, final String signature, final String[] exceptions) {
-
-        final MethodVisitor delegateMV = super.visitMethod(methodAccess, methodName, methodDesc,
-                signature, exceptions);
-
-        return new MethodVisitor(Main.ASM_VERSION, delegateMV) {
-
-            @Override
-            public AnnotationVisitor visitAnnotation(final String descriptor, final boolean visible) {
-                final AnnotationVisitor delegateAV = super.visitAnnotation(descriptor, visible);
-                final Kind annoKind = ScriptClassInfo.annotations.get(descriptor);
-
-                if (annoKind != null) {
-                    if ((methodAccess & Opcodes.ACC_STATIC) == 0) {
-                        error(methodName, methodDesc, "nasgen method annotations cannot be on instance methods");
-                    }
-
-                    final MemberInfo memInfo = new MemberInfo();
-
-                    // annoKind == GETTER or SPECIALIZED_FUNCTION
-                    memInfo.setKind(annoKind);
-                    memInfo.setJavaName(methodName);
-                    memInfo.setJavaDesc(methodDesc);
-                    memInfo.setJavaAccess(methodAccess);
-
-                    addScriptMember(memInfo);
-
-                    return new AnnotationVisitor(Main.ASM_VERSION, delegateAV) {
-                        // These could be "null" if values are not supplied,
-                        // in which case we have to use the default values.
-                        private String  name;
-                        private Integer attributes;
-                        private Integer arity;
-                        private Where   where;
-                        private boolean isSpecializedConstructor;
-                        private boolean isOptimistic;
-                        private boolean convertsNumericArgs;
-                        private Type    linkLogicClass = MethodGenerator.EMPTY_LINK_LOGIC_TYPE;
-
-                        @Override
-                        public void visit(final String annotationName, final Object annotationValue) {
-                            switch (annotationName) {
-                            case "name":
-                                this.name = (String)annotationValue;
-                                if (name.isEmpty()) {
-                                    name = null;
-                                }
-                                break;
-                            case "attributes":
-                                this.attributes = (Integer)annotationValue;
-                                break;
-                            case "arity":
-                                this.arity = (Integer)annotationValue;
-                                break;
-                            case "isConstructor":
-                                assert annoKind == Kind.SPECIALIZED_FUNCTION;
-                                this.isSpecializedConstructor = (Boolean)annotationValue;
-                                break;
-                            case "isOptimistic":
-                                assert annoKind == Kind.SPECIALIZED_FUNCTION;
-                                this.isOptimistic = (Boolean)annotationValue;
-                                break;
-                            case "linkLogic":
-                                this.linkLogicClass = (Type)annotationValue;
-                                break;
-                            case "convertsNumericArgs":
-                                assert annoKind == Kind.SPECIALIZED_FUNCTION;
-                                this.convertsNumericArgs = (Boolean)annotationValue;
-                                break;
-                            default:
-                                break;
-                            }
-
-                            super.visit(annotationName, annotationValue);
-                        }
-
-                        @Override
-                        public void visitEnum(final String enumName, final String desc, final String enumValue) {
-                            switch (enumName) {
-                            case "where":
-                                if (WHERE_ENUM_DESC.equals(desc)) {
-                                    this.where = Where.valueOf(enumValue);
-                                }
-                                break;
-                            default:
-                                break;
-                            }
-                            super.visitEnum(enumName, desc, enumValue);
-                        }
-
-                        @SuppressWarnings("fallthrough")
-                        @Override
-                        public void visitEnd() {
-                            super.visitEnd();
-
-                            if (memInfo.getKind() == Kind.CONSTRUCTOR) {
-                                memInfo.setName(name == null ? scriptClassName : name);
-                            } else {
-                                memInfo.setName(name == null ? methodName : name);
-                            }
-
-                            memInfo.setAttributes(attributes == null ? MemberInfo.DEFAULT_ATTRIBUTES : attributes);
-
-                            memInfo.setArity((arity == null)? MemberInfo.DEFAULT_ARITY : arity);
-                            if (where == null) {
-                                // by default @Getter/@Setter belongs to INSTANCE
-                                // @Function belong to PROTOTYPE.
-                                switch (memInfo.getKind()) {
-                                    case GETTER:
-                                    case SETTER:
-                                        where = Where.INSTANCE;
-                                        break;
-                                    case CONSTRUCTOR:
-                                        where = Where.CONSTRUCTOR;
-                                        break;
-                                    case FUNCTION:
-                                        where = Where.PROTOTYPE;
-                                        break;
-                                    case SPECIALIZED_FUNCTION:
-                                        where = isSpecializedConstructor? Where.CONSTRUCTOR : Where.PROTOTYPE;
-                                        //fallthru
-                                    default:
-                                        break;
-                                }
-                            }
-                            memInfo.setWhere(where);
-                            memInfo.setLinkLogicClass(linkLogicClass);
-                            memInfo.setIsSpecializedConstructor(isSpecializedConstructor);
-                            memInfo.setIsOptimistic(isOptimistic);
-                            memInfo.setConvertsNumericArgs(convertsNumericArgs);
-                        }
-                    };
-                }
-
-                return delegateAV;
-            }
-        };
-    }
-
-    ScriptClassInfo getScriptClassInfo() {
-        ScriptClassInfo sci = null;
-        if (scriptClassName != null) {
-            sci = new ScriptClassInfo();
-            sci.setName(scriptClassName);
-            if (scriptMembers == null) {
-                scriptMembers = Collections.emptyList();
-            }
-            sci.setMembers(scriptMembers);
-            sci.setJavaName(javaClassName);
+        final List<MemberInfo> members = new ArrayList<>();
+        for (final FieldModel field : cm.fields()) {
+            findAnnotation(field, PROPERTY_ANNO)
+                .map(anno -> propertyMember(field, anno))
+                .ifPresent(members::add);
         }
+        for (final MethodModel method : cm.methods()) {
+            methodMember(javaType, scriptClassName, method).ifPresent(members::add);
+        }
+
+        final ScriptClassInfo sci = new ScriptClassInfo();
+        sci.setName(scriptClassName);
+        sci.setMembers(members);
+        sci.setJavaType(javaType);
         return sci;
+    }
+
+    /** A {@code @Property} field. */
+    private static MemberInfo propertyMember(final FieldModel field, final Annotation anno) {
+        final MemberInfo memInfo = new MemberInfo();
+        final String fieldName = field.fieldName().stringValue();
+
+        memInfo.setKind(Kind.PROPERTY);
+        memInfo.setJavaName(fieldName);
+        memInfo.setJavaDesc(field.fieldType().stringValue());
+        memInfo.setJavaAccess(field.flags().flagsMask());
+
+        if ((field.flags().flagsMask() & ACC_STATIC) != 0) {
+            field.findAttribute(Attributes.constantValue())
+                 .ifPresent(cv -> memInfo.setValue(cv.constant().constantValue()));
+        }
+
+        memInfo.setName(stringElement(anno, "name").orElse(fieldName));
+        memInfo.setAttributes(intElement(anno, "attributes").orElse(MemberInfo.DEFAULT_ATTRIBUTES));
+        memInfo.setInitClass(stringElement(anno, "clazz").orElse(""));
+        memInfo.setWhere(whereElement(anno).orElse(Where.INSTANCE));
+        return memInfo;
+    }
+
+    /** A method carrying any of the nasgen method annotations. */
+    private static Optional<MemberInfo> methodMember(final ClassDesc javaType, final String scriptClassName,
+            final MethodModel method) {
+        final String methodName = method.methodName().stringValue();
+        final String methodDesc = method.methodType().stringValue();
+
+        for (final Annotation anno : annotationsOf(method)) {
+            final Kind annoKind = ScriptClassInfo.annotations.get(anno.classSymbol());
+            if (annoKind == null) {
+                continue;
+            }
+            if (!method.flags().has(java.lang.reflect.AccessFlag.STATIC)) {
+                throw new RuntimeException(javaType.displayName() + "." + methodName + methodDesc
+                        + " : nasgen method annotations cannot be on instance methods");
+            }
+
+            final MemberInfo memInfo = new MemberInfo();
+            memInfo.setKind(annoKind);
+            memInfo.setJavaName(methodName);
+            memInfo.setJavaDesc(methodDesc);
+            memInfo.setJavaAccess(method.flags().flagsMask());
+
+            // an empty @Function(name="") means "use the Java name"
+            final String name = stringElement(anno, "name").filter(s -> !s.isEmpty()).orElse(null);
+            memInfo.setName(name != null ? name
+                    : annoKind == Kind.CONSTRUCTOR ? scriptClassName : methodName);
+            memInfo.setAttributes(intElement(anno, "attributes").orElse(MemberInfo.DEFAULT_ATTRIBUTES));
+            memInfo.setArity(intElement(anno, "arity").orElse(MemberInfo.DEFAULT_ARITY));
+
+            final boolean isSpecializedConstructor = booleanElement(anno, "isConstructor");
+            memInfo.setIsSpecializedConstructor(isSpecializedConstructor);
+            memInfo.setIsOptimistic(booleanElement(anno, "isOptimistic"));
+            memInfo.setConvertsNumericArgs(booleanElement(anno, "convertsNumericArgs"));
+            memInfo.setLinkLogicClass(element(anno, "linkLogic")
+                    .filter(AnnotationValue.OfClass.class::isInstance)
+                    .map(v -> ((AnnotationValue.OfClass)v).classSymbol())
+                    .orElse(MethodGenerator.EMPTY_LINK_LOGIC_TYPE));
+            memInfo.setWhere(whereElement(anno)
+                    .orElseGet(() -> defaultWhere(annoKind, isSpecializedConstructor)));
+
+            return Optional.of(memInfo);
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * By default @Getter/@Setter belong to the INSTANCE and @Function to the PROTOTYPE.
+     */
+    private static Where defaultWhere(final Kind kind, final boolean isSpecializedConstructor) {
+        return switch (kind) {
+            case GETTER, SETTER -> Where.INSTANCE;
+            case CONSTRUCTOR -> Where.CONSTRUCTOR;
+            case FUNCTION -> Where.PROTOTYPE;
+            case SPECIALIZED_FUNCTION -> isSpecializedConstructor ? Where.CONSTRUCTOR : Where.PROTOTYPE;
+            default -> null;
+        };
+    }
+
+    // -- annotation lookup helpers
+
+    static List<Annotation> annotationsOf(final AttributedElement element) {
+        return element.findAttribute(Attributes.runtimeVisibleAnnotations())
+                      .map(a -> a.annotations())
+                      .orElse(List.of());
+    }
+
+    private static Optional<Annotation> findAnnotation(final AttributedElement element, final ClassDesc annoType) {
+        return annotationsOf(element).stream()
+                                     .filter(anno -> annoType.equals(anno.classSymbol()))
+                                     .findFirst();
+    }
+
+    private static Optional<AnnotationValue> element(final Annotation anno, final String name) {
+        return anno.elements().stream()
+                   .filter(e -> e.name().equalsString(name))
+                   .map(e -> e.value())
+                   .findFirst();
+    }
+
+    private static Optional<String> stringElement(final Annotation anno, final String name) {
+        return element(anno, name)
+                .filter(AnnotationValue.OfString.class::isInstance)
+                .map(v -> ((AnnotationValue.OfString)v).stringValue());
+    }
+
+    private static Optional<Integer> intElement(final Annotation anno, final String name) {
+        return element(anno, name)
+                .filter(AnnotationValue.OfInt.class::isInstance)
+                .map(v -> ((AnnotationValue.OfInt)v).intValue());
+    }
+
+    private static boolean booleanElement(final Annotation anno, final String name) {
+        return element(anno, name)
+                .filter(AnnotationValue.OfBoolean.class::isInstance)
+                .map(v -> ((AnnotationValue.OfBoolean)v).booleanValue())
+                .orElse(Boolean.FALSE);
+    }
+
+    private static Optional<Where> whereElement(final Annotation anno) {
+        return element(anno, "where")
+                .filter(AnnotationValue.OfEnum.class::isInstance)
+                .map(AnnotationValue.OfEnum.class::cast)
+                .filter(v -> WHERE_ENUM.equals(v.classSymbol()))
+                .map(v -> Where.valueOf(v.constantName().stringValue()));
     }
 
     /**
@@ -338,13 +227,8 @@ public class ScriptClassInfoCollector extends ClassVisitor {
             System.exit(1);
         }
 
-        args[0] = args[0].replace('.', '/');
-        final ScriptClassInfoCollector scic = new ScriptClassInfoCollector();
-        try (final BufferedInputStream bis = new BufferedInputStream(new FileInputStream(args[0] + ".class"))) {
-            final ClassReader reader = new ClassReader(bis);
-            reader.accept(scic, 0);
-        }
-        final ScriptClassInfo sci = scic.getScriptClassInfo();
+        final Path file = Path.of(args[0].replace('.', '/') + ".class");
+        final ScriptClassInfo sci = ClassGenerator.getScriptClassInfo(file);
         final PrintStream out = System.out;
         if (sci != null) {
             out.println("script class: " + sci.getName());
@@ -359,7 +243,7 @@ public class ScriptClassInfoCollector extends ClassVisitor {
                 out.println("=====================================");
             }
         } else {
-            out.println(args[0] + " is not a @ScriptClass");
+            out.println(file + " is not a @ScriptClass");
         }
     }
 }
