@@ -1,2 +1,8 @@
 /.idea
-/target
+target/
+
+# External benchmark and conformance suites, fetched with -Pfetch-externals
+/core/src/test/scripts/external/
+
+# Dropped by a Nashorn run when -Dnashorn.profilefile is in play
+NashornProfile.txt

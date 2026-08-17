@@ -1,0 +1,3 @@
+src/test/scripts/error/NASHORN-568.js:30:0 Missing catch or finally after try
+try { }
+^

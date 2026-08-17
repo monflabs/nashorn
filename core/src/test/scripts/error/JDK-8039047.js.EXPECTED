@@ -1,0 +1,6 @@
+src/test/scripts/error/JDK-8039047.js:33:11 Expected ) but found if
+} catch (e if e instanceof ReferenceError) {
+           ^
+src/test/scripts/error/JDK-8039047.js:35:0 Expected eof but found }
+}
+^

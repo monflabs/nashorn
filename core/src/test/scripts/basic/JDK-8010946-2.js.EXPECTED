@@ -1,0 +1,2 @@
+[jdk.dynalink.beans.CallerSensitiveDynamicMethod Class java.lang.Class.forName(String)]
+[jdk.dynalink.beans.SimpleDynamicMethod String java.lang.String.valueOf(char)]

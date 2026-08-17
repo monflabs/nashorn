@@ -10,7 +10,7 @@ symbols; and binary and octal literals. It is written in Java and runs
 on the Java Virtual Machine.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
-a standalone version of Nashorn suitable for use with Java 11 and later.
+a standalone version of Nashorn suitable for use with Java 25 and later.
 
 Nashorn is free software, licensed under
 [GPL v2 with the Classpath exception](https://github.com/openjdk/nashorn/blob/master/LICENSE),
@@ -37,16 +37,34 @@ Latest version of Nashorn is 15.7, available from [Maven Central](https://search
 
 Nashorn is a JPMS module, so make sure it and its transitive dependencies (Nashorn depends on several ASM JARs) are on your application's module path, or appropriately added to a module layer, or otherwise configured as modules.
 
-While standalone Nashorn is primarily meant to be used with Java 15 and later versions, it can also be used with Java versions 11 to 14 that have a built-in version of Nashorn too. See [this page](https://github.com/szegedi/nashorn/wiki/Using-Nashorn-with-different-Java-versions) for details on use when both versions are present.
+This fork is compiled with `--release 25` and needs a JDK 25 or newer at both build and run time. Earlier releases of `nashorn-core` on Maven Central target Java 11; use one of those if you are on an older JDK. Java 14 and earlier also ship a built-in Nashorn - see [this page](https://github.com/szegedi/nashorn/wiki/Using-Nashorn-with-different-Java-versions) for details on use when both versions are present.
 
 Building From Source
 ====================
-Nashorn uses Ant as its build system.
+Nashorn uses Maven as its build system, and requires a JDK 25 or newer -
+several build steps fork the JVM that Maven itself runs on, so a toolchain
+pointing elsewhere is not enough. From the repository root:
 ```
-cd make/nashorn
-ant jar
+mvn package
 ```
-will download the dependencies and build the JAR file. Other notable targets are `test` for running its own internal test suite, or  `test262-parallel` for running the [official ECMA-262 test suite for ECMAScript 5.1](https://github.com/tc39/test262/tree/es5-tests). You will need to execute `ant get-test262` to download the tests into Nashorn's local test directory once.
+builds `core/target/nashorn-core-<version>.jar`. `mvn verify` additionally runs
+the internal test suite, in both the optimistic and pessimistic typing modes.
+
+The reactor has three modules: `core` (the published `nashorn-core` artifact),
+`shell` (the `jjs` REPL, not published), and `buildtools/nasgen` (a build-time
+bytecode post-processor that Nashorn does not work without — so always build
+through Maven rather than compiling the sources directly).
+
+To run the [official ECMA-262 test suite for ECMAScript 5.1](https://github.com/tc39/test262/tree/es5-tests),
+fetch it once and then run it:
+```
+mvn -Pfetch-externals -pl core generate-test-resources
+mvn -Ptest262 -DskipTests verify
+```
+
+Other profiles: `-Pbenchmark` and `-Psunspider` for the benchmarks,
+`-Pcoverage` for a JaCoCo report, `-Prun` to execute a sample script through
+the engine, and `-Prelease` to build the signed artifacts for publication.
 
 Contributing
 ============

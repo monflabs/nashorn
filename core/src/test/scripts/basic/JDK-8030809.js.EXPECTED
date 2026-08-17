@@ -1,0 +1,4 @@
+Error
+	at <anonymous> (src/test/scripts/basic/JDK-8030809.js:33)
+	at func (src/test/scripts/basic/JDK-8030809.js:32)
+	at <program> (src/test/scripts/basic/JDK-8030809.js:38)

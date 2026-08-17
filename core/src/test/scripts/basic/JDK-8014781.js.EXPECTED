@@ -1,0 +1,4 @@
+[object Object]
+	at MyError (src/test/scripts/basic/JDK-8014781.js:32)
+	at func (src/test/scripts/basic/JDK-8014781.js:36)
+	at <program> (src/test/scripts/basic/JDK-8014781.js:39)

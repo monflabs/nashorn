@@ -68,3 +68,18 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 [`#26`](https://github.com/openjdk/nashorn/pull/26) `           ` Correct assert in `ForOfLoopTreeImpl.java`
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
+
+Unreleased
+----------
+`   ` `           ` **Build system replaced: Ant is gone, the project now builds with Maven.** The sources moved to the standard Maven layout under a three-module reactor (`buildtools/nasgen`, `core`, `shell`), and the leftover in-JDK make files (`make/*.gmk`, `make/data/symbols`) and jtreg trees (`test/jdk`, `test/hotspot`) — unused since Nashorn was extracted from the JDK — were removed. See README.md for the new commands.
+
+`   ` `           ` The published artifact is unchanged apart from the jar no longer carrying the legacy `META-INF/INDEX.LIST` or the unused `version.properties.template`, and now carrying the standard `META-INF/maven` descriptor. Coordinates, module descriptor, service registrations and manifest attributes are the same. `nashorn-core` now also has a parent POM (`org.openjdk.nashorn:nashorn-parent`), which is published alongside it.
+
+`   ` `           ` Note for anyone tracking upstream: merges from `openjdk/nashorn` no longer apply to build files.
+
+`   ` `           ` **Java 25 is now the baseline.** The artifacts are compiled with `--release 25`, and a JDK 25 or newer is required to build (maven-enforcer-plugin checks it) as well as to run. Consequences of the move:
+
+* ASM was upgraded from 7.3.1 to 9.10.1. Older ASM cannot read the class files javac now produces, which nasgen parses at build time. This changes the required version of the `org.ow2.asm` dependencies for consumers.
+* `ListAdapter` gained a `reversed()` implementation, returning a `ListAdapter.Reversed` view. `List` and `Deque` both declare `reversed()` (from `SequencedCollection`, Java 21) with unrelated return types, so a class implementing both has to declare an override of its own.
+* The `jjs` shell no longer consults `System.getSecurityManager()`. Both remaining calls were dead guards - JEP 486 permanently disabled the Security Manager - and the method is now deprecated for removal.
+* Two script tests that pin Dynalink's handling of caller-sensitive methods were retargeted: `AccessController.doPrivileged()` and `Thread.getContextClassLoader()` stopped being caller sensitive under JEP 486, so `Class.forName()` and `AccessibleObject.setAccessible()` stand in for them.

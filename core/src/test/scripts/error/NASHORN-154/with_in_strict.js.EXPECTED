@@ -1,0 +1,9 @@
+src/test/scripts/error/NASHORN-154/with_in_strict.js:36:0 "with" statement cannot be used in strict mode
+with({}) {
+^
+src/test/scripts/error/NASHORN-154/with_in_strict.js:36:7 Expected ; but found )
+with({}) {
+       ^
+src/test/scripts/error/NASHORN-154/with_in_strict.js:38:0 Expected eof but found }
+}
+^

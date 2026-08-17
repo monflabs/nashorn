@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Oracle designates this
+particular file as subject to the "Classpath" exception as provided
+by Oracle in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+
+Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+or visit www.oracle.com if you need additional information or have any
+questions.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.openjdk.nashorn</groupId>
+    <artifactId>nashorn-parent</artifactId>
+    <version>15.7</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>nashorn-shell</artifactId>
+  <packaging>jar</packaging>
+
+  <name>OpenJDK Nashorn jjs shell</name>
+  <description>
+    The jjs command line REPL for Nashorn.
+
+    Not published to Maven Central - only nashorn-core is. This module reaches
+    into the JDK-internal jdk.internal.le and jdk.internal.ed modules, so it
+    constrains which JDKs can build the reactor; keeping it unpublished limits
+    the blast radius.
+  </description>
+
+  <properties>
+    <!--
+      Two script tests (JDK-8190698, JDK-8191468) assert on this module's own
+      module descriptor - that it has no java.desktop dependency and that
+      java.compiler is "requires static". They therefore need the shell module
+      resolved in the boot layer, which core's test run cannot provide without
+      a core -> shell -> core cycle. They live here and reuse core's script
+      test framework off disk.
+    -->
+    <nashorn.core.dir>${project.basedir}/../core</nashorn.core.dir>
+    <nashorn.test.modulepath>${project.build.outputDirectory}${path.separator}${nashorn.core.dir}/target/classes${path.separator}${nashorn.core.dir}/target/modules</nashorn.test.modulepath>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.openjdk.nashorn</groupId>
+      <artifactId>nashorn-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.beust</groupId>
+      <artifactId>jcommander</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.beanshell</groupId>
+      <artifactId>bsh</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!--
+            source/target rather than release: this module compiles against
+            JDK-internal packages, which "release" would hide - it resolves
+            the platform out of ct.sym, where jdk.internal.le and
+            jdk.internal.ed do not appear at all, and module-info then fails
+            with "module not found". Was the compile-shell Ant target.
+          -->
+          <source>${nashorn.target.java.version}</source>
+          <target>${nashorn.target.java.version}</target>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+            <arg>-XDignore.symbol.file</arg>
+            <arg>-Xdiags:verbose</arg>
+            <arg>-parameters</arg>
+            <!-- was nashorn.shell.module.imports in project.properties -->
+            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.openjdk.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.openjdk.nashorn.shell</arg>
+            <arg>--add-reads=org.openjdk.nashorn.shell=jdk.internal.ed</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <!--
+            javadoc resolves the JDK-internal imports the same way javac does,
+            so it needs the same exports; without them it stops at "package
+            jdk.internal.org.jline.reader is not visible".
+          -->
+          <additionalOptions>
+            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.openjdk.nashorn.shell</additionalOption>
+            <additionalOption>--add-reads=org.openjdk.nashorn.shell=jdk.internal.ed</additionalOption>
+          </additionalOptions>
+          <!-- in-JDK tags used by module-info; javadoc rejects them otherwise -->
+          <tags>
+            <tag><name>toolGuide</name><placement>a</placement><head>Tool Guide:</head></tag>
+            <tag><name>moduleGraph</name><placement>a</placement><head>Module Graph</head></tag>
+          </tags>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <useModulePath>false</useModulePath>
+          <!--
+            The script test framework lives in core's test tree. Reading it off
+            disk rather than via a test-jar keeps core's published artifact set
+            unchanged. core always builds first, being a dependency.
+          -->
+          <testClassesDirectory>${nashorn.core.dir}/target/test/classes</testClassesDirectory>
+          <includes>
+            <include>**/ScriptTest.java</include>
+          </includes>
+          <argLine>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn.shell --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.tools=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED -Xmx2G -esa -ea -Dfile.encoding=UTF-8 -Dbuild.dir=target</argLine>
+          <systemPropertyVariables>
+            <test.js.roots>src/test/scripts/basic</test.js.roots>
+            <test.js.framework>${nashorn.core.dir}/src/test/scripts/assert.js</test.js.framework>
+            <test.js.shared.context>false</test.js.shared.context>
+            <test.root.dir>src/test</test.root.dir>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

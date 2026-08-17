@@ -1,0 +1,9 @@
+src/test/scripts/error/heredoc_nse.js:32:10 Expected an operand but found <<
+var str = <<EOF
+          ^
+src/test/scripts/error/heredoc_nse.js:33:5 Expected ; but found is
+This is a multiple line string
+     ^
+src/test/scripts/error/heredoc_nse.js:34:7 Expected ; but found a
+inside a heredoc
+       ^

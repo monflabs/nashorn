@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Oracle designates this
+particular file as subject to the "Classpath" exception as provided
+by Oracle in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+
+Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+or visit www.oracle.com if you need additional information or have any
+questions.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.openjdk.nashorn</groupId>
+    <artifactId>nashorn-parent</artifactId>
+    <version>15.7</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>nashorn-core</artifactId>
+  <packaging>jar</packaging>
+
+  <name>OpenJDK Nashorn</name>
+  <description>Nashorn is an Open Source JavaScript (ECMAScript 5.1 and some 6 features) engine for the JVM.</description>
+
+  <properties>
+    <!--
+      javac writes here; nasgen reads from here and writes the instrumented
+      classes into ${project.build.outputDirectory}. Keeping input and output
+      apart means nasgen never sees its own output, so repeated incremental
+      builds stay correct. The in-JDK build had the same hazard and guarded it
+      with a marker file (_the.nasgen.run in CompileJavaModulesNashorn.gmk).
+    -->
+    <nashorn.raw.classes>${project.build.directory}/classes-raw</nashorn.raw.classes>
+    <!-- Staging dirs, so every path below is static - no late-resolved properties. -->
+    <nashorn.modules.dir>${project.build.directory}/modules</nashorn.modules.dir>
+    <!--
+      nasgen is used straight from its output directory rather than as a
+      resolved artifact: dependency:copy cannot pull a reactor artifact that
+      has not been packaged yet (MDEP-187), which would break "mvn test".
+      nasgen builds before this module, being earlier in the reactor.
+    -->
+    <nashorn.nasgen.classes>${project.basedir}/../buildtools/nasgen/target/classes</nashorn.nasgen.classes>
+    <nashorn.test.libs>${project.build.directory}/test-libs</nashorn.test.libs>
+
+    <!-- Where the .js suite lives, relative to this module's basedir (which is
+         surefire's working directory). Stack traces in the *.js.EXPECTED files
+         embed this prefix, so it has to stay relative. -->
+    <nashorn.test.scripts>src/test/scripts</nashorn.test.scripts>
+    <nashorn.test262.suite>${nashorn.test.scripts}/external/test262/test/suite</nashorn.test262.suite>
+
+    <nashorn.test.modulepath>${project.build.outputDirectory}${path.separator}${nashorn.modules.dir}</nashorn.test.modulepath>
+
+    <!-- Set by the coverage profile; empty otherwise. -->
+    <nashorn.coverage.argLine/>
+
+    <!--
+      Was run.test.jvmargs.common + test.module.imports.runtime. The tests are
+      unnamed-module code that reaches into Nashorn internals. The Turkish
+      locale is deliberate - it catches locale-sensitive case-conversion bugs.
+    -->
+    <nashorn.test.jvmargs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.ir=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.codegen=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.parser=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.objects=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.doubleconv=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.linker=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.events=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.options=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.regexp=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.regexp.joni=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.tools=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.doubleconv=ALL-UNNAMED -Xmx2G -esa -ea -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 -Duser.language=tr -Duser.country=TR -Dnashorn.typeInfo.cacheDir=${project.build.directory}/test/type_info_cache -Dbuild.dir=target</nashorn.test.jvmargs>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm-commons</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm-tree</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm-util</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.beust</groupId>
+      <artifactId>jcommander</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.beanshell</groupId>
+      <artifactId>bsh</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <!--
+      Mirrors the Ant layout (build/nashorn/test/classes), which SourceTest
+      relies on: it locates its load_test.js resource as
+      ${build.dir}/test/classes/... Keeping this under ${build.dir}/test also
+      puts the per-script test output that TestHelper creates alongside it.
+    -->
+    <testOutputDirectory>${project.build.directory}/test/classes</testOutputDirectory>
+
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <excludes>
+          <exclude>**/version.properties</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <!-- version_short / version_string substituted from the POM version -->
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>**/version.properties</include>
+        </includes>
+      </resource>
+    </resources>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${nashorn.target.java.version}</release>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+            <arg>-XDignore.symbol.file</arg>
+            <arg>-Xdiags:verbose</arg>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+        <executions>
+          <execution>
+            <id>default-compile</id>
+            <configuration>
+              <!-- pre-nasgen output; see nashorn.raw.classes above -->
+              <outputDirectory>${nashorn.raw.classes}</outputDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>default-testCompile</id>
+            <configuration>
+              <!--
+                Compile the tests as ordinary classpath code. Without this,
+                maven-compiler-plugin patches them into module
+                org.openjdk.nashorn, which then cannot read java.xml or
+                java.sql (module-info does not require them) and the test
+                framework fails to compile. The Ant build likewise kept the
+                tests in the unnamed module. Accessibility to Nashorn
+                internals is granted at runtime instead, by the add-exports
+                and add-opens flags in nashorn.test.jvmargs.
+              -->
+              <useModulePath>false</useModulePath>
+              <compilerArgs>
+                <arg>-Xlint:unchecked</arg>
+                <arg>-Xlint:deprecation</arg>
+                <arg>-Xdiags:verbose</arg>
+              </compilerArgs>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <!--
+              Everything javac produced, verbatim. nasgen then overwrites the
+              @ScriptClass files and adds the generated $Constructor/$Prototype
+              classes. Must run before the nasgen execution below - execution
+              order within a phase follows plugin declaration order.
+            -->
+            <id>copy-compiled-classes</id>
+            <phase>process-classes</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${nashorn.raw.classes}</directory>
+                  <filtering>false</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <!-- ASM as a directory, used both as nasgen's classpath and as the
+                 module path for the test compile and test run -->
+            <id>stage-modules</id>
+            <phase>process-classes</phase>
+            <goals><goal>copy-dependencies</goal></goals>
+            <configuration>
+              <outputDirectory>${nashorn.modules.dir}</outputDirectory>
+              <includeScope>runtime</includeScope>
+            </configuration>
+          </execution>
+          <execution>
+            <!--
+              Test-only jars, staged as a directory so the JVMs that @fork
+              script tests spawn can use a wildcard classpath. ASM is excluded:
+              it is already on the module path, and having it on both would
+              risk resolving Nashorn's ASM twice.
+            -->
+            <id>stage-test-libs</id>
+            <phase>process-classes</phase>
+            <goals><goal>copy-dependencies</goal></goals>
+            <configuration>
+              <outputDirectory>${nashorn.test.libs}</outputDirectory>
+              <includeScope>test</includeScope>
+              <excludeGroupIds>org.ow2.asm</excludeGroupIds>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <!--
+              THE critical build step. Without it the @ScriptClass classes in
+              org.openjdk.nashorn.internal.objects get no $Constructor or
+              $Prototype, and every JavaScript built-in is missing at runtime -
+              while the build still succeeds. See CLAUDE.md.
+            -->
+            <id>run-nasgen</id>
+            <phase>process-classes</phase>
+            <goals><goal>exec</goal></goals>
+            <configuration>
+              <executable>${java.home}/bin/java</executable>
+              <arguments>
+                <argument>-cp</argument>
+                <argument>${nashorn.nasgen.classes}${path.separator}${nashorn.modules.dir}/*</argument>
+                <argument>org.openjdk.nashorn.internal.tools.nasgen.Main</argument>
+                <argument>${nashorn.raw.classes}</argument>
+                <argument>org.openjdk.nashorn.internal.objects</argument>
+                <argument>${project.build.outputDirectory}</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- tests are unnamed-module code; Nashorn goes on the module path
+               through argLine instead of surefire's own module handling -->
+          <useModulePath>false</useModulePath>
+          <!--
+            @{} is surefire's late evaluation: jacoco:prepare-agent sets
+            nashorn.coverage.argLine at initialize time, after ${} in plugin
+            configuration has already been interpolated. With ${} here the
+            agent is silently dropped and coverage comes out empty.
+          -->
+          <argLine>@{nashorn.coverage.argLine} ${nashorn.test.jvmargs}</argLine>
+          <systemPropertyVariables>
+            <!-- script-test discovery; was the test-sys-prop.* block -->
+            <test.js.roots>${nashorn.test.scripts}/basic ${nashorn.test.scripts}/maptests ${nashorn.test.scripts}/error ${nashorn.test.scripts}/sandbox ${nashorn.test.scripts}/trusted ${nashorn.test.scripts}/nosecurity</test.js.roots>
+            <test.js.framework>${nashorn.test.scripts}/assert.js</test.js.framework>
+            <test.js.exclude.dir>${nashorn.test.scripts}/currently-failing ${nashorn.test.scripts}/external</test.js.exclude.dir>
+            <test.js.unchecked.dir>${nashorn.test.scripts}/external/test262</test.js.unchecked.dir>
+            <test.js.shared.context>false</test.js.shared.context>
+            <!-- stripped from each test's path to mirror its output under target/test -->
+            <test.root.dir>src/test</test.root.dir>
+
+            <test.basic.dir>${nashorn.test.scripts}/basic</test.basic.dir>
+            <test.maptests.dir>${nashorn.test.scripts}/maptests</test.maptests.dir>
+            <test.sandbox.dir>${nashorn.test.scripts}/sandbox</test.sandbox.dir>
+            <test.trusted.dir>${nashorn.test.scripts}/trusted</test.trusted.dir>
+            <test262.suite.dir>${nashorn.test.scripts}/external/test262/test/suite</test262.suite.dir>
+
+            <parsertest.verbose>false</parsertest.verbose>
+            <parsertest.scripting>true</parsertest.scripting>
+            <parsertest.test262>false</parsertest.test262>
+            <parserapitest.verbose>false</parserapitest.verbose>
+            <parserapitest.test262>false</parserapitest.test262>
+            <compilertest.verbose>false</compilertest.verbose>
+            <compilertest.scripting>true</compilertest.scripting>
+            <compilertest.test262>false</compilertest.test262>
+
+            <!-- script tests carrying @fork spawn their own JVM with these -->
+            <test.fork.jvm.options>${nashorn.test.jvmargs} -cp ${project.build.outputDirectory}${path.separator}${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/*</test.fork.jvm.options>
+          </systemPropertyVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <!-- was the "test-pessimistic" Ant target -->
+            <id>test-pessimistic</id>
+            <phase>test</phase>
+            <goals><goal>test</goal></goals>
+            <configuration>
+              <reportsDirectory>${project.build.directory}/surefire-reports/pessimistic</reportsDirectory>
+              <systemPropertyVariables>
+                <optimistic.override>false</optimistic.override>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+          <execution>
+            <!--
+              Was "test-optimistic". Both modes must keep running: optimistic
+              typing takes a different path through the compiler, and a change
+              can pass one mode while failing the other.
+            -->
+            <id>test-optimistic</id>
+            <phase>test</phase>
+            <goals><goal>test</goal></goals>
+            <configuration>
+              <reportsDirectory>${project.build.directory}/surefire-reports/optimistic</reportsDirectory>
+              <systemPropertyVariables>
+                <optimistic.override>true</optimistic.override>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+          <execution>
+            <!-- the implicit default execution would be a third, redundant run -->
+            <id>default-test</id>
+            <phase>none</phase>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestSections>
+              <manifestSection>
+                <name>org/openjdk/nashorn/</name>
+                <manifestEntries>
+                  <Implementation-Title>${nashorn.product.name}</Implementation-Title>
+                  <Implementation-Version>${project.version}</Implementation-Version>
+                </manifestEntries>
+              </manifestSection>
+            </manifestSections>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <!-- only the two public API packages are documented, as before -->
+          <excludePackageNames>org.openjdk.nashorn.internal:org.openjdk.nashorn.internal.*:org.openjdk.nashorn.tools:org.openjdk.nashorn.tools.*:org.openjdk.nashorn.api.linker</excludePackageNames>
+          <tags>
+            <tag><name>implSpec</name><placement>a</placement><head>Implementation Requirements:</head></tag>
+            <tag><name>implNote</name><placement>a</placement><head>Implementation Note:</head></tag>
+            <tag><name>moduleGraph</name><placement>a</placement><head>Module Graph</head></tag>
+          </tags>
+          <links>
+            <link>https://docs.oracle.com/en/java/javase/${nashorn.target.java.version}/docs/api/</link>
+          </links>
+          <quiet>true</quiet>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <!--
+        Clones the external suites the benchmark and test262 profiles need.
+        Was the get-test262 / get-octane / get-sunspider Ant targets. Run once:
+          mvn -Pfetch-externals generate-test-resources
+      -->
+      <id>fetch-externals</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <!--
+                git exits 128 when the destination already exists, which is
+                treated as success so the profile is re-runnable.
+
+                SunSpider is not fetched: the Ant build checked it out of
+                http://svn.webkit.org/repository/webkit/trunk/PerformanceTests/SunSpider,
+                and that SVN server no longer exists. Place a copy at
+                src/test/scripts/external/sunspider by hand to use -Psunspider.
+              -->
+              <execution>
+                <id>fetch-test262</id>
+                <phase>generate-test-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>git</executable>
+                  <successCodes><successCode>0</successCode><successCode>128</successCode></successCodes>
+                  <commandlineArgs>clone --branch es5-tests --depth 1 https://github.com/tc39/test262 ${nashorn.test.scripts}/external/test262</commandlineArgs>
+                </configuration>
+              </execution>
+              <execution>
+                <id>fetch-octane</id>
+                <phase>generate-test-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>git</executable>
+                  <successCodes><successCode>0</successCode><successCode>128</successCode></successCodes>
+                  <commandlineArgs>clone --depth 1 https://github.com/chromium/octane ${nashorn.test.scripts}/external/octane</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!--
+        The ECMA-262 suite. Was the test262-parallel Ant target, which drove
+        ParallelTestRunner as a plain main() rather than through TestNG.
+          mvn -Ptest262 verify
+      -->
+      <id>test262</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>run-test262</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest.js.shared.context=true -Dtest.js.enable.strict.mode=true -Dtest.root.dir=src/test -Dtest.js.roots=${nashorn.test262.suite} "-Dtest.js.exclude.dir=${nashorn.test262.suite}/intl402/ ${nashorn.test262.suite}/bestPractice/" "-Dtest.js.exclude.list=${nashorn.test262.suite}/ch07/7.4/S7.4_A6.js ${nashorn.test262.suite}/ch07/7.8/7.8.5/S7.8.5_A1.4_T2.js ${nashorn.test262.suite}/ch15/15.2/15.2.3/15.2.3.6/15.2.3.6-4-170.js" -Dtest.failed.list.file=${project.build.directory}/test/failedTests "-Dtest.js.framework=--class-cache-size=10 --no-java --no-typed-arrays -timezone=PST ${nashorn.test.scripts}/test262.js ${nashorn.test.scripts}/external/test262/test/harness/framework.js ${nashorn.test.scripts}/external/test262/test/harness/sta.js" -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.ParallelTestRunner</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!-- The normal script suite through ParallelTestRunner. Was test-parallel. -->
+      <id>test-parallel</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>run-test-parallel</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Dtest.root.dir=src/test "-Dtest.js.roots=${nashorn.test.scripts}/basic ${nashorn.test.scripts}/maptests ${nashorn.test.scripts}/error ${nashorn.test.scripts}/sandbox ${nashorn.test.scripts}/trusted ${nashorn.test.scripts}/nosecurity" -Dtest.js.framework=${nashorn.test.scripts}/assert.js "-Dtest.js.exclude.dir=${nashorn.test.scripts}/currently-failing ${nashorn.test.scripts}/external" -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.ParallelTestRunner</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!--
+        Octane. Replaces build-benchmark.xml, which spelled out a target per
+        benchmark per runtime; the benchmark list is a property here instead.
+        Disabled upstream and still disabled: code-load, typescript, zlib.
+
+        run-octane.js finds the suite itself, relative to its own directory
+        (octane-payload.js: path = __DIR__ + "../external/octane/"), so the
+        only arguments are bare benchmark names.
+          mvn -Pbenchmark verify [-Doctane.benchmarks="box2d crypto"]
+      -->
+      <id>benchmark</id>
+      <properties>
+        <octane.benchmarks>box2d crypto deltablue earley-boyer gbemu navier-stokes mandreel pdfjs raytrace regexp richards splay</octane.benchmarks>
+        <octane.iterations>25</octane.iterations>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>run-octane</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <!-- TypeProfileLevel=222 was run.test.jvmargs.octane.main:
+                       better type profiling produces much better JIT code for JS -->
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xms2G -XX:TypeProfileLevel=222 -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.tools.Shell ${nashorn.test.scripts}/basic/run-octane.js -scripting -- ${octane.benchmarks} --runtime nashorn --verbose --iterations ${octane.iterations}</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!-- SunSpider. Was the sunspider Ant target. -->
+      <id>sunspider</id>
+      <properties>
+        <sunspider.iterations>3000</sunspider.iterations>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>run-sunspider</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <commandlineArgs>${nashorn.test.jvmargs} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.tools.Shell -timezone=PST --class-cache-size=50 ${nashorn.test.scripts}/basic/runsunspider.js -- ${nashorn.test.scripts}/external/sunspider/tests/sunspider-1.0.2/ --verbose --times ${sunspider.iterations}</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!--
+        Replaces the jcov setup in code_coverage.xml.
+
+        Caveat: script tests carrying @fork run in child JVMs that this agent
+        does not instrument, so their coverage is not counted. The agent is
+        deliberately not added to test.fork.jvm.options - many forks appending
+        to one exec file concurrently risks corrupting it.
+          mvn -Pcoverage test
+      -->
+      <id>coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <configuration>
+              <excludes>
+                <!-- classes Nashorn generates at runtime for compiled scripts;
+                     was cc.exclude in project.properties -->
+                <exclude>org/openjdk/nashorn/internal/scripts/**</exclude>
+              </excludes>
+            </configuration>
+            <executions>
+              <execution>
+                <id>prepare-agent</id>
+                <goals><goal>prepare-agent</goal></goals>
+                <configuration>
+                  <propertyName>nashorn.coverage.argLine</propertyName>
+                </configuration>
+              </execution>
+              <execution>
+                <id>report</id>
+                <phase>verify</phase>
+                <goals><goal>report</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <!-- Was the "run" Ant target: the engine on a sample script. -->
+      <id>run</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>run-shell</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <workingDirectory>${project.basedir}/../samples</workingDirectory>
+                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn -m org.openjdk.nashorn/org.openjdk.nashorn.tools.Shell -dump-on-error ${nashorn.run.script}</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+      <properties>
+        <nashorn.run.script>test.js</nashorn.run.script>
+      </properties>
+    </profile>
+
+    <profile>
+      <!-- Was the "debug" Ant target: same, with code generation dumped. -->
+      <id>debug</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>debug-shell</id>
+                <phase>verify</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>${java.home}/bin/java</executable>
+                  <workingDirectory>${project.basedir}/../samples</workingDirectory>
+                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn -Dnashorn.codegen.debug=true -m org.openjdk.nashorn/org.openjdk.nashorn.tools.Shell --print-code --verify-code --print-symbols ${nashorn.run.script}</commandlineArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+      <properties>
+        <nashorn.run.script>test.js</nashorn.run.script>
+      </properties>
+    </profile>
+  </profiles>
+
+</project>
