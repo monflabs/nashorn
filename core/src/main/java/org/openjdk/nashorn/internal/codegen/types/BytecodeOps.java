@@ -25,7 +25,8 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 
 
 /**
@@ -55,7 +56,7 @@ interface BytecodeOps {
      *
      * @return        the type at the top of the stack or null
      */
-    Type dup(MethodVisitor method, int depth);
+    Type dup(CodeBuffer method, int depth);
 
     /**
      * Pop an entry of this type from the top of the bytecode
@@ -66,7 +67,7 @@ interface BytecodeOps {
      *
      * @return the popped type
      */
-    Type pop(MethodVisitor method);
+    Type pop(CodeBuffer method);
 
     /**
      * Swap this type with the bytecode stack with the one below
@@ -78,7 +79,7 @@ interface BytecodeOps {
      *
      * @return        the other type
      */
-    Type swap(MethodVisitor method, Type other);
+    Type swap(CodeBuffer method, Type other);
 
     /**
      * Pop two values on top of the stack and add the
@@ -88,7 +89,7 @@ interface BytecodeOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type add(MethodVisitor method, int programPoint);
+    Type add(CodeBuffer method, int programPoint);
 
     /**
      * Load a variable from a local slot to the stack
@@ -98,7 +99,7 @@ interface BytecodeOps {
      *
      * @return       the type that was loaded
      */
-    Type load(MethodVisitor method, int slot);
+    Type load(CodeBuffer method, int slot);
 
     /**
      * Store a variable from the stack to a local slot
@@ -106,7 +107,7 @@ interface BytecodeOps {
      * @param method  method visitor
      * @param slot    the slot to store to
      */
-    void store(MethodVisitor method, int slot);
+    void store(CodeBuffer method, int slot);
 
     /**
      * Load a constant to the stack.
@@ -116,7 +117,7 @@ interface BytecodeOps {
      *
      * @return        the type at the top of the stack after load
      */
-    Type ldc(MethodVisitor method, Object c);
+    Type ldc(CodeBuffer method, Object c);
 
     /**
      * Load the "undefined" value to the stack. Note that
@@ -127,7 +128,7 @@ interface BytecodeOps {
      *
      * @return the undefined type at the top of the stack
      */
-    Type loadUndefined(MethodVisitor method);
+    Type loadUndefined(CodeBuffer method);
 
     /**
      * Load the "forced initializer" value to the stack, used to ensure that a local variable has a value when it is
@@ -137,7 +138,7 @@ interface BytecodeOps {
      *
      * @return the forced initialization type at the top of the stack
      */
-    Type loadForcedInitializer(MethodVisitor method);
+    Type loadForcedInitializer(CodeBuffer method);
 
 
     /**
@@ -146,7 +147,7 @@ interface BytecodeOps {
      * @param  method  method visitor.
      * @return the undefined type at the top of the stack
      */
-    Type loadEmpty(MethodVisitor method);
+    Type loadEmpty(CodeBuffer method);
 
     /**
      * Generate code that pops and casts the element on top of the
@@ -157,7 +158,7 @@ interface BytecodeOps {
      *
      * @return the to type
      */
-    Type convert(MethodVisitor method, Type to);
+    Type convert(CodeBuffer method, Type to);
 
     /**
      * Return the parameter on top of the stack
@@ -165,6 +166,6 @@ interface BytecodeOps {
      *
      * @param method the method visitor
      */
-    void _return(MethodVisitor method);
+    void _return(CodeBuffer method);
 
 }

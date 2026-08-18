@@ -25,7 +25,8 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 
 /**
  * Numeric operations, not supported by all types
@@ -39,7 +40,7 @@ interface BytecodeNumericOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type neg(MethodVisitor method, int programPoint);
+    Type neg(CodeBuffer method, int programPoint);
 
     /**
      * Pop two values on top of the stack and subtract the first from the
@@ -49,7 +50,7 @@ interface BytecodeNumericOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type sub(MethodVisitor method, int programPoint);
+    Type sub(CodeBuffer method, int programPoint);
 
     /**
      * Pop and multiply the two values on top of the stack and push the result
@@ -59,7 +60,7 @@ interface BytecodeNumericOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type mul(MethodVisitor method, int programPoint);
+    Type mul(CodeBuffer method, int programPoint);
 
     /**
      * Pop two values on top of the stack and divide the first with the second,
@@ -69,7 +70,7 @@ interface BytecodeNumericOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type div(MethodVisitor method, int programPoint);
+    Type div(CodeBuffer method, int programPoint);
 
     /**
      * Pop two values on top of the stack and compute the modulo of the first
@@ -84,7 +85,7 @@ interface BytecodeNumericOps {
      * @param programPoint program point id
      * @return result type
      */
-    Type rem(MethodVisitor method, int programPoint);
+    Type rem(CodeBuffer method, int programPoint);
 
     /**
      * Comparison with int return value, e.g. LCMP, DCMP.
@@ -94,5 +95,5 @@ interface BytecodeNumericOps {
      *
      * @return int return value
      */
-    Type cmp(MethodVisitor method, boolean isCmpG);
+    Type cmp(CodeBuffer method, boolean isCmpG);
 }

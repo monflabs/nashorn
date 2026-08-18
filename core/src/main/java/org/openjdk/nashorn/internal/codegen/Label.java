@@ -491,8 +491,11 @@ public final class Label implements Serializable {
     /** Type stack at this label */
     private transient Label.Stack stack;
 
-    /** ASM representation of this label */
-    private transient org.objectweb.asm.Label label;
+    /**
+     * Where this label sits in the instruction stream of the method being
+     * generated, or -1 until it is bound. Set by {@link CodeBuffer#bind}.
+     */
+    private transient int position = -1;
 
     /** Id for debugging purposes, remove if footprint becomes unmanageable */
     private final int id;
@@ -524,11 +527,8 @@ public final class Label implements Serializable {
         this.id   = label.id;
     }
 
-    org.objectweb.asm.Label getLabel() {
-        if (this.label == null) {
-            this.label = new org.objectweb.asm.Label();
-        }
-        return label;
+    void setPosition(final int position) {
+        this.position = position;
     }
 
     Label.Stack getStack() {
@@ -584,8 +584,13 @@ public final class Label implements Serializable {
         return reachable;
     }
 
+    /**
+     * Whether any instruction was emitted between {@code other} and this label.
+     * Both must already be bound.
+     */
     boolean isAfter(final Label other) {
-        return label.getOffset() > other.label.getOffset();
+        assert position >= 0 && other.position >= 0 : "comparing unbound labels " + this + " and " + other;
+        return position > other.position;
     }
 
     private String str;

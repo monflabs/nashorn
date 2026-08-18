@@ -48,7 +48,7 @@ import jdk.dynalink.NamespaceOperation;
 import jdk.dynalink.Operation;
 import jdk.dynalink.StandardNamespace;
 import jdk.dynalink.StandardOperation;
-import org.openjdk.nashorn.internal.ir.debug.NashornTextifier;
+import org.openjdk.nashorn.internal.ir.debug.BytecodePrinter;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 
 /**
@@ -177,7 +177,7 @@ public final class NashornCallSiteDescriptor extends CallSiteDescriptor {
     private final int flags;
 
     /**
-     * Function used by {@link NashornTextifier} to represent call site flags in
+     * Function used by {@link BytecodePrinter} to represent call site flags in
      * human readable form
      * @param flags call site flags
      * @param sb the string builder

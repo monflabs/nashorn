@@ -25,35 +25,12 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.BIPUSH;
-import static org.objectweb.asm.Opcodes.I2D;
-import static org.objectweb.asm.Opcodes.I2L;
-import static org.objectweb.asm.Opcodes.IADD;
-import static org.objectweb.asm.Opcodes.IAND;
-import static org.objectweb.asm.Opcodes.ICONST_0;
-import static org.objectweb.asm.Opcodes.ICONST_1;
-import static org.objectweb.asm.Opcodes.ICONST_2;
-import static org.objectweb.asm.Opcodes.ICONST_3;
-import static org.objectweb.asm.Opcodes.ICONST_4;
-import static org.objectweb.asm.Opcodes.ICONST_5;
-import static org.objectweb.asm.Opcodes.ICONST_M1;
-import static org.objectweb.asm.Opcodes.ILOAD;
-import static org.objectweb.asm.Opcodes.IMUL;
-import static org.objectweb.asm.Opcodes.INEG;
-import static org.objectweb.asm.Opcodes.IOR;
-import static org.objectweb.asm.Opcodes.IRETURN;
-import static org.objectweb.asm.Opcodes.ISHL;
-import static org.objectweb.asm.Opcodes.ISHR;
-import static org.objectweb.asm.Opcodes.ISTORE;
-import static org.objectweb.asm.Opcodes.ISUB;
-import static org.objectweb.asm.Opcodes.IUSHR;
-import static org.objectweb.asm.Opcodes.IXOR;
-import static org.objectweb.asm.Opcodes.SIPUSH;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.staticCallNoLookup;
 import static org.openjdk.nashorn.internal.runtime.JSType.UNDEFINED_INT;
 import static org.openjdk.nashorn.internal.runtime.UnwarrantedOptimismException.INVALID_PROGRAM_POINT;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 import org.openjdk.nashorn.internal.runtime.JSType;
 
@@ -86,57 +63,25 @@ class IntType extends BitwiseType {
     }
 
     @Override
-    public Type ldc(final MethodVisitor method, final Object c) {
+    public Type ldc(final CodeBuffer method, final Object c) {
         assert c instanceof Integer;
 
-        final int value = ((Integer) c);
-
-        switch (value) {
-        case -1:
-            method.visitInsn(ICONST_M1);
-            break;
-        case 0:
-            method.visitInsn(ICONST_0);
-            break;
-        case 1:
-            method.visitInsn(ICONST_1);
-            break;
-        case 2:
-            method.visitInsn(ICONST_2);
-            break;
-        case 3:
-            method.visitInsn(ICONST_3);
-            break;
-        case 4:
-            method.visitInsn(ICONST_4);
-            break;
-        case 5:
-            method.visitInsn(ICONST_5);
-            break;
-        default:
-            if (value == (byte) value) {
-                method.visitIntInsn(BIPUSH, value);
-            } else if (value == (short) value) {
-                method.visitIntInsn(SIPUSH, value);
-            } else {
-                method.visitLdcInsn(c);
-            }
-            break;
-        }
+        final int value = (Integer)c;
+        method.emit(cb -> cb.loadConstant(value));
 
         return Type.INT;
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         if (to.isEquivalentTo(this)) {
             return to;
         }
 
         if (to.isNumber()) {
-            method.visitInsn(I2D);
+            method.emit(CodeBuilder::i2d);
         } else if (to.isLong()) {
-            method.visitInsn(I2L);
+            method.emit(CodeBuilder::i2l);
         } else if (to.isBoolean()) {
             invokestatic(method, JSType.TO_BOOLEAN_I);
         } else if (to.isString()) {
@@ -151,144 +96,144 @@ class IntType extends BitwiseType {
     }
 
     @Override
-    public Type add(final MethodVisitor method, final int programPoint) {
+    public Type add(final CodeBuffer method, final int programPoint) {
         if(programPoint == INVALID_PROGRAM_POINT) {
-            method.visitInsn(IADD);
+            method.emit(CodeBuilder::iadd);
         } else {
             ldc(method, programPoint);
-            JSType.ADD_EXACT.invoke(method);
+            invokestatic(method, JSType.ADD_EXACT);
         }
         return INT;
     }
 
     @Override
-    public Type shr(final MethodVisitor method) {
-        method.visitInsn(IUSHR);
+    public Type shr(final CodeBuffer method) {
+        method.emit(CodeBuilder::iushr);
         return INT;
     }
 
     @Override
-    public Type sar(final MethodVisitor method) {
-        method.visitInsn(ISHR);
+    public Type sar(final CodeBuffer method) {
+        method.emit(CodeBuilder::ishr);
         return INT;
     }
 
     @Override
-    public Type shl(final MethodVisitor method) {
-        method.visitInsn(ISHL);
+    public Type shl(final CodeBuffer method) {
+        method.emit(CodeBuilder::ishl);
         return INT;
     }
 
     @Override
-    public Type and(final MethodVisitor method) {
-        method.visitInsn(IAND);
+    public Type and(final CodeBuffer method) {
+        method.emit(CodeBuilder::iand);
         return INT;
     }
 
     @Override
-    public Type or(final MethodVisitor method) {
-        method.visitInsn(IOR);
+    public Type or(final CodeBuffer method) {
+        method.emit(CodeBuilder::ior);
         return INT;
     }
 
     @Override
-    public Type xor(final MethodVisitor method) {
-        method.visitInsn(IXOR);
+    public Type xor(final CodeBuffer method) {
+        method.emit(CodeBuilder::ixor);
         return INT;
     }
 
     @Override
-    public Type load(final MethodVisitor method, final int slot) {
+    public Type load(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ILOAD, slot);
+        method.emit(cb -> cb.iload(slot));
         return INT;
     }
 
     @Override
-    public void store(final MethodVisitor method, final int slot) {
+    public void store(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ISTORE, slot);
+        method.emit(cb -> cb.istore(slot));
     }
 
     @Override
-    public Type sub(final MethodVisitor method, final int programPoint) {
+    public Type sub(final CodeBuffer method, final int programPoint) {
         if(programPoint == INVALID_PROGRAM_POINT) {
-            method.visitInsn(ISUB);
+            method.emit(CodeBuilder::isub);
         } else {
             ldc(method, programPoint);
-            JSType.SUB_EXACT.invoke(method);
+            invokestatic(method, JSType.SUB_EXACT);
         }
         return INT;
     }
 
     @Override
-    public Type mul(final MethodVisitor method, final int programPoint) {
+    public Type mul(final CodeBuffer method, final int programPoint) {
         if(programPoint == INVALID_PROGRAM_POINT) {
-            method.visitInsn(IMUL);
+            method.emit(CodeBuilder::imul);
         } else {
             ldc(method, programPoint);
-            JSType.MUL_EXACT.invoke(method);
+            invokestatic(method, JSType.MUL_EXACT);
         }
         return INT;
     }
 
     @Override
-    public Type div(final MethodVisitor method, final int programPoint) {
+    public Type div(final CodeBuffer method, final int programPoint) {
         if (programPoint == INVALID_PROGRAM_POINT) {
-            JSType.DIV_ZERO.invoke(method);
+            invokestatic(method, JSType.DIV_ZERO);
         } else {
             ldc(method, programPoint);
-            JSType.DIV_EXACT.invoke(method);
+            invokestatic(method, JSType.DIV_EXACT);
         }
         return INT;
     }
 
     @Override
-    public Type rem(final MethodVisitor method, final int programPoint) {
+    public Type rem(final CodeBuffer method, final int programPoint) {
         if (programPoint == INVALID_PROGRAM_POINT) {
-            JSType.REM_ZERO.invoke(method);
+            invokestatic(method, JSType.REM_ZERO);
         } else {
             ldc(method, programPoint);
-            JSType.REM_EXACT.invoke(method);
+            invokestatic(method, JSType.REM_EXACT);
         }
         return INT;
     }
 
     @Override
-    public Type neg(final MethodVisitor method, final int programPoint) {
+    public Type neg(final CodeBuffer method, final int programPoint) {
         if(programPoint == INVALID_PROGRAM_POINT) {
-            method.visitInsn(INEG);
+            method.emit(CodeBuilder::ineg);
         } else {
             ldc(method, programPoint);
-            JSType.NEGATE_EXACT.invoke(method);
+            invokestatic(method, JSType.NEGATE_EXACT);
         }
         return INT;
     }
 
     @Override
-    public void _return(final MethodVisitor method) {
-        method.visitInsn(IRETURN);
+    public void _return(final CodeBuffer method) {
+        method.emit(CodeBuilder::ireturn);
     }
 
     @Override
-    public Type loadUndefined(final MethodVisitor method) {
-        method.visitLdcInsn(UNDEFINED_INT);
+    public Type loadUndefined(final CodeBuffer method) {
+        method.emit(cb -> cb.loadConstant(UNDEFINED_INT));
         return INT;
     }
 
     @Override
-    public Type loadForcedInitializer(final MethodVisitor method) {
-        method.visitInsn(ICONST_0);
+    public Type loadForcedInitializer(final CodeBuffer method) {
+        method.emit(CodeBuilder::iconst_0);
         return INT;
     }
 
     @Override
-    public Type cmp(final MethodVisitor method, final boolean isCmpG) {
+    public Type cmp(final CodeBuffer method, final boolean isCmpG) {
         throw new UnsupportedOperationException("cmp" + (isCmpG ? 'g' : 'l'));
     }
 
     @Override
-    public Type cmp(final MethodVisitor method) {
+    public Type cmp(final CodeBuffer method) {
         throw new UnsupportedOperationException("cmp");
     }
 

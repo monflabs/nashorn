@@ -25,23 +25,11 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.DADD;
-import static org.objectweb.asm.Opcodes.DCMPG;
-import static org.objectweb.asm.Opcodes.DCMPL;
-import static org.objectweb.asm.Opcodes.DCONST_0;
-import static org.objectweb.asm.Opcodes.DCONST_1;
-import static org.objectweb.asm.Opcodes.DDIV;
-import static org.objectweb.asm.Opcodes.DLOAD;
-import static org.objectweb.asm.Opcodes.DMUL;
-import static org.objectweb.asm.Opcodes.DNEG;
-import static org.objectweb.asm.Opcodes.DREM;
-import static org.objectweb.asm.Opcodes.DRETURN;
-import static org.objectweb.asm.Opcodes.DSTORE;
-import static org.objectweb.asm.Opcodes.DSUB;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.staticCallNoLookup;
 import static org.openjdk.nashorn.internal.runtime.JSType.UNDEFINED_DOUBLE;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 import org.openjdk.nashorn.internal.runtime.JSType;
 
@@ -70,55 +58,48 @@ class NumberType extends NumericType {
     }
 
     @Override
-    public Type cmp(final MethodVisitor method, final boolean isCmpG) {
-        method.visitInsn(isCmpG ? DCMPG : DCMPL);
+    public Type cmp(final CodeBuffer method, final boolean isCmpG) {
+        method.emit(isCmpG ? CodeBuilder::dcmpg : CodeBuilder::dcmpl);
         return INT;
     }
 
     @Override
-    public Type load(final MethodVisitor method, final int slot) {
+    public Type load(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(DLOAD, slot);
+        method.emit(cb -> cb.dload(slot));
         return NUMBER;
     }
 
     @Override
-    public void store(final MethodVisitor method, final int slot) {
+    public void store(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(DSTORE, slot);
+        method.emit(cb -> cb.dstore(slot));
     }
 
     @Override
-    public Type loadUndefined(final MethodVisitor method) {
-        method.visitLdcInsn(UNDEFINED_DOUBLE);
+    public Type loadUndefined(final CodeBuffer method) {
+        method.emit(cb -> cb.loadConstant(UNDEFINED_DOUBLE));
         return NUMBER;
     }
 
     @Override
-    public Type loadForcedInitializer(final MethodVisitor method) {
-        method.visitInsn(DCONST_0);
+    public Type loadForcedInitializer(final CodeBuffer method) {
+        method.emit(CodeBuilder::dconst_0);
         return NUMBER;
     }
 
     @Override
-    public Type ldc(final MethodVisitor method, final Object c) {
+    public Type ldc(final CodeBuffer method, final Object c) {
         assert c instanceof Double;
 
-        final double value = (Double) c;
-
-        if (Double.doubleToLongBits(value) == 0L) { // guard against -0.0
-            method.visitInsn(DCONST_0);
-        } else if (value == 1.0) {
-            method.visitInsn(DCONST_1);
-        } else {
-            method.visitLdcInsn(value);
-        }
+        final double value = (Double)c;
+        method.emit(cb -> cb.loadConstant(value));
 
         return NUMBER;
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         if (isEquivalentTo(to)) {
             return null;
         }
@@ -141,43 +122,43 @@ class NumberType extends NumericType {
     }
 
     @Override
-    public Type add(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DADD);
+    public Type add(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::dadd);
         return NUMBER;
     }
 
     @Override
-    public Type sub(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DSUB);
+    public Type sub(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::dsub);
         return NUMBER;
     }
 
     @Override
-    public Type mul(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DMUL);
+    public Type mul(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::dmul);
         return NUMBER;
     }
 
     @Override
-    public Type div(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DDIV);
+    public Type div(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::ddiv);
         return NUMBER;
     }
 
     @Override
-    public Type rem(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DREM);
+    public Type rem(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::drem);
         return NUMBER;
     }
 
     @Override
-    public Type neg(final MethodVisitor method, final int programPoint) {
-        method.visitInsn(DNEG);
+    public Type neg(final CodeBuffer method, final int programPoint) {
+        method.emit(CodeBuilder::dneg);
         return NUMBER;
     }
 
     @Override
-    public void _return(final MethodVisitor method) {
-        method.visitInsn(DRETURN);
+    public void _return(final CodeBuffer method) {
+        method.emit(CodeBuilder::dreturn);
     }
 }

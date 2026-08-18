@@ -87,13 +87,6 @@ questions.
     <nashorn.product.name>OpenJDK Nashorn</nashorn.product.name>
 
     <!--
-      Must be able to read the class files javac produces for this project:
-      nasgen parses them, and ASM rejects any class file version it predates.
-      7.3.1 (what the Ant build pinned) stops at Java 14.
-    -->
-    <asm.version>9.10.1</asm.version>
-
-    <!--
       Test dependencies. These were downloaded into test/nashorn/lib by the
       "get-testng" Ant target; they are ordinary dependencies now. The versions
       are the ones the Ant build pinned - bump them separately from this
@@ -120,27 +113,6 @@ questions.
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>org.ow2.asm</groupId>
-        <artifactId>asm</artifactId>
-        <version>${asm.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.ow2.asm</groupId>
-        <artifactId>asm-commons</artifactId>
-        <version>${asm.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.ow2.asm</groupId>
-        <artifactId>asm-tree</artifactId>
-        <version>${asm.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.ow2.asm</groupId>
-        <artifactId>asm-util</artifactId>
-        <version>${asm.version}</version>
-      </dependency>
-
       <dependency>
         <groupId>org.testng</groupId>
         <artifactId>testng</artifactId>

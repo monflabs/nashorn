@@ -35,7 +35,7 @@ Getting Started
 ===============
 Latest version of Nashorn is 15.7, available from [Maven Central](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar). You can check the [change log](CHANGELOG.md) to see what's new.
 
-Nashorn is a JPMS module, so make sure it and its transitive dependencies (Nashorn depends on several ASM JARs) are on your application's module path, or appropriately added to a module layer, or otherwise configured as modules.
+Nashorn is a JPMS module with no dependencies of its own - it generates bytecode with the JDK's own `java.lang.classfile` API - so make sure it is on your application's module path, or appropriately added to a module layer, or otherwise configured as a module.
 
 This fork is compiled with `--release 25` and needs a JDK 25 or newer at both build and run time. Earlier releases of `nashorn-core` on Maven Central target Java 11; use one of those if you are on an older JDK. Java 14 and earlier also ship a built-in Nashorn - see [this page](https://github.com/szegedi/nashorn/wiki/Using-Nashorn-with-different-Java-versions) for details on use when both versions are present.
 

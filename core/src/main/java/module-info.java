@@ -144,10 +144,6 @@ module org.openjdk.nashorn {
     requires jdk.dynalink;
     requires jdk.unsupported;
 
-    requires org.objectweb.asm;
-    requires org.objectweb.asm.commons;
-    requires org.objectweb.asm.util;
-
     requires transitive java.scripting;
 
     exports org.openjdk.nashorn.api.scripting;

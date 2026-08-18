@@ -25,18 +25,12 @@
 
 package org.openjdk.nashorn.internal.codegen;
 
-import static org.objectweb.asm.Opcodes.ACC_FINAL;
-import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
-import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
-import static org.objectweb.asm.Opcodes.ACC_STATIC;
-import static org.objectweb.asm.Opcodes.ACC_SUPER;
-import static org.objectweb.asm.Opcodes.ACC_VARARGS;
-import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
-import static org.objectweb.asm.Opcodes.H_INVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
-import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.V1_7;
+import static java.lang.classfile.ClassFile.ACC_FINAL;
+import static java.lang.classfile.ClassFile.ACC_PRIVATE;
+import static java.lang.classfile.ClassFile.ACC_PUBLIC;
+import static java.lang.classfile.ClassFile.ACC_STATIC;
+import static java.lang.classfile.ClassFile.ACC_SUPER;
+import static java.lang.classfile.ClassFile.ACC_VARARGS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.CONSTANTS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.GET_ARRAY_PREFIX;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.GET_ARRAY_SUFFIX;
@@ -47,23 +41,26 @@ import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SET_MAP;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SOURCE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.STRICT_MODE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.className;
-import static org.openjdk.nashorn.internal.codegen.CompilerConstants.methodDescriptor;
-import static org.openjdk.nashorn.internal.codegen.CompilerConstants.typeDescriptor;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.virtualCallNoLookup;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintWriter;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.classfile.ClassHierarchyResolver.ClassHierarchyInfo;
+import java.lang.classfile.attribute.ConstantValueAttribute;
+import java.lang.classfile.attribute.SourceFileAttribute;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDesc;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.MethodTypeDesc;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.util.TraceClassVisitor;
 import org.openjdk.nashorn.internal.codegen.types.Type;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
-import org.openjdk.nashorn.internal.ir.debug.NashornClassReader;
-import org.openjdk.nashorn.internal.ir.debug.NashornTextifier;
+import org.openjdk.nashorn.internal.ir.debug.BytecodePrinter;
 import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.RewriteException;
@@ -116,11 +113,61 @@ public class ClassEmitter {
      */
     private final HashSet<MethodEmitter> methodsStarted;
 
-    /** The ASM classwriter that we use for all bytecode operations */
-    protected final ClassWriter cw;
+    /**
+     * Class file version of the code Nashorn generates. Not the version it runs
+     * on: the bytecode uses nothing newer, and keeping it low keeps the classes
+     * loadable by anything that can host Nashorn at all.
+     */
+    private static final int CLASS_VERSION = ClassFile.JAVA_7_VERSION;
+
+    private static final ClassDesc SCRIPT_OBJECT = Type.classDesc(ScriptObject.class);
+
+    /**
+     * Nashorn's own types as the stack map generator sees them.
+     *
+     * Classes that cannot be loaded - the compile unit being generated, and the
+     * structure classes that {@link ObjectClassGenerator} makes at runtime - are
+     * answered from their name: anything that lives in Nashorn's scripts or
+     * objects package is reported as a ScriptObject subtype, so that merging two
+     * of them yields ScriptObject rather than Object, and everything else falls
+     * back to Object.
+     */
+    private static final ClassHierarchyResolver CLASS_HIERARCHY =
+        ClassHierarchyResolver.ofClassLoading(ClassEmitter.class.getClassLoader())
+            .orElse(classDesc -> ClassHierarchyInfo.ofClass(
+                isScriptObject(internalName(classDesc)) ? SCRIPT_OBJECT : ConstantDescs.CD_Object))
+            .cached();
+
+    /** The context every class Nashorn generates goes through. */
+    private static final ClassFile CLASS_FILE =
+        ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(CLASS_HIERARCHY));
+
+    /** This class */
+    private final ClassDesc className;
+
+    /** Super class of this class */
+    private final ClassDesc superClass;
+
+    /** Interfaces this class implements */
+    private final List<ClassDesc> interfaces;
+
+    /** Source file name, for the SourceFile attribute, or null */
+    private String sourceFile;
+
+    /** Fields to write, in declaration order */
+    private final List<FieldDef> fieldDefs = new ArrayList<>();
+
+    /** Methods to write, in declaration order */
+    private final List<MethodDef> methodDefs = new ArrayList<>();
 
     /** The script environment */
     protected final Context context;
+
+    /** The internal (slash separated) name of a class or interface. */
+    private static String internalName(final ClassDesc classDesc) {
+        final String pkg = classDesc.packageName();
+        return pkg.isEmpty() ? classDesc.displayName() : pkg.replace('.', '/') + '/' + classDesc.displayName();
+    }
 
     /** Compile unit class name. */
     private String unitClassName;
@@ -143,12 +190,25 @@ public class ClassEmitter {
      * @param context script context
      * @param cw  ASM classwriter
      */
-    private ClassEmitter(final Context context, final ClassWriter cw) {
+    private ClassEmitter(final Context context, final String className, final String superClassName,
+            final String[] interfaceNames, final String sourceFile) {
         this.context        = context;
-        this.cw             = cw;
+        this.sourceFile     = sourceFile;
+        this.className      = CompilerConstants.classDesc(className);
+        this.superClass     = CompilerConstants.classDesc(superClassName);
+        this.interfaces     = new ArrayList<>(interfaceNames.length);
+        for (final String interfaceName : interfaceNames) {
+            interfaces.add(CompilerConstants.classDesc(interfaceName));
+        }
         this.methodsStarted = new HashSet<>();
         this.methodNames    = new HashSet<>();
     }
+
+    /** A field waiting to be written. */
+    private record FieldDef(int flags, String name, ClassDesc type, ConstantDesc value) {}
+
+    /** A method waiting to be written, with its recorded body. */
+    private record MethodDef(int flags, String name, MethodTypeDesc type, CodeBuffer code) {}
 
     /**
      * Return the method names encountered.
@@ -169,8 +229,7 @@ public class ClassEmitter {
      *        {@code null} if none
      */
     ClassEmitter(final Context context, final String className, final String superClassName, final String... interfaceNames) {
-        this(context, new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS));
-        cw.visit(V1_7, ACC_PUBLIC | ACC_SUPER, className, null, superClassName, interfaceNames);
+        this(context, className, superClassName, interfaceNames, (String)null);
     }
 
     /**
@@ -182,31 +241,16 @@ public class ClassEmitter {
      * @param strictMode    Should we generate this method in strict mode
      */
     ClassEmitter(final Context context, final String sourceName, final String unitClassName, final boolean strictMode) {
-        this(context,
-             new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS) {
-                private static final String OBJECT_CLASS  = "java/lang/Object";
-
-                @Override
-                protected String getCommonSuperClass(final String type1, final String type2) {
-                    try {
-                        return super.getCommonSuperClass(type1, type2);
-                    } catch (final RuntimeException e) {
-                        if (isScriptObject(type1) && isScriptObject(type2)) {
-                            return className(ScriptObject.class);
-                        }
-                        return OBJECT_CLASS;
-                    }
-                }
-            });
+        this(context, unitClassName, pathName(org.openjdk.nashorn.internal.scripts.JS.class.getName()),
+             NO_INTERFACES, sourceName);
 
         this.unitClassName        = unitClassName;
         this.constantMethodNeeded = new HashSet<>();
 
-        cw.visit(V1_7, ACC_PUBLIC | ACC_SUPER, unitClassName, null, pathName(org.openjdk.nashorn.internal.scripts.JS.class.getName()), null);
-        cw.visitSource(sourceName, null);
-
         defineCommonStatics(strictMode);
     }
+
+    private static final String[] NO_INTERFACES = new String[0];
 
     Context getContext() {
         return context;
@@ -408,7 +452,6 @@ public class ClassEmitter {
             defineCommonUtilities();
         }
 
-        cw.visitEnd();
         classStarted = false;
         classEnded   = true;
         assert methodsStarted.isEmpty() : "methodsStarted not empty " + methodsStarted;
@@ -422,15 +465,7 @@ public class ClassEmitter {
      * @return disassembly as human readable string
      */
     static String disassemble(final byte[] bytecode) {
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final PrintWriter pw = new PrintWriter(baos)) {
-            final NashornClassReader cr = new NashornClassReader(bytecode);
-            final Context ctx = Context.getContext();
-            final TraceClassVisitor tcv = new TraceClassVisitor(null, new NashornTextifier(ctx.getEnv(), cr), pw);
-            cr.accept(tcv, 0);
-        }
-
-        return baos.toString();
+        return BytecodePrinter.disassemble(Context.getContext().getEnv(), bytecode);
     }
 
     /**
@@ -481,9 +516,7 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter method(final EnumSet<Flag> methodFlags, final String methodName, final Class<?> rtype, final Class<?>... ptypes) {
-        methodCount++;
-        methodNames.add(methodName);
-        return new MethodEmitter(this, methodVisitor(methodFlags, methodName, rtype, ptypes));
+        return newMethod(Flag.getValue(methodFlags), methodName, Type.methodType(rtype, ptypes), null);
     }
 
     /**
@@ -508,9 +541,7 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter method(final EnumSet<Flag> methodFlags, final String methodName, final String descriptor) {
-        methodCount++;
-        methodNames.add(methodName);
-        return new MethodEmitter(this, cw.visitMethod(Flag.getValue(methodFlags), methodName, descriptor, null, null));
+        return newMethod(Flag.getValue(methodFlags), methodName, CompilerConstants.methodType(descriptor), null);
     }
 
     /**
@@ -521,17 +552,11 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter method(final FunctionNode functionNode) {
-        methodCount++;
-        methodNames.add(functionNode.getName());
-        final FunctionSignature signature = new FunctionSignature(functionNode);
-        final MethodVisitor mv = cw.visitMethod(
+        return newMethod(
             ACC_PUBLIC | ACC_STATIC | (functionNode.isVarArg() ? ACC_VARARGS : 0),
             functionNode.getName(),
-            signature.toString(),
-            null,
-            null);
-
-        return new MethodEmitter(this, mv, functionNode);
+            new FunctionSignature(functionNode).getMethodTypeDesc(),
+            functionNode);
     }
 
     /**
@@ -543,16 +568,23 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter restOfMethod(final FunctionNode functionNode) {
-        methodCount++;
-        methodNames.add(functionNode.getName());
-        final MethodVisitor mv = cw.visitMethod(
+        return newMethod(
             ACC_PUBLIC | ACC_STATIC,
             functionNode.getName(),
-            Type.getMethodDescriptor(functionNode.getReturnType().getTypeClass(), RewriteException.class),
-            null,
-            null);
+            Type.methodType(functionNode.getReturnType().getTypeClass(), RewriteException.class),
+            functionNode);
+    }
 
-        return new MethodEmitter(this, mv, functionNode);
+    /**
+     * Registers a method and returns the emitter that records its body.
+     */
+    private MethodEmitter newMethod(final int flags, final String methodName, final MethodTypeDesc type,
+            final FunctionNode functionNode) {
+        methodCount++;
+        methodNames.add(methodName);
+        final CodeBuffer code = new CodeBuffer();
+        methodDefs.add(new MethodDef(flags, methodName, type, code));
+        return new MethodEmitter(this, code, functionNode);
     }
 
     /**
@@ -601,7 +633,18 @@ public class ClassEmitter {
      */
     final void field(final EnumSet<Flag> fieldFlags, final String fieldName, final Class<?> fieldType, final Object value) {
         fieldCount++;
-        cw.visitField(Flag.getValue(fieldFlags), fieldName, typeDescriptor(fieldType), null, value).visitEnd();
+        fieldDefs.add(new FieldDef(Flag.getValue(fieldFlags), fieldName, Type.classDesc(fieldType), constantValue(value)));
+    }
+
+    /**
+     * The ConstantValue attribute takes an int for the small integral types,
+     * booleans among them.
+     */
+    private static ConstantDesc constantValue(final Object value) {
+        if (value instanceof Boolean b) {
+            return b ? 1 : 0;
+        }
+        return (ConstantDesc)value;
     }
 
     /**
@@ -635,11 +678,34 @@ public class ClassEmitter {
      *         generation hasn't been ended with {@link ClassEmitter#end()}.
      */
     byte[] toByteArray() {
-        if (classEnded) {
-            return cw.toByteArray();
-        } else {
+        if (!classEnded) {
             throw new AssertionError();
         }
+
+        return CLASS_FILE.build(className, clb -> {
+            clb.withVersion(CLASS_VERSION, 0);
+            clb.withFlags(ACC_PUBLIC | ACC_SUPER);
+            clb.withSuperclass(superClass);
+            if (!interfaces.isEmpty()) {
+                clb.withInterfaceSymbols(interfaces);
+            }
+            if (sourceFile != null) {
+                clb.with(SourceFileAttribute.of(sourceFile));
+            }
+
+            for (final FieldDef field : fieldDefs) {
+                clb.withField(field.name(), field.type(), fb -> {
+                    fb.withFlags(field.flags());
+                    if (field.value() != null) {
+                        fb.with(ConstantValueAttribute.of(field.value()));
+                    }
+                });
+            }
+
+            for (final MethodDef method : methodDefs) {
+                clb.withMethodBody(method.name(), method.type(), method.flags(), method.code()::writeTo);
+            }
+        });
     }
 
     /**
@@ -648,17 +714,6 @@ public class ClassEmitter {
      * for method handles, protection levels, static/virtual fields/methods.
      */
     enum Flag {
-        /** method handle with static access */
-        HANDLE_STATIC(H_INVOKESTATIC),
-        /** method handle with new invoke special access */
-        HANDLE_NEWSPECIAL(H_NEWINVOKESPECIAL),
-        /** method handle with invoke special access */
-        HANDLE_SPECIAL(H_INVOKESPECIAL),
-        /** method handle with invoke virtual access */
-        HANDLE_VIRTUAL(H_INVOKEVIRTUAL),
-        /** method handle with invoke interface access */
-        HANDLE_INTERFACE(H_INVOKEINTERFACE),
-
         /** final access */
         FINAL(ACC_FINAL),
         /** static access */
@@ -683,7 +738,7 @@ public class ClassEmitter {
         }
 
         /**
-         * Return the corresponding ASM flag value for an enum set of flags.
+         * Return the corresponding class file flag value for an enum set of flags.
          *
          * @param flags enum set of flags
          *
@@ -697,10 +752,6 @@ public class ClassEmitter {
             }
             return v;
         }
-    }
-
-    private MethodVisitor methodVisitor(final EnumSet<Flag> flags, final String methodName, final Class<?> rtype, final Class<?>... ptypes) {
-        return cw.visitMethod(Flag.getValue(flags), methodName, methodDescriptor(rtype, ptypes), null, null);
     }
 
 }

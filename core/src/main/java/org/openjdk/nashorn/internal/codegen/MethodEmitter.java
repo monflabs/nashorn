@@ -25,39 +25,6 @@
 
 package org.openjdk.nashorn.internal.codegen;
 
-import static org.objectweb.asm.Opcodes.ATHROW;
-import static org.objectweb.asm.Opcodes.CHECKCAST;
-import static org.objectweb.asm.Opcodes.DUP2;
-import static org.objectweb.asm.Opcodes.GETFIELD;
-import static org.objectweb.asm.Opcodes.GETSTATIC;
-import static org.objectweb.asm.Opcodes.GOTO;
-import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
-import static org.objectweb.asm.Opcodes.IFEQ;
-import static org.objectweb.asm.Opcodes.IFGE;
-import static org.objectweb.asm.Opcodes.IFGT;
-import static org.objectweb.asm.Opcodes.IFLE;
-import static org.objectweb.asm.Opcodes.IFLT;
-import static org.objectweb.asm.Opcodes.IFNE;
-import static org.objectweb.asm.Opcodes.IFNONNULL;
-import static org.objectweb.asm.Opcodes.IFNULL;
-import static org.objectweb.asm.Opcodes.IF_ACMPEQ;
-import static org.objectweb.asm.Opcodes.IF_ACMPNE;
-import static org.objectweb.asm.Opcodes.IF_ICMPEQ;
-import static org.objectweb.asm.Opcodes.IF_ICMPGE;
-import static org.objectweb.asm.Opcodes.IF_ICMPGT;
-import static org.objectweb.asm.Opcodes.IF_ICMPLE;
-import static org.objectweb.asm.Opcodes.IF_ICMPLT;
-import static org.objectweb.asm.Opcodes.IF_ICMPNE;
-import static org.objectweb.asm.Opcodes.INSTANCEOF;
-import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
-import static org.objectweb.asm.Opcodes.INVOKESPECIAL;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
-import static org.objectweb.asm.Opcodes.NEW;
-import static org.objectweb.asm.Opcodes.PUTFIELD;
-import static org.objectweb.asm.Opcodes.PUTSTATIC;
-import static org.objectweb.asm.Opcodes.RETURN;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.ARGUMENTS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.CONSTANTS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SCOPE;
@@ -75,15 +42,18 @@ import static org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescrip
 import static org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.CALLSITE_PROGRAM_POINT_SHIFT;
 
 import java.io.PrintStream;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Opcode;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DynamicCallSiteDesc;
+import java.lang.constant.MethodHandleDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.Array;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.MethodVisitor;
-import org.openjdk.nashorn.internal.codegen.ClassEmitter.Flag;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants.FieldAccess;
 import org.openjdk.nashorn.internal.codegen.types.ArrayType;
@@ -127,8 +97,8 @@ import org.openjdk.nashorn.internal.runtime.options.Options;
  * including bytecode stack contents
  */
 public class MethodEmitter {
-    /** The ASM MethodVisitor we are plugged into */
-    private final MethodVisitor method;
+    /** The buffer this method's bytecode is recorded into */
+    private final CodeBuffer method;
 
     /** Parent classEmitter representing the class of this method */
     private final ClassEmitter classEmitter;
@@ -171,10 +141,14 @@ public class MethodEmitter {
     }
 
     /** Bootstrap for normal indy:s */
-    private static final Handle LINKERBOOTSTRAP  = new Handle(H_INVOKESTATIC, Bootstrap.BOOTSTRAP.className(), Bootstrap.BOOTSTRAP.name(), Bootstrap.BOOTSTRAP.descriptor(), false);
+    private static final DirectMethodHandleDesc LINKERBOOTSTRAP = staticBootstrap(Bootstrap.BOOTSTRAP);
 
     /** Bootstrap for array populators */
-    private static final Handle POPULATE_ARRAY_BOOTSTRAP = new Handle(H_INVOKESTATIC, RewriteException.BOOTSTRAP.className(), RewriteException.BOOTSTRAP.name(), RewriteException.BOOTSTRAP.descriptor(), false);
+    private static final DirectMethodHandleDesc POPULATE_ARRAY_BOOTSTRAP = staticBootstrap(RewriteException.BOOTSTRAP);
+
+    private static DirectMethodHandleDesc staticBootstrap(final Call call) {
+        return MethodHandleDesc.ofMethod(DirectMethodHandleDesc.Kind.STATIC, call.owner(), call.name(), call.type());
+    }
 
     /**
      * Constructor - internal use from ClassEmitter only
@@ -183,7 +157,7 @@ public class MethodEmitter {
      * @param classEmitter the class emitter weaving the class this method is in
      * @param method       a method visitor
      */
-    MethodEmitter(final ClassEmitter classEmitter, final MethodVisitor method) {
+    MethodEmitter(final ClassEmitter classEmitter, final CodeBuffer method) {
         this(classEmitter, method, null);
     }
 
@@ -195,7 +169,7 @@ public class MethodEmitter {
      * @param method       a method visitor
      * @param functionNode a function node representing this method
      */
-    MethodEmitter(final ClassEmitter classEmitter, final MethodVisitor method, final FunctionNode functionNode) {
+    MethodEmitter(final ClassEmitter classEmitter, final CodeBuffer method, final FunctionNode functionNode) {
         this.context      = classEmitter.getContext();
         this.classEmitter = classEmitter;
         this.method       = method;
@@ -211,16 +185,12 @@ public class MethodEmitter {
     public void begin() {
         classEmitter.beginMethod(this);
         newStack();
-        method.visitCode();
     }
 
     /**
      * End a method
      */
     public void end() {
-        method.visitMaxs(0, 0);
-        method.visitEnd();
-
         classEmitter.endMethod(this);
     }
 
@@ -238,7 +208,7 @@ public class MethodEmitter {
 
     @Override
     public String toString() {
-        return "methodEmitter: " + (functionNode == null ? method : functionNode.getName()).toString() + ' ' + Debug.id(this);
+        return "methodEmitter: " + (functionNode == null ? Debug.id(method) : functionNode.getName()) + ' ' + Debug.id(this);
     }
 
     /**
@@ -355,7 +325,8 @@ public class MethodEmitter {
      */
     MethodEmitter _new(final String classDescriptor, final Type type) {
         debug("new", classDescriptor);
-        method.visitTypeInsn(NEW, classDescriptor);
+        final ClassDesc clazz = CompilerConstants.classDesc(classDescriptor);
+        method.emit(cb -> cb.new_(clazz));
         pushType(type);
         return this;
     }
@@ -473,7 +444,7 @@ public class MethodEmitter {
             pushType(p1);
             stack.markLocalLoad(l1);
         }
-        method.visitInsn(DUP2);
+        method.emit(CodeBuilder::dup2);
         return this;
     }
 
@@ -555,7 +526,7 @@ public class MethodEmitter {
      */
     void initializeMethodParameter(final Symbol symbol, final Type type, final Label start) {
         assert symbol.isBytecodeLocal();
-        localVariableDefs.put(symbol, new LocalVariableDef(start.getLabel(), type));
+        localVariableDefs.put(symbol, new LocalVariableDef(start, type));
     }
 
     /**
@@ -716,8 +687,7 @@ public class MethodEmitter {
      */
     void _try(final Label entry, final Label exit, final Label recovery, final Class<?> clazz, final boolean isOptimismHandler) {
         recovery.joinFromTry(entry.getStack(), isOptimismHandler);
-        final String typeDescriptor = clazz == null ? null : CompilerConstants.className(clazz);
-        method.visitTryCatchBlock(entry.getLabel(), exit.getLabel(), recovery.getLabel(), typeDescriptor);
+        method.tryCatch(entry, exit, recovery, clazz == null ? null : CompilerConstants.classDesc(clazz));
     }
 
     /**
@@ -810,7 +780,8 @@ public class MethodEmitter {
      */
     MethodEmitter loadType(final String className) {
         debug("load type", className);
-        method.visitLdcInsn(org.objectweb.asm.Type.getObjectType(className));
+        final ClassDesc clazz = CompilerConstants.classDesc(className);
+        method.emit(cb -> cb.loadConstant(clazz));
         pushType(Type.OBJECT);
         return this;
     }
@@ -998,23 +969,6 @@ public class MethodEmitter {
         return slot == thisSlot;
     }
 
-    /**
-     * Push a method handle to the stack
-     *
-     * @param className  class name
-     * @param methodName method name
-     * @param descName   descriptor
-     * @param flags      flags that describe this handle, e.g. invokespecial new, or invoke virtual
-     *
-     * @return the method emitter
-     */
-    MethodEmitter loadHandle(final String className, final String methodName, final String descName, final EnumSet<Flag> flags) {
-        final int flag = Flag.getValue(flags);
-        debug("load handle ");
-        pushType(Type.OBJECT.ldc(method, new Handle(flag, className, methodName, descName, flag == H_INVOKEINTERFACE)));
-        return this;
-    }
-
     private Symbol getCompilerConstantSymbol(final CompilerConstants cc) {
         return functionNode.getBody().getExistingSymbol(cc.symbolName());
     }
@@ -1116,11 +1070,11 @@ public class MethodEmitter {
      */
     private static class LocalVariableDef {
         // The start label from where this definition lives.
-        private final org.objectweb.asm.Label label;
+        private final Label label;
         // The currently live type of the local variable.
         private final Type type;
 
-        LocalVariableDef(final org.objectweb.asm.Label label, final Type type) {
+        LocalVariableDef(final Label label, final Type type) {
             this.label = label;
             this.type = type;
         }
@@ -1130,7 +1084,7 @@ public class MethodEmitter {
     void closeLocalVariable(final Symbol symbol, final Label label) {
         final LocalVariableDef def = localVariableDefs.get(symbol);
         if(def != null) {
-            endLocalValueDef(symbol, def, label.getLabel());
+            endLocalValueDef(symbol, def, label);
         }
         if(isReachable()) {
             markDeadLocalVariable(symbol);
@@ -1147,12 +1101,12 @@ public class MethodEmitter {
         stack.markDeadLocalVariables(firstSlot, slotCount);
     }
 
-    private void endLocalValueDef(final Symbol symbol, final LocalVariableDef def, final org.objectweb.asm.Label label) {
+    private void endLocalValueDef(final Symbol symbol, final LocalVariableDef def, final Label label) {
         String name = symbol.getName();
         if (name.equals(THIS.symbolName())) {
             name = THIS_DEBUGGER.symbolName();
         }
-        method.visitLocalVariable(name, def.type.getDescriptor(), null, def.label, label, symbol.getSlot(def.type));
+        method.localVariable(name, def.type.getClassDesc(), def.label, label, symbol.getSlot(def.type));
     }
 
     void store(final Symbol symbol, final Type type) {
@@ -1176,12 +1130,12 @@ public class MethodEmitter {
             final boolean isLiveType = symbol.hasSlotFor(type);
             final LocalVariableDef existingDef = localVariableDefs.get(symbol);
             if(existingDef == null || existingDef.type != type) {
-                final org.objectweb.asm.Label here = new org.objectweb.asm.Label();
+                final Label here = new Label("lvar_boundary");
                 if(isLiveType) {
                     final LocalVariableDef newDef = new LocalVariableDef(here, type);
                     localVariableDefs.put(symbol, newDef);
                 }
-                method.visitLabel(here);
+                method.bind(here);
                 if(existingDef != null) {
                     endLocalValueDef(symbol, existingDef, here);
                 }
@@ -1312,7 +1266,7 @@ public class MethodEmitter {
      */
     void iinc(final int slot, final int increment) {
         debug("iinc");
-        method.visitIincInsn(slot, increment);
+        method.emit(cb -> cb.iinc(slot, increment));
     }
 
     /**
@@ -1323,7 +1277,7 @@ public class MethodEmitter {
         debug("athrow");
         final Type receiver = popType(Type.OBJECT);
         assert Throwable.class.isAssignableFrom(receiver.getTypeClass()) : receiver.getTypeClass();
-        method.visitInsn(ATHROW);
+        method.emit(CodeBuilder::athrow);
         doesNotContinueSequentially();
     }
 
@@ -1339,7 +1293,8 @@ public class MethodEmitter {
     MethodEmitter _instanceof(final String classDescriptor) {
         debug("instanceof", classDescriptor);
         popType(Type.OBJECT);
-        method.visitTypeInsn(INSTANCEOF, classDescriptor);
+        final ClassDesc clazz = CompilerConstants.classDesc(classDescriptor);
+        method.emit(cb -> cb.instanceOf(clazz));
         pushType(Type.INT);
         return this;
     }
@@ -1368,7 +1323,8 @@ public class MethodEmitter {
     MethodEmitter checkcast(final String classDescriptor) {
         debug("checkcast", classDescriptor);
         assert peekType().isObject();
-        method.visitTypeInsn(CHECKCAST, classDescriptor);
+        final ClassDesc clazz = CompilerConstants.classDesc(classDescriptor);
+        method.emit(cb -> cb.checkcast(clazz));
         return this;
     }
 
@@ -1442,17 +1398,35 @@ public class MethodEmitter {
      * @return the method emitter
      */
     MethodEmitter invoke(final Call call) {
-        return call.invoke(this);
-    }
+        debug("invoke", call.opcode(), call.className(), ".", call.name(), call.descriptor());
 
-    private MethodEmitter invoke(final int opcode, final String className, final String methodName, final String methodDescriptor, final boolean hasReceiver) {
-        final Type returnType = fixParamStack(methodDescriptor);
-
-        if (hasReceiver) {
+        // the call knows its parsed signature, so nothing is re-parsed per emission
+        final Type[] paramTypes = call.paramTypes();
+        for (int i = paramTypes.length - 1; i >= 0; i--) {
+            popType(paramTypes[i]);
+        }
+        if (call.opcode() != Opcode.INVOKESTATIC) {
             popType(Type.OBJECT);
         }
 
-        method.visitMethodInsn(opcode, className, methodName, methodDescriptor, opcode == INVOKEINTERFACE);
+        method.emit(call::invoke);
+
+        pushType(call.returnType());
+
+        return this;
+    }
+
+    private MethodEmitter invoke(final Opcode opcode, final String className, final String methodName, final String methodDescriptor) {
+        final Type returnType = fixParamStack(methodDescriptor);
+
+        if (opcode != Opcode.INVOKESTATIC) {
+            popType(Type.OBJECT);
+        }
+
+        final ClassDesc owner = CompilerConstants.classDesc(className);
+        final MethodTypeDesc type = CompilerConstants.methodType(methodDescriptor);
+        final boolean isInterface = opcode == Opcode.INVOKEINTERFACE;
+        method.emit(cb -> cb.invoke(opcode, owner, methodName, type, isInterface));
 
         if (returnType != null) {
             pushType(returnType);
@@ -1472,7 +1446,7 @@ public class MethodEmitter {
      */
     MethodEmitter invokespecial(final String className, final String methodName, final String methodDescriptor) {
         debug("invokespecial", className, ".", methodName, methodDescriptor);
-        return invoke(INVOKESPECIAL, className, methodName, methodDescriptor, true);
+        return invoke(Opcode.INVOKESPECIAL, className, methodName, methodDescriptor);
     }
 
     /**
@@ -1486,7 +1460,7 @@ public class MethodEmitter {
      */
     MethodEmitter invokevirtual(final String className, final String methodName, final String methodDescriptor) {
         debug("invokevirtual", className, ".", methodName, methodDescriptor, " ", stack);
-        return invoke(INVOKEVIRTUAL, className, methodName, methodDescriptor, true);
+        return invoke(Opcode.INVOKEVIRTUAL, className, methodName, methodDescriptor);
     }
 
     /**
@@ -1500,7 +1474,7 @@ public class MethodEmitter {
      */
     MethodEmitter invokestatic(final String className, final String methodName, final String methodDescriptor) {
         debug("invokestatic", className, ".", methodName, methodDescriptor);
-        invoke(INVOKESTATIC, className, methodName, methodDescriptor, false);
+        invoke(Opcode.INVOKESTATIC, className, methodName, methodDescriptor);
         return this;
     }
 
@@ -1533,15 +1507,7 @@ public class MethodEmitter {
      */
     MethodEmitter invokeinterface(final String className, final String methodName, final String methodDescriptor) {
         debug("invokeinterface", className, ".", methodName, methodDescriptor);
-        return invoke(INVOKEINTERFACE, className, methodName, methodDescriptor, true);
-    }
-
-    static org.objectweb.asm.Label[] getLabels(final Label... table) {
-        final org.objectweb.asm.Label[] internalLabels = new org.objectweb.asm.Label[table.length];
-        for (int i = 0; i < table.length; i++) {
-            internalLabels[i] = table[i].getLabel();
-        }
-        return internalLabels;
+        return invoke(Opcode.INVOKEINTERFACE, className, methodName, methodDescriptor);
     }
 
     /**
@@ -1554,7 +1520,7 @@ public class MethodEmitter {
     void lookupswitch(final Label defaultLabel, final int[] values, final Label... table) {//Collection<Label> table) {
         debug("lookupswitch", peekType());
         adjustStackForSwitch(defaultLabel, table);
-        method.visitLookupSwitchInsn(defaultLabel.getLabel(), values, getLabels(table));
+        method.lookupSwitch(defaultLabel, values, table);
         doesNotContinueSequentially();
     }
 
@@ -1568,7 +1534,7 @@ public class MethodEmitter {
     void tableswitch(final int lo, final int hi, final Label defaultLabel, final Label... table) {
         debug("tableswitch", peekType());
         adjustStackForSwitch(defaultLabel, table);
-        method.visitTableSwitchInsn(lo, hi, defaultLabel.getLabel(), getLabels(table));
+        method.tableSwitch(lo, hi, defaultLabel, table);
         doesNotContinueSequentially();
     }
 
@@ -1640,7 +1606,7 @@ public class MethodEmitter {
     void returnVoid() {
         debug("return [void]");
         assert stack.isEmpty() : stack;
-        method.visitInsn(RETURN);
+        method.emit(CodeBuilder::return_);
         doesNotContinueSequentially();
     }
 
@@ -1662,13 +1628,13 @@ public class MethodEmitter {
      * @param label   destination
      * @param n       elements on stack to compare, 0-2
      */
-    private void jump(final int opcode, final Label label, final int n) {
+    private void jump(final Opcode opcode, final Label label, final int n) {
         for (int i = 0; i < n; i++) {
             assert peekType().isInteger() || peekType().isBoolean() || peekType().isObject() : "expecting integer type or object for jump, but found " + peekType();
             popType();
         }
         joinTo(label);
-        method.visitJumpInsn(opcode, label.getLabel());
+        method.branch(opcode, label);
     }
 
     /**
@@ -1678,7 +1644,7 @@ public class MethodEmitter {
      */
     void if_acmpeq(final Label label) {
         debug("if_acmpeq", label);
-        jump(IF_ACMPEQ, label, 2);
+        jump(Opcode.IF_ACMPEQ, label, 2);
     }
 
     /**
@@ -1688,7 +1654,7 @@ public class MethodEmitter {
      */
     void if_acmpne(final Label label) {
         debug("if_acmpne", label);
-        jump(IF_ACMPNE, label, 2);
+        jump(Opcode.IF_ACMPNE, label, 2);
     }
 
     /**
@@ -1698,7 +1664,7 @@ public class MethodEmitter {
      */
     void ifnull(final Label label) {
         debug("ifnull", label);
-        jump(IFNULL, label, 1);
+        jump(Opcode.IFNULL, label, 1);
     }
 
     /**
@@ -1708,7 +1674,7 @@ public class MethodEmitter {
      */
     void ifnonnull(final Label label) {
         debug("ifnonnull", label);
-        jump(IFNONNULL, label, 1);
+        jump(Opcode.IFNONNULL, label, 1);
     }
 
     /**
@@ -1718,7 +1684,7 @@ public class MethodEmitter {
      */
     void ifeq(final Label label) {
         debug("ifeq ", label);
-        jump(IFEQ, label, 1);
+        jump(Opcode.IFEQ, label, 1);
     }
 
     /**
@@ -1728,7 +1694,7 @@ public class MethodEmitter {
      */
     void if_icmpeq(final Label label) {
         debug("if_icmpeq", label);
-        jump(IF_ICMPEQ, label, 2);
+        jump(Opcode.IF_ICMPEQ, label, 2);
     }
 
     /**
@@ -1738,7 +1704,7 @@ public class MethodEmitter {
      */
     void ifne(final Label label) {
         debug("ifne", label);
-        jump(IFNE, label, 1);
+        jump(Opcode.IFNE, label, 1);
     }
 
     /**
@@ -1748,7 +1714,7 @@ public class MethodEmitter {
      */
     void if_icmpne(final Label label) {
         debug("if_icmpne", label);
-        jump(IF_ICMPNE, label, 2);
+        jump(Opcode.IF_ICMPNE, label, 2);
     }
 
     /**
@@ -1758,7 +1724,7 @@ public class MethodEmitter {
      */
     void iflt(final Label label) {
         debug("iflt", label);
-        jump(IFLT, label, 1);
+        jump(Opcode.IFLT, label, 1);
     }
 
     /**
@@ -1768,7 +1734,7 @@ public class MethodEmitter {
      */
     void if_icmplt(final Label label) {
         debug("if_icmplt", label);
-        jump(IF_ICMPLT, label, 2);
+        jump(Opcode.IF_ICMPLT, label, 2);
     }
 
     /**
@@ -1778,7 +1744,7 @@ public class MethodEmitter {
      */
     void ifle(final Label label) {
         debug("ifle", label);
-        jump(IFLE, label, 1);
+        jump(Opcode.IFLE, label, 1);
     }
 
     /**
@@ -1788,7 +1754,7 @@ public class MethodEmitter {
      */
     void if_icmple(final Label label) {
         debug("if_icmple", label);
-        jump(IF_ICMPLE, label, 2);
+        jump(Opcode.IF_ICMPLE, label, 2);
     }
 
     /**
@@ -1798,7 +1764,7 @@ public class MethodEmitter {
      */
     void ifgt(final Label label) {
         debug("ifgt", label);
-        jump(IFGT, label, 1);
+        jump(Opcode.IFGT, label, 1);
     }
 
     /**
@@ -1808,7 +1774,7 @@ public class MethodEmitter {
      */
     void if_icmpgt(final Label label) {
         debug("if_icmpgt", label);
-        jump(IF_ICMPGT, label, 2);
+        jump(Opcode.IF_ICMPGT, label, 2);
     }
 
     /**
@@ -1818,7 +1784,7 @@ public class MethodEmitter {
      */
     void ifge(final Label label) {
         debug("ifge", label);
-        jump(IFGE, label, 1);
+        jump(Opcode.IFGE, label, 1);
     }
 
     /**
@@ -1828,7 +1794,7 @@ public class MethodEmitter {
      */
     void if_icmpge(final Label label) {
         debug("if_icmpge", label);
-        jump(IF_ICMPGE, label, 2);
+        jump(Opcode.IF_ICMPGE, label, 2);
     }
 
     /**
@@ -1838,7 +1804,7 @@ public class MethodEmitter {
      */
     void _goto(final Label label) {
         debug("goto", label);
-        jump(GOTO, label, 0);
+        jump(Opcode.GOTO, label, 0);
         doesNotContinueSequentially(); //whoever reaches the point after us provides the stack, because we don't
     }
 
@@ -1852,7 +1818,7 @@ public class MethodEmitter {
      */
     void gotoLoopStart(final Label loopStart) {
         debug("goto (loop)", loopStart);
-        jump(GOTO, loopStart, 0);
+        jump(Opcode.GOTO, loopStart, 0);
     }
 
     /**
@@ -1862,7 +1828,7 @@ public class MethodEmitter {
      * @param target the target of the jump
      */
     void uncheckedGoto(final Label target) {
-        method.visitJumpInsn(GOTO, target.getLabel());
+        method.branch(Opcode.GOTO, target);
     }
 
     /**
@@ -1923,7 +1889,7 @@ public class MethodEmitter {
             stack.firstTemp = liveLocals;
         }
         debug_label(label);
-        method.visitLabel(label.getLabel());
+        method.bind(label);
     }
 
     /**
@@ -2090,7 +2056,7 @@ public class MethodEmitter {
      *
      * @return function signature for stack contents
      */
-    private String getDynamicSignature(final Type returnType, final int argCount) {
+    private MethodTypeDesc getDynamicSignature(final Type returnType, final int argCount) {
         final Type[]         paramTypes = new Type[argCount];
 
         int pos = 0;
@@ -2104,12 +2070,24 @@ public class MethodEmitter {
             }
             paramTypes[i] = pt;
         }
-        final String descriptor = Type.getMethodDescriptor(returnType, paramTypes);
+        final MethodTypeDesc descriptor = Type.methodType(returnType, paramTypes);
         for (int i = 0; i < argCount; i++) {
             popType(paramTypes[argCount - i - 1]);
         }
 
         return descriptor;
+    }
+
+    /**
+     * Records an invokedynamic to one of Nashorn's bootstraps.
+     *
+     * @param name      call site name, already encoded
+     * @param type      call site type
+     * @param bootstrap the bootstrap method
+     * @param flags     the single static bootstrap argument
+     */
+    private void indy(final String name, final MethodTypeDesc type, final DirectMethodHandleDesc bootstrap, final int flags) {
+        method.emit(cb -> cb.invokedynamic(DynamicCallSiteDesc.of(bootstrap, name, type, flags)));
     }
 
     MethodEmitter invalidateSpecialName(final String name) {
@@ -2150,9 +2128,8 @@ public class MethodEmitter {
     MethodEmitter dynamicNew(final int argCount, final int flags, final String msg) {
         assert !isOptimistic(flags);
         debug("dynamic_new", "argcount=", argCount);
-        final String signature = getDynamicSignature(Type.OBJECT, argCount);
-        method.visitInvokeDynamicInsn(
-                msg != null && msg.length() < LARGE_STRING_THRESHOLD? NameCodec.encode(msg) : EMPTY_NAME,
+        final MethodTypeDesc signature = getDynamicSignature(Type.OBJECT, argCount);
+        indy(msg != null && msg.length() < LARGE_STRING_THRESHOLD ? NameCodec.encode(msg) : EMPTY_NAME,
                 signature, LINKERBOOTSTRAP, flags | NashornCallSiteDescriptor.NEW);
         pushType(Type.OBJECT); //TODO fix result type
         return this;
@@ -2183,10 +2160,9 @@ public class MethodEmitter {
      */
     MethodEmitter dynamicCall(final Type returnType, final int argCount, final int flags, final String msg) {
         debug("dynamic_call", "args=", argCount, "returnType=", returnType);
-        final String signature = getDynamicSignature(returnType, argCount); // +1 because the function itself is the 1st parameter for dynamic calls (what you call - call target)
+        final MethodTypeDesc signature = getDynamicSignature(returnType, argCount); // +1 because the function itself is the 1st parameter for dynamic calls (what you call - call target)
         debug("   signature", signature);
-        method.visitInvokeDynamicInsn(
-                msg != null && msg.length() < LARGE_STRING_THRESHOLD? NameCodec.encode(msg) : EMPTY_NAME,
+        indy(msg != null && msg.length() < LARGE_STRING_THRESHOLD ? NameCodec.encode(msg) : EMPTY_NAME,
                 signature, LINKERBOOTSTRAP, flags | NashornCallSiteDescriptor.CALL);
         pushType(returnType);
 
@@ -2195,8 +2171,8 @@ public class MethodEmitter {
 
     MethodEmitter dynamicArrayPopulatorCall(final int argCount, final int startIndex) {
         debug("populate_array", "args=", argCount, "startIndex=", startIndex);
-        final String signature = getDynamicSignature(Type.OBJECT_ARRAY, argCount);
-        method.visitInvokeDynamicInsn("populateArray", signature, POPULATE_ARRAY_BOOTSTRAP, startIndex);
+        final MethodTypeDesc signature = getDynamicSignature(Type.OBJECT_ARRAY, argCount);
+        indy("populateArray", signature, POPULATE_ARRAY_BOOTSTRAP, startIndex);
         pushType(Type.OBJECT_ARRAY);
         return this;
     }
@@ -2224,8 +2200,8 @@ public class MethodEmitter {
         }
 
         popType(Type.OBJECT);
-        method.visitInvokeDynamicInsn(NameCodec.encode(name),
-                Type.getMethodDescriptor(type, Type.OBJECT), LINKERBOOTSTRAP, flags | dynGetOperation(isMethod, isIndex));
+        indy(NameCodec.encode(name), Type.methodType(type, Type.OBJECT), LINKERBOOTSTRAP,
+                flags | dynGetOperation(isMethod, isIndex));
 
         pushType(type);
         convert(valueType); //most probably a nop
@@ -2257,8 +2233,8 @@ public class MethodEmitter {
         popType(type);
         popType(Type.OBJECT);
 
-        method.visitInvokeDynamicInsn(NameCodec.encode(name),
-                methodDescriptor(void.class, Object.class, type.getTypeClass()), LINKERBOOTSTRAP, flags | dynSetOperation(isIndex));
+        indy(NameCodec.encode(name), Type.methodType(void.class, Object.class, type.getTypeClass()),
+                LINKERBOOTSTRAP, flags | dynSetOperation(isIndex));
     }
 
     /**
@@ -2277,8 +2253,8 @@ public class MethodEmitter {
 
         popType(Type.OBJECT);
         // Type is widened to OBJECT then coerced back to BOOLEAN
-        method.visitInvokeDynamicInsn(NameCodec.encode(name),
-                Type.getMethodDescriptor(Type.OBJECT, Type.OBJECT), LINKERBOOTSTRAP, flags | dynRemoveOperation(isIndex));
+        indy(NameCodec.encode(name), Type.methodType(Type.OBJECT, Type.OBJECT), LINKERBOOTSTRAP,
+                flags | dynRemoveOperation(isIndex));
 
         pushType(Type.OBJECT);
         convert(Type.BOOLEAN); //most probably a nop
@@ -2314,9 +2290,8 @@ public class MethodEmitter {
 
         popType(Type.OBJECT);
 
-        final String signature = Type.getMethodDescriptor(resultType, Type.OBJECT /*e.g STRING->OBJECT*/, index);
-
-        method.visitInvokeDynamicInsn(EMPTY_NAME, signature, LINKERBOOTSTRAP, flags | dynGetOperation(isMethod, true));
+        indy(EMPTY_NAME, Type.methodType(resultType, Type.OBJECT /*e.g STRING->OBJECT*/, index),
+                LINKERBOOTSTRAP, flags | dynGetOperation(isMethod, true));
         pushType(resultType);
 
         if (result.isBoolean()) {
@@ -2361,8 +2336,7 @@ public class MethodEmitter {
         final Type receiver = popType(Type.OBJECT);
         assert receiver.isObject();
 
-        method.visitInvokeDynamicInsn(EMPTY_NAME,
-                methodDescriptor(void.class, receiver.getTypeClass(), index.getTypeClass(), value.getTypeClass()),
+        indy(EMPTY_NAME, Type.methodType(void.class, receiver.getTypeClass(), index.getTypeClass(), value.getTypeClass()),
                 LINKERBOOTSTRAP, flags | NashornCallSiteDescriptor.SET_ELEMENT);
     }
 
@@ -2386,9 +2360,8 @@ public class MethodEmitter {
 
         popType(Type.OBJECT);
 
-        final String signature = Type.getMethodDescriptor(Type.OBJECT, Type.OBJECT /*e.g STRING->OBJECT*/, index);
-
-        method.visitInvokeDynamicInsn(EMPTY_NAME, signature, LINKERBOOTSTRAP, flags | dynRemoveOperation(true));
+        indy(EMPTY_NAME, Type.methodType(Type.OBJECT, Type.OBJECT /*e.g STRING->OBJECT*/, index),
+                LINKERBOOTSTRAP, flags | dynRemoveOperation(true));
         pushType(Type.OBJECT);
         convert(Type.BOOLEAN);
 
@@ -2402,13 +2375,15 @@ public class MethodEmitter {
      */
     //TODO move this and break it apart
     MethodEmitter loadKey(final Object key) {
-        if (key instanceof IdentNode) {
-            method.visitLdcInsn(((IdentNode) key).getName());
-        } else if (key instanceof LiteralNode) {
-            method.visitLdcInsn(((LiteralNode<?>)key).getString());
+        final String name;
+        if (key instanceof IdentNode ident) {
+            name = ident.getName();
+        } else if (key instanceof LiteralNode<?> literal) {
+            name = literal.getString();
         } else {
-            method.visitLdcInsn(JSType.toString(key));
+            name = JSType.toString(key);
         }
+        method.emit(cb -> cb.loadConstant(name));
         pushType(Type.OBJECT); //STRING
         return this;
     }
@@ -2442,26 +2417,6 @@ public class MethodEmitter {
          }
      }
 
-     /**
-      * Generate get for a field access
-      *
-      * @param fa the field access
-      *
-      * @return the method emitter
-      */
-    MethodEmitter getField(final FieldAccess fa) {
-        return fa.get(this);
-    }
-
-     /**
-      * Generate set for a field access
-      *
-      * @param fa the field access
-      */
-    void putField(final FieldAccess fa) {
-        fa.put(this);
-    }
-
     /**
      * Get the value of a non-static field, pop the receiver from the stack,
      * push value to the stack
@@ -2472,12 +2427,28 @@ public class MethodEmitter {
      *
      * @return the method emitter
      */
-    MethodEmitter getField(final String className, final String fieldName, final String fieldDescriptor) {
-        debug("getfield", "receiver=", peekType(), className, ".", fieldName, fieldDescriptor);
+    MethodEmitter getField(final FieldAccess fa) {
+        debug("getfield", "receiver=", peekType(), fa.className(), ".", fa.name(), fa.descriptor());
         final Type receiver = popType();
         assert receiver.isObject();
-        method.visitFieldInsn(GETFIELD, className, fieldName, fieldDescriptor);
-        pushType(fieldType(fieldDescriptor));
+        method.emit(cb -> cb.getfield(fa.owner(), fa.name(), fa.type()));
+        pushType(fieldType(fa.descriptor()));
+        return this;
+    }
+
+    /**
+     * Get the value of a static field, push it to the stack
+     *
+     * @param className        class
+     * @param fieldName        field name
+     * @param fieldDescriptor  field descriptor
+     *
+     * @return the method emitter
+     */
+    MethodEmitter getStatic(final FieldAccess fa) {
+        debug("getstatic", fa.className(), ".", fa.name(), ".", fa.descriptor());
+        method.emit(cb -> cb.getstatic(fa.owner(), fa.name(), fa.type()));
+        pushType(fieldType(fa.descriptor()));
         return this;
     }
 
@@ -2491,10 +2462,32 @@ public class MethodEmitter {
      * @return the method emitter
      */
     MethodEmitter getStatic(final String className, final String fieldName, final String fieldDescriptor) {
-        debug("getstatic", className, ".", fieldName, ".", fieldDescriptor);
-        method.visitFieldInsn(GETSTATIC, className, fieldName, fieldDescriptor);
-        pushType(fieldType(fieldDescriptor));
-        return this;
+        return getStatic(CompilerConstants.staticField(className, fieldName, fieldDescriptor));
+    }
+
+    /**
+     * Get the value of a non-static field, pop the receiver from the stack,
+     * push value to the stack
+     *
+     * @param className        class
+     * @param fieldName        field name
+     * @param fieldDescriptor  field descriptor
+     *
+     * @return the method emitter
+     */
+    MethodEmitter getField(final String className, final String fieldName, final String fieldDescriptor) {
+        return getField(CompilerConstants.virtualField(className, fieldName, fieldDescriptor));
+    }
+
+    /**
+     * Pop value and receiver from stack and write to a non-static field
+     *
+     * @param className       class
+     * @param fieldName       field name
+     * @param fieldDescriptor field descriptor
+     */
+    void putField(final String className, final String fieldName, final String fieldDescriptor) {
+        putField(CompilerConstants.virtualField(className, fieldName, fieldDescriptor));
     }
 
     /**
@@ -2504,11 +2497,24 @@ public class MethodEmitter {
      * @param fieldName       field name
      * @param fieldDescriptor field descriptor
      */
-    void putField(final String className, final String fieldName, final String fieldDescriptor) {
+    void putField(final FieldAccess fa) {
         debug("putfield", "receiver=", peekType(1), "value=", peekType());
-        popType(fieldType(fieldDescriptor));
+        popType(fieldType(fa.descriptor()));
         popType(Type.OBJECT);
-        method.visitFieldInsn(PUTFIELD, className, fieldName, fieldDescriptor);
+        method.emit(cb -> cb.putfield(fa.owner(), fa.name(), fa.type()));
+    }
+
+    /**
+     * Pop value from stack and write to a static field
+     *
+     * @param className       class
+     * @param fieldName       field name
+     * @param fieldDescriptor field descriptor
+     */
+    void putStatic(final FieldAccess fa) {
+        debug("putfield", "value=", peekType());
+        popType(fieldType(fa.descriptor()));
+        method.emit(cb -> cb.putstatic(fa.owner(), fa.name(), fa.type()));
     }
 
     /**
@@ -2519,9 +2525,7 @@ public class MethodEmitter {
      * @param fieldDescriptor field descriptor
      */
     void putStatic(final String className, final String fieldName, final String fieldDescriptor) {
-        debug("putfield", "value=", peekType());
-        popType(fieldType(fieldDescriptor));
-        method.visitFieldInsn(PUTSTATIC, className, fieldName, fieldDescriptor);
+        putStatic(CompilerConstants.staticField(className, fieldName, fieldDescriptor));
     }
 
     /**
@@ -2532,9 +2536,7 @@ public class MethodEmitter {
     void lineNumber(final int line) {
         if (context.getEnv()._debug_lines) {
             debug_label("[LINE]", line);
-            final org.objectweb.asm.Label l = new org.objectweb.asm.Label();
-            method.visitLabel(l);
-            method.visitLineNumber(line, l);
+            method.lineNumber(line);
         }
     }
 

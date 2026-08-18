@@ -25,7 +25,8 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 
 /**
  * Array operations, not supported by all ops
@@ -40,7 +41,7 @@ interface BytecodeArrayOps {
      * @return the array element type
      *
      */
-    Type aload(MethodVisitor method);
+    Type aload(CodeBuffer method);
 
     /**
      * Store an array element given that the array and its index and the element
@@ -48,7 +49,7 @@ interface BytecodeArrayOps {
      *
      * @param method method visitor
      */
-    void astore(MethodVisitor method);
+    void astore(CodeBuffer method);
 
     /**
      * Generate an array length operation
@@ -56,7 +57,7 @@ interface BytecodeArrayOps {
      * @param method method method visitor
      * @return length of the array
      */
-    Type arraylength(MethodVisitor method);
+    Type arraylength(CodeBuffer method);
 
     /**
      * Create a new array of this array type and length on stack
@@ -64,7 +65,7 @@ interface BytecodeArrayOps {
      * @param method method visitor
      * @return the type of the array
      */
-    Type newarray(MethodVisitor method);
+    Type newarray(CodeBuffer method);
 
     /**
      * Create a new multi array of this array type and allocate the number of
@@ -74,5 +75,5 @@ interface BytecodeArrayOps {
      * @param dims   number of dimensions
      * @return the type of the new array
      */
-    Type newarray(MethodVisitor method, int dims);
+    Type newarray(CodeBuffer method, int dims);
 }

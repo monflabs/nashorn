@@ -25,7 +25,6 @@
 
 package org.openjdk.nashorn.internal.runtime;
 
-import static org.objectweb.asm.Opcodes.V1_7;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.CONSTANTS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.CREATE_PROGRAM_FUNCTION;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SOURCE;
@@ -39,6 +38,9 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.ClassHierarchyResolver;
+import java.lang.constant.ClassDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -74,10 +76,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.script.ScriptEngine;
 import jdk.dynalink.DynamicLinker;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.util.CheckClassAdapter;
 import org.openjdk.nashorn.api.scripting.ClassFilter;
 import org.openjdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.openjdk.nashorn.internal.WeakValueCache;
@@ -320,10 +318,10 @@ public final class Context {
         }
 
         private static byte[] getAnonymousHostClassBytes() {
-            final ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-            cw.visit(V1_7, Opcodes.ACC_INTERFACE | Opcodes.ACC_ABSTRACT, ANONYMOUS_HOST_CLASS_NAME.replace('.', '/'), null, "java/lang/Object", null);
-            cw.visitEnd();
-            return cw.toByteArray();
+            return ClassFile.of().build(ClassDesc.of(ANONYMOUS_HOST_CLASS_NAME), clb -> {
+                clb.withVersion(ClassFile.JAVA_7_VERSION, 0);
+                clb.withFlags(ClassFile.ACC_INTERFACE | ClassFile.ACC_ABSTRACT);
+            });
         }
     }
 
@@ -1054,7 +1052,12 @@ public final class Context {
      */
     public void verify(final byte[] bytecode) {
         if (env._verify_code) {
-            CheckClassAdapter.verify(new ClassReader(bytecode), theStructLoader, false, new PrintWriter(System.err, true));
+            final ClassFile classFile = ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(
+                    ClassHierarchyResolver.ofClassLoading(theStructLoader).cached()));
+            final PrintWriter err = new PrintWriter(System.err, true);
+            for (final VerifyError error : classFile.verify(bytecode)) {
+                err.println(error.getMessage());
+            }
         }
     }
 

@@ -25,6 +25,8 @@
 
 package org.openjdk.nashorn.internal.codegen;
 
+import java.lang.constant.MethodTypeDesc;
+
 import static org.openjdk.nashorn.internal.lookup.Lookup.MH;
 
 import java.lang.invoke.MethodType;
@@ -207,6 +209,17 @@ public final class FunctionSignature {
      */
     public MethodType getMethodType() {
         return methodType;
+    }
+
+    /**
+     * The type of the method this signature describes, for the class file
+     * writer. Built from the types directly, with no descriptor string in
+     * between.
+     *
+     * @return the method type
+     */
+    MethodTypeDesc getMethodTypeDesc() {
+        return Type.methodType(returnType, paramTypes);
     }
 
     /**

@@ -25,17 +25,11 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.I2D;
-import static org.objectweb.asm.Opcodes.I2L;
-import static org.objectweb.asm.Opcodes.ICONST_0;
-import static org.objectweb.asm.Opcodes.ICONST_1;
-import static org.objectweb.asm.Opcodes.ILOAD;
-import static org.objectweb.asm.Opcodes.IRETURN;
-import static org.objectweb.asm.Opcodes.ISTORE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.staticCallNoLookup;
 import static org.openjdk.nashorn.internal.runtime.JSType.UNDEFINED_INT;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 
 /**
@@ -70,52 +64,52 @@ public final class BooleanType extends Type {
     }
 
     @Override
-    public Type loadUndefined(final MethodVisitor method) {
-        method.visitLdcInsn(UNDEFINED_INT);
+    public Type loadUndefined(final CodeBuffer method) {
+        method.emit(cb -> cb.loadConstant(UNDEFINED_INT));
         return BOOLEAN;
     }
 
     @Override
-    public Type loadForcedInitializer(final MethodVisitor method) {
-        method.visitInsn(ICONST_0);
+    public Type loadForcedInitializer(final CodeBuffer method) {
+        method.emit(CodeBuilder::iconst_0);
         return BOOLEAN;
     }
 
     @Override
-    public void _return(final MethodVisitor method) {
-        method.visitInsn(IRETURN);
+    public void _return(final CodeBuffer method) {
+        method.emit(CodeBuilder::ireturn);
     }
 
     @Override
-    public Type load(final MethodVisitor method, final int slot) {
+    public Type load(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ILOAD, slot);
+        method.emit(cb -> cb.iload(slot));
         return BOOLEAN;
     }
 
     @Override
-    public void store(final MethodVisitor method, final int slot) {
+    public void store(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ISTORE, slot);
+        method.emit(cb -> cb.istore(slot));
     }
 
     @Override
-    public Type ldc(final MethodVisitor method, final Object c) {
+    public Type ldc(final CodeBuffer method, final Object c) {
         assert c instanceof Boolean;
-        method.visitInsn((Boolean) c ? ICONST_1 : ICONST_0);
+        method.emit((Boolean)c ? CodeBuilder::iconst_1 : CodeBuilder::iconst_0);
         return BOOLEAN;
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         if (isEquivalentTo(to)) {
             return to;
         }
 
         if (to.isNumber()) {
-            method.visitInsn(I2D);
+            method.emit(CodeBuilder::i2d);
         } else if (to.isLong()) {
-            method.visitInsn(I2L);
+            method.emit(CodeBuilder::i2l);
         } else if (to.isInteger()) {
             //nop
         } else if (to.isString()) {
@@ -130,7 +124,7 @@ public final class BooleanType extends Type {
     }
 
     @Override
-    public Type add(final MethodVisitor method, final int programPoint) {
+    public Type add(final CodeBuffer method, final int programPoint) {
         // Adding booleans in JavaScript is perfectly valid, they add as if false=0 and true=1
         return Type.INT.add(method, programPoint);
     }

@@ -25,7 +25,8 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 
 /**
  * Bitwise operations not supported by all types
@@ -39,7 +40,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type shr(MethodVisitor method);
+    Type shr(CodeBuffer method);
 
     /**
      * Pop and arithmetically shift of the two values on top of the stack
@@ -48,7 +49,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type sar(MethodVisitor method);
+    Type sar(CodeBuffer method);
 
     /**
      * Pop and logically shift of the two values on top of the stack (steps,
@@ -57,7 +58,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type shl(MethodVisitor method);
+    Type shl(CodeBuffer method);
 
     /**
      * Pop and AND the two values on top of the stack and push the result on the
@@ -66,7 +67,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type and(MethodVisitor method);
+    Type and(CodeBuffer method);
 
     /**
      * Pop and OR the two values on top of the stack and push the result on the
@@ -75,7 +76,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type or(MethodVisitor method);
+    Type or(CodeBuffer method);
 
     /**
      * Pop and XOR the two values on top of the stack and push the result on the
@@ -84,7 +85,7 @@ interface BytecodeBitwiseOps {
      * @param method method visitor
      * @return result type
      */
-    Type xor(MethodVisitor method);
+    Type xor(CodeBuffer method);
 
     /**
      * Comparison with int return value, e.g. LCMP.
@@ -92,5 +93,5 @@ interface BytecodeBitwiseOps {
      * @param method the method visitor
      * @return int return value
      */
-    Type cmp(MethodVisitor method);
+    Type cmp(CodeBuffer method);
 }

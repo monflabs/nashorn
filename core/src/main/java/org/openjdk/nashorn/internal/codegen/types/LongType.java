@@ -25,17 +25,11 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.L2D;
-import static org.objectweb.asm.Opcodes.L2I;
-import static org.objectweb.asm.Opcodes.LCONST_0;
-import static org.objectweb.asm.Opcodes.LCONST_1;
-import static org.objectweb.asm.Opcodes.LLOAD;
-import static org.objectweb.asm.Opcodes.LRETURN;
-import static org.objectweb.asm.Opcodes.LSTORE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.staticCallNoLookup;
 import static org.openjdk.nashorn.internal.runtime.JSType.UNDEFINED_LONG;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 import org.openjdk.nashorn.internal.runtime.JSType;
 
@@ -71,47 +65,40 @@ class LongType extends Type {
     }
 
     @Override
-    public Type load(final MethodVisitor method, final int slot) {
+    public Type load(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(LLOAD, slot);
+        method.emit(cb -> cb.lload(slot));
         return LONG;
     }
 
     @Override
-    public void store(final MethodVisitor method, final int slot) {
+    public void store(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(LSTORE, slot);
+        method.emit(cb -> cb.lstore(slot));
     }
 
     @Override
-    public Type ldc(final MethodVisitor method, final Object c) {
+    public Type ldc(final CodeBuffer method, final Object c) {
         assert c instanceof Long;
 
-        final long value = (Long) c;
-
-        if (value == 0L) {
-            method.visitInsn(LCONST_0);
-        } else if (value == 1L) {
-            method.visitInsn(LCONST_1);
-        } else {
-            method.visitLdcInsn(c);
-        }
+        final long value = (Long)c;
+        method.emit(cb -> cb.loadConstant(value));
 
         return Type.LONG;
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         if (isEquivalentTo(to)) {
             return to;
         }
 
         if (to.isNumber()) {
-            method.visitInsn(L2D);
+            method.emit(CodeBuilder::l2d);
         } else if (to.isInteger()) {
             invokestatic(method, JSType.TO_INT32_L);
         } else if (to.isBoolean()) {
-            method.visitInsn(L2I);
+            method.emit(CodeBuilder::l2i);
         } else if (to.isObject()) {
             invokestatic(method, VALUE_OF);
         } else {
@@ -122,24 +109,24 @@ class LongType extends Type {
     }
 
     @Override
-    public Type add(final MethodVisitor method, final int programPoint) {
+    public Type add(final CodeBuffer method, final int programPoint) {
         throw new UnsupportedOperationException("add");
     }
 
     @Override
-    public void _return(final MethodVisitor method) {
-        method.visitInsn(LRETURN);
+    public void _return(final CodeBuffer method) {
+        method.emit(CodeBuilder::lreturn);
     }
 
     @Override
-    public Type loadUndefined(final MethodVisitor method) {
-        method.visitLdcInsn(UNDEFINED_LONG);
+    public Type loadUndefined(final CodeBuffer method) {
+        method.emit(cb -> cb.loadConstant(UNDEFINED_LONG));
         return LONG;
     }
 
     @Override
-    public Type loadForcedInitializer(final MethodVisitor method) {
-        method.visitInsn(LCONST_0);
+    public Type loadForcedInitializer(final CodeBuffer method) {
+        method.emit(CodeBuilder::lconst_0);
         return LONG;
     }
 }

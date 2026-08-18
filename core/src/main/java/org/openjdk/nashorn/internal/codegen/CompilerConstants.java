@@ -27,13 +27,17 @@ package org.openjdk.nashorn.internal.codegen;
 
 import static org.openjdk.nashorn.internal.lookup.Lookup.MH;
 
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Opcode;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.openjdk.nashorn.internal.codegen.types.Type;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -287,6 +291,50 @@ public enum CompilerConstants {
     }
 
     /**
+     * Get the class file description of a type
+     *
+     * @param type a type
+     * @return the description of this type
+     */
+    public static ClassDesc classDesc(final Class<?> type) {
+        return Type.classDesc(type);
+    }
+
+    /**
+     * Get the class file description for an internal class name. Array types are
+     * named by their descriptor rather than an internal name, and Nashorn passes
+     * those around as class names too.
+     *
+     * The result is cached: the same handful of names is emitted over and over
+     * while compiling, and parsing one is not free.
+     *
+     * @param internalName internal name of a class, or descriptor of an array type
+     * @return the description of that type
+     */
+    public static ClassDesc classDesc(final String internalName) {
+        return CLASS_DESCS.computeIfAbsent(internalName, name -> name.charAt(0) == '['
+            ? ClassDesc.ofDescriptor(name)
+            : ClassDesc.ofInternalName(name));
+    }
+
+    /**
+     * Get the method type for a descriptor, cached as {@link #classDesc(String)} is.
+     *
+     * @param descriptor a method descriptor
+     * @return the method type it describes
+     */
+    public static MethodTypeDesc methodType(final String descriptor) {
+        return METHOD_TYPES.computeIfAbsent(descriptor, MethodTypeDesc::ofDescriptor);
+    }
+
+    /**
+     * Caches of parsed descriptors. Both are keyed by strings the compiler builds
+     * itself, out of a small vocabulary of types, so they do not grow without bound.
+     */
+    private static final ConcurrentMap<String, ClassDesc> CLASS_DESCS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, MethodTypeDesc> METHOD_TYPES = new ConcurrentHashMap<>();
+
+    /**
      * Get the method descriptor for a given method type collection
      *
      * @param rtype  return type
@@ -358,17 +406,7 @@ public enum CompilerConstants {
      * @return Call representing specified invokespecial call
      */
     public static Call specialCallNoLookup(final String className, final String name, final String desc) {
-        return new Call(null, className, name, desc) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokespecial(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKESPECIAL, className, name, desc, false);
-            }
-        };
+        return new Call(null, Opcode.INVOKESPECIAL, className, name, desc);
     }
 
     /**
@@ -397,17 +435,7 @@ public enum CompilerConstants {
      * @return Call representing specified invokestatic call
      */
     public static Call staticCallNoLookup(final String className, final String name, final String desc) {
-        return new Call(null, className, name, desc) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokestatic(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, className, name, desc, false);
-            }
-        };
+        return new Call(null, Opcode.INVOKESTATIC, className, name, desc);
     }
 
     /**
@@ -437,17 +465,7 @@ public enum CompilerConstants {
      * @return Call representing specified invokevirtual call
      */
     public static Call virtualCallNoLookup(final Class<?> clazz, final String name, final Class<?> rtype, final Class<?>... ptypes) {
-        return new Call(null, className(clazz), name, methodDescriptor(rtype, ptypes)) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokevirtual(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, name, descriptor, false);
-            }
-        };
+        return new Call(null, Opcode.INVOKEVIRTUAL, className(clazz), name, methodDescriptor(rtype, ptypes));
     }
 
     /**
@@ -462,17 +480,7 @@ public enum CompilerConstants {
      * @return Call representing specified invokeinterface call
      */
     public static Call interfaceCallNoLookup(final Class<?> clazz, final String name, final Class<?> rtype, final Class<?>... ptypes) {
-        return new Call(null, className(clazz), name, methodDescriptor(rtype, ptypes)) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokeinterface(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, className, name, descriptor, true);
-            }
-        };
+        return new Call(null, Opcode.INVOKEINTERFACE, className(clazz), name, methodDescriptor(rtype, ptypes));
     }
 
     /**
@@ -486,17 +494,7 @@ public enum CompilerConstants {
      * @return a field access object giving access code generation method for the virtual field
      */
     public static FieldAccess virtualField(final String className, final String name, final String desc) {
-        return new FieldAccess(className, name, desc) {
-            @Override
-            public MethodEmitter get(final MethodEmitter method) {
-                return method.getField(className, name, descriptor);
-            }
-
-            @Override
-            public void put(final MethodEmitter method) {
-                method.putField(className, name, descriptor);
-            }
-        };
+        return new FieldAccess(false, className, name, desc);
     }
 
     /**
@@ -524,17 +522,7 @@ public enum CompilerConstants {
      * @return a field access object giving access code generation method for the static field
      */
     public static FieldAccess staticField(final String className, final String name, final String desc) {
-        return new FieldAccess(className, name, desc) {
-            @Override
-            public MethodEmitter get(final MethodEmitter method) {
-                return method.getStatic(className, name, descriptor);
-            }
-
-            @Override
-            public void put(final MethodEmitter method) {
-                method.putStatic(className, name, descriptor);
-            }
-        };
+        return new FieldAccess(true, className, name, desc);
     }
 
     /**
@@ -563,17 +551,8 @@ public enum CompilerConstants {
      * @return the call object representing the static call
      */
     public static Call staticCall(final MethodHandles.Lookup lookup, final Class<?> clazz, final String name, final Class<?> rtype, final Class<?>... ptypes) {
-        return new Call(MH.findStatic(lookup, clazz, name, MH.type(rtype, ptypes)), className(clazz), name, methodDescriptor(rtype, ptypes)) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokestatic(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, className, name, descriptor, false);
-            }
-        };
+        return new Call(MH.findStatic(lookup, clazz, name, MH.type(rtype, ptypes)), Opcode.INVOKESTATIC,
+                className(clazz), name, methodDescriptor(rtype, ptypes));
     }
 
     /**
@@ -588,17 +567,8 @@ public enum CompilerConstants {
      * @return the call object representing the virtual call
      */
     public static Call virtualCall(final MethodHandles.Lookup lookup, final Class<?> clazz, final String name, final Class<?> rtype, final Class<?>... ptypes) {
-        return new Call(MH.findVirtual(lookup, clazz, name, MH.type(rtype, ptypes)), className(clazz), name, methodDescriptor(rtype, ptypes)) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokevirtual(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, name, descriptor, false);
-            }
-        };
+        return new Call(MH.findVirtual(lookup, clazz, name, MH.type(rtype, ptypes)), Opcode.INVOKEVIRTUAL,
+                className(clazz), name, methodDescriptor(rtype, ptypes));
     }
 
     /**
@@ -614,17 +584,8 @@ public enum CompilerConstants {
      * @return the call object representing the virtual call
      */
     public static Call specialCall(final MethodHandles.Lookup lookup, final Class<?> clazz, final String name, final Class<?> rtype, final Class<?>... ptypes) {
-        return new Call(MH.findSpecial(lookup, clazz, name, MH.type(rtype, ptypes), clazz), className(clazz), name, methodDescriptor(rtype, ptypes)) {
-            @Override
-            MethodEmitter invoke(final MethodEmitter method) {
-                return method.invokespecial(className, name, descriptor);
-            }
-
-            @Override
-            public void invoke(final MethodVisitor mv) {
-                mv.visitMethodInsn(Opcodes.INVOKESPECIAL, className, name, descriptor, false);
-            }
-        };
+        return new Call(MH.findSpecial(lookup, clazz, name, MH.type(rtype, ptypes), clazz), Opcode.INVOKESPECIAL,
+                className(clazz), name, methodDescriptor(rtype, ptypes));
     }
 
     /**
@@ -649,6 +610,9 @@ public enum CompilerConstants {
         protected final String       name;
         protected final String       descriptor;
 
+        /** The owner, parsed once here rather than at every emission. */
+        protected final ClassDesc    owner;
+
         /**
          * Constructor
          *
@@ -662,6 +626,16 @@ public enum CompilerConstants {
             this.className    = className;
             this.name         = name;
             this.descriptor   = descriptor;
+            this.owner        = classDesc(className);
+        }
+
+        /**
+         * Get the class of the access
+         *
+         * @return the class
+         */
+        public ClassDesc owner() {
+            return owner;
         }
 
         /**
@@ -705,78 +679,146 @@ public enum CompilerConstants {
      * Field access - this can be used for generating code for static or
      * virtual field accesses
      */
-    public abstract static class FieldAccess extends Access {
+    public static final class FieldAccess extends Access {
+        private final boolean isStatic;
+        private final ClassDesc type;
+
         /**
          * Constructor
          *
+         * @param isStatic   whether the field is static
          * @param className  name of the class where the field is
          * @param name       name of the field
          * @param descriptor descriptor of the field
          */
-        protected FieldAccess(final String className, final String name, final String descriptor) {
+        FieldAccess(final boolean isStatic, final String className, final String name, final String descriptor) {
             super(null, className, name, descriptor);
+            this.isStatic = isStatic;
+            this.type     = ClassDesc.ofDescriptor(descriptor);
+        }
+
+        /**
+         * The type of the field
+         * @return the type
+         */
+        public ClassDesc type() {
+            return type;
         }
 
         /**
          * Generate get code for the field
          *
-         * @param emitter a method emitter
+         * @param method a method emitter
          *
          * @return the method emitter
          */
-        protected abstract MethodEmitter get(final MethodEmitter emitter);
+        MethodEmitter get(final MethodEmitter method) {
+            return isStatic ? method.getStatic(this) : method.getField(this);
+        }
 
         /**
          * Generate put code for the field
          *
-         * @param emitter a method emitter
+         * @param method a method emitter
          */
-        protected abstract void put(final MethodEmitter emitter);
+        void put(final MethodEmitter method) {
+            if (isStatic) {
+                method.putStatic(this);
+            } else {
+                method.putField(this);
+            }
+        }
     }
 
     /**
      * Call - this can be used for generating code for different types of calls
      */
-    public abstract static class Call extends Access {
+    public static final class Call extends Access {
+        private final Opcode opcode;
+        private final MethodTypeDesc type;
 
         /**
-         * Constructor
+         * The signature in Nashorn's own types, parsed on first use.
          *
-         * @param className  class name for the method of the call
-         * @param name       method name
-         * @param descriptor method descriptor
+         * Not parsed in the constructor: resolving a type can load a class, and
+         * these calls are static fields of classes that are themselves still
+         * initializing at that point. The race is benign - the record's fields
+         * are final, so any thread sees a complete signature or none at all.
          */
-        protected Call(final String className, final String name, final String descriptor) {
-            super(null, className, name, descriptor);
-        }
+        private Signature signature;
+
+        private record Signature(Type returnType, Type[] paramTypes) {}
 
         /**
          * Constructor
          *
-         * @param methodHandle method handle for the call if resolved
+         * @param methodHandle method handle for the call if resolved, null otherwise
+         * @param opcode       the invocation opcode
          * @param className    class name for the method of the call
          * @param name         method name
          * @param descriptor   method descriptor
          */
-        protected Call(final MethodHandle methodHandle, final String className, final String name, final String descriptor) {
+        Call(final MethodHandle methodHandle, final Opcode opcode, final String className, final String name, final String descriptor) {
             super(methodHandle, className, name, descriptor);
+            this.opcode = opcode;
+            this.type   = methodType(descriptor);
+        }
+
+        /** The Nashorn types of the parameters, in order. */
+        Type[] paramTypes() {
+            return signature().paramTypes();
+        }
+
+        /** The Nashorn type this call returns, or null for void. */
+        Type returnType() {
+            return signature().returnType();
+        }
+
+        private Signature signature() {
+            Signature sig = signature;
+            if (sig == null) {
+                sig = new Signature(Type.getMethodReturnType(descriptor), Type.getMethodArguments(descriptor));
+                signature = sig;
+            }
+            return sig;
+        }
+
+        /**
+         * The invocation opcode
+         * @return the opcode
+         */
+        public Opcode opcode() {
+            return opcode;
+        }
+
+        /**
+         * The type of the method being called
+         * @return the method type
+         */
+        public MethodTypeDesc type() {
+            return type;
         }
 
         /**
          * Generate invocation code for the method
          *
-         * @param emitter a method emitter
+         * @param method a method emitter
          *
          * @return the method emitter
          */
-        abstract MethodEmitter invoke(final MethodEmitter emitter);
+        MethodEmitter invoke(final MethodEmitter method) {
+            return method.invoke(this);
+        }
 
         /**
-         * Generate invocation code for the method
+         * Generate invocation code for the method straight into a class file builder,
+         * for the generators that do not go through {@link MethodEmitter}.
          *
-         * @param mv a method visitor
+         * @param cb the builder to emit into
          */
-        public abstract void invoke(final MethodVisitor mv);
+        public void invoke(final CodeBuilder cb) {
+            cb.invoke(opcode, owner, name, type, opcode == Opcode.INVOKEINTERFACE);
+        }
     }
 
 }

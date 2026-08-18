@@ -25,26 +25,6 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.DALOAD;
-import static org.objectweb.asm.Opcodes.DASTORE;
-import static org.objectweb.asm.Opcodes.DUP;
-import static org.objectweb.asm.Opcodes.DUP2;
-import static org.objectweb.asm.Opcodes.DUP2_X1;
-import static org.objectweb.asm.Opcodes.DUP2_X2;
-import static org.objectweb.asm.Opcodes.DUP_X1;
-import static org.objectweb.asm.Opcodes.DUP_X2;
-import static org.objectweb.asm.Opcodes.IALOAD;
-import static org.objectweb.asm.Opcodes.IASTORE;
-import static org.objectweb.asm.Opcodes.INVOKESTATIC;
-import static org.objectweb.asm.Opcodes.LALOAD;
-import static org.objectweb.asm.Opcodes.LASTORE;
-import static org.objectweb.asm.Opcodes.NEWARRAY;
-import static org.objectweb.asm.Opcodes.POP;
-import static org.objectweb.asm.Opcodes.POP2;
-import static org.objectweb.asm.Opcodes.SWAP;
-import static org.objectweb.asm.Opcodes.T_DOUBLE;
-import static org.objectweb.asm.Opcodes.T_INT;
-import static org.objectweb.asm.Opcodes.T_LONG;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -56,7 +36,11 @@ import java.util.TreeMap;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.TypeKind;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -102,14 +86,14 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
     private final Class<?> clazz;
 
     /**
-     * Cache for internal types - this is a query that requires complex stringbuilding inside
-     * ASM and it saves startup time to cache the type mappings
+     * Cache of class file descriptions - parsing a descriptor is not free, and the
+     * same handful of classes is described over and over while compiling.
      */
-    private static final Map<Class<?>, org.objectweb.asm.Type> INTERNAL_TYPE_CACHE =
-            Collections.synchronizedMap(new WeakHashMap<Class<?>, org.objectweb.asm.Type>());
+    private static final Map<Class<?>, ClassDesc> CLASS_DESC_CACHE =
+            Collections.synchronizedMap(new WeakHashMap<Class<?>, ClassDesc>());
 
-    /** Internal ASM type for this Type - computed once at construction */
-    private transient final org.objectweb.asm.Type internalType;
+    /** Class file description of this Type - computed once at construction */
+    private transient final ClassDesc classDesc;
 
     /** Weights are used to decide which types are "wider" than other types */
     protected static final int MIN_WEIGHT = -1;
@@ -127,11 +111,11 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
     Type(final String name, final Class<?> clazz, final int weight, final int slots) {
         this.name         = name;
         this.clazz        = clazz;
-        this.descriptor   = org.objectweb.asm.Type.getDescriptor(clazz);
+        this.classDesc    = classDesc(clazz);
+        this.descriptor   = classDesc.descriptorString();
         this.weight       = weight;
         assert weight >= MIN_WEIGHT && weight <= MAX_WEIGHT : "illegal type weight: " + weight;
         this.slots        = slots;
-        this.internalType = getInternalType(clazz);
     }
 
     /**
@@ -189,11 +173,23 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return a descriptor string
      */
     public static String getMethodDescriptor(final Type returnType, final Type... types) {
-        final org.objectweb.asm.Type[] itypes = new org.objectweb.asm.Type[types.length];
+        return methodType(returnType, types).descriptorString();
+    }
+
+    /**
+     * Generate a method type given a return type and a param array
+     *
+     * @param returnType return type
+     * @param types      parameters
+     *
+     * @return the method type
+     */
+    public static MethodTypeDesc methodType(final Type returnType, final Type... types) {
+        final ClassDesc[] ptypes = new ClassDesc[types.length];
         for (int i = 0; i < types.length; i++) {
-            itypes[i] = types[i].getInternalType();
+            ptypes[i] = types[i].classDesc;
         }
-        return org.objectweb.asm.Type.getMethodDescriptor(returnType.getInternalType(), itypes);
+        return MethodTypeDesc.of(returnType.classDesc, ptypes);
     }
 
     /**
@@ -205,11 +201,23 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return a descriptor string
      */
     public static String getMethodDescriptor(final Class<?> returnType, final Class<?>... types) {
-        final org.objectweb.asm.Type[] itypes = new org.objectweb.asm.Type[types.length];
+        return methodType(returnType, types).descriptorString();
+    }
+
+    /**
+     * Generate a method type given a return type and a param array
+     *
+     * @param returnType return type
+     * @param types      parameters
+     *
+     * @return the method type
+     */
+    public static MethodTypeDesc methodType(final Class<?> returnType, final Class<?>... types) {
+        final ClassDesc[] ptypes = new ClassDesc[types.length];
         for (int i = 0; i < types.length; i++) {
-            itypes[i] = getInternalType(types[i]);
+            ptypes[i] = classDesc(types[i]);
         }
-        return org.objectweb.asm.Type.getMethodDescriptor(getInternalType(returnType), itypes);
+        return MethodTypeDesc.of(classDesc(returnType), ptypes);
     }
 
     /**
@@ -233,49 +241,48 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @param itype internal type
      * @return Nashorn type
      */
-    @SuppressWarnings("fallthrough")
-    private static Type typeFor(final org.objectweb.asm.Type itype) {
-        switch (itype.getSort()) {
-        case org.objectweb.asm.Type.BOOLEAN:
-            return BOOLEAN;
-        case org.objectweb.asm.Type.INT:
-            return INT;
-        case org.objectweb.asm.Type.LONG:
-            return LONG;
-        case org.objectweb.asm.Type.DOUBLE:
-            return NUMBER;
-        case org.objectweb.asm.Type.OBJECT:
-            if (Context.isStructureClass(itype.getClassName())) {
-                return SCRIPT_OBJECT;
-            }
-            return cacheByName.computeIfAbsent(itype.getClassName(), (name) -> {
-                try {
-                    return Type.typeFor(Class.forName(name));
-                } catch(final ClassNotFoundException e) {
-                    throw new AssertionError(e);
-                }
-            });
-        case org.objectweb.asm.Type.VOID:
-            return null;
-        case org.objectweb.asm.Type.ARRAY:
-            switch (itype.getElementType().getSort()) {
-            case org.objectweb.asm.Type.DOUBLE:
-                return NUMBER_ARRAY;
-            case org.objectweb.asm.Type.INT:
-                return INT_ARRAY;
-            case org.objectweb.asm.Type.LONG:
-                return LONG_ARRAY;
-            default:
-                assert false;
-            case org.objectweb.asm.Type.OBJECT:
-                return OBJECT_ARRAY;
-            }
-
-        default:
-            assert false : "Unknown itype : " + itype + " sort " + itype.getSort();
-            break;
+    private static Type typeFor(final ClassDesc desc) {
+        if (desc.isPrimitive()) {
+            return switch (desc.descriptorString()) {
+                case "Z" -> BOOLEAN;
+                case "I" -> INT;
+                case "J" -> LONG;
+                case "D" -> NUMBER;
+                case "V" -> null;
+                default -> throw new AssertionError("Unknown type : " + desc);
+            };
         }
-        return null;
+
+        if (desc.isArray()) {
+            final ClassDesc element = desc.componentType();
+            return switch (element.descriptorString()) {
+                case "D" -> NUMBER_ARRAY;
+                case "I" -> INT_ARRAY;
+                case "J" -> LONG_ARRAY;
+                default -> {
+                    assert !element.isPrimitive() : desc;
+                    yield OBJECT_ARRAY;
+                }
+            };
+        }
+
+        final String className = binaryName(desc);
+        if (Context.isStructureClass(className)) {
+            return SCRIPT_OBJECT;
+        }
+        return cacheByName.computeIfAbsent(className, (name) -> {
+            try {
+                return Type.typeFor(Class.forName(name));
+            } catch(final ClassNotFoundException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
+
+    /** The binary (dotted) name of a class or interface. */
+    private static String binaryName(final ClassDesc desc) {
+        final String pkg = desc.packageName();
+        return pkg.isEmpty() ? desc.displayName() : pkg + '.' + desc.displayName();
     }
 
     /**
@@ -285,7 +292,7 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return return type
      */
     public static Type getMethodReturnType(final String methodDescriptor) {
-        return Type.typeFor(org.objectweb.asm.Type.getReturnType(methodDescriptor));
+        return Type.typeFor(MethodTypeDesc.ofDescriptor(methodDescriptor).returnType());
     }
 
     /**
@@ -295,10 +302,10 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return parameter type array
      */
     public static Type[] getMethodArguments(final String methodDescriptor) {
-        final org.objectweb.asm.Type[] itypes = org.objectweb.asm.Type.getArgumentTypes(methodDescriptor);
-        final Type[] types = new Type[itypes.length];
-        for (int i = 0; i < itypes.length; i++) {
-            types[i] = Type.typeFor(itypes[i]);
+        final MethodTypeDesc type = MethodTypeDesc.ofDescriptor(methodDescriptor);
+        final Type[] types = new Type[type.parameterCount()];
+        for (int i = 0; i < types.length; i++) {
+            types[i] = Type.typeFor(type.parameterType(i));
         }
         return types;
     }
@@ -361,31 +368,25 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         return map;
     }
 
-    static org.objectweb.asm.Type getInternalType(final String className) {
-        return org.objectweb.asm.Type.getType(className);
+    /**
+     * The class file description of this type
+     * @return the description
+     */
+    public ClassDesc getClassDesc() {
+        return classDesc;
     }
 
-    private org.objectweb.asm.Type getInternalType() {
-        return internalType;
+    /**
+     * The class file description of a Java class
+     * @param clazz the class
+     * @return the description
+     */
+    public static ClassDesc classDesc(final Class<?> clazz) {
+        return CLASS_DESC_CACHE.computeIfAbsent(clazz, c -> ClassDesc.ofDescriptor(c.descriptorString()));
     }
 
-    private static org.objectweb.asm.Type lookupInternalType(final Class<?> type) {
-        final Map<Class<?>, org.objectweb.asm.Type> c = INTERNAL_TYPE_CACHE;
-        org.objectweb.asm.Type itype = c.get(type);
-        if (itype != null) {
-            return itype;
-        }
-        itype = org.objectweb.asm.Type.getType(type);
-        c.put(type, itype);
-        return itype;
-    }
-
-    private static org.objectweb.asm.Type getInternalType(final Class<?> type) {
-        return lookupInternalType(type);
-    }
-
-    static void invokestatic(final MethodVisitor method, final Call call) {
-        method.visitMethodInsn(INVOKESTATIC, call.className(), call.name(), call.descriptor(), false);
+    static void invokestatic(final CodeBuffer method, final Call call) {
+        method.emit(call::invoke);
     }
 
     /**
@@ -393,7 +394,7 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the internal name
      */
     public String getInternalName() {
-        return org.objectweb.asm.Type.getInternalName(getTypeClass());
+        return getInternalName(getTypeClass());
     }
 
     /**
@@ -402,7 +403,8 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the internal name
      */
     public static String getInternalName(final Class<?> clazz) {
-        return org.objectweb.asm.Type.getInternalName(clazz);
+        // for an array this is its descriptor, for anything else the binary name with dots swapped
+        return clazz.isArray() ? clazz.descriptorString() : clazz.getName().replace('.', '/');
     }
 
     /**
@@ -795,7 +797,7 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the type at the top of the stack afterwards
      */
     @Override
-    public Type dup(final MethodVisitor method, final int depth) {
+    public Type dup(final CodeBuffer method, final int depth) {
         return Type.dup(method, this, depth);
     }
 
@@ -808,7 +810,7 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the type at the top of the stack afterwards, i.e. other
      */
     @Override
-    public Type swap(final MethodVisitor method, final Type other) {
+    public Type swap(final CodeBuffer method, final Type other) {
         Type.swap(method, this, other);
         return other;
     }
@@ -821,13 +823,13 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the type that was popped
      */
     @Override
-    public Type pop(final MethodVisitor method) {
+    public Type pop(final CodeBuffer method) {
         Type.pop(method, this);
         return this;
     }
 
     @Override
-    public Type loadEmpty(final MethodVisitor method) {
+    public Type loadEmpty(final CodeBuffer method) {
         assert false : "unsupported operation";
         return null;
     }
@@ -838,22 +840,22 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @param method method emitter
      * @param type   type to pop
      */
-    protected static void pop(final MethodVisitor method, final Type type) {
-        method.visitInsn(type.isCategory2() ? POP2 : POP);
+    protected static void pop(final CodeBuffer method, final Type type) {
+        method.emit(type.isCategory2() ? CodeBuilder::pop2 : CodeBuilder::pop);
     }
 
-    private static Type dup(final MethodVisitor method, final Type type, final int depth) {
+    private static Type dup(final CodeBuffer method, final Type type, final int depth) {
         final boolean       cat2 = type.isCategory2();
 
         switch (depth) {
         case 0:
-            method.visitInsn(cat2 ? DUP2 : DUP);
+            method.emit(cat2 ? CodeBuilder::dup2 : CodeBuilder::dup);
             break;
         case 1:
-            method.visitInsn(cat2 ? DUP2_X1 : DUP_X1);
+            method.emit(cat2 ? CodeBuilder::dup2_x1 : CodeBuilder::dup_x1);
             break;
         case 2:
-            method.visitInsn(cat2 ? DUP2_X2 : DUP_X2);
+            method.emit(cat2 ? CodeBuilder::dup2_x2 : CodeBuilder::dup_x2);
             break;
         default:
             return null; //invalid depth
@@ -862,21 +864,21 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         return type;
     }
 
-    private static void swap(final MethodVisitor method, final Type above, final Type below) {
+    private static void swap(final CodeBuffer method, final Type above, final Type below) {
         if (below.isCategory2()) {
             if (above.isCategory2()) {
-                method.visitInsn(DUP2_X2);
-                method.visitInsn(POP2);
+                method.emit(CodeBuilder::dup2_x2);
+                method.emit(CodeBuilder::pop2);
             } else {
-                method.visitInsn(DUP_X2);
-                method.visitInsn(POP);
+                method.emit(CodeBuilder::dup_x2);
+                method.emit(CodeBuilder::pop);
             }
         } else {
             if (above.isCategory2()) {
-                method.visitInsn(DUP2_X1);
-                method.visitInsn(POP2);
+                method.emit(CodeBuilder::dup2_x1);
+                method.emit(CodeBuilder::pop2);
             } else {
-                method.visitInsn(SWAP);
+                method.emit(CodeBuilder::swap);
             }
         }
     }
@@ -939,19 +941,19 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void astore(final MethodVisitor method) {
-            method.visitInsn(IASTORE);
+        public void astore(final CodeBuffer method) {
+            method.emit(CodeBuilder::iastore);
         }
 
         @Override
-        public Type aload(final MethodVisitor method) {
-            method.visitInsn(IALOAD);
+        public Type aload(final CodeBuffer method) {
+            method.emit(CodeBuilder::iaload);
             return INT;
         }
 
         @Override
-        public Type newarray(final MethodVisitor method) {
-            method.visitIntInsn(NEWARRAY, T_INT);
+        public Type newarray(final CodeBuffer method) {
+            method.emit(cb -> cb.newarray(TypeKind.INT));
             return this;
         }
 
@@ -968,19 +970,19 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void astore(final MethodVisitor method) {
-            method.visitInsn(LASTORE);
+        public void astore(final CodeBuffer method) {
+            method.emit(CodeBuilder::lastore);
         }
 
         @Override
-        public Type aload(final MethodVisitor method) {
-            method.visitInsn(LALOAD);
+        public Type aload(final CodeBuffer method) {
+            method.emit(CodeBuilder::laload);
             return LONG;
         }
 
         @Override
-        public Type newarray(final MethodVisitor method) {
-            method.visitIntInsn(NEWARRAY, T_LONG);
+        public Type newarray(final CodeBuffer method) {
+            method.emit(cb -> cb.newarray(TypeKind.LONG));
             return this;
         }
 
@@ -997,19 +999,19 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         private static final long serialVersionUID = 1L;
 
         @Override
-        public void astore(final MethodVisitor method) {
-            method.visitInsn(DASTORE);
+        public void astore(final CodeBuffer method) {
+            method.emit(CodeBuilder::dastore);
         }
 
         @Override
-        public Type aload(final MethodVisitor method) {
-            method.visitInsn(DALOAD);
+        public Type aload(final CodeBuffer method) {
+            method.emit(CodeBuilder::daload);
             return NUMBER;
         }
 
         @Override
-        public Type newarray(final MethodVisitor method) {
-            method.visitIntInsn(NEWARRAY, T_DOUBLE);
+        public Type newarray(final CodeBuffer method) {
+            method.emit(cb -> cb.newarray(TypeKind.DOUBLE));
             return this;
         }
 
@@ -1054,42 +1056,42 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
         }
 
         @Override
-        public Type load(final MethodVisitor method, final int slot) {
+        public Type load(final CodeBuffer method, final int slot) {
             throw new UnsupportedOperationException("load " + slot);
         }
 
         @Override
-        public void store(final MethodVisitor method, final int slot) {
+        public void store(final CodeBuffer method, final int slot) {
             throw new UnsupportedOperationException("store " + slot);
         }
 
         @Override
-        public Type ldc(final MethodVisitor method, final Object c) {
+        public Type ldc(final CodeBuffer method, final Object c) {
             throw new UnsupportedOperationException("ldc " + c);
         }
 
         @Override
-        public Type loadUndefined(final MethodVisitor method) {
+        public Type loadUndefined(final CodeBuffer method) {
             throw new UnsupportedOperationException("load undefined");
         }
 
         @Override
-        public Type loadForcedInitializer(final MethodVisitor method) {
+        public Type loadForcedInitializer(final CodeBuffer method) {
             throw new UnsupportedOperationException("load forced initializer");
         }
 
         @Override
-        public Type convert(final MethodVisitor method, final Type to) {
+        public Type convert(final CodeBuffer method, final Type to) {
             throw new UnsupportedOperationException("convert => " + to);
         }
 
         @Override
-        public void _return(final MethodVisitor method) {
+        public void _return(final CodeBuffer method) {
             throw new UnsupportedOperationException("return");
        }
 
         @Override
-        public Type add(final MethodVisitor method, final int programPoint) {
+        public Type add(final CodeBuffer method, final int programPoint) {
             throw new UnsupportedOperationException("add");
         }
     }

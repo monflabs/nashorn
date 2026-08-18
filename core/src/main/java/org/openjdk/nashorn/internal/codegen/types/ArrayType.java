@@ -25,13 +25,10 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.AALOAD;
-import static org.objectweb.asm.Opcodes.AASTORE;
-import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.ANEWARRAY;
-import static org.objectweb.asm.Opcodes.ARRAYLENGTH;
 
-import org.objectweb.asm.MethodVisitor;
+import java.lang.classfile.CodeBuilder;
+import java.lang.constant.ClassDesc;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 
 /**
  * This is an array type, i.e. OBJECT_ARRAY, NUMBER_ARRAY.
@@ -58,31 +55,33 @@ public class ArrayType extends ObjectType implements BytecodeArrayOps {
     }
 
     @Override
-    public void astore(final MethodVisitor method) {
-        method.visitInsn(AASTORE);
+    public void astore(final CodeBuffer method) {
+        method.emit(CodeBuilder::aastore);
     }
 
     @Override
-    public Type aload(final MethodVisitor method) {
-        method.visitInsn(AALOAD);
+    public Type aload(final CodeBuffer method) {
+        method.emit(CodeBuilder::aaload);
         return getElementType();
     }
 
     @Override
-    public Type arraylength(final MethodVisitor method) {
-        method.visitInsn(ARRAYLENGTH);
+    public Type arraylength(final CodeBuffer method) {
+        method.emit(CodeBuilder::arraylength);
         return INT;
     }
 
     @Override
-    public Type newarray(final MethodVisitor method) {
-        method.visitTypeInsn(ANEWARRAY, getElementType().getInternalName());
+    public Type newarray(final CodeBuffer method) {
+        final ClassDesc element = getElementType().getClassDesc();
+        method.emit(cb -> cb.anewarray(element));
         return this;
     }
 
     @Override
-    public Type newarray(final MethodVisitor method, final int dims) {
-        method.visitMultiANewArrayInsn(getInternalName(), dims);
+    public Type newarray(final CodeBuffer method, final int dims) {
+        final ClassDesc array = getClassDesc();
+        method.emit(cb -> cb.multianewarray(array, dims));
         return this;
     }
 
@@ -92,7 +91,7 @@ public class ArrayType extends ObjectType implements BytecodeArrayOps {
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         assert to.isObject();
         assert !to.isArray() || ((ArrayType)to).getElementType() == getElementType();
         return to;

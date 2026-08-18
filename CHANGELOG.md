@@ -79,7 +79,13 @@ Unreleased
 
 `   ` `           ` **Java 25 is now the baseline.** The artifacts are compiled with `--release 25`, and a JDK 25 or newer is required to build (maven-enforcer-plugin checks it) as well as to run. Consequences of the move:
 
-* ASM was upgraded from 7.3.1 to 9.10.1. Older ASM cannot read the class files javac now produces, which nasgen parses at build time. This changes the required version of the `org.ow2.asm` dependencies for consumers.
+* ASM was upgraded from 7.3.1 to 9.10.1, and then removed entirely - see below.
 * `ListAdapter` gained a `reversed()` implementation, returning a `ListAdapter.Reversed` view. `List` and `Deque` both declare `reversed()` (from `SequencedCollection`, Java 21) with unrelated return types, so a class implementing both has to declare an override of its own.
 * The `jjs` shell no longer consults `System.getSecurityManager()`. Both remaining calls were dead guards - JEP 486 permanently disabled the Security Manager - and the method is now deprecated for removal.
 * Two script tests that pin Dynalink's handling of caller-sensitive methods were retargeted: `AccessController.doPrivileged()` and `Thread.getContextClassLoader()` stopped being caller sensitive under JEP 486, so `Class.forName()` and `AccessibleObject.setAccessible()` stand in for them.
+
+`   ` `           ` **ASM is gone; bytecode is generated with the JDK's own `java.lang.classfile` API (JEP 484).** `nashorn-core` now has *no dependencies at all* - the four `org.ow2.asm` artifacts are no longer needed on the module path, and the module descriptor no longer requires them. Nothing about the generated code changes; the engine passes the full suite in both typing modes and all 11552 ECMA-262 tests.
+
+* Compiling JavaScript to bytecode is roughly 5-10% slower than with ASM (measured on Octane's pdfjs.js, 1.4 MB); steady state throughput is unchanged, since the bytecode is the same. The class file writer itself is not the difference - Nashorn has to record each method's instructions and replay them when the class is written, because `java.lang.classfile` only exposes a `CodeBuilder` inside the callback that builds one method, while Nashorn's code generator keeps several methods open at once.
+* `--print-code` is reimplemented on the new API. The listing format changed, and the Graphviz graphs written by `--print-code=dir:<dir>` are now plain block-and-edge graphs rather than the annotated ones the old ASM `Textifier` subclass produced.
+* `--verify-code` now reports through `ClassFile::verify` rather than ASM's `CheckClassAdapter`.

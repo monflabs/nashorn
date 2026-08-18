@@ -25,18 +25,13 @@
 
 package org.openjdk.nashorn.internal.codegen.types;
 
-import static org.objectweb.asm.Opcodes.ACONST_NULL;
-import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.ARETURN;
-import static org.objectweb.asm.Opcodes.ASTORE;
-import static org.objectweb.asm.Opcodes.CHECKCAST;
-import static org.objectweb.asm.Opcodes.GETSTATIC;
-import static org.openjdk.nashorn.internal.codegen.CompilerConstants.className;
-import static org.openjdk.nashorn.internal.codegen.CompilerConstants.typeDescriptor;
+import static org.openjdk.nashorn.internal.codegen.CompilerConstants.classDesc;
 
+import java.lang.classfile.CodeBuilder;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc;
 import java.lang.invoke.MethodHandle;
-import org.objectweb.asm.Handle;
-import org.objectweb.asm.MethodVisitor;
+import org.openjdk.nashorn.internal.codegen.CodeBuffer;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -71,55 +66,55 @@ class ObjectType extends Type {
     }
 
     @Override
-    public Type add(final MethodVisitor method, final int programPoint) {
+    public Type add(final CodeBuffer method, final int programPoint) {
         invokestatic(method, ScriptRuntime.ADD);
         return Type.OBJECT;
     }
 
     @Override
-    public Type load(final MethodVisitor method, final int slot) {
+    public Type load(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ALOAD, slot);
+        method.emit(cb -> cb.aload(slot));
         return this;
     }
 
     @Override
-    public void store(final MethodVisitor method, final int slot) {
+    public void store(final CodeBuffer method, final int slot) {
         assert slot != -1;
-        method.visitVarInsn(ASTORE, slot);
+        method.emit(cb -> cb.astore(slot));
     }
 
     @Override
-    public Type loadUndefined(final MethodVisitor method) {
-        method.visitFieldInsn(GETSTATIC, className(ScriptRuntime.class), "UNDEFINED", typeDescriptor(Undefined.class));
+    public Type loadUndefined(final CodeBuffer method) {
+        method.emit(cb -> cb.getstatic(classDesc(ScriptRuntime.class), "UNDEFINED", classDesc(Undefined.class)));
         return UNDEFINED;
     }
 
     @Override
-    public Type loadForcedInitializer(final MethodVisitor method) {
-        method.visitInsn(ACONST_NULL);
+    public Type loadForcedInitializer(final CodeBuffer method) {
+        method.emit(CodeBuilder::aconst_null);
         // TODO: do we need a special type for null, e.g. Type.NULL? It should be assignable to any other object type
         // without a checkast in convert.
         return OBJECT;
     }
 
     @Override
-    public Type loadEmpty(final MethodVisitor method) {
-        method.visitFieldInsn(GETSTATIC, className(ScriptRuntime.class), "EMPTY", typeDescriptor(Undefined.class));
+    public Type loadEmpty(final CodeBuffer method) {
+        method.emit(cb -> cb.getstatic(classDesc(ScriptRuntime.class), "EMPTY", classDesc(Undefined.class)));
         return UNDEFINED;
     }
 
     @Override
-    public Type ldc(final MethodVisitor method, final Object c) {
+    public Type ldc(final CodeBuffer method, final Object c) {
         if (c == null) {
-            method.visitInsn(ACONST_NULL);
+            method.emit(CodeBuilder::aconst_null);
         } else if (c instanceof Undefined) {
             return loadUndefined(method);
-        } else if (c instanceof String) {
-            method.visitLdcInsn(c);
+        } else if (c instanceof String s) {
+            method.emit(cb -> cb.loadConstant(s));
             return STRING;
-        } else if (c instanceof Handle) {
-            method.visitLdcInsn(c);
+        } else if (c instanceof DirectMethodHandleDesc handle) {
+            method.emit(cb -> cb.loadConstant(handle));
             return Type.typeFor(MethodHandle.class);
         } else {
             throw new UnsupportedOperationException("implementation missing for class " + c.getClass() + " value=" + c);
@@ -129,7 +124,7 @@ class ObjectType extends Type {
     }
 
     @Override
-    public Type convert(final MethodVisitor method, final Type to) {
+    public Type convert(final CodeBuffer method, final Type to) {
         final boolean toString = to.isString();
         if (!toString) {
             if (to.isArray()) {
@@ -139,22 +134,25 @@ class ObjectType extends Type {
                 //we also have the unpleasant case of NativeArray which looks like an Object, but is
                 //an array to the type system. This is treated specially at the known load points
 
+                final ClassDesc arrayClass;
                 if (elemType.isString()) {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(String[].class));
+                    arrayClass = classDesc(String[].class);
                 } else if (elemType.isNumber()) {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(double[].class));
+                    arrayClass = classDesc(double[].class);
                 } else if (elemType.isLong()) {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(long[].class));
+                    arrayClass = classDesc(long[].class);
                 } else if (elemType.isInteger()) {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(int[].class));
+                    arrayClass = classDesc(int[].class);
                 } else {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(Object[].class));
+                    arrayClass = classDesc(Object[].class);
                 }
+                method.emit(cb -> cb.checkcast(arrayClass));
                 return to;
             } else if (to.isObject()) {
                 final Class<?> toClass = to.getTypeClass();
                 if(!toClass.isAssignableFrom(getTypeClass())) {
-                    method.visitTypeInsn(CHECKCAST, CompilerConstants.className(toClass));
+                    final ClassDesc target = classDesc(toClass);
+                    method.emit(cb -> cb.checkcast(target));
                 }
                 return to;
             }
@@ -182,8 +180,8 @@ class ObjectType extends Type {
     }
 
     @Override
-    public void _return(final MethodVisitor method) {
-        method.visitInsn(ARETURN);
+    public void _return(final CodeBuffer method) {
+        method.emit(CodeBuilder::areturn);
     }
 
     @Override

@@ -47,6 +47,15 @@ mvn -pl core test -Dsurefire.failIfNoSpecifiedTests=false    # when narrowing ac
 
 Script-test selection is by *filename suffix* (`TestFinder` does `endsWith`), not a glob.
 
+## Bytecode generation
+
+Everything that writes bytecode uses the JDK's `java.lang.classfile` (JEP 484); there is no ASM dependency, and `nashorn-core` has no dependencies at all. Two things about the port are worth knowing before touching the emitters:
+
+- **`CodeBuffer` records a method, it does not stream it.** `java.lang.classfile` only hands out a `CodeBuilder` inside the callback that builds one method, while `CodeGenerator` has several methods open at once (a nested function is emitted while its enclosing function still is). So `MethodEmitter` appends `Consumer<CodeBuilder>` operations to a `CodeBuffer`, and `ClassEmitter.toByteArray()` replays them. Labels are the reason it cannot record `CodeElement`s directly: a classfile label belongs to the builder that made it, so `codegen.Label`s are mapped to real ones at write time.
+- **Stack maps come from a `ClassHierarchyResolver`,** not from a `getCommonSuperClass` override. Classes that cannot be loaded (the compile unit itself, the runtime-generated structure classes) are answered from their package name: anything in Nashorn's `scripts` or `objects` package is reported as a ScriptObject subtype, everything else as Object. That reproduces what the old ASM override did.
+
+Descriptors are `ClassDesc`/`MethodTypeDesc`, parsed once and cached (`Type.classDesc`, `CompilerConstants.classDesc`/`methodType`, `Call`'s lazily parsed signature) - parsing them per emission is measurably slower. `Call` must not parse eagerly in its constructor: these are static fields of classes that are still initializing, and resolving a Nashorn type loads a class.
+
 ## nasgen — read before touching `internal/objects`
 
 `buildtools/nasgen` rewrites the `@ScriptClass`-annotated classes in `org.openjdk.nashorn.internal.objects`, generating the `$Constructor` / `$Prototype` classes and property maps that make them behave as JS built-ins. It runs at `process-classes` in `core/pom.xml`.
@@ -67,7 +76,7 @@ javac writes to `target/classes-raw`; nasgen reads that and writes into `target/
 
 - **`internal/parser`** — hand-written lexer/parser producing the internal IR. `JSONParser` and the regexp parsers live nearby (`runtime/regexp`, with a bundled Joni backend selectable via `-Dnashorn.regexp.impl=joni`).
 - **`internal/ir`** — immutable AST nodes; transformations use visitors (`ir/visitor/`) and return new trees. `LexicalContext` tracks the enclosing block/function chain during traversal.
-- **`internal/codegen`** — an ordered list of `CompilationPhase` objects (constant folding → `Lower` → apply specialization → splitting → program points → symbol assignment → scope depths → optimistic type assignment → local variable type calculation → bytecode generation → install), driven by `Compiler`. `CodeGenerator`/`MethodEmitter`/`ClassEmitter` sit on ASM. `Splitter`/`SplitIntoFunctions` exist because JVM methods have a 64KB limit.
+- **`internal/codegen`** — an ordered list of `CompilationPhase` objects (constant folding → `Lower` → apply specialization → splitting → program points → symbol assignment → scope depths → optimistic type assignment → local variable type calculation → bytecode generation → install), driven by `Compiler`. `CodeGenerator`/`MethodEmitter`/`ClassEmitter` sit on `java.lang.classfile`. `Splitter`/`SplitIntoFunctions` exist because JVM methods have a 64KB limit.
 - **Optimistic typing** is the reason for much of the complexity: code is compiled assuming narrow (int/long/double) types, and an `UnwarrantedOptimismException` triggers deoptimization and recompilation via `RewriteException` and `RecompilableScriptFunctionData`. The suite therefore runs twice; a change can pass one mode and fail the other.
 - **`internal/runtime`** — `Context` (per-engine compilation/loading state, class cache), `ScriptObject` (the JS object model, backed by `PropertyMap`/`Property`/`AccessorProperty` — an inline-cache-friendly hidden-class scheme), `ScriptFunction`, `JSType` (all ECMA type coercions), `ScriptRuntime`. `Global` (in `internal/objects`) is the per-context global object, distinct from `Context`.
 - **`internal/objects`** — the built-ins (`NativeArray`, `NativeString`, `NativeDate`, …) plus `Global`.
