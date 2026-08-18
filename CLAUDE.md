@@ -137,6 +137,48 @@ each miss thousands of tests in opposite directions, which is why neither is use
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
 
+## Performance gate
+
+`buildtools/perf-gate.sh [base-ref]` compares the working tree against a base
+revision — by default the `perf-baseline` tag, which marks the last revision
+measured before the ES2015 work began. It runs in CI on every push.
+
+Nothing about the measurement is checked in, and that is deliberate. Absolute
+milliseconds do not carry from a laptop to a shared runner, so the script builds
+*both* revisions and measures them on the same machine, in the same run. The base
+revision supplies only the engine; the harness
+(`core/src/test/java/.../performance/PerfBenchmark.java`) and the benchmark
+scripts (`core/src/test/scripts/perf/`, deliberately outside `test.js.roots` so
+the orphan finder ignores them) always come from the working tree, so the base
+revision need not contain them.
+
+Four things in the harness exist because measuring this badly is easy, and each
+was put there after watching identical code report a regression:
+
+1. **Steady state.** A script is compiled once and run repeatedly in one realm.
+   Compiling per iteration swung results by 30%.
+2. **Minimum within a JVM, median across JVMs.** Inside one process every
+   disturbance costs time, so the fastest sample is the truest. Across processes
+   a sample can be spuriously *fast* — the first JVM after a build runs on a
+   boosted CPU — and a minimum would enshrine that outlier.
+3. **Interleaving.** perf-gate.sh alternates base and head round by round.
+   Measured one side then the other, the first side was slower on all seven
+   metrics, by up to 17%.
+4. **A pinned heap** (`-Xms1g -Xmx1g -XX:+UseG1GC`) in every measurement JVM.
+   Left to ergonomics, G1 sizes itself differently per process and the
+   allocation-heavy benchmarks moved 15% on that alone.
+
+Tolerances are per metric and measured, not chosen — see the table in
+`PerfBenchmark`. They range from 5% on `run.instanceof` to 30% on
+`compile.pdfjs`, and the gate has been checked in both directions: no false
+positive across ten pairings of identical code, and it catches a +5% regression
+on `instanceof` and +6% on `toprimitive` — the two hot paths ES2015 well-known
+symbols put most at risk. A missing metric counts as a failure, so a measurement
+that silently did not happen cannot pass.
+
+For a considered judgement on a small difference, re-run on an idle machine with
+an explicit band: `-Dperf.tolerance=0.02`.
+
 ## Conventions
 
 - OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`. Every source file carries the GPLv2+Classpath-exception header — new files need it too.

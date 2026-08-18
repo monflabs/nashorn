@@ -58,3 +58,54 @@ jobs:
 
     - name: Run ECMA-262 tests
       run: mvn -B -Ptest262 -DskipTests verify
+
+  # Compares this revision against the perf-baseline tag - the last revision
+  # measured before the ES2015 work began. Both sides are built and measured on
+  # this runner, interleaved, because absolute milliseconds do not carry between
+  # machines; see buildtools/perf-gate.sh.
+  perf:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        java-version: [25]
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        # perf-gate.sh builds the base revision from a worktree, so it needs the
+        # history and the tag, not just the tip.
+        fetch-depth: 0
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: ${{ matrix.java-version }}
+        cache: maven
+
+    - name: Check for the perf-baseline tag
+      id: baseline
+      run: |
+        if git rev-parse --verify --quiet perf-baseline^{commit} >/dev/null; then
+          echo "present=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "present=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::No perf-baseline tag; skipping the performance gate." \
+               "Create it with: git tag perf-baseline <commit> && git push origin perf-baseline"
+        fi
+
+    # Only octane's pdfjs.js is wanted here, for the compile-time benchmark.
+    - name: Fetch the external suites
+      if: steps.baseline.outputs.present == 'true'
+      run: mvn -B -Pfetch-externals -pl core generate-test-resources
+
+    - name: Compare against the baseline
+      if: steps.baseline.outputs.present == 'true'
+      # Five rounds rather than the local three: a shared runner is noisier than
+      # a laptop, and the extra rounds cost minutes while a false failure costs
+      # trust in the gate.
+      env:
+        PERF_ROUNDS: 5
+      run: ./buildtools/perf-gate.sh
