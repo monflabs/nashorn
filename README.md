@@ -2,12 +2,14 @@ Nashorn Engine
 ==============
 
 Nashorn engine is an open source implementation of the
-[ECMAScript Edition 5.1 Language Specification](https://es5.github.io).
-It also implements many new features introduced in ECMAScript 6
-including template strings; `let`, `const`, and block scope; iterators
-and `for..of` loops; `Map`, `Set`, `WeakMap`, and `WeakSet` data types;
-symbols; and binary and octal literals. It is written in Java and runs
-on the Java Virtual Machine.
+[ECMAScript 2015 Language Specification](https://262.ecma-international.org/6.0/)
+(ECMAScript 6). It is written in Java and runs on the Java Virtual Machine.
+
+This fork is working towards full ES2015 conformance; see the
+[change log](CHANGELOG.md) for what has landed. There is no ES5-only mode:
+`let`, `const`, arrow functions, `for..of`, template literals, symbols and the
+`Map`/`Set` family, which upstream hid behind `--language=es6`, are simply the
+language. Proper tail calls are a documented exclusion.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.

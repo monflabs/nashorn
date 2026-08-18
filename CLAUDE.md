@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Standalone OpenJDK Nashorn — a JavaScript (ECMAScript 5.1 + parts of ES6) engine written in Java that compiles JS to JVM bytecode and links call sites with `invokedynamic` via Dynalink (`jdk.dynalink`). It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
+Standalone OpenJDK Nashorn — a JavaScript engine written in Java that compiles JS to JVM bytecode and links call sites with `invokedynamic` via Dynalink (`jdk.dynalink`).
+
+This fork targets **ECMAScript 2015, as the only language mode**. There is no ES5 mode and no `isES6()` gating: `--language` is still accepted (`es6` only) purely so existing command lines keep working. Anything still unimplemented throws from `Lower.throwNotImplementedYet` — classes, generators, destructuring, rest/spread, `super`, modules — rather than being switched off. Two deliberate exclusions: proper tail calls, and Annex B (so a block-level function declaration is scoped to its block and is *not* hoisted the way browsers do). The `-scripting` backquote exec extension and `$EXEC` were removed when ES2015 claimed the backquote for template literals. It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
 
 This fork (`monflabs/nashorn`) has migrated from the original Ant build to Maven; the Ant files and the leftover in-JDK make/jtreg trees are gone. That means merges from upstream `openjdk/nashorn` no longer apply cleanly to build files.
 
@@ -132,7 +134,10 @@ each miss thousands of tests in opposite directions, which is why neither is use
   a wedged worker hangs the whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. Regenerate with
-  `-Dtest262.write.expectations=true`; narrow a run with `-Dtest262.include=/built-ins/Math/`.
+  `-Dnashorn.test262.write.expectations=true`; narrow a run with
+  `-Dnashorn.test262.include=/built-ins/Math/`. Regenerate through Maven, never by running
+  `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, and expectations
+  recorded without it disagree with the gate on ten `toLocale*Case` tests.
 
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".

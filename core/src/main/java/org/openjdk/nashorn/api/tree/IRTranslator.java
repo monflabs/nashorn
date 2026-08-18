@@ -205,9 +205,18 @@ final class IRTranslator extends SimpleNodeVisitor {
     @Override
     public boolean enterBlockStatement(final BlockStatement blockStatement) {
         final Block block = blockStatement.getBlock();
-        if (blockStatement.isSynthetic()) {
-            assert block != null && block.getStatements() != null && block.getStatements().size() == 1;
+        if (blockStatement.isSynthetic() && block != null && block.getStatements() != null
+                && block.getStatements().size() == 1) {
+            // A synthetic block around a single statement is an artefact of the
+            // parser; unwrap it so the tree matches the source.
             curStat = translateStat(block.getStatements().get(0));
+        } else if (blockStatement.isSynthetic()) {
+            // A synthetic block can hold more than one statement: "for (let x of
+            // xs)" becomes the binding for x followed by the loop, wrapped in the
+            // block that scopes x. That block is real scope, so report it as one.
+            // Unwrapping only the first statement here used to hand callers the
+            // binding and drop the loop entirely.
+            curStat = new BlockTreeImpl(blockStatement, translateStats(block.getStatements()));
         } else {
             curStat = new BlockTreeImpl(blockStatement,
                 translateStats(block != null? block.getStatements() : null));

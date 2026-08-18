@@ -1,14 +1,4 @@
-[
-  {
-    "fileName": "test.js",
-    "code": "ident (19, 1)",
-    "columnNumber": "19",
-    "kind": "ERROR",
-    "position": "19",
-    "message": "test.js:1:19 Property \"k\" already defined\n    var a = { k:1, k:2 }\n                   ^",
-    "lineNumber": "1"
-  }
-]
+[]
 [
   {
     "fileName": "test.js",
@@ -42,37 +32,8 @@
     "lineNumber": "1"
   }
 ]
-[
-  {
-    "fileName": "test.js",
-    "code": "function (23, 8)",
-    "columnNumber": "6",
-    "kind": "ERROR",
-    "position": "23",
-    "message": "test.js:2:6 In strict mode, function declarations can only occur at program or function body level. You should use a function expression here instead.\n    \t\tfunction a () {}\n    \t\t^",
-    "lineNumber": "2"
-  }
-]
-[
-  {
-    "fileName": "test.js",
-    "code": "ident (26, 3)",
-    "columnNumber": "26",
-    "kind": "ERROR",
-    "position": "26",
-    "message": "test.js:1:26 Property \"x\" already defined\n    var a = { get x() {}, get x() {}};\n                          ^",
-    "lineNumber": "1"
-  },
-  {
-    "fileName": "test.js",
-    "code": "ident (65, 3)",
-    "columnNumber": "26",
-    "kind": "ERROR",
-    "position": "65",
-    "message": "test.js:2:26 Property \"x\" already defined\n    var a = { set x() {}, set x() {}};\n                          ^",
-    "lineNumber": "2"
-  }
-]
+[]
+[]
 [
   {
     "fileName": "test.js",

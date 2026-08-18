@@ -145,7 +145,6 @@ import org.openjdk.nashorn.internal.runtime.ParserException;
 import org.openjdk.nashorn.internal.runtime.RecompilableScriptFunctionData;
 import org.openjdk.nashorn.internal.runtime.ScriptEnvironment;
 import org.openjdk.nashorn.internal.runtime.ScriptFunctionData;
-import org.openjdk.nashorn.internal.runtime.ScriptingFunctions;
 import org.openjdk.nashorn.internal.runtime.Source;
 import org.openjdk.nashorn.internal.runtime.Timing;
 import org.openjdk.nashorn.internal.runtime.linker.NameCodec;
@@ -313,7 +312,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, isES6(), reparsedFunction != null);
+            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -349,7 +348,7 @@ public class Parser extends AbstractParser implements Loggable {
     public FunctionNode parseModule(final String moduleName, final int startPos, final int len) {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, isES6(), reparsedFunction != null);
+            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -383,7 +382,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFormalParameterList() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions, isES6());
+            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions);
 
             scanFirstToken();
 
@@ -403,7 +402,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFunctionBody() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions, isES6());
+            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions);
             final int functionLine = line;
 
             scanFirstToken();
@@ -663,14 +662,6 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
-    private boolean useBlockScope() {
-        return isES6();
-    }
-
-    private boolean isES6() {
-        return env._es6;
-    }
-
     private static boolean isArguments(final String name) {
         return ARGUMENTS_NAME.equals(name);
     }
@@ -738,10 +729,7 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private boolean isDestructuringLhs(final Expression lhs) {
-        if (lhs instanceof ObjectNode || lhs instanceof LiteralNode.ArrayLiteralNode) {
-            return isES6();
-        }
-        return false;
+        return lhs instanceof ObjectNode || lhs instanceof LiteralNode.ArrayLiteralNode;
     }
 
     private void verifyDestructuringAssignmentPattern(final Expression pattern, final String contextString) {
@@ -1090,13 +1078,13 @@ public class Parser extends AbstractParser implements Loggable {
             functionExpression(true, topLevel || labelledStatement);
             return;
         default:
-            if (useBlockScope() && (type == LET && lookaheadIsLetDeclaration(false) || type == CONST)) {
+            if (type == LET && lookaheadIsLetDeclaration(false) || type == CONST) {
                 if (singleStatement) {
                     throw error(AbstractParser.message("expected.stmt", type.getName() + " declaration"), token);
                 }
                 variableStatement(type);
                 break;
-            } else if (type == CLASS && isES6()) {
+            } else if (type == CLASS) {
                 if (singleStatement) {
                     throw error(AbstractParser.message("expected.stmt", "class declaration"), token);
                 }
@@ -1265,7 +1253,7 @@ public class Parser extends AbstractParser implements Loggable {
                     next();
                 }
                 boolean generator = false;
-                if (isES6() && type == MUL) {
+                if (type == MUL) {
                     generator = true;
                     next();
                 }
@@ -1490,7 +1478,7 @@ public class Parser extends AbstractParser implements Loggable {
      * ES6 11.6.2: A code point in a ReservedWord cannot be expressed by a | UnicodeEscapeSequence.
      */
     private void checkEscapedKeyword(final IdentNode ident) {
-        if (isES6() && ident.containsEscapes()) {
+        if (ident.containsEscapes()) {
             final TokenType tokenType = TokenLookup.lookupKeyword(ident.getName().toCharArray(), 0, ident.getName().length());
             if (tokenType != IDENT && !(tokenType.getKind() == TokenKind.FUTURESTRICT && !isStrictMode)) {
                 throw error(AbstractParser.message("keyword.escaped.character"), ident.getToken());
@@ -1698,7 +1686,7 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private Expression bindingIdentifierOrPattern(final String contextString) {
-        if (isBindingIdentifier() || !isES6()) {
+        if (isBindingIdentifier()) {
             return bindingIdentifier(contextString);
         } else {
             return bindingPattern();
@@ -1900,7 +1888,7 @@ public class Parser extends AbstractParser implements Loggable {
         // part of this 'for' statement (if any).
         final int forStart = Token.descPosition(forToken);
         // When ES6 for-let is enabled we create a container block to capture the LET.
-        final ParserContextBlockNode outer = useBlockScope() ? newBlock() : null;
+        final ParserContextBlockNode outer = newBlock();
 
         // Create FOR node, capturing FOR token.
         final ParserContextLoopNode forNode = new ParserContextLoopNode();
@@ -1936,7 +1924,7 @@ public class Parser extends AbstractParser implements Loggable {
             case SEMICOLON:
                 break;
             default:
-                if (useBlockScope() && (type == LET && lookaheadIsLetDeclaration(true) || type == CONST)) {
+                if (type == LET && lookaheadIsLetDeclaration(true) || type == CONST) {
                     flags |= ForNode.PER_ITERATION_SCOPE;
                     // LET/CONST declaration captured in container block created above.
                     varDeclList = variableDeclarationList(varType = type, false, forStart);
@@ -1984,7 +1972,7 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
 
             case IDENT:
-                if (isES6() && "of".equals(getValue())) {
+                if ("of".equals(getValue())) {
                     isForOf = true;
                     // fall through
                 } else {
@@ -2090,7 +2078,7 @@ public class Parser extends AbstractParser implements Loggable {
             case COMMENT:
                 continue;
             case IDENT:
-                if (ofContextualKeyword && isES6() && "of".equals(getValue(getToken(k + i)))) {
+                if (ofContextualKeyword && "of".equals(getValue(getToken(k + i)))) {
                     return false;
                 }
                 // fall through
@@ -2760,8 +2748,6 @@ public class Parser extends AbstractParser implements Loggable {
         case REGEX:
         case XML:
             return getLiteral();
-        case EXECSTRING:
-            return execString(primaryLine, primaryToken);
         case FALSE:
             next();
             return LiteralNode.newInstance(primaryToken, finish, false);
@@ -2778,20 +2764,18 @@ public class Parser extends AbstractParser implements Loggable {
         case LPAREN:
             next();
 
-            if (isES6()) {
-                if (type == RPAREN) {
-                    // ()
-                    nextOrEOL();
-                    expectDontAdvance(ARROW);
-                    return new ExpressionList(primaryToken, finish, Collections.emptyList());
-                } else if (type == ELLIPSIS) {
-                    // (...rest)
-                    final IdentNode restParam = formalParameterList(false).get(0);
-                    expectDontAdvance(RPAREN);
-                    nextOrEOL();
-                    expectDontAdvance(ARROW);
-                    return new ExpressionList(primaryToken, finish, Collections.singletonList(restParam));
-                }
+            if (type == RPAREN) {
+                // ()
+                nextOrEOL();
+                expectDontAdvance(ARROW);
+                return new ExpressionList(primaryToken, finish, Collections.emptyList());
+            } else if (type == ELLIPSIS) {
+                // (...rest)
+                final IdentNode restParam = formalParameterList(false).get(0);
+                expectDontAdvance(RPAREN);
+                nextOrEOL();
+                expectDontAdvance(ARROW);
+                return new ExpressionList(primaryToken, finish, Collections.singletonList(restParam));
             }
 
             final Expression expression = expression();
@@ -2816,28 +2800,6 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         return null;
-    }
-
-    /**
-     * Convert execString to a call to $EXEC.
-     *
-     * @param primaryToken Original string token.
-     * @return callNode to $EXEC.
-     */
-    CallNode execString(final int primaryLine, final long primaryToken) {
-        // Synthesize an ident to call $EXEC.
-        final IdentNode execIdent = new IdentNode(primaryToken, finish, ScriptingFunctions.EXEC_NAME);
-        // Skip over EXECSTRING.
-        next();
-        // Set up argument list for call.
-        // Skip beginning of edit string expression.
-        expect(LBRACE);
-        // Add the following expression to arguments.
-        final List<Expression> arguments = Collections.singletonList(expression());
-        // Skip ending of edit string expression.
-        expect(RBRACE);
-
-        return new CallNode(primaryLine, primaryToken, finish, execIdent, arguments, false);
     }
 
     /**
@@ -2894,11 +2856,9 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
 
             case ELLIPSIS:
-                if (isES6()) {
-                    hasSpread = true;
-                    spreadToken = token;
-                    next();
-                }
+                hasSpread = true;
+                spreadToken = token;
+                next();
                 // fall through
 
             default:
@@ -3002,13 +2962,11 @@ public class Parser extends AbstractParser implements Loggable {
                     final FunctionNode prevGetter = existingProperty.getGetter();
                     final FunctionNode prevSetter = existingProperty.getSetter();
 
-                    if (!isES6()) {
-                        checkPropertyRedefinition(property, value, getter, setter, prevValue, prevGetter, prevSetter);
-                    } else {
-                        if (property.getKey() instanceof IdentNode && ((IdentNode)property.getKey()).isProtoPropertyName() &&
-                                        existingProperty.getKey() instanceof IdentNode && ((IdentNode)existingProperty.getKey()).isProtoPropertyName()) {
-                            throw error(AbstractParser.message("multiple.proto.key"), property.getToken());
-                        }
+                    // ES2015 dropped the ES5 duplicate-property restriction; only
+                    // a repeated __proto__ in an object literal is still an error.
+                    if (property.getKey() instanceof IdentNode && ((IdentNode)property.getKey()).isProtoPropertyName() &&
+                                    existingProperty.getKey() instanceof IdentNode && ((IdentNode)existingProperty.getKey()).isProtoPropertyName()) {
+                        throw error(AbstractParser.message("multiple.proto.key"), property.getToken());
                     }
 
                     if (value != null || prevValue != null) {
@@ -3106,7 +3064,7 @@ public class Parser extends AbstractParser implements Loggable {
      * @return PropertyName node
      */
     private Expression propertyName() {
-        if (type == LBRACKET && isES6()) {
+        if (type == LBRACKET) {
             return computedPropertyName();
         } else {
             return (Expression)literalPropertyName();
@@ -3141,7 +3099,7 @@ public class Parser extends AbstractParser implements Loggable {
         final boolean isIdentifier;
 
         boolean generator = false;
-        if (type == MUL && isES6()) {
+        if (type == MUL) {
             generator = true;
             next();
         }
@@ -3151,7 +3109,7 @@ public class Parser extends AbstractParser implements Loggable {
             // Get IDENT.
             final String ident = (String)expectValue(IDENT);
 
-            if (type != COLON && (type != LPAREN || !isES6())) {
+            if (type != COLON && type != LPAREN) {
 
                 switch (ident) {
                 case GET_NAME:
@@ -3183,9 +3141,9 @@ public class Parser extends AbstractParser implements Loggable {
             expectDontAdvance(LPAREN);
         }
 
-        if (type == LPAREN && isES6()) {
+        if (type == LPAREN) {
             propertyValue = propertyMethodFunction(propertyName, propertyToken, functionLine, generator, FunctionNode.ES6_IS_METHOD, computed).functionNode;
-        } else if (isIdentifier && (type == COMMARIGHT || type == RBRACE || type == ASSIGN) && isES6()) {
+        } else if (isIdentifier && (type == COMMARIGHT || type == RBRACE || type == ASSIGN)) {
             propertyValue = createIdentNode(propertyToken, finish, ((IdentNode) propertyName).getPropertyName());
             if (type == ASSIGN) {
                 // TODO if not destructuring, this is a SyntaxError
@@ -3465,7 +3423,7 @@ public class Parser extends AbstractParser implements Loggable {
         // NEW is tested in caller.
         next();
 
-        if (type == PERIOD && isES6()) {
+        if (type == PERIOD) {
             next();
             if (type == IDENT && "target".equals(getValue())) {
                 if (lc.getCurrentFunction().isProgram()) {
@@ -3554,44 +3512,36 @@ public class Parser extends AbstractParser implements Loggable {
             break;
 
         case CLASS:
-            if (isES6()) {
-                lhs = classExpression(false);
-                break;
-            } else {
-                // fall through
-            }
+            lhs = classExpression(false);
+            break;
 
-        case SUPER:
-            if (isES6()) {
-                final ParserContextFunctionNode currentFunction = getCurrentNonArrowFunction();
-                if (currentFunction.isMethod()) {
-                    final long identToken = Token.recast(token, IDENT);
-                    next();
-                    lhs = createIdentNode(identToken, finish, SUPER.getName());
+        case SUPER: {
+            final ParserContextFunctionNode currentFunction = getCurrentNonArrowFunction();
+            if (currentFunction.isMethod()) {
+                final long identToken = Token.recast(token, IDENT);
+                next();
+                lhs = createIdentNode(identToken, finish, SUPER.getName());
 
-                    switch (type) {
-                        case LBRACKET:
-                        case PERIOD:
-                            getCurrentNonArrowFunction().setFlag(FunctionNode.ES6_USES_SUPER);
-                            isSuper = true;
+                switch (type) {
+                    case LBRACKET:
+                    case PERIOD:
+                        getCurrentNonArrowFunction().setFlag(FunctionNode.ES6_USES_SUPER);
+                        isSuper = true;
+                        break;
+                    case LPAREN:
+                        if (currentFunction.isSubclassConstructor()) {
+                            lhs = ((IdentNode)lhs).setIsDirectSuper();
                             break;
-                        case LPAREN:
-                            if (currentFunction.isSubclassConstructor()) {
-                                lhs = ((IdentNode)lhs).setIsDirectSuper();
-                                break;
-                            } else {
-                                // fall through to throw error
-                            }
-                        default:
-                            throw error(AbstractParser.message("invalid.super"), identToken);
-                    }
-                    break;
-                } else {
-                    // fall through
+                        } else {
+                            // fall through to throw error
+                        }
+                    default:
+                        throw error(AbstractParser.message("invalid.super"), identToken);
                 }
-            } else {
-                // fall through
+                break;
             }
+            // super outside a method: fall through and let primaryExpression complain
+        }
 
         default:
             // Get primary expression.
@@ -3694,7 +3644,7 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             long spreadToken = 0;
-            if (type == ELLIPSIS && isES6()) {
+            if (type == ELLIPSIS) {
                 spreadToken = token;
                 next();
             }
@@ -3737,7 +3687,7 @@ public class Parser extends AbstractParser implements Loggable {
         next();
 
         boolean generator = false;
-        if (type == MUL && isES6()) {
+        if (type == MUL) {
             generator = true;
             next();
         }
@@ -3799,15 +3749,10 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         if (isStatement) {
-            if (topLevel || useBlockScope() || (!isStrictMode && env._function_statement == ScriptEnvironment.FunctionStatementBehavior.ACCEPT)) {
-                functionNode.setFlag(FunctionNode.IS_DECLARED);
-            } else if (isStrictMode) {
-                throw error(JSErrorType.SYNTAX_ERROR, AbstractParser.message("strict.no.func.decl.here"), functionToken);
-            } else if (env._function_statement == ScriptEnvironment.FunctionStatementBehavior.ERROR) {
-                throw error(JSErrorType.SYNTAX_ERROR, AbstractParser.message("no.func.decl.here"), functionToken);
-            } else if (env._function_statement == ScriptEnvironment.FunctionStatementBehavior.WARNING) {
-                warning(JSErrorType.SYNTAX_ERROR, AbstractParser.message("no.func.decl.here.warn"), functionToken);
-            }
+            // ES2015 makes a function declaration in a block lexically scoped and
+            // always legal, so --function-statement-error/-warning no longer have
+            // anything to report here.
+            functionNode.setFlag(FunctionNode.IS_DECLARED);
             if (isArguments(name)) {
                lc.getCurrentFunction().setFlag(FunctionNode.DEFINES_ARGUMENTS);
             }
@@ -3835,14 +3780,12 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             // mark ES6 block functions as lexically scoped
-            final int     varFlags = (topLevel || !useBlockScope()) ? 0 : VarNode.IS_LET;
+            final int     varFlags = topLevel ? 0 : VarNode.IS_LET;
             final VarNode varNode  = new VarNode(functionLine, functionToken, finish, name, function, varFlags);
             if (topLevel) {
                 functionDeclarations.add(varNode);
-            } else if (useBlockScope()) {
-                prependStatement(varNode); // Hoist to beginning of current block
             } else {
-                appendStatement(varNode);
+                prependStatement(varNode); // Hoist to beginning of current block
             }
         }
 
@@ -3978,7 +3921,7 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             boolean restParameter = false;
-            if (type == ELLIPSIS && isES6()) {
+            if (type == ELLIPSIS) {
                 next();
                 restParameter = true;
             }
@@ -3991,7 +3934,7 @@ public class Parser extends AbstractParser implements Loggable {
             final int paramLine = line;
             final String contextString = "function parameter";
             IdentNode ident;
-            if (isBindingIdentifier() || restParameter || !isES6()) {
+            if (isBindingIdentifier() || restParameter) {
                 ident = bindingIdentifier(contextString);
 
                 if (restParameter) {
@@ -4000,7 +3943,7 @@ public class Parser extends AbstractParser implements Loggable {
                     expectDontAdvance(endType);
                     parameters.add(ident);
                     break;
-                } else if (type == ASSIGN && isES6()) {
+                } else if (type == ASSIGN) {
                     next();
                     ident = ident.setIsDefaultParameter();
 
@@ -4260,7 +4203,7 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         stream.reset();
-        lexer = parserState.createLexer(source, lexer, stream, scripting && !env._no_syntax_extensions, isES6());
+        lexer = parserState.createLexer(source, lexer, stream, scripting && !env._no_syntax_extensions);
         line = parserState.line;
         linePosition = parserState.linePosition;
         // Doesn't really matter, but it's safe to treat it as if there were a semicolon before
@@ -4288,8 +4231,8 @@ public class Parser extends AbstractParser implements Loggable {
             this.linePosition = linePosition;
         }
 
-        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream, final boolean scripting, final boolean es6) {
-            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, scripting, es6, true);
+        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream, final boolean scripting) {
+            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, scripting, true);
             newLexer.restoreState(new Lexer.State(position, Integer.MAX_VALUE, line, -1, linePosition, SEMICOLON));
             return newLexer;
         }
@@ -4536,7 +4479,7 @@ public class Parser extends AbstractParser implements Loggable {
             next();
 
             boolean rhsRestParameter = false;
-            if (type == ELLIPSIS && isES6()) {
+            if (type == ELLIPSIS) {
                 // (a, b, ...rest) is not a valid expression, unless we're parsing the parameter list of an arrow function (we need to throw the right error).
                 // But since the rest parameter is always last, at least we know that the expression has to end here and be followed by RPAREN and ARROW, so peek ahead.
                 if (isRestParameterEndOfArrowFunctionParameterList()) {
@@ -4646,7 +4589,7 @@ public class Parser extends AbstractParser implements Loggable {
         // This method is protected so that subclass can get details
         // at assignment expression start point!
 
-        if (type == YIELD && inGeneratorFunction() && isES6()) {
+        if (type == YIELD && inGeneratorFunction()) {
             return yieldExpression(noIn);
         }
 
@@ -4654,7 +4597,7 @@ public class Parser extends AbstractParser implements Loggable {
         final int startLine = line;
         final Expression exprLhs = conditionalExpression(noIn);
 
-        if (type == ARROW && isES6()) {
+        if (type == ARROW) {
             if (checkNoLineTerminator()) {
                 final Expression paramListExpr;
                 if (exprLhs instanceof ExpressionList) {

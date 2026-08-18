@@ -34,7 +34,6 @@ import static org.openjdk.nashorn.internal.parser.TokenType.EOF;
 import static org.openjdk.nashorn.internal.parser.TokenType.EOL;
 import static org.openjdk.nashorn.internal.parser.TokenType.ERROR;
 import static org.openjdk.nashorn.internal.parser.TokenType.ESCSTRING;
-import static org.openjdk.nashorn.internal.parser.TokenType.EXECSTRING;
 import static org.openjdk.nashorn.internal.parser.TokenType.FLOATING;
 import static org.openjdk.nashorn.internal.parser.TokenType.FUNCTION;
 import static org.openjdk.nashorn.internal.parser.TokenType.HEXADECIMAL;
@@ -80,7 +79,6 @@ public class Lexer extends Scanner {
     private final boolean scripting;
 
     /** True if parsing in ECMAScript 6 mode. */
-    private final boolean es6;
 
     /** True if a nested scan. (scan to completion, no EOF.) */
     private final boolean nested;
@@ -170,7 +168,7 @@ public class Lexer extends Scanner {
      * @param stream    the token stream to lex
      */
     public Lexer(final Source source, final TokenStream stream) {
-        this(source, stream, false, false);
+        this(source, stream, false);
     }
 
     /**
@@ -179,10 +177,9 @@ public class Lexer extends Scanner {
      * @param source    the source
      * @param stream    the token stream to lex
      * @param scripting are we in scripting mode
-     * @param es6       are we in ECMAScript 6 mode
      */
-    public Lexer(final Source source, final TokenStream stream, final boolean scripting, final boolean es6) {
-        this(source, 0, source.getLength(), stream, scripting, es6, false);
+    public Lexer(final Source source, final TokenStream stream, final boolean scripting) {
+        this(source, 0, source.getLength(), stream, scripting, false);
     }
 
     /**
@@ -193,17 +190,15 @@ public class Lexer extends Scanner {
      * @param len       length of source segment to lex
      * @param stream    token stream to lex
      * @param scripting are we in scripting mode
-     * @param es6       are we in ECMAScript 6 mode
      * @param pauseOnFunctionBody if true, lexer will return from {@link #lexify()} when it encounters a
      * function body. This is used with the feature where the parser is skipping nested function bodies to
      * avoid reading ahead unnecessarily when we skip the function bodies.
      */
-    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean scripting, final boolean es6, final boolean pauseOnFunctionBody) {
+    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean scripting, final boolean pauseOnFunctionBody) {
         super(source.getContent(), 1, start, len);
         this.source      = source;
         this.stream      = stream;
         this.scripting   = scripting;
-        this.es6         = es6;
         this.nested      = false;
         this.pendingLine = 1;
         this.last        = EOL;
@@ -217,7 +212,6 @@ public class Lexer extends Scanner {
         source = lexer.source;
         stream = lexer.stream;
         scripting = lexer.scripting;
-        es6 = lexer.es6;
         nested = true;
 
         pendingLine = state.pendingLine;
@@ -1004,16 +998,6 @@ public class Lexer extends Scanner {
 
             if (scripting && !stringState.isEmpty()) {
                 switch (quote) {
-                case '`':
-                    // Mark the beginning of an exec string.
-                    add(EXECSTRING, stringState.position, stringState.limit);
-                    // Frame edit string with left brace.
-                    add(LBRACE, stringState.position, stringState.position);
-                    // Process edit string.
-                    editString(type, stringState);
-                    // Frame edit string with right brace.
-                    add(RBRACE, stringState.limit, stringState.limit);
-                    break;
                 case '"':
                     // Only edit double quoted strings.
                     editString(type, stringState);
@@ -1144,7 +1128,7 @@ public class Lexer extends Scanner {
             }
 
             type = HEXADECIMAL;
-        } else if (digit == 0 && es6 && (ch1 == 'o' || ch1 == 'O') && convertDigit(ch2, 8) != -1) {
+        } else if (digit == 0 && (ch1 == 'o' || ch1 == 'O') && convertDigit(ch2, 8) != -1) {
             // Skip over 0oN.
             skip(3);
             // Skip over remaining digits.
@@ -1153,7 +1137,7 @@ public class Lexer extends Scanner {
             }
 
             type = OCTAL;
-        } else if (digit == 0 && es6 && (ch1 == 'b' || ch1 == 'B') && convertDigit(ch2, 2) != -1) {
+        } else if (digit == 0 && (ch1 == 'b' || ch1 == 'B') && convertDigit(ch2, 2) != -1) {
             // Skip over 0bN.
             skip(3);
             // Skip over remaining digits.
@@ -1704,12 +1688,11 @@ public class Lexer extends Scanner {
             } else if (Character.isDigit(ch0)) {
                 // Scan and add a number.
                 scanNumber();
-            } else if (isTemplateDelimiter(ch0) && es6) {
-                // Scan and add template in ES6 mode.
+            } else if (isTemplateDelimiter(ch0)) {
+                // Backquote is a template literal. It used to mean "run this as a
+                // shell command" under -scripting; ECMAScript 2015 gives the
+                // character to template literals, and that wins.
                 scanTemplate();
-            } else if (isTemplateDelimiter(ch0) && scripting) {
-                // Scan and add an exec string ('`') in scripting mode.
-                scanString(true);
             } else {
                 // Don't recognize this character.
                 skip(1);

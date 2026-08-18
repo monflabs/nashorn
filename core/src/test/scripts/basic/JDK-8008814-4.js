@@ -22,11 +22,11 @@
  */
 
 /**
- * NASHORN-8008814: it's not a compile time error to have a nested function declaration when warnings are reported
+ * NASHORN-8008814: a function declaration nested in a block is not a compile time error.
+ * In ECMAScript 2015 the declaration is scoped to that block, so it is called from inside it.
  *
- * @option --function-statement-warning
  * @test
- * @run/ignore-std-error
+ * @run
  */
 
 function f() {
@@ -34,7 +34,7 @@ function f() {
     function g() {
       print("g invoked!")
     }
+    g()
   }
-  g()
 }
 f()

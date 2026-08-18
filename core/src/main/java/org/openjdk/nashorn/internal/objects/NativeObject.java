@@ -248,15 +248,13 @@ public final class NativeObject {
         } else if (obj instanceof ScriptObjectMirror) {
             return new NativeArray(((ScriptObjectMirror)obj).getOwnKeys(true));
         }
+        // ES2015 coerces a primitive rather than rejecting it
         final var global = Global.instance();
-        if (global.isES6()) {
-            final var obj2 = JSType.toScriptObject(global, obj);
-            if (obj2 instanceof ScriptObject) {
-                return new NativeArray(((ScriptObject)obj2).getOwnKeys(true));
-            }
-            return new NativeArray();
+        final var coerced = JSType.toScriptObject(global, obj);
+        if (coerced instanceof ScriptObject) {
+            return new NativeArray(((ScriptObject)coerced).getOwnKeys(true));
         }
-        throw notAnObject(obj);
+        return new NativeArray();
     }
 
     /**
@@ -353,11 +351,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).seal();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).seal();
-        } else if (isES6()) {
-            return obj;
-        } else {
-            throw notAnObject(obj);
         }
+        // ES2015: a no-op on a non-object rather than a TypeError
+        return obj;
     }
 
 
@@ -374,15 +370,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).freeze();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).freeze();
-        } else if (isES6()) {
-            return obj;
-        } else {
-            throw notAnObject(obj);
         }
-    }
-
-    private static boolean isES6() {
-        return Global.instance().isES6();
+        // ES2015: a no-op on a non-object rather than a TypeError
+        return obj;
     }
 
     /**
@@ -398,11 +388,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).preventExtensions();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).preventExtensions();
-        } else if (isES6()) {
-            return obj;
-        } else {
-            throw notAnObject(obj);
         }
+        // ES2015: a no-op on a non-object rather than a TypeError
+        return obj;
     }
 
     /**
@@ -418,11 +406,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).isSealed();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).isSealed();
-        } else if (isES6()) {
-            return true;
-        } else {
-            throw notAnObject(obj);
         }
+        // ES2015: a non-object has no properties to add or change
+        return true;
     }
 
     /**
@@ -438,11 +424,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).isFrozen();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).isFrozen();
-        } else if (isES6()) {
-            return true;
-        } else {
-            throw notAnObject(obj);
         }
+        // ES2015: a non-object has no properties to add or change
+        return true;
     }
 
     /**
@@ -458,11 +442,9 @@ public final class NativeObject {
             return ((ScriptObject)obj).isExtensible();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).isExtensible();
-        } else if (isES6()) {
-            return false;
-        } else {
-            throw notAnObject(obj);
         }
+        // ES2015: a non-object is never extensible
+        return false;
     }
 
     /**

@@ -22,7 +22,8 @@
  */
 
 /**
- * NASHORN-8008814: it's not a compile time error to have a nested strict function declaration when the outer one is not strict
+ * NASHORN-8008814: a nested strict function declaration inside a non-strict function is not a compile time error.
+ * In ECMAScript 2015 the declaration is scoped to its block, so it is called from inside one.
  *
  * @test
  * @run
@@ -34,7 +35,7 @@ function f() {
       "use strict";
       print("g invoked!")
     }
+    g()
   }
-  g()
 }
 f()

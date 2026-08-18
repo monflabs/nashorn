@@ -84,7 +84,6 @@ public class Token {
         switch(tokenType) {
             case STRING:
             case ESCSTRING:
-            case EXECSTRING:
             case TEMPLATE:
             case TEMPLATE_TAIL: {
                 final int start = Token.descPosition(token) - 1;

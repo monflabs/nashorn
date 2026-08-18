@@ -22,15 +22,12 @@
  */
 
 /**
- * JDK-8144711: (x) => x + 1 causes Assertion failure instead of SyntaxError
+ * JDK-8144711: (x) => x + 1 causes Assertion failure instead of parsing as an arrow function
  *
  * @test
  * @run
  */
 
-try {
-    eval("(x) => x + 1");
-    throw new Error ("should not reach here");
-} catch (e) {
-    Assert.assertTrue(e instanceof SyntaxError);
-}
+// Arrow functions used to be rejected unless --language=es6 was passed. They are
+// simply part of the language now.
+Assert.assertTrue(eval("(x) => x + 1")(1) === 2);

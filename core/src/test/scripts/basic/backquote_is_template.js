@@ -26,7 +26,17 @@
  *
  * @option -nse
  * @option -scripting
- * @test/compile-error
+ * @test
+ * @run
  */
 
-`ls -l`;
+// Backquote used to introduce a shell command under -scripting, and -nse turned
+// that extension off. It is a template literal now - standard syntax, so -nse
+// does not disable it.
+if (`ls -l` !== "ls -l") {
+    throw new Error("backquote should produce a template literal");
+}
+var x = 2;
+if (`a ${x} b` !== "a 2 b") {
+    throw new Error("template substitution failed");
+}

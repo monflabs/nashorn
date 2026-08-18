@@ -1,7 +1,7 @@
 src/test/scripts/error/JDK-8026039.js:30:9 "public" cannot be used as function name in strict mode
 function public() {"use strict"}
          ^
-src/test/scripts/error/JDK-8026039.js:32:11 Expected ident but found public
+src/test/scripts/error/JDK-8026039.js:32:11 expected BindingIdentifier or BindingPattern
 function f(public) {"use strict"}
            ^
 src/test/scripts/error/JDK-8026039.js:33:0 Expected } but found eof

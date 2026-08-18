@@ -91,9 +91,11 @@ function func(x, y) {
 
 func();
 
-// functions can not be declared everywhere!!
+// ECMAScript 2015 allows a function declaration inside a block, scoped to it.
+// In statement position without a block it is still a SyntaxError.
+eval("'use strict'; if (true) { function func() {} }");
 try {
-    eval("'use strict'; if (true) { function func() {} }");
+    eval("'use strict'; if (true) function func() {}");
     fail("#10 should have thrown SyntaxError");
 } catch (e) {
     if (! (e instanceof SyntaxError)) {

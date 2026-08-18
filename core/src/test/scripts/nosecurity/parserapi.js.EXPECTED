@@ -4561,7 +4561,7 @@
   "columnNumber": "4",
   "kind": "ERROR",
   "position": "1090",
-  "message": "parsernegativetests/keywordident.js:29:4 Expected ident but found var\nvar var = 23;\n    ^",
+  "message": "parsernegativetests/keywordident.js:29:4 expected BindingIdentifier or BindingPattern\nvar var = 23;\n    ^",
   "lineNumber": "29"
 }
 ,
@@ -4675,123 +4675,307 @@
 }
 ,
 {
-  "fileName": "parsernegativetests/repeatedproperty.js",
-  "code": "ident (1107, 3)",
-  "columnNumber": "21",
-  "kind": "ERROR",
-  "position": "1107",
-  "message": "parsernegativetests/repeatedproperty.js:29:21 Property \"foo\" already defined\nvar obj = { foo: 34, get foo() { return 'hello' } };\n                     ^",
-  "lineNumber": "29"
-}
-,
-{
-  "fileName": "parsernegativetests/repeatedproperty.js",
-  "code": "ident (1161, 3)",
-  "columnNumber": "22",
-  "kind": "ERROR",
-  "position": "1161",
-  "message": "parsernegativetests/repeatedproperty.js:30:22 Property \"foo\" already defined\nvar obj1 = { foo: 34, set foo(x) { } };\n                      ^",
-  "lineNumber": "30"
-}
-,
-{
-  "fileName": "parsernegativetests/repeatedproperty.js",
-  "code": "ident (1201, 3)",
-  "columnNumber": "22",
-  "kind": "ERROR",
-  "position": "1201",
-  "message": "parsernegativetests/repeatedproperty.js:31:22 Property \"foo\" already defined\nvar obj2 = { foo: 34, set foo(x) { } };\n                      ^",
-  "lineNumber": "31"
-}
-,
-{
-  "fileName": "parsernegativetests/repeatedproperty.js",
-  "code": "ident (1247, 3)",
-  "columnNumber": "28",
-  "kind": "ERROR",
-  "position": "1247",
-  "message": "parsernegativetests/repeatedproperty.js:32:28 Property \"bar\" already defined\nvar obj3 = { get bar() { }, get bar() {} };\n                            ^",
-  "lineNumber": "32"
-}
-,
-{
-  "fileName": "parsernegativetests/repeatedproperty.js",
-  "code": "ident (1292, 3)",
-  "columnNumber": "29",
-  "kind": "ERROR",
-  "position": "1292",
-  "message": "parsernegativetests/repeatedproperty.js:33:29 Property \"bar\" already defined\nvar obj4 = { set bar(x) { }, set bar(x) {} };\n                             ^",
-  "lineNumber": "33"
-}
-,
-{
   "endPosition": "1086",
   "kind": "COMPILATION_UNIT",
   "sourceElements": [
     {
-      "expression": {
-        "endPosition": "1137",
-        "kind": "ERROR",
-        "startPosition": "1136"
-      },
       "endPosition": "1137",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1136"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1093",
+        "kind": "IDENTIFIER",
+        "name": "obj",
+        "startPosition": "1090"
+      },
+      "startPosition": "1086",
+      "initializer": {
+        "endPosition": "1137",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1096",
+        "properties": [
+          {
+            "endPosition": "1105",
+            "kind": "PROPERTY",
+            "value": {
+              "endPosition": "1105",
+              "kind": "NUMBER_LITERAL",
+              "value": "34",
+              "startPosition": "1103"
+            },
+            "startPosition": "1098",
+            "key": {
+              "endPosition": "1101",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1098"
+            }
+          },
+          {
+            "getter": {
+              "endPosition": "1117",
+              "kind": "FUNCTION_EXPRESSION",
+              "body": {
+                "endPosition": "1132",
+                "kind": "BLOCK",
+                "statements": [
+                  {
+                    "expression": {
+                      "endPosition": "1132",
+                      "kind": "STRING_LITERAL",
+                      "value": "hello",
+                      "startPosition": "1127"
+                    },
+                    "endPosition": "1132",
+                    "kind": "RETURN",
+                    "startPosition": "1119"
+                  }
+                ],
+                "startPosition": "1117"
+              },
+              "strict": "false",
+              "startPosition": "1117",
+              "parameters": []
+            },
+            "endPosition": "1135",
+            "kind": "PROPERTY",
+            "startPosition": "1107",
+            "key": {
+              "endPosition": "1114",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1111"
+            }
+          }
+        ]
+      }
     },
     {
-      "expression": {
-        "endPosition": "1177",
-        "kind": "ERROR",
-        "startPosition": "1176"
-      },
       "endPosition": "1177",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1176"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1147",
+        "kind": "IDENTIFIER",
+        "name": "obj1",
+        "startPosition": "1143"
+      },
+      "startPosition": "1139",
+      "initializer": {
+        "endPosition": "1177",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1150",
+        "properties": [
+          {
+            "endPosition": "1159",
+            "kind": "PROPERTY",
+            "value": {
+              "endPosition": "1159",
+              "kind": "NUMBER_LITERAL",
+              "value": "34",
+              "startPosition": "1157"
+            },
+            "startPosition": "1152",
+            "key": {
+              "endPosition": "1155",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1152"
+            }
+          },
+          {
+            "endPosition": "1175",
+            "kind": "PROPERTY",
+            "setter": {
+              "endPosition": "1172",
+              "kind": "FUNCTION_EXPRESSION",
+              "body": {
+                "endPosition": "1173",
+                "kind": "BLOCK",
+                "statements": [],
+                "startPosition": "1172"
+              },
+              "strict": "false",
+              "startPosition": "1172",
+              "parameters": [
+                {
+                  "endPosition": "1170",
+                  "kind": "IDENTIFIER",
+                  "name": "x",
+                  "startPosition": "1169"
+                }
+              ]
+            },
+            "startPosition": "1161",
+            "key": {
+              "endPosition": "1168",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1165"
+            }
+          }
+        ]
+      }
     },
     {
-      "expression": {
-        "endPosition": "1217",
-        "kind": "ERROR",
-        "startPosition": "1216"
-      },
       "endPosition": "1217",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1216"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1187",
+        "kind": "IDENTIFIER",
+        "name": "obj2",
+        "startPosition": "1183"
+      },
+      "startPosition": "1179",
+      "initializer": {
+        "endPosition": "1217",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1190",
+        "properties": [
+          {
+            "endPosition": "1199",
+            "kind": "PROPERTY",
+            "value": {
+              "endPosition": "1199",
+              "kind": "NUMBER_LITERAL",
+              "value": "34",
+              "startPosition": "1197"
+            },
+            "startPosition": "1192",
+            "key": {
+              "endPosition": "1195",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1192"
+            }
+          },
+          {
+            "endPosition": "1215",
+            "kind": "PROPERTY",
+            "setter": {
+              "endPosition": "1212",
+              "kind": "FUNCTION_EXPRESSION",
+              "body": {
+                "endPosition": "1213",
+                "kind": "BLOCK",
+                "statements": [],
+                "startPosition": "1212"
+              },
+              "strict": "false",
+              "startPosition": "1212",
+              "parameters": [
+                {
+                  "endPosition": "1210",
+                  "kind": "IDENTIFIER",
+                  "name": "x",
+                  "startPosition": "1209"
+                }
+              ]
+            },
+            "startPosition": "1201",
+            "key": {
+              "endPosition": "1208",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1205"
+            }
+          }
+        ]
+      }
     },
     {
-      "expression": {
-        "endPosition": "1261",
-        "kind": "ERROR",
-        "startPosition": "1260"
-      },
       "endPosition": "1261",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1260"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1227",
+        "kind": "IDENTIFIER",
+        "name": "obj3",
+        "startPosition": "1223"
+      },
+      "startPosition": "1219",
+      "initializer": {
+        "endPosition": "1261",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1230",
+        "properties": [
+          {
+            "getter": {
+              "endPosition": "1257",
+              "kind": "FUNCTION_EXPRESSION",
+              "body": {
+                "endPosition": "1258",
+                "kind": "BLOCK",
+                "statements": [],
+                "startPosition": "1257"
+              },
+              "strict": "false",
+              "startPosition": "1257",
+              "parameters": []
+            },
+            "endPosition": "1245",
+            "kind": "PROPERTY",
+            "startPosition": "1232",
+            "key": {
+              "endPosition": "1239",
+              "kind": "IDENTIFIER",
+              "name": "bar",
+              "startPosition": "1236"
+            }
+          }
+        ]
+      }
     },
     {
-      "expression": {
-        "endPosition": "1307",
-        "kind": "ERROR",
-        "startPosition": "1306"
-      },
       "endPosition": "1307",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1306"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1271",
+        "kind": "IDENTIFIER",
+        "name": "obj4",
+        "startPosition": "1267"
+      },
+      "startPosition": "1263",
+      "initializer": {
+        "endPosition": "1307",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1274",
+        "properties": [
+          {
+            "endPosition": "1290",
+            "kind": "PROPERTY",
+            "setter": {
+              "endPosition": "1303",
+              "kind": "FUNCTION_EXPRESSION",
+              "body": {
+                "endPosition": "1304",
+                "kind": "BLOCK",
+                "statements": [],
+                "startPosition": "1303"
+              },
+              "strict": "false",
+              "startPosition": "1303",
+              "parameters": [
+                {
+                  "endPosition": "1301",
+                  "kind": "IDENTIFIER",
+                  "name": "x",
+                  "startPosition": "1300"
+                }
+              ]
+            },
+            "startPosition": "1276",
+            "key": {
+              "endPosition": "1283",
+              "kind": "IDENTIFIER",
+              "name": "bar",
+              "startPosition": "1280"
+            }
+          }
+        ]
+      }
     }
   ],
   "sourceName": "parsernegativetests/repeatedproperty.js",
   "strict": "false",
   "startPosition": "1086"
-}
-,
-{
-  "fileName": "parsernegativetests/strict_repeatedproperty.js",
-  "code": "ident (1122, 3)",
-  "columnNumber": "21",
-  "kind": "ERROR",
-  "position": "1122",
-  "message": "parsernegativetests/strict_repeatedproperty.js:31:21 Property \"foo\" already defined\nvar obj = { foo: 34, foo: 'hello' };\n                     ^",
-  "lineNumber": "31"
 }
 ,
 {
@@ -4810,14 +4994,56 @@
       "startPosition": "1087"
     },
     {
-      "expression": {
-        "endPosition": "1136",
-        "kind": "ERROR",
-        "startPosition": "1135"
-      },
       "endPosition": "1136",
-      "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1135"
+      "kind": "VARIABLE",
+      "binding": {
+        "endPosition": "1108",
+        "kind": "IDENTIFIER",
+        "name": "obj",
+        "startPosition": "1105"
+      },
+      "startPosition": "1101",
+      "initializer": {
+        "endPosition": "1136",
+        "kind": "OBJECT_LITERAL",
+        "startPosition": "1111",
+        "properties": [
+          {
+            "endPosition": "1120",
+            "kind": "PROPERTY",
+            "value": {
+              "endPosition": "1120",
+              "kind": "NUMBER_LITERAL",
+              "value": "34",
+              "startPosition": "1118"
+            },
+            "startPosition": "1113",
+            "key": {
+              "endPosition": "1116",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1113"
+            }
+          },
+          {
+            "endPosition": "1133",
+            "kind": "PROPERTY",
+            "value": {
+              "endPosition": "1133",
+              "kind": "STRING_LITERAL",
+              "value": "hello",
+              "startPosition": "1128"
+            },
+            "startPosition": "1122",
+            "key": {
+              "endPosition": "1125",
+              "kind": "IDENTIFIER",
+              "name": "foo",
+              "startPosition": "1122"
+            }
+          }
+        ]
+      }
     }
   ],
   "sourceName": "parsernegativetests/strict_repeatedproperty.js",

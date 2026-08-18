@@ -60,14 +60,10 @@ try {
     }
 }
 
-// repeated property definition is not allowed in an object literal
-try {
-    eval("var obj = { foo: 33, foo: 44 }");
-    fail("#7 should have thrown SyntaxError");
-} catch(e) {
-    if (! (e instanceof SyntaxError)) {
-        fail("#8 SyntaxError expected but got " + e);
-    }
+// ECMAScript 2015 removed the duplicate-property restriction: the last one wins,
+// in strict mode as well as sloppy.
+if (eval("var obj = { foo: 33, foo: 44 }; obj.foo") !== 44) {
+    fail("#7 repeated property definition should keep the last value");
 }
 
 // can't assign to "eval"

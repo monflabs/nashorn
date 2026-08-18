@@ -40,8 +40,18 @@
         }
         var props = PropNamesGetter(obj);
         for (var p in props) {
-            var value = obj[props[p]];
-            obj[props[p]] = value;
+            // Some ES2015 builtins expose accessors that reject the prototype as
+            // receiver - Map.prototype.size throws "not a Map object". Reading
+            // them is supposed to fail; the point of the test is that assigning
+            // to builtin function properties does not break the engine.
+            try {
+                var value = obj[props[p]];
+                obj[props[p]] = value;
+            } catch (e) {
+                if (!(e instanceof TypeError)) {
+                    throw e;
+                }
+            }
         }
     }
 

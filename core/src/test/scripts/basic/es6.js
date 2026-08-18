@@ -22,50 +22,47 @@
  */
 
 /**
- * Make sure ECMAScript 6 features are not available in ES5 mode.
+ * Make sure the ECMAScript 2015 builtins are present. This engine has no ES5-only
+ * mode, so what this test once asserted was absent must now all be there.
  *
  * @test
  * @run
  */
 
-function checkUndefined(name, object) {
-    if (typeof object[name] !== 'undefined' || name in object) {
-        Assert.fail(name + ' is defined in ' + object);
+function checkDefined(name, object) {
+    if (typeof object[name] === 'undefined' || !(name in object)) {
+        Assert.fail(name + ' is not defined in ' + object);
     }
 }
 
-checkUndefined('Symbol', this);
-checkUndefined('Map', this);
-checkUndefined('Set', this);
-checkUndefined('WeakMap', this);
-checkUndefined('WeakSet', this);
-checkUndefined('getOwnPropertySymbols', Object);
-checkUndefined('entries', Array.prototype);
-checkUndefined('values', Array.prototype);
-checkUndefined('keys', Array.prototype);
+checkDefined('Symbol', this);
+checkDefined('Map', this);
+checkDefined('Set', this);
+checkDefined('WeakMap', this);
+checkDefined('WeakSet', this);
+checkDefined('getOwnPropertySymbols', Object);
+checkDefined('entries', Array.prototype);
+checkDefined('values', Array.prototype);
+checkDefined('keys', Array.prototype);
 
-function expectError(src, msg, error) {
+function expectParses(src) {
     try {
-        eval(src);
-        Assert.fail(msg);
+        Function(src);
     } catch (e) {
-        if (e.name !== error) {
-            Assert.fail('Unexpected error: ' + e);
-        }
+        Assert.fail('Should have parsed: ' + src + ' (' + e + ')');
     }
 }
 
-expectError('let i = 0', 'let', 'SyntaxError');
-expectError('const i = 0', 'const', 'SyntaxError');
-expectError('for (let i = 0; i < 10; i++) print(i)', 'for-let', 'SyntaxError');
-expectError('0b0', 'numeric literal', 'SyntaxError');
-expectError('0o0', 'numeric litera', 'SyntaxError');
-expectError('`text`', 'template literal', 'SyntaxError');
-expectError('`${ x }`', 'template literal', 'SyntaxError');
-expectError('`text ${ x } text`', 'template literal', 'SyntaxError');
-expectError('f`text`', 'template literal', 'SyntaxError');
-expectError('for (a of [1, 2, 3]) print(a)', 'for-of', 'SyntaxError');
-expectError('for (var a of [1, 2, 3]) print(a)', 'for-of', 'SyntaxError');
-expectError('for (let a of [1, 2, 3]) print(a)', 'for-of', 'SyntaxError');
-expectError('for (const a of [1, 2, 3]) print(a)', 'for-of', 'SyntaxError');
-
+expectParses('let i = 0');
+expectParses('const i = 0');
+expectParses('for (let i = 0; i < 10; i++) print(i)');
+expectParses('0b0');
+expectParses('0o0');
+expectParses('`text`');
+expectParses('`${ x }`');
+expectParses('`text ${ x } text`');
+expectParses('f`text`');
+expectParses('for (a of [1, 2, 3]) print(a)');
+expectParses('for (var a of [1, 2, 3]) print(a)');
+expectParses('for (let a of [1, 2, 3]) print(a)');
+expectParses('for (const a of [1, 2, 3]) print(a)');

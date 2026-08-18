@@ -30,7 +30,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.openjdk.nashorn.api.tree.Parser;
-import org.openjdk.nashorn.api.tree.SimpleTreeVisitorES5_1;
+import org.openjdk.nashorn.api.tree.SimpleTreeVisitorES6;
 import org.openjdk.nashorn.api.tree.Tree;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -92,12 +92,10 @@ public class ParseAPITest {
                 }
             });
         }
-        parseTestSet(TEST_BASIC_DIR, new TestFilter() {
-            @Override
-            public boolean exclude(final File file, final String content) {
-                return file.getParentFile().getName().equals("es6");
-            }
-        });
+        // The es6 directory used to be skipped because the visitor below could
+        // not see ES2015 trees. It can now, and ES2015 is the only language this
+        // engine parses, so those scripts are held to the same bar as the rest.
+        parseTestSet(TEST_BASIC_DIR, null);
         parseTestSet(TEST_MAPTESTS_DIR, null);
         parseTestSet(TEST_SANDBOX_DIR, null);
         parseTestSet(TEST_TRUSTED_DIR, null);
@@ -166,7 +164,7 @@ public class ParseAPITest {
 
             final Parser parser = Parser.create(options);
             final Tree tree = parser.parse(file.getAbsolutePath(), content, null);
-            tree.accept(new SimpleTreeVisitorES5_1<Void, Void>(), null);
+            tree.accept(new SimpleTreeVisitorES6<Void, Void>(), null);
             passed++;
         } catch (final Throwable exp) {
             log("Parse API failed: " + file.getAbsolutePath() + " : " + exp);

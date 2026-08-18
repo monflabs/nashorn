@@ -107,9 +107,6 @@ public final class ScriptEnvironment {
     /** Use single Global instance per jsr223 engine instance. */
     public final boolean _global_per_engine;
 
-    /** Enable experimental ECMAScript 6 features. */
-    public final boolean _es6;
-
 
     /** Number of times a dynamic call site has to be relinked before it is
      * considered unstable (and thus should be linked as if it were megamorphic).
@@ -118,33 +115,6 @@ public final class ScriptEnvironment {
 
     /** Argument passed to compile only if optimistic compilation should take place */
     public static final String COMPILE_ONLY_OPTIMISTIC_ARG = "optimistic";
-
-    /**
-     *  Behavior when encountering a function declaration in a lexical context where only statements are acceptable
-     * (function declarations are source elements, but not statements).
-     */
-    public enum FunctionStatementBehavior {
-        /**
-         * Accept the function declaration silently and treat it as if it were a function expression assigned to a local
-         * variable.
-         */
-        ACCEPT,
-        /**
-         * Log a parser warning, but accept the function declaration and treat it as if it were a function expression
-         * assigned to a local variable.
-         */
-        WARNING,
-        /**
-         * Raise a {@code SyntaxError}.
-         */
-        ERROR
-    }
-
-    /**
-     * Behavior when encountering a function declaration in a lexical context where only statements are acceptable
-     * (function declarations are source elements, but not statements).
-     */
-    public final FunctionStatementBehavior _function_statement;
 
     /** Should lazy compilation take place */
     public final boolean _lazy_compilation;
@@ -266,13 +236,6 @@ public final class ScriptEnvironment {
         _early_lvalue_error   = options.getBoolean("early.lvalue.error");
         _empty_statements     = options.getBoolean("empty.statements");
         _fullversion          = options.getBoolean("fullversion");
-        if (options.getBoolean("function.statement.error")) {
-            _function_statement = FunctionStatementBehavior.ERROR;
-        } else if (options.getBoolean("function.statement.warning")) {
-            _function_statement = FunctionStatementBehavior.WARNING;
-        } else {
-            _function_statement = FunctionStatementBehavior.ACCEPT;
-        }
         _fx                   = options.getBoolean("fx");
         _global_per_engine    = options.getBoolean("global.per.engine");
         _optimistic_types     = options.getBoolean("optimistic.types");
@@ -342,13 +305,15 @@ public final class ScriptEnvironment {
         this._anonymous_classes_threshold = Options.getIntProperty(
                 "nashorn.anonymous.classes.threshold", DEFAULT_ANON_CLASS_THRESHOLD);
 
+        // The engine is ECMAScript 2015 only. --language is still accepted so that
+        // embedders who correctly opted in with --language=es6 keep working; es5
+        // is rejected explicitly rather than silently ignored, because a caller
+        // asking for it is asking for behaviour this engine no longer has.
         final String language = options.getString("language");
-        if (language == null || language.equals("es5")) {
-            _es6 = false;
-        } else if (language.equals("es6")) {
-            _es6 = true;
-        } else {
-            throw new RuntimeException("Unsupported language: " + language);
+        if (language != null && !language.equals("es6")) {
+            throw new RuntimeException(language.equals("es5")
+                    ? "ES5-only mode was removed; this engine implements ECMAScript 2015"
+                    : "Unsupported language: " + language);
         }
 
         String dir = null;

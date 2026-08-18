@@ -23,12 +23,6 @@ anon_func_stat.js:2:9 Expected ident but found (
 
 function () { print("hello") }
          ^
-backquote.js:1:0 Expected an operand but found error
-`ls`
-^
-backquote1.js:1:0 Expected an operand but found error
-`ls`
-^
 heredoc.js:1:10 Expected an operand but found <<
 var str = <<EOF
           ^

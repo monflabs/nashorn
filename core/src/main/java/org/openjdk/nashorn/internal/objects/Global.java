@@ -1157,7 +1157,7 @@ public final class Global extends Scope {
     public Global(final Context context) {
         super(checkAndGetMap(context));
         this.context = context;
-        this.lexicalScope = isES6() ? new LexicalScope(this) : null;
+        this.lexicalScope = new LexicalScope(this);
     }
 
     /**
@@ -2382,50 +2382,39 @@ public final class Global extends Scope {
         }
     }
 
-    public boolean isES6() {
-        return context.getEnv()._es6;
-    }
-
     /**
      * Return the ES6 global scope for lexically declared bindings.
      * @return the ES6 lexical global scope.
      */
     public final ScriptObject getLexicalScope() {
-        assert isES6();
         return lexicalScope;
     }
 
     @Override
     public void addBoundProperties(final ScriptObject source, final org.openjdk.nashorn.internal.runtime.Property[] properties) {
         PropertyMap ownMap = getMap();
-        LexicalScope lexScope = null;
-        PropertyMap lexicalMap = null;
+        final LexicalScope lexScope = (LexicalScope) getLexicalScope();
+        PropertyMap lexicalMap = lexScope.getMap();
         boolean hasLexicalDefinitions = false;
 
-        if (isES6()) {
-            lexScope = (LexicalScope) getLexicalScope();
-            lexicalMap = lexScope.getMap();
-
-            for (final org.openjdk.nashorn.internal.runtime.Property property : properties) {
-                if (property.isLexicalBinding()) {
-                    hasLexicalDefinitions = true;
-                }
-                // ES6 15.1.8 steps 6. and 7.
-                final org.openjdk.nashorn.internal.runtime.Property globalProperty = ownMap.findProperty(property.getKey());
-                if (globalProperty != null && !globalProperty.isConfigurable() && property.isLexicalBinding()) {
-                    throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
-                }
-                final org.openjdk.nashorn.internal.runtime.Property lexicalProperty = lexicalMap.findProperty(property.getKey());
-                if (lexicalProperty != null && !property.isConfigurable()) {
-                    throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
-                }
+        for (final org.openjdk.nashorn.internal.runtime.Property property : properties) {
+            if (property.isLexicalBinding()) {
+                hasLexicalDefinitions = true;
+            }
+            // ES6 15.1.8 steps 6. and 7.
+            final org.openjdk.nashorn.internal.runtime.Property globalProperty = ownMap.findProperty(property.getKey());
+            if (globalProperty != null && !globalProperty.isConfigurable() && property.isLexicalBinding()) {
+                throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
+            }
+            final org.openjdk.nashorn.internal.runtime.Property lexicalProperty = lexicalMap.findProperty(property.getKey());
+            if (lexicalProperty != null && !property.isConfigurable()) {
+                throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
             }
         }
 
         final boolean extensible = isExtensible();
         for (final org.openjdk.nashorn.internal.runtime.Property property : properties) {
             if (property.isLexicalBinding()) {
-                assert lexScope != null;
                 lexicalMap = lexScope.addBoundProperty(lexicalMap, source, property, true);
 
                 if (ownMap.findProperty(property.getKey()) != null) {
@@ -2440,7 +2429,6 @@ public final class Global extends Scope {
         setMap(ownMap);
 
         if (hasLexicalDefinitions) {
-            assert lexScope != null;
             lexScope.setMap(lexicalMap);
             invalidateLexicalSwitchPoint();
         }
@@ -2464,7 +2452,7 @@ public final class Global extends Scope {
         // We therefore check if the invocation does already have a switchpoint and the property is non-inherited,
         // assuming this only applies to global constants. If other non-inherited properties will
         // start using switchpoints some time in the future we'll have to revisit this.
-        if (isScope && isES6() && (invocation.getSwitchPoints() == null || !hasOwnProperty(name))) {
+        if (isScope && (invocation.getSwitchPoints() == null || !hasOwnProperty(name))) {
             return invocation.addSwitchPoint(getLexicalScopeSwitchPoint());
         }
 
@@ -2495,7 +2483,7 @@ public final class Global extends Scope {
 
         final GuardedInvocation invocation = super.findSetMethod(desc, request);
 
-        if (isScope && isES6()) {
+        if (isScope) {
             return invocation.addSwitchPoint(getLexicalScopeSwitchPoint());
         }
 
@@ -2600,24 +2588,11 @@ public final class Global extends Scope {
         final ScriptObject arrayPrototype = getArrayPrototype();
         arrayPrototype.setIsArray();
 
-        if (env._es6) {
-            this.symbol   = LAZY_SENTINEL;
-            this.map      = LAZY_SENTINEL;
-            this.weakMap  = LAZY_SENTINEL;
-            this.set      = LAZY_SENTINEL;
-            this.weakSet  = LAZY_SENTINEL;
-        } else {
-            // We need to manually delete nasgen-generated properties we don't want
-            this.delete("Symbol", false);
-            this.delete("Map", false);
-            this.delete("WeakMap", false);
-            this.delete("Set", false);
-            this.delete("WeakSet", false);
-            builtinObject.delete("getOwnPropertySymbols", false);
-            arrayPrototype.delete("entries", false);
-            arrayPrototype.delete("keys", false);
-            arrayPrototype.delete("values", false);
-        }
+        this.symbol   = LAZY_SENTINEL;
+        this.map      = LAZY_SENTINEL;
+        this.weakMap  = LAZY_SENTINEL;
+        this.set      = LAZY_SENTINEL;
+        this.weakSet  = LAZY_SENTINEL;
 
         // Error stuff
         initErrorObjects();
@@ -2742,10 +2717,6 @@ public final class Global extends Scope {
         value = ScriptFunction.createBuiltin("readFully", ScriptingFunctions.READFULLY);
         addOwnProperty("readFully", Attribute.NOT_ENUMERABLE, value);
 
-        final String execName = ScriptingFunctions.EXEC_NAME;
-        value = ScriptFunction.createBuiltin(execName, ScriptingFunctions.EXEC);
-        addOwnProperty(execName, Attribute.NOT_ENUMERABLE, value);
-
         // Nashorn extension: global.echo (scripting-mode-only)
         // alias for "print"
         value = (ScriptObject)get("print");
@@ -2765,11 +2736,6 @@ public final class Global extends Scope {
         // by the underlying platform.
         env.put(ScriptingFunctions.PWD_NAME, System.getProperty("user.dir"), scriptEnv._strict);
         addOwnProperty(ScriptingFunctions.ENV_NAME, Attribute.NOT_ENUMERABLE, env);
-
-        // add other special properties for exec support
-        addOwnProperty(ScriptingFunctions.OUT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
-        addOwnProperty(ScriptingFunctions.ERR_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
-        addOwnProperty(ScriptingFunctions.EXIT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
     }
 
     private static void copyOptions(final ScriptObject options, final ScriptEnvironment scriptEnv) {

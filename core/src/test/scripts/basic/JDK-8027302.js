@@ -22,7 +22,9 @@
  */
 
 /**
- * JDK-8027302: Identifiers containing unicode escapes are not recognized as reserved words
+ * JDK-8027302: Identifiers containing unicode escapes are not recognized as reserved words.
+ * ECMAScript 2015 forbids writing a reserved word with escapes at all, so the
+ * escaped spellings are SyntaxErrors rather than plain identifiers.
  *
  * @test
  * @run
@@ -41,14 +43,14 @@ try {
     eval("\\u0069f (true) ;");
     fail("Expected error");
 } catch (e) {
-    Assert.assertTrue(e instanceof ReferenceError); // no SyntaxError in ES5
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
     eval("if (true) ; \\u0065lse ;");
     fail("Expected error");
 } catch (e) {
-    Assert.assertTrue(e instanceof ReferenceError); // no SyntaxError in ES5
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
@@ -90,8 +92,9 @@ try {
 
 try {
     eval("function bre\\u0061k() {}");
+    fail("Expected error");
 } catch (e) {
-    fail("Unexpected error");
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
@@ -103,8 +106,9 @@ try {
 
 try {
     eval("function f(bre\\u0061k) {}");
+    fail("Expected error");
 } catch (e) {
-    fail("Unexpected error");
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
@@ -123,14 +127,16 @@ try {
 
 try {
     eval("var bre\\u0061k = 3");
+    fail("Expected error");
 } catch (e) {
-    fail("Unexpected error");
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
     eval("'use strict'; var bre\\u0061k = 3");
+    fail("Expected error");
 } catch (e) {
-    fail("Unexpected error");
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 
 try {
@@ -154,7 +160,8 @@ try {
 
 try {
     eval("'use strict'; var p\\u0061ckage = 3");
+    fail("Expected error");
 } catch (e) {
-    fail("Unexpected error");
+    Assert.assertTrue(e instanceof SyntaxError);
 }
 

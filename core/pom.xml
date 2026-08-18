@@ -79,6 +79,12 @@ questions.
     <nashorn.test262.default.threads>8</nashorn.test262.default.threads>
     <!-- narrow the run while developing, e.g. -Dnashorn.test262.include=/built-ins/Math/ -->
     <nashorn.test262.include/>
+    <!--
+      Rewrite the expectations file from this run instead of comparing against it.
+      Declared as a property because the exec below forwards only what it names;
+      a bare -Dtest262.write.expectations never reached the forked JVM.
+    -->
+    <nashorn.test262.write.expectations>false</nashorn.test262.write.expectations>
 
     <nashorn.test.modulepath>${project.build.outputDirectory}${path.separator}${nashorn.modules.dir}</nashorn.test.modulepath>
 
@@ -477,7 +483,12 @@ questions.
         test262-expectations.txt. The run fails on a new failure AND on a test
         that now passes but is still listed, so conformance only moves forwards.
         Rewrite the file after fixing something with:
-          mvn -Ptest262 verify -Dtest262.write.expectations=true
+          mvn -Ptest262 verify -Dnashorn.test262.write.expectations=true
+
+        Always regenerate through Maven, never by invoking Test262Runner directly.
+        The run inherits nashorn.test.jvmargs, which sets the Turkish locale on
+        purpose; expectations recorded without it disagree with the gate on the
+        ten locale-sensitive toLocale*Case tests.
       -->
       <id>test262</id>
       <build>
@@ -492,7 +503,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
