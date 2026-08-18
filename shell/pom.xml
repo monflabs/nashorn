@@ -32,14 +32,14 @@ questions.
   <parent>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-parent</artifactId>
-    <version>6.0</version>
+    <version>20</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>nashorn-shell</artifactId>
   <packaging>jar</packaging>
 
-  <name>OpenJDK Nashorn jjs shell</name>
+  <name>OpenJDK-Monflabs jjs shell</name>
   <description>
     The jjs command line REPL for Nashorn.
 

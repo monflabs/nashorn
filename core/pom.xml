@@ -32,14 +32,14 @@ questions.
   <parent>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-parent</artifactId>
-    <version>6.0</version>
+    <version>20</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>nashorn-core</artifactId>
   <packaging>jar</packaging>
 
-  <name>OpenJDK Nashorn</name>
+  <name>OpenJDK-Monflabs</name>
   <description>Nashorn is an Open Source JavaScript (ECMAScript 5.1 and some 6 features) engine for the JVM.</description>
 
   <properties>

@@ -73,7 +73,7 @@ Unreleased
 ----------
 `   ` `           ` **Build system replaced: Ant is gone, the project now builds with Maven.** The sources moved to the standard Maven layout under a three-module reactor (`buildtools/nasgen`, `core`, `shell`), and the leftover in-JDK make files (`make/*.gmk`, `make/data/symbols`) and jtreg trees (`test/jdk`, `test/hotspot`) — unused since Nashorn was extracted from the JDK — were removed. See README.md for the new commands.
 
-`   ` `           ` **New coordinates: this fork publishes as `org.monflabs.nashorn:nashorn-core`, starting at version 6.0.** Upstream released up to `org.openjdk.nashorn:nashorn-core:15.7`; the two can sit side by side on a class path but not on a module path, as the Java packages and the module name are still `org.openjdk.nashorn`.
+`   ` `           ` **New coordinates: this fork publishes as `org.monflabs.nashorn:nashorn-core`, starting at version 20, and calls itself `OpenJDK-Monflabs`.** Upstream released up to `org.openjdk.nashorn:nashorn-core:15.7`; the two can sit side by side on a class path but not on a module path, as the Java packages and the module name are still `org.openjdk.nashorn`.
 
 `   ` `           ` Apart from the coordinates, the published artifact is unchanged: the jar no longer carries the legacy `META-INF/INDEX.LIST` or the unused `version.properties.template` and now carries the standard `META-INF/maven` descriptor, but the module descriptor, service registrations and manifest attributes are the same. `nashorn-core` now also has a parent POM (`org.monflabs.nashorn:nashorn-parent`), which is published alongside it.
 

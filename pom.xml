@@ -31,10 +31,10 @@ questions.
 
   <groupId>org.monflabs.nashorn</groupId>
   <artifactId>nashorn-parent</artifactId>
-  <version>6.0</version>
+  <version>20</version>
   <packaging>pom</packaging>
 
-  <name>OpenJDK Nashorn (parent)</name>
+  <name>OpenJDK-Monflabs (parent)</name>
   <description>Nashorn is an Open Source JavaScript (ECMAScript 5.1 and some 6 features) engine for the JVM.</description>
   <url>https://github.com/openjdk/nashorn</url>
 
@@ -84,7 +84,7 @@ questions.
       Product name reported by the engine, and the version baked into
       version.properties. Was nashorn.product.name / nashorn.version.
     -->
-    <nashorn.product.name>OpenJDK Nashorn</nashorn.product.name>
+    <nashorn.product.name>OpenJDK-Monflabs</nashorn.product.name>
 
     <!--
       Test dependencies. These were downloaded into test/nashorn/lib by the

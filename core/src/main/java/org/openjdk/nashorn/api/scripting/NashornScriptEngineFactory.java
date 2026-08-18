@@ -53,7 +53,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
 
     @Override
     public String getEngineName() {
-        return "OpenJDK Nashorn";
+        return "OpenJDK-Monflabs";
     }
 
     @Override

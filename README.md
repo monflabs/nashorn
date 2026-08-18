@@ -33,7 +33,7 @@ Nashorn-related documents last published by Oracle with Java 14:
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 6.0. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 20, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 Nashorn is a JPMS module with no dependencies of its own - it generates bytecode with the JDK's own `java.lang.classfile` API - so make sure it is on your application's module path, or appropriately added to a module layer, or otherwise configured as a module.
 
