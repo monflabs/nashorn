@@ -73,6 +73,27 @@ abstract class CompilationPhase {
      */
     static final CompilationPhase CONSTANT_FOLDING_PHASE = new ConstantFoldingPhase();
 
+    private static final class ES6DesugaringPhase extends CompilationPhase {
+        @Override
+        FunctionNode transform(final Compiler compiler, final CompilationPhases phases, final FunctionNode fn) {
+            return transformFunction(fn, new ES6Desugar());
+        }
+
+        @Override
+        public String toString() {
+            return "'ES6 Desugaring'";
+        }
+    }
+
+    /**
+     * Rewrites the ECMAScript 2015 constructs that have no direct bytecode form -
+     * destructuring patterns, rest parameters, spread - into ones that do. Runs
+     * before lowering, whose output it would otherwise have to reproduce, and
+     * before symbol assignment, so its temporaries are given slots like any
+     * other variable.
+     */
+    static final CompilationPhase ES6_DESUGARING_PHASE = new ES6DesugaringPhase();
+
     private static final class LoweringPhase extends CompilationPhase {
         @Override
         FunctionNode transform(final Compiler compiler, final CompilationPhases phases, final FunctionNode fn) {

@@ -168,6 +168,7 @@ public final class Compiler implements Loggable {
         private final static CompilationPhases COMPILE_UPTO_CACHED = new CompilationPhases(
                 "Common initial phases",
                 CompilationPhase.CONSTANT_FOLDING_PHASE,
+                CompilationPhase.ES6_DESUGARING_PHASE,
                 CompilationPhase.LOWERING_PHASE,
                 CompilationPhase.APPLY_SPECIALIZATION_PHASE,
                 CompilationPhase.SPLITTING_PHASE,

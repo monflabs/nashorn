@@ -40,6 +40,7 @@ import java.lang.invoke.SwitchPoint;
 import java.lang.reflect.Array;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1166,5 +1167,61 @@ public final class ScriptRuntime {
         template.addOwnProperty("raw", Property.NOT_WRITABLE | Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, rawObj.freeze());
         template.freeze();
         return template;
+    }
+
+    /**
+     * ES6 7.4.1 GetIterator, for array destructuring and spread.
+     *
+     * The iterator is kept as a {@code java.util.Iterator}, which is what
+     * for-of already uses, so both go through the same protocol implementation.
+     *
+     * @param iterable the value being destructured or spread
+     * @return an iterator over it
+     */
+    public static Object GET_ITERATOR(final Object iterable) {
+        return toES6Iterator(iterable);
+    }
+
+    /**
+     * One step of an array destructuring pattern.
+     *
+     * An exhausted iterator yields undefined rather than throwing: a pattern
+     * may bind more names than the iterable has elements, and the extra ones
+     * are simply undefined.
+     *
+     * @param iterator from {@link #GET_ITERATOR}
+     * @return the next value, or undefined
+     */
+    public static Object ITERATOR_NEXT(final Object iterator) {
+        final Iterator<?> iter = (Iterator<?>)iterator;
+        return iter.hasNext() ? iter.next() : UNDEFINED;
+    }
+
+    /**
+     * The tail of an array destructuring pattern - the {@code [a, ...rest]} case.
+     *
+     * @param iterator from {@link #GET_ITERATOR}
+     * @return a new array holding everything the iterator has left
+     */
+    public static Object ITERATOR_REST(final Object iterator) {
+        final Iterator<?> iter = (Iterator<?>)iterator;
+        final List<Object> rest = new ArrayList<>();
+        while (iter.hasNext()) {
+            rest.add(iter.next());
+        }
+        return Global.allocate(rest.toArray());
+    }
+
+    /**
+     * ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring.
+     *
+     * @param value the value being destructured
+     * @return the value itself, when it can be coerced to an object
+     */
+    public static Object REQUIRE_OBJECT_COERCIBLE(final Object value) {
+        if (value == null || value == UNDEFINED) {
+            throw typeError("cant.get.property", "of", safeToString(value));
+        }
+        return value;
     }
 }

@@ -280,9 +280,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public boolean enterForNode(final ForNode forNode) {
-        if (forNode.getInit() instanceof ObjectNode || forNode.getInit() instanceof ArrayLiteralNode) {
-            throwNotImplementedYet("es6.destructuring", forNode);
-        }
         return super.enterForNode(forNode);
     }
 

@@ -79,7 +79,15 @@ public class RuntimeNode extends Expression {
         /** is not undefined */
         IS_NOT_UNDEFINED(TokenType.NE_STRICT, Type.BOOLEAN, 2),
         /** Get template object from raw and cooked string arrays. */
-        GET_TEMPLATE_OBJECT(TokenType.TEMPLATE, Type.SCRIPT_OBJECT, 2);
+        GET_TEMPLATE_OBJECT(TokenType.TEMPLATE, Type.SCRIPT_OBJECT, 2),
+        /** ES6 7.4.1 GetIterator, for array destructuring and spread. */
+        GET_ITERATOR(TokenType.VOID, Type.OBJECT, 1),
+        /** One element of an array destructuring pattern; undefined when exhausted. */
+        ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
+        /** Everything an iterator has left, as an array - the {@code ...rest} case. */
+        ITERATOR_REST(TokenType.VOID, Type.OBJECT, 1),
+        /** ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring. */
+        REQUIRE_OBJECT_COERCIBLE(TokenType.VOID, Type.OBJECT, 1);
 
         /** token type */
         private final TokenType tokenType;

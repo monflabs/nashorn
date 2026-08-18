@@ -381,6 +381,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     // Runtime check for assignment to ES6 const
     private void checkAssignTarget(final Expression expression) {
+        // A name flagged as declared here is being initialised, not reassigned.
+        // Destructuring a const - "const [a] = xs" - reaches the code generator as
+        // an assignment because the declaration and the binding are separate
+        // statements, and only the declaration knows it is one.
+        if (expression instanceof IdentNode && ((IdentNode)expression).isDeclaredHere()) {
+            return;
+        }
         if (expression instanceof IdentNode && ((IdentNode)expression).getSymbol().isConst()) {
             method.load(((IdentNode)expression).getSymbol().getName()).invoke(ScriptRuntime.THROW_CONST_TYPE_ERROR);
         }
