@@ -178,7 +178,13 @@ public final class CatchNode extends Statement {
         return new CatchNode(this, exception, exceptionCondition, body, isSyntheticRethrow);
     }
 
-    private CatchNode setBody(final Block body) {
+    /**
+     * Reset the body of this catch block.
+     *
+     * @param body new body
+     * @return new or same catch node
+     */
+    public CatchNode setBody(final Block body) {
         if (this.body == body) {
             return this;
         }

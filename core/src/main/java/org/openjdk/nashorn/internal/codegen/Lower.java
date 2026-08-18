@@ -177,10 +177,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public boolean enterCatchNode(final CatchNode catchNode) {
-        Expression exception = catchNode.getException();
-        if ((exception != null) && !(exception instanceof IdentNode)) {
-            throwNotImplementedYet("es6.destructuring", exception);
-        }
         return true;
     }
 
@@ -317,11 +313,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
             final IdentNode lastParam = functionNode.getParameter(numParams - 1);
             if (lastParam.isRestParameter()) {
                 throwNotImplementedYet("es6.rest.param", lastParam);
-            }
-        }
-        for (final IdentNode param : functionNode.getParameters()) {
-            if (param.isDestructuredParameter()) {
-                throwNotImplementedYet("es6.destructuring", functionNode);
             }
         }
 

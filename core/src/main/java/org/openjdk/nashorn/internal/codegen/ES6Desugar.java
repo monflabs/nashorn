@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
+import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.Expression;
 import org.openjdk.nashorn.internal.ir.ForNode;
 import org.openjdk.nashorn.internal.ir.ExpressionStatement;
@@ -141,7 +142,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private List<Statement> expand(final Statement statement) {
         if (statement instanceof ForNode forNode) {
-            return expandForInOrOf(forNode);
+            return forNode.isForInOrOf() ? expandForInOrOf(forNode) : expandForInitialiser(forNode);
         }
         if (!(statement instanceof ExpressionStatement expressionStatement)) {
             return null;
@@ -161,6 +162,34 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     /**
+     * {@code catch ([e]) body}.
+     *
+     * The exception has to arrive in a plain binding - the catch clause names a
+     * single slot - so the pattern is matched against a temporary at the top of
+     * the handler instead.
+     */
+    @Override
+    public Node leaveCatchNode(final CatchNode catchNode) {
+        final Expression exception = catchNode.getException();
+        if (exception == null || !isPattern(exception)) {
+            return super.leaveCatchNode(catchNode);
+        }
+
+        temporaries = 0;
+        declaring = false;
+        final String caught = newTemporary();
+
+        final Block body = catchNode.getBody();
+        final List<Statement> statements = new ArrayList<>();
+        destructure(catchNode, exception, ref(catchNode, caught), statements);
+        statements.addAll(body.getStatements());
+
+        return super.leaveCatchNode(catchNode
+                .setException(ref(catchNode, caught))
+                .setBody(body.setStatements(lc, statements)));
+    }
+
+    /**
      * {@code for (var [k, v] of entries) body}.
      *
      * The loop itself cannot destructure, so it binds one temporary per
@@ -169,7 +198,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private List<Statement> expandForInOrOf(final ForNode forNode) {
         final Expression init = forNode.getInit();
-        if (!forNode.isForInOrOf() || init == null || !isPattern(init)) {
+        if (init == null || !isPattern(init)) {
             return null;
         }
 
@@ -193,6 +222,27 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 .setBody(lc, body.setStatements(lc, statements));
 
         return List.of(declareTemporary(forNode, element), bound);
+    }
+
+    /**
+     * {@code for (var [a] = xs; test; next) body}.
+     *
+     * A C-style initialiser runs exactly once before the loop, so the bindings
+     * can simply be hoisted in front of it.
+     */
+    private List<Statement> expandForInitialiser(final ForNode forNode) {
+        if (!(forNode.getInit() instanceof BinaryNode assignment)
+                || !assignment.isTokenType(TokenType.ASSIGN)
+                || !isPattern(assignment.lhs())) {
+            return null;
+        }
+
+        temporaries = 0;
+        declaring = true;
+        final List<Statement> statements = new ArrayList<>();
+        destructure(forNode, assignment.lhs(), assignment.rhs(), statements);
+        statements.add(forNode.setInit(lc, null));
+        return statements;
     }
 
     /**

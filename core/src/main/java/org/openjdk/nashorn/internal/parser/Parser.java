@@ -87,6 +87,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -1685,6 +1686,22 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
+    /**
+     * The name of the synthetic parameter that receives the value a destructuring
+     * parameter pattern is matched against.
+     *
+     * The colon prefix is the compiler's convention for a name no script can
+     * write, and - unlike the "arguments[0]" this used to produce - it is a legal
+     * JVM field name, which matters as soon as the parameter is captured and
+     * becomes a field of the scope object.
+     *
+     * @param index position of the parameter in the list
+     * @return the synthetic name
+     */
+    private static String destructuredParameterName(final int index) {
+        return ":destructuredParameter" + index;
+    }
+
     private Expression bindingIdentifierOrPattern(final String contextString) {
         if (isBindingIdentifier()) {
             return bindingIdentifier(contextString);
@@ -2614,7 +2631,16 @@ public class Parser extends AbstractParser implements Loggable {
                 final Expression exception = bindingIdentifierOrPattern(contextString);
                 final boolean isDestructuring = !(exception instanceof IdentNode);
                 if (isDestructuring) {
-                    verifyDestructuringBindingPattern(exception, identNode -> verifyIdent(identNode, contextString));
+                    // ES6 13.15.1: the bound names of a catch parameter must be
+                    // unique - "catch ([a, a])" is an early error.
+                    final Set<String> boundNames = new HashSet<>();
+                    verifyDestructuringBindingPattern(exception, identNode -> {
+                        verifyIdent(identNode, contextString);
+                        if (!boundNames.add(identNode.getName())) {
+                            throw error(AbstractParser.message("duplicate.binding", identNode.getName()),
+                                    identNode.getToken());
+                        }
+                    });
                 } else {
                     // ECMA 12.4.1 strict mode restrictions
                     verifyIdent((IdentNode) exception, "catch argument");
@@ -3982,7 +4008,7 @@ public class Parser extends AbstractParser implements Loggable {
             } else {
                 final Expression pattern = bindingPattern();
                 // Introduce synthetic temporary parameter to capture the object to be destructured.
-                ident = createIdentNode(paramToken, pattern.getFinish(), String.format("arguments[%d]", parameters.size())).setIsDestructuredParameter();
+                ident = createIdentNode(paramToken, pattern.getFinish(), destructuredParameterName(parameters.size())).setIsDestructuredParameter();
                 verifyDestructuringParameterBindingPattern(pattern, paramToken, paramLine, contextString);
 
                 Expression value = ident;
@@ -4792,7 +4818,7 @@ public class Parser extends AbstractParser implements Loggable {
             } else if (isDestructuringLhs(lhs)) {
                 // binding pattern with initializer
                 // Introduce synthetic temporary parameter to capture the object to be destructured.
-                final IdentNode ident = createIdentNode(paramToken, param.getFinish(), String.format("arguments[%d]", index)).setIsDestructuredParameter().setIsDefaultParameter();
+                final IdentNode ident = createIdentNode(paramToken, param.getFinish(), destructuredParameterName(index)).setIsDestructuredParameter().setIsDefaultParameter();
                 verifyDestructuringParameterBindingPattern(param, paramToken, paramLine, contextString);
 
                 final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
@@ -4813,7 +4839,7 @@ public class Parser extends AbstractParser implements Loggable {
             final long paramToken = param.getToken();
 
             // Introduce synthetic temporary parameter to capture the object to be destructured.
-            final IdentNode ident = createIdentNode(paramToken, param.getFinish(), String.format("arguments[%d]", index)).setIsDestructuredParameter();
+            final IdentNode ident = createIdentNode(paramToken, param.getFinish(), destructuredParameterName(index)).setIsDestructuredParameter();
             verifyDestructuringParameterBindingPattern(param, paramToken, paramLine, contextString);
 
             final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
