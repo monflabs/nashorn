@@ -66,7 +66,19 @@ questions.
          surefire's working directory). Stack traces in the *.js.EXPECTED files
          embed this prefix, so it has to stay relative. -->
     <nashorn.test.scripts>src/test/scripts</nashorn.test.scripts>
-    <nashorn.test262.suite>${nashorn.test.scripts}/external/test262/test/suite</nashorn.test262.suite>
+    <!--
+      test262 has no ES2015 branch or tag: only the frozen es5-tests branch and
+      main, which tracks the current draft spec. So the suite is pinned to one
+      commit of main and the ES2015 slice is selected out of it by frontmatter -
+      see Test262Selector. Bumping the suite is a one-line change here.
+    -->
+    <nashorn.test262.commit>3655e7464de3d52643ecddd4b5f9f4f3e7f62398</nashorn.test262.commit>
+    <nashorn.test262.suite>${nashorn.test.scripts}/external/test262-main</nashorn.test262.suite>
+    <nashorn.test262.expectations>src/test/resources/test262-expectations.txt</nashorn.test262.expectations>
+    <nashorn.test262.threads>${nashorn.test262.default.threads}</nashorn.test262.threads>
+    <nashorn.test262.default.threads>8</nashorn.test262.default.threads>
+    <!-- narrow the run while developing, e.g. -Dnashorn.test262.include=/built-ins/Math/ -->
+    <nashorn.test262.include/>
 
     <nashorn.test.modulepath>${project.build.outputDirectory}${path.separator}${nashorn.modules.dir}</nashorn.test.modulepath>
 
@@ -282,7 +294,7 @@ questions.
             <test.js.roots>${nashorn.test.scripts}/basic ${nashorn.test.scripts}/maptests ${nashorn.test.scripts}/error ${nashorn.test.scripts}/sandbox ${nashorn.test.scripts}/trusted ${nashorn.test.scripts}/nosecurity</test.js.roots>
             <test.js.framework>${nashorn.test.scripts}/assert.js</test.js.framework>
             <test.js.exclude.dir>${nashorn.test.scripts}/currently-failing ${nashorn.test.scripts}/external</test.js.exclude.dir>
-            <test.js.unchecked.dir>${nashorn.test.scripts}/external/test262</test.js.unchecked.dir>
+            <test.js.unchecked.dir>${nashorn.test262.suite}</test.js.unchecked.dir>
             <test.js.shared.context>false</test.js.shared.context>
             <!-- stripped from each test's path to mirror its output under target/test -->
             <test.root.dir>src/test</test.root.dir>
@@ -291,7 +303,7 @@ questions.
             <test.maptests.dir>${nashorn.test.scripts}/maptests</test.maptests.dir>
             <test.sandbox.dir>${nashorn.test.scripts}/sandbox</test.sandbox.dir>
             <test.trusted.dir>${nashorn.test.scripts}/trusted</test.trusted.dir>
-            <test262.suite.dir>${nashorn.test.scripts}/external/test262/test/suite</test262.suite.dir>
+            <test262.suite.dir>${nashorn.test262.suite}</test262.suite.dir>
 
             <parsertest.verbose>false</parsertest.verbose>
             <parsertest.scripting>true</parsertest.scripting>
@@ -404,14 +416,39 @@ questions.
                 and that SVN server no longer exists. Place a copy at
                 src/test/scripts/external/sunspider by hand to use -Psunspider.
               -->
+              <!--
+                Pinned by commit rather than cloned by branch: the ES2015 slice
+                has to be reproducible, and main moves daily. init + fetch of a
+                single commit keeps the download to one revision.
+              -->
+              <execution>
+                <id>init-test262</id>
+                <phase>generate-test-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>git</executable>
+                  <successCodes><successCode>0</successCode><successCode>128</successCode></successCodes>
+                  <commandlineArgs>init -q ${nashorn.test262.suite}</commandlineArgs>
+                </configuration>
+              </execution>
               <execution>
                 <id>fetch-test262</id>
                 <phase>generate-test-resources</phase>
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>git</executable>
-                  <successCodes><successCode>0</successCode><successCode>128</successCode></successCodes>
-                  <commandlineArgs>clone --branch es5-tests --depth 1 https://github.com/tc39/test262 ${nashorn.test.scripts}/external/test262</commandlineArgs>
+                  <workingDirectory>${nashorn.test262.suite}</workingDirectory>
+                  <commandlineArgs>-c protocol.version=2 fetch -q --depth 1 https://github.com/tc39/test262 ${nashorn.test262.commit}</commandlineArgs>
+                </configuration>
+              </execution>
+              <execution>
+                <id>checkout-test262</id>
+                <phase>generate-test-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>git</executable>
+                  <workingDirectory>${nashorn.test262.suite}</workingDirectory>
+                  <commandlineArgs>checkout -q ${nashorn.test262.commit}</commandlineArgs>
                 </configuration>
               </execution>
               <execution>
@@ -432,9 +469,15 @@ questions.
 
     <profile>
       <!--
-        The ECMA-262 suite. Was the test262-parallel Ant target, which drove
-        ParallelTestRunner as a plain main() rather than through TestNG.
+        The ECMA-262 suite, ES2015 slice.
           mvn -Ptest262 verify
+        Runs every test at the pinned commit whose "features:" are all ES2015 or
+        absent - see Test262Selector - each one strict and sloppy unless its
+        frontmatter says otherwise, and compares the result against
+        test262-expectations.txt. The run fails on a new failure AND on a test
+        that now passes but is still listed, so conformance only moves forwards.
+        Rewrite the file after fixing something with:
+          mvn -Ptest262 verify -Dtest262.write.expectations=true
       -->
       <id>test262</id>
       <build>
@@ -449,7 +492,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest.js.shared.context=true -Dtest.js.enable.strict.mode=true -Dtest.root.dir=src/test -Dtest.js.roots=${nashorn.test262.suite} "-Dtest.js.exclude.dir=${nashorn.test262.suite}/intl402/ ${nashorn.test262.suite}/bestPractice/" "-Dtest.js.exclude.list=${nashorn.test262.suite}/ch07/7.4/S7.4_A6.js ${nashorn.test262.suite}/ch07/7.8/7.8.5/S7.8.5_A1.4_T2.js ${nashorn.test262.suite}/ch15/15.2/15.2.3/15.2.3.6/15.2.3.6-4-170.js" -Dtest.failed.list.file=${project.build.directory}/test/failedTests "-Dtest.js.framework=--class-cache-size=10 --no-java --no-typed-arrays -timezone=PST ${nashorn.test.scripts}/test262.js ${nashorn.test.scripts}/external/test262/test/harness/framework.js ${nashorn.test.scripts}/external/test262/test/harness/sta.js" -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.ParallelTestRunner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

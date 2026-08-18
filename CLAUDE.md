@@ -95,6 +95,7 @@ Only `api.scripting` and `api.tree` are unconditionally exported by `module-info
 ## Test suites
 
 - **Java/TestNG tests** in `core/src/test/java`, mirroring the main packages with a `test` sub-package.
+- **test262 (ES2015 slice)** — `mvn -Ptest262 verify`, driven by `Test262Runner`, not by `TestFinder`/`ParallelTestRunner`. Read the note below before touching it.
 - **Script tests** in `core/src/test/scripts/**`. Each `.js` opts in through a comment-header annotation parsed by `TestFinder`: `@test`, `@test/fail`, `@test/compile-error`, `@run`, `@run/fail`, `@subtest`, `@option`, `@argument`, `@fork`, `@runif`. An unannotated file under a test root is reported as an "orphan" and fails the suite.
 - A test with a sibling `<name>.js.EXPECTED` has its stdout diffed against it.
 
@@ -105,6 +106,36 @@ Three things about the test setup are easy to break:
 3. Tests run with assertions on (`-ea -esa`) and `-Duser.language=tr` deliberately, to catch locale-sensitive case conversions. Don't "fix" the Turkish locale.
 
 The two script tests that assert on the shell module's own descriptor live in `shell/src/test/scripts/basic` and run in the `shell` module — core cannot resolve the shell module without a dependency cycle. That module reuses core's test framework straight off disk (`core/target/test/classes`).
+
+## test262 and the ES2015 conformance target
+
+test262 has **no ES2015 branch or tag** — only the frozen `es5-tests` branch and `main`, which tracks the
+current draft spec. So the suite is **pinned by commit** (`nashorn.test262.commit` in `core/pom.xml`) and
+the ES2015 slice is selected out of it at runtime.
+
+The selector (`Test262Selector`) is a **deny** rule: a test is in scope unless its `features:` name
+something that postdates ES2015. That is deliberate — an allow rule keyed on ES2015 feature tags selects
+~10,600 tests and drops the ~15,000 untagged ones covering the ES5.1 core as ES2015 amended it. ES2015
+contains all of ES5.1, so those count. The deny rule selects ~25,000. `es6id:` alone and `features:` alone
+each miss thousands of tests in opposite directions, which is why neither is used as the primary rule.
+`tail-call-optimization` is excluded by decision; `intl402`, `staging` and `annexB` by directory.
+
+`Test262Runner` differs from the old runner in ways that matter:
+
+- A test with neither `onlyStrict` nor `noStrict` **runs twice**, strict and sloppy. The old runner had one
+  global strict switch and skipped such tests entirely.
+- `negative: {phase, type}` is **verified**, both the phase and the error constructor. The old runner read
+  an expected-error regex and never checked it, so negative tests passed on the wrong error.
+- `includes:` actually loads harness files. The old `test262.js` shim's `$INCLUDE` was dead code.
+- Each execution gets a **fresh Global** and a **15s timeout** on its own thread. The timeout is not
+  optional: some tests hand Map/Set an adversarial iterator that Nashorn never terminates, and without it
+  a wedged worker hangs the whole run.
+- Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
+  unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. Regenerate with
+  `-Dtest262.write.expectations=true`; narrow a run with `-Dtest262.include=/built-ins/Math/`.
+
+snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
+"special characters are not allowed".
 
 ## Conventions
 
