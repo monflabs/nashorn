@@ -28,9 +28,9 @@ questions.
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.openjdk.nashorn</groupId>
+    <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-parent</artifactId>
-    <version>15.7</version>
+    <version>6.0</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
