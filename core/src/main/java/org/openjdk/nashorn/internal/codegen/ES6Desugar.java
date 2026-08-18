@@ -25,12 +25,14 @@
 
 package org.openjdk.nashorn.internal.codegen;
 
+
 import java.util.ArrayList;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.Expression;
+import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.ir.ForNode;
 import org.openjdk.nashorn.internal.ir.ExpressionStatement;
 import org.openjdk.nashorn.internal.ir.IdentNode;
@@ -159,6 +161,40 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> bindings = new ArrayList<>();
         destructure(expressionStatement, assignment.lhs(), assignment.rhs(), bindings);
         return bindings;
+    }
+
+    /**
+     * {@code function f(a, ...rest) body}.
+     *
+     * The rest parameter leaves the parameter list - which also gives
+     * Function.length the arity the spec asks for, counting only the parameters
+     * before it - and becomes a local bound at the top of the body from the
+     * argument array. The function is marked as having had one so that it is
+     * compiled variable arity and that array exists.
+     */
+    @Override
+    public Node leaveFunctionNode(final FunctionNode functionNode) {
+        final List<IdentNode> parameters = functionNode.getParameters();
+        if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
+            return super.leaveFunctionNode(functionNode);
+        }
+
+        final IdentNode rest = parameters.get(parameters.size() - 1);
+        final List<IdentNode> declared = parameters.subList(0, parameters.size() - 1);
+
+        final Block body = functionNode.getBody();
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new VarNode(functionNode.getLineNumber(),
+                Token.recast(functionNode.getToken(), TokenType.VAR), rest.getFinish(),
+                new IdentNode(rest.getToken(), rest.getFinish(), rest.getName()),
+                new RuntimeNode(rest.getToken(), rest.getFinish(), RuntimeNode.Request.REST_ARGUMENTS,
+                        LiteralNode.newInstance(rest.getToken(), rest.getFinish(), declared.size()))));
+        statements.addAll(body.getStatements());
+
+        return super.leaveFunctionNode(functionNode
+                .setFlag(lc, FunctionNode.ES6_HAS_REST_PARAMETER)
+                .setParameters(lc, new ArrayList<>(declared))
+                .setBody(lc, body.setStatements(lc, statements)));
     }
 
     /**

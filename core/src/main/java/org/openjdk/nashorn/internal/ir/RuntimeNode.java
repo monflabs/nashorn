@@ -87,7 +87,13 @@ public class RuntimeNode extends Expression {
         /** Everything an iterator has left, as an array - the {@code ...rest} case. */
         ITERATOR_REST(TokenType.VOID, Type.OBJECT, 1),
         /** ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring. */
-        REQUIRE_OBJECT_COERCIBLE(TokenType.VOID, Type.OBJECT, 1);
+        REQUIRE_OBJECT_COERCIBLE(TokenType.VOID, Type.OBJECT, 1),
+        /**
+         * The array a rest parameter collects. Takes the number of parameters
+         * declared before it; the argument array itself is pushed by the code
+         * generator, straight from the frame.
+         */
+        REST_ARGUMENTS(TokenType.VOID, Type.OBJECT, 1);
 
         /** token type */
         private final TokenType tokenType;

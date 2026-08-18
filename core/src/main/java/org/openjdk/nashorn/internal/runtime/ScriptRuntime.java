@@ -41,6 +41,7 @@ import java.lang.reflect.Array;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +57,7 @@ import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.ir.debug.JSONWriter;
 import org.openjdk.nashorn.internal.objects.AbstractIterator;
 import org.openjdk.nashorn.internal.objects.Global;
+import org.openjdk.nashorn.internal.objects.NativeArray;
 import org.openjdk.nashorn.internal.objects.NativeObject;
 import org.openjdk.nashorn.internal.objects.NativeJava;
 import org.openjdk.nashorn.internal.parser.Lexer;
@@ -1223,5 +1225,22 @@ public final class ScriptRuntime {
             throw typeError("cant.get.property", "of", safeToString(value));
         }
         return value;
+    }
+
+    /**
+     * The array a rest parameter collects: everything passed beyond the declared
+     * parameters.
+     *
+     * @param arguments the callee's argument array
+     * @param from      the number of parameters declared before the rest one
+     * @return a new array of the remaining arguments, empty if there are none
+     */
+    public static Object REST_ARGUMENTS(final Object arguments, final Object from) {
+        final Object[] args = (Object[])arguments;
+        final int start = JSType.toInt32(from);
+        if (args == null || start >= args.length) {
+            return Global.allocate(ScriptRuntime.EMPTY_ARRAY);
+        }
+        return Global.allocate(Arrays.copyOfRange(args, start, args.length));
     }
 }

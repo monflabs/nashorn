@@ -2849,6 +2849,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             newRuntimeNode = runtimeNode;
         }
 
+        // The argument array is a frame slot, not something the IR can name: an
+        // IdentNode for :varargs resolves to the right symbol but loads as
+        // undefined, so the code generator pushes it here instead.
+        final boolean pushesVarargs = request == Request.REST_ARGUMENTS;
+        if (pushesVarargs) {
+            method.loadCompilerConstant(VARARGS);
+        }
+
         for (final Expression arg : args) {
             loadExpression(arg, TypeBounds.OBJECT);
         }
@@ -2860,7 +2868,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     false,
                     false,
                     newRuntimeNode.getType(),
-                    args.size()).toString());
+                    args.size() + (pushesVarargs ? 1 : 0)).toString());
 
         method.convert(newRuntimeNode.getType());
     }

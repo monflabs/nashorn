@@ -252,6 +252,16 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     /** Does this function have expression as its body? */
     public static final int HAS_EXPRESSION_BODY         = 1 << 26;
 
+    /**
+     * Did this function declare a rest parameter?
+     *
+     * The parameter itself is gone by the time the code generator runs - the
+     * desugaring phase turns it into a local bound from the argument array - but
+     * the function still has to be compiled variable arity so that argument
+     * array exists.
+     */
+    public static final int ES6_HAS_REST_PARAMETER      = 1 << 27;
+
     /** Does this function or any nested functions contain an eval? */
     private static final int HAS_DEEP_EVAL = HAS_EVAL | HAS_NESTED_EVAL;
 
@@ -801,7 +811,17 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      * @see LinkerCallSite#ARGLIMIT
      */
     public boolean isVarArg() {
-        return needsArguments() || parameters.size() > LinkerCallSite.ARGLIMIT;
+        return needsArguments() || hasRestParameter() || parameters.size() > LinkerCallSite.ARGLIMIT;
+    }
+
+    /**
+     * Whether this function declared a rest parameter, and so must be compiled
+     * variable arity to reach the arguments the rest parameter collects.
+     *
+     * @return true if a rest parameter was declared
+     */
+    public boolean hasRestParameter() {
+        return getFlag(ES6_HAS_REST_PARAMETER);
     }
 
     /**
