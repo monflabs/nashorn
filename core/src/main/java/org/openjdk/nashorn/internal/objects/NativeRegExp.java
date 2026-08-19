@@ -366,7 +366,35 @@ public final class NativeRegExp extends ScriptObject {
         if (regExp.getRegExp().isMultiline()) {
             sb.append('m');
         }
+        if (regExp.getRegExp().isUnicode()) {
+            sb.append('u');
+        }
+        if (regExp.getRegExp().isSticky()) {
+            sb.append('y');
+        }
         return sb.toString();
+    }
+
+    /**
+     * ECMAScript 2015 21.2.5.12 sticky
+     *
+     * @param self self reference
+     * @return true if this regexp only matches at lastIndex
+     */
+    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object sticky(final Object self) {
+        return checkRegExp(self).getRegExp().isSticky();
+    }
+
+    /**
+     * ECMAScript 2015 21.2.5.15 unicode
+     *
+     * @param self self reference
+     * @return true if this regexp is in unicode mode
+     */
+    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object unicode(final Object self) {
+        return checkRegExp(self).getRegExp().isUnicode();
     }
 
     /**
@@ -567,14 +595,18 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     private RegExpResult execInner(final String string) {
-        final boolean isGlobal = regexp.isGlobal();
-        int start = getLastIndex();
-        if (!isGlobal) {
-            start = 0;
-        }
+        // ES2015 21.2.5.2.2: a sticky regexp tracks lastIndex the way a global
+        // one does, and both reset it on failure.
+        final boolean isSticky = regexp.isSticky();
+        final boolean tracksLastIndex = regexp.isGlobal() || isSticky;
+        // ES2015 21.2.5.2.2 step 4 reads lastIndex whatever the flags are, and
+        // only then decides to ignore it - so a lastIndex with a valueOf sees it
+        // called even for a plain regexp.
+        final int lastIndex = getLastIndex();
+        final int start = tracksLastIndex ? lastIndex : 0;
 
         if (start < 0 || start > string.length()) {
-            if (isGlobal) {
+            if (tracksLastIndex) {
                 setLastIndex(0);
             }
             return null;
@@ -582,13 +614,19 @@ public final class NativeRegExp extends ScriptObject {
 
         final RegExpMatcher matcher = regexp.match(string);
         if (matcher == null || !matcher.search(start)) {
-            if (isGlobal) {
+            if (tracksLastIndex) {
                 setLastIndex(0);
             }
             return null;
         }
 
-        if (isGlobal) {
+        if (isSticky && matcher.start() != start) {
+            // sticky means anchored at lastIndex, not "found somewhere after it"
+            setLastIndex(0);
+            return null;
+        }
+
+        if (tracksLastIndex) {
             setLastIndex(matcher.end());
         }
 

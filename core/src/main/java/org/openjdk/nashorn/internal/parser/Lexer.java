@@ -706,6 +706,34 @@ public class Lexer extends Scanner {
      * @param type   Type of token to report against.
      * @return Value of sequence or < 0 if no digits.
      */
+    /**
+     * ES2015 11.8.4: the digits of a braced unicode escape, after the brace.
+     *
+     * There must be at least one digit, the value must be a code point, and the
+     * closing brace must be there.
+     *
+     * @return the code point, or -1 if the sequence is not one
+     */
+    private int bracedCodePoint() {
+        int value = 0;
+        int digits = 0;
+        while (convertDigit(ch0, 16) != -1) {
+            value = convertDigit(ch0, 16) | value << 4;
+            digits++;
+            skip(1);
+            if (value > Character.MAX_CODE_POINT) {
+                error(Lexer.message("invalid.hex"), STRING, position, limit);
+                return -1;
+            }
+        }
+        if (digits == 0 || ch0 != '}') {
+            error(Lexer.message("invalid.hex"), STRING, position, limit);
+            return -1;
+        }
+        skip(1);
+        return value;
+    }
+
     private int hexSequence(final int length, final TokenType type) {
         int value = 0;
 
@@ -916,7 +944,19 @@ public class Lexer extends Scanner {
                 }
                     break;
                 case 'u': {
-                    // Unicode sequence.
+                    // Unicode sequence, either four digits or ES2015's braced
+                    // form, which may name a code point outside the basic plane
+                    // and so contributes a surrogate pair rather than one char.
+                    if (ch0 == '{') {
+                        skip(1);
+                        final int codePoint = bracedCodePoint();
+                        if (codePoint < 0) {
+                            sb.append("\\u{");
+                        } else {
+                            sb.appendCodePoint(codePoint);
+                        }
+                        break;
+                    }
                     final int ch = hexSequence(4, STRING);
 
                     if (ch < 0) {

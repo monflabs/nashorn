@@ -49,6 +49,12 @@ public abstract class RegExp {
     /** Multi-line flag for this regexp */
     private boolean multiline;
 
+    /** Is this regexp sticky, matching only at lastIndex? */
+    private boolean sticky;
+
+    /** Is this regexp in unicode mode? */
+    private boolean unicode;
+
     /** BitVector that keeps track of groups in negative lookahead */
     protected BitVector groupsInNegativeLookahead;
 
@@ -80,6 +86,18 @@ public abstract class RegExp {
                     throwParserException("repeated.flag", "m");
                 }
                 this.multiline = true;
+                break;
+            case 'y':
+                if (this.sticky) {
+                    throwParserException("repeated.flag", "y");
+                }
+                this.sticky = true;
+                break;
+            case 'u':
+                if (this.unicode) {
+                    throwParserException("repeated.flag", "u");
+                }
+                this.unicode = true;
                 break;
             default:
                 throwParserException("unsupported.flag", Character.toString(ch));
@@ -128,6 +146,26 @@ public abstract class RegExp {
      *
      * @return the multiline flag
      */
+    /**
+     * Whether this regexp is sticky: it matches only at lastIndex, and does not
+     * search forward from there.
+     *
+     * @return true if the y flag was given
+     */
+    public boolean isSticky() {
+        return sticky;
+    }
+
+    /**
+     * Whether this regexp is in unicode mode, where the pattern and the input
+     * are read as code points rather than as code units.
+     *
+     * @return true if the u flag was given
+     */
+    public boolean isUnicode() {
+        return unicode;
+    }
+
     public boolean isMultiline() {
         return multiline;
     }
