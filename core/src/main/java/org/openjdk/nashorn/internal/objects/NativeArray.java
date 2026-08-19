@@ -59,6 +59,7 @@ import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.OptimisticBuiltins;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Undefined;
@@ -1883,5 +1884,244 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         } catch (final NullPointerException e) {
             throw new ClassCastException();
         }
+    }
+
+    /**
+     * ECMAScript 2015 22.1.3.8 Array.prototype.find(predicate, thisArg)
+     *
+     * @param self      self reference
+     * @param predicate called for each element until it returns a truthy value
+     * @param thisArg   the this value for the predicate
+     * @return the first element the predicate accepts, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object find(final Object self, final Object predicate, final Object thisArg) {
+        return findInternal(self, predicate, thisArg, true);
+    }
+
+    /**
+     * ECMAScript 2015 22.1.3.9 Array.prototype.findIndex(predicate, thisArg)
+     *
+     * @param self      self reference
+     * @param predicate called for each element until it returns a truthy value
+     * @param thisArg   the this value for the predicate
+     * @return the index of the first element the predicate accepts, or -1
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object findIndex(final Object self, final Object predicate, final Object thisArg) {
+        return findInternal(self, predicate, thisArg, false);
+    }
+
+    /**
+     * Shared by find and findIndex, which differ only in what they return.
+     *
+     * Unlike the other iteration methods these visit holes too, so an absent
+     * element is offered to the predicate as undefined.
+     */
+    private static Object findInternal(final Object self, final Object predicate, final Object thisArg,
+            final boolean wantValue) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final ScriptFunction callback = asFunction(predicate);
+        final long length = JSType.toUint32(sobj.getLength());
+
+        for (long i = 0; i < length; i++) {
+            final Object value = sobj.get(i);
+            if (JSType.toBoolean(ScriptRuntime.apply(callback, thisArg, value, (double)i, sobj))) {
+                return wantValue ? value : (double)i;
+            }
+        }
+        return wantValue ? ScriptRuntime.UNDEFINED : Double.valueOf(-1);
+    }
+
+    /**
+     * ECMAScript 2015 22.1.3.6 Array.prototype.fill(value, start, end)
+     *
+     * @param self  self reference
+     * @param value what to write
+     * @param start first index, negative counting from the end
+     * @param end   one past the last index, negative counting from the end
+     * @return the array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object fill(final Object self, final Object value, final Object start, final Object end) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final long length = JSType.toUint32(sobj.getLength());
+        final long from = relativeIndex(start, length, 0);
+        final long to = relativeIndex(end, length, length);
+
+        for (long i = from; i < to; i++) {
+            sobj.set(i, value, CALLSITE_STRICT);
+        }
+        return sobj;
+    }
+
+    /**
+     * ECMAScript 2015 22.1.3.3 Array.prototype.copyWithin(target, start, end)
+     *
+     * @param self   self reference
+     * @param target where to copy to
+     * @param start  where to copy from
+     * @param end    one past the last index to copy
+     * @return the array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object copyWithin(final Object self, final Object target, final Object start, final Object end) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final long length = JSType.toUint32(sobj.getLength());
+        final long to = relativeIndex(target, length, 0);
+        final long from = relativeIndex(start, length, 0);
+        final long last = relativeIndex(end, length, length);
+        long count = Math.min(last - from, length - to);
+
+        // copy backwards when the ranges overlap the wrong way, as memmove would
+        long readAt = from;
+        long writeAt = to;
+        int step = 1;
+        if (from < to && to < from + count) {
+            step = -1;
+            readAt += count - 1;
+            writeAt += count - 1;
+        }
+
+        while (count > 0) {
+            if (sobj.has(readAt)) {
+                sobj.set(writeAt, sobj.get(readAt), CALLSITE_STRICT);
+            } else {
+                sobj.delete(writeAt, true);
+            }
+            readAt += step;
+            writeAt += step;
+            count--;
+        }
+        return sobj;
+    }
+
+    /**
+     * ECMAScript 2015 22.1.2.3 Array.of(...items)
+     *
+     * @param self self reference
+     * @param args the elements
+     * @return a new array of exactly those elements
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 0)
+    public static Object of(final Object self, final Object... args) {
+        // unlike the Array constructor, a single numeric argument is an element
+        // rather than a length
+        return collect(self, java.util.Arrays.asList(args));
+    }
+
+    /**
+     * ECMAScript 2015 22.1.2.1 Array.from(items, mapFn, thisArg)
+     *
+     * @param self self reference
+     * @param args the source, an optional mapping function, and its this value
+     * @return a new array built from the source
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static Object from(final Object self, final Object... args) {
+        final Object items = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        final Object mapFn = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
+        final Object thisArg = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
+
+        if (items == null || items == ScriptRuntime.UNDEFINED) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(items));
+        }
+        final ScriptFunction mapper = mapFn == ScriptRuntime.UNDEFINED ? null : asFunction(mapFn);
+
+        final List<Object> collected = new ArrayList<>();
+        if (isIterable(items)) {
+            final Iterator<?> iterator = ScriptRuntime.toES6Iterator(items);
+            while (iterator.hasNext()) {
+                collected.add(iterator.next());
+            }
+        } else {
+            // array-like: read by index up to length
+            final Object source = JSType.toScriptObject(Global.instance(), items);
+            if (source instanceof ScriptObject sobj) {
+                final long length = JSType.toUint32(sobj.getLength());
+                for (long i = 0; i < length; i++) {
+                    collected.add(sobj.get(i));
+                }
+            }
+        }
+
+        if (mapper != null) {
+            for (int i = 0; i < collected.size(); i++) {
+                collected.set(i, ScriptRuntime.apply(mapper, thisArg, collected.get(i), (double)i));
+            }
+        }
+        return collect(self, collected);
+    }
+
+    /**
+     * Builds the result of Array.from and Array.of.
+     *
+     * Both are generic: called on a constructor other than Array - which is how
+     * a subclass inherits them - they construct that instead, and the elements
+     * are defined on it one by one, so that a constructor returning a hostile
+     * object reports its own errors.
+     */
+    private static Object collect(final Object self, final List<Object> elements) {
+        final int length = elements.size();
+        if (!(self instanceof ScriptFunction constructor) || self == Global.instance().get("Array")) {
+            return new NativeArray(elements.toArray());
+        }
+
+        final Object created = ScriptRuntime.construct(constructor, (double)length);
+        if (!(created instanceof ScriptObject target)) {
+            return created;
+        }
+        for (int i = 0; i < length; i++) {
+            // CreateDataPropertyOrThrow, not Set: an existing non-configurable
+            // element must make this fail even when it is writable.
+            final ScriptObject descriptor = Global.newEmptyInstance();
+            descriptor.set("value", elements.get(i), 0);
+            descriptor.set("writable", true, 0);
+            descriptor.set("enumerable", true, 0);
+            descriptor.set("configurable", true, 0);
+            target.defineOwnProperty(JSType.toString(i), descriptor, true);
+        }
+        target.set("length", (double)length, CALLSITE_STRICT);
+        return target;
+    }
+
+    /**
+     * Whether Array.from should walk this value with the iterator protocol
+     * rather than by index. A string is iterable, and so is anything carrying
+     * Symbol.iterator.
+     */
+    private static boolean isIterable(final Object items) {
+        if (JSType.isString(items) || items instanceof NativeString) {
+            return true;
+        }
+        final Object object = JSType.toScriptObject(Global.instance(), items);
+        return object instanceof ScriptObject sobj
+                && sobj.get(NativeSymbol.iterator) instanceof ScriptFunction;
+    }
+
+    /** Resolves a possibly negative or absent index against a length, as the spec's RelativeIndex does. */
+    private static long relativeIndex(final Object index, final long length, final long whenUndefined) {
+        if (index == ScriptRuntime.UNDEFINED) {
+            return whenUndefined;
+        }
+        final double relative = JSType.toInteger(index);
+        return relative < 0 ? (long)Math.max(length + relative, 0) : (long)Math.min(relative, length);
+    }
+
+    /** Coerces a callback argument, rejecting anything that cannot be called. */
+    private static ScriptFunction asFunction(final Object callback) {
+        if (callback instanceof ScriptFunction function) {
+            return function;
+        }
+        throw typeError("not.a.function", ScriptRuntime.safeToString(callback));
     }
 }

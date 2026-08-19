@@ -26,6 +26,7 @@
 package org.openjdk.nashorn.internal.objects;
 
 import static org.openjdk.nashorn.internal.lookup.Lookup.MH;
+import static org.openjdk.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 import static org.openjdk.nashorn.internal.runtime.JSType.isRepresentableAsInt;
 import static org.openjdk.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
@@ -1324,5 +1325,184 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         public Class<? extends Throwable> getRelinkException() {
             return ClassCastException.class;
         }
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.3 String.prototype.codePointAt(pos)
+     *
+     * @param self self reference
+     * @param pos  position in the string
+     * @return the code point at pos, or undefined if pos is out of range
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object codePointAt(final Object self, final Object pos) {
+        final String str = checkObjectToString(self);
+        final int index = JSType.toInteger(pos);
+        if (index < 0 || index >= str.length()) {
+            return ScriptRuntime.UNDEFINED;
+        }
+        return str.codePointAt(index);
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.6 String.prototype.endsWith(searchString, endPosition)
+     *
+     * @param self   self reference
+     * @param search the string to look for
+     * @param end    where to treat the string as ending, or undefined for its length
+     * @return true if the string ends with the search string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean endsWith(final Object self, final Object search, final Object end) {
+        final String str = checkObjectToString(self);
+        final String searchString = rejectRegExp(search, "endsWith");
+        final int endIndex = end == ScriptRuntime.UNDEFINED
+                ? str.length()
+                : Math.min(Math.max(JSType.toInteger(end), 0), str.length());
+        final int start = endIndex - searchString.length();
+        return start >= 0 && str.startsWith(searchString, start);
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.7 String.prototype.includes(searchString, position)
+     *
+     * @param self     self reference
+     * @param search   the string to look for
+     * @param position where to start looking
+     * @return true if the string contains the search string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean includes(final Object self, final Object search, final Object position) {
+        final String str = checkObjectToString(self);
+        final String searchString = rejectRegExp(search, "includes");
+        final int start = Math.min(Math.max(JSType.toInteger(position), 0), str.length());
+        return str.indexOf(searchString, start) != -1;
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.18 String.prototype.startsWith(searchString, position)
+     *
+     * @param self     self reference
+     * @param search   the string to look for
+     * @param position where to start looking
+     * @return true if the string starts with the search string at position
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean startsWith(final Object self, final Object search, final Object position) {
+        final String str = checkObjectToString(self);
+        final String searchString = rejectRegExp(search, "startsWith");
+        final int start = Math.min(Math.max(JSType.toInteger(position), 0), str.length());
+        return str.startsWith(searchString, start);
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.13 String.prototype.repeat(count)
+     *
+     * @param self  self reference
+     * @param count how many copies
+     * @return the string repeated count times
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String repeat(final Object self, final Object count) {
+        final String str = checkObjectToString(self);
+        final double n = JSType.toNumber(count);
+        if (n < 0 || Double.isInfinite(n)) {
+            throw rangeError("invalid.repeat.count", ScriptRuntime.safeToString(count));
+        }
+        final int times = (int)n;
+        if (times == 0 || str.isEmpty()) {
+            return "";
+        }
+        if ((long)times * str.length() > JSType.MAX_UINT) {
+            throw rangeError("invalid.repeat.count", ScriptRuntime.safeToString(count));
+        }
+        return str.repeat(times);
+    }
+
+    /**
+     * ECMAScript 2015 21.1.3.12 String.prototype.normalize(form)
+     *
+     * @param self self reference
+     * @param form NFC, NFD, NFKC or NFKD; NFC when undefined
+     * @return the normalized string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String normalize(final Object self, final Object form) {
+        final String str = checkObjectToString(self);
+        final String name = form == ScriptRuntime.UNDEFINED ? "NFC" : JSType.toString(form);
+        final java.text.Normalizer.Form normalizerForm;
+        switch (name) {
+            case "NFC"  -> normalizerForm = java.text.Normalizer.Form.NFC;
+            case "NFD"  -> normalizerForm = java.text.Normalizer.Form.NFD;
+            case "NFKC" -> normalizerForm = java.text.Normalizer.Form.NFKC;
+            case "NFKD" -> normalizerForm = java.text.Normalizer.Form.NFKD;
+            default -> throw rangeError("invalid.normalize.form", name);
+        }
+        return java.text.Normalizer.normalize(str, normalizerForm);
+    }
+
+    /**
+     * ECMAScript 2015 21.1.2.2 String.fromCodePoint(...codePoints)
+     *
+     * @param self self reference
+     * @param args the code points
+     * @return a string built from them
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static String fromCodePoint(final Object self, final Object... args) {
+        final StringBuilder sb = new StringBuilder(args.length);
+        for (final Object arg : args) {
+            final double number = JSType.toNumber(arg);
+            final int codePoint = (int)number;
+            if (codePoint != number || codePoint < 0 || codePoint > Character.MAX_CODE_POINT) {
+                throw rangeError("invalid.code.point", ScriptRuntime.safeToString(arg));
+            }
+            sb.appendCodePoint(codePoint);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * ECMAScript 2015 21.1.2.4 String.raw(template, ...substitutions)
+     *
+     * @param self self reference
+     * @param args the template object followed by the substitutions
+     * @return the template's raw strings interleaved with the substitutions
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static String raw(final Object self, final Object... args) {
+        final Object template = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        final Object cooked = JSType.toScriptObject(Global.instance(), template);
+        if (!(cooked instanceof ScriptObject templateObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(template));
+        }
+        final Object rawValue = templateObject.get("raw");
+        final Object rawObject = JSType.toScriptObject(Global.instance(), rawValue);
+        if (!(rawObject instanceof ScriptObject raws)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(rawValue));
+        }
+
+        final long length = JSType.toUint32(raws.get("length"));
+        final StringBuilder sb = new StringBuilder();
+        for (long i = 0; i < length; i++) {
+            sb.append(JSType.toString(raws.get(i)));
+            // the last raw string has no substitution after it
+            if (i + 1 < length && i + 1 < args.length) {
+                sb.append(JSType.toString(args[(int)i + 1]));
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * ES2015 21.1.3.6/7/18: these three reject a regular expression outright
+     * rather than coercing it, so that a future change to RegExp.prototype
+     * cannot silently change what they search for.
+     */
+    private static String rejectRegExp(final Object search, final String name) {
+        if (search instanceof NativeRegExp) {
+            throw typeError("cant.use.regexp", name);
+        }
+        return JSType.toString(search);
     }
 }

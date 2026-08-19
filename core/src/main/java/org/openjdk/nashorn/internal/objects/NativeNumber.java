@@ -43,6 +43,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.SpecializedFunction;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.runtime.GlobalFunctions;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -379,5 +380,101 @@ public final class NativeNumber extends ScriptObject {
 
     private static MethodHandle findOwnMH(final String name, final MethodType type) {
         return MH.findStatic(MethodHandles.lookup(), NativeNumber.class, name, type);
+    }
+
+    /** ECMAScript 2015 Number.EPSILON, the difference between 1 and the next representable double. */
+    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT, where = Where.CONSTRUCTOR)
+    public static final double EPSILON = Math.ulp(1.0);
+
+    /** ECMAScript 2015 Number.MAX_SAFE_INTEGER, the largest exactly representable integer. */
+    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT, where = Where.CONSTRUCTOR)
+    public static final double MAX_SAFE_INTEGER = 9007199254740991.0;
+
+    /** ECMAScript 2015 Number.MIN_SAFE_INTEGER, the smallest exactly representable integer. */
+    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT, where = Where.CONSTRUCTOR)
+    public static final double MIN_SAFE_INTEGER = -9007199254740991.0;
+
+    /**
+     * ECMAScript 2015 Number.isFinite(value).
+     *
+     * Unlike the global isFinite, this does not coerce: a string is never finite.
+     *
+     * @param self  self reference
+     * @param value the value to test
+     * @return true if value is a number and neither NaN nor an infinity
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static boolean isFinite(final Object self, final Object value) {
+        return value instanceof Number number
+                && !Double.isNaN(number.doubleValue())
+                && !Double.isInfinite(number.doubleValue());
+    }
+
+    /**
+     * ECMAScript 2015 Number.isNaN(value).
+     *
+     * Unlike the global isNaN, this does not coerce: only the number NaN qualifies.
+     *
+     * @param self  self reference
+     * @param value the value to test
+     * @return true if value is the number NaN
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static boolean isNaN(final Object self, final Object value) {
+        return value instanceof Number number && Double.isNaN(number.doubleValue());
+    }
+
+    /**
+     * ECMAScript 2015 Number.isInteger(value).
+     *
+     * @param self  self reference
+     * @param value the value to test
+     * @return true if value is a number with no fractional part
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static boolean isInteger(final Object self, final Object value) {
+        if (!(value instanceof Number number)) {
+            return false;
+        }
+        final double d = number.doubleValue();
+        return !Double.isNaN(d) && !Double.isInfinite(d) && Math.floor(d) == d;
+    }
+
+    /**
+     * ECMAScript 2015 Number.isSafeInteger(value).
+     *
+     * @param self  self reference
+     * @param value the value to test
+     * @return true if value is an integer that a double represents exactly
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static boolean isSafeInteger(final Object self, final Object value) {
+        return isInteger(self, value)
+                && Math.abs(((Number)value).doubleValue()) <= MAX_SAFE_INTEGER;
+    }
+
+    /**
+     * ECMAScript 2015 Number.parseInt, the same function object as the global one.
+     *
+     * @param self   self reference
+     * @param string the value to parse
+     * @param radix  the radix, or undefined
+     * @return the parsed value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static Object parseInt(final Object self, final Object string, final Object radix) {
+        return GlobalFunctions.parseInt(self, string, radix);
+    }
+
+    /**
+     * ECMAScript 2015 Number.parseFloat, the same function as the global one.
+     *
+     * @param self   self reference
+     * @param string the value to parse
+     * @return the parsed value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double parseFloat(final Object self, final Object string) {
+        return GlobalFunctions.parseFloat(self, string);
     }
 }

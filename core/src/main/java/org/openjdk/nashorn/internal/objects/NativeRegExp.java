@@ -345,6 +345,31 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2015 21.2.5.3 flags, the regexp's flags as a string.
+     *
+     * The order is fixed by the spec - g, i, m, u, y - not the order they were
+     * written in.
+     *
+     * @param self self reference
+     * @return the flags
+     */
+    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object flags(final Object self) {
+        final NativeRegExp regExp = checkRegExp(self);
+        final StringBuilder sb = new StringBuilder(3);
+        if (regExp.getRegExp().isGlobal()) {
+            sb.append('g');
+        }
+        if (regExp.getRegExp().isIgnoreCase()) {
+            sb.append('i');
+        }
+        if (regExp.getRegExp().isMultiline()) {
+            sb.append('m');
+        }
+        return sb.toString();
+    }
+
+    /**
      * ECMA 15.10.7.2 global
      *
      * @param self self reference

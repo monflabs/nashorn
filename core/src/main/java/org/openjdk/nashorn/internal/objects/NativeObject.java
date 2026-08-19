@@ -64,6 +64,7 @@ import org.openjdk.nashorn.internal.runtime.Property;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
+import org.openjdk.nashorn.internal.runtime.Symbol;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayData;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
@@ -874,5 +875,73 @@ public final class NativeObject {
 
     private static MethodHandle findOwnMH(final String name, final Class<?> rtype, final Class<?>... types) {
         return MH.findStatic(MethodHandles.lookup(), NativeObject.class, name, MH.type(rtype, types));
+    }
+
+    /**
+     * ECMAScript 2015 19.1.2.1 Object.assign(target, ...sources)
+     *
+     * @param self self reference
+     * @param args the target followed by the sources
+     * @return the target
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static Object assign(final Object self, final Object... args) {
+        // nasgen requires a varargs builtin to be exactly (self, Object...), so
+        // the target is the first of args rather than a parameter of its own.
+        final Object target = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        if (target == null || target == ScriptRuntime.UNDEFINED) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(target));
+        }
+        final Object to = JSType.toScriptObject(Global.instance(), target);
+        if (!(to instanceof ScriptObject targetObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(target));
+        }
+
+        for (int i = 1; i < args.length; i++) {
+            final Object source = args[i];
+            if (source == null || source == ScriptRuntime.UNDEFINED) {
+                // null and undefined sources are skipped rather than rejected
+                continue;
+            }
+            final Object from = JSType.toScriptObject(Global.instance(), source);
+            if (!(from instanceof ScriptObject sourceObject)) {
+                continue;
+            }
+            // Own enumerable keys, strings and symbols alike - getOwnKeys covers
+            // only the strings, and skipping the symbols means a frozen target
+            // with a symbol-keyed property is written to without complaint.
+            for (final Object key : sourceObject.getOwnKeys(false)) {
+                targetObject.set(key, sourceObject.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
+            }
+            for (final Symbol key : sourceObject.getOwnSymbols(false)) {
+                targetObject.set(key, sourceObject.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
+            }
+        }
+        return targetObject;
+    }
+
+    /**
+     * ECMAScript 2015 19.1.2.10 Object.is(x, y), SameValue.
+     *
+     * Differs from === in exactly two places: NaN is the same as itself, and +0
+     * is not the same as -0.
+     *
+     * @param self self reference
+     * @param x    first value
+     * @param y    second value
+     * @return true if the two are the same value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static boolean is(final Object self, final Object x, final Object y) {
+        if (x instanceof Number a && y instanceof Number b) {
+            final double dx = a.doubleValue();
+            final double dy = b.doubleValue();
+            if (Double.isNaN(dx) && Double.isNaN(dy)) {
+                return true;
+            }
+            // distinguishes the two zeros, which == and === do not
+            return Double.compare(dx, dy) == 0;
+        }
+        return ScriptRuntime.EQ_STRICT(x, y);
     }
 }

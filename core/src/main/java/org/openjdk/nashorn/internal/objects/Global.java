@@ -2576,6 +2576,11 @@ public final class Global extends Scope {
         this.builtinArray     = initConstructorAndSwitchPoint("Array", ScriptFunction.class);
         this.builtinBoolean   = initConstructorAndSwitchPoint("Boolean", ScriptFunction.class);
         this.builtinNumber    = initConstructorAndSwitchPoint("Number", ScriptFunction.class);
+        // ES2015 20.1.2.12/13: Number.parseInt and Number.parseFloat are required
+        // to be the very same function objects as the global ones, not merely
+        // equivalent, and test262 compares them with ===.
+        this.builtinNumber.set("parseInt", this.parseInt, 0);
+        this.builtinNumber.set("parseFloat", this.parseFloat, 0);
         this.builtinString    = initConstructorAndSwitchPoint("String", ScriptFunction.class);
         this.builtinMath      = initConstructorAndSwitchPoint("Math", ScriptObject.class);
 

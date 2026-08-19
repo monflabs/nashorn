@@ -728,4 +728,444 @@ public final class NativeMath extends ScriptObject {
     public static double tan(final Object self, final double x) {
         return Math.tan(x);
     }
+
+    /**
+     * ECMAScript 2015 Math.cbrt(x), the cube root of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.cbrt(x), the cube root of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double cbrt(final Object self, final Object x) {
+        return cbrt(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.cbrt(x), the cube root of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.cbrt(x), the cube root of x
+     */
+    @SpecializedFunction
+    public static double cbrt(final Object self, final double x) {
+        return Math.cbrt(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.expm1(x), exp(x) - 1 computed accurately for small x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.expm1(x), exp(x) - 1 computed accurately for small x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double expm1(final Object self, final Object x) {
+        return expm1(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.expm1(x), exp(x) - 1 computed accurately for small x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.expm1(x), exp(x) - 1 computed accurately for small x
+     */
+    @SpecializedFunction
+    public static double expm1(final Object self, final double x) {
+        return Math.expm1(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.log1p(x), log(1 + x) computed accurately for small x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log1p(x), log(1 + x) computed accurately for small x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double log1p(final Object self, final Object x) {
+        return log1p(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.log1p(x), log(1 + x) computed accurately for small x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log1p(x), log(1 + x) computed accurately for small x
+     */
+    @SpecializedFunction
+    public static double log1p(final Object self, final double x) {
+        return Math.log1p(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.log10(x), the base 10 logarithm of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log10(x), the base 10 logarithm of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double log10(final Object self, final Object x) {
+        return log10(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.log10(x), the base 10 logarithm of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log10(x), the base 10 logarithm of x
+     */
+    @SpecializedFunction
+    public static double log10(final Object self, final double x) {
+        return Math.log10(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.sinh(x), the hyperbolic sine of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.sinh(x), the hyperbolic sine of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double sinh(final Object self, final Object x) {
+        return sinh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.sinh(x), the hyperbolic sine of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.sinh(x), the hyperbolic sine of x
+     */
+    @SpecializedFunction
+    public static double sinh(final Object self, final double x) {
+        return Math.sinh(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.cosh(x), the hyperbolic cosine of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.cosh(x), the hyperbolic cosine of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double cosh(final Object self, final Object x) {
+        return cosh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.cosh(x), the hyperbolic cosine of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.cosh(x), the hyperbolic cosine of x
+     */
+    @SpecializedFunction
+    public static double cosh(final Object self, final double x) {
+        return Math.cosh(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.tanh(x), the hyperbolic tangent of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.tanh(x), the hyperbolic tangent of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double tanh(final Object self, final Object x) {
+        return tanh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.tanh(x), the hyperbolic tangent of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.tanh(x), the hyperbolic tangent of x
+     */
+    @SpecializedFunction
+    public static double tanh(final Object self, final double x) {
+        return Math.tanh(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.log2(x), the base 2 logarithm of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log2(x), the base 2 logarithm of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double log2(final Object self, final Object x) {
+        return log2(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.log2(x), the base 2 logarithm of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.log2(x), the base 2 logarithm of x
+     */
+    @SpecializedFunction
+    public static double log2(final Object self, final double x) {
+        return Math.log(x) / LN2;
+    }
+
+    /**
+     * ECMAScript 2015 Math.asinh(x), the inverse hyperbolic sine of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.asinh(x), the inverse hyperbolic sine of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double asinh(final Object self, final Object x) {
+        return asinh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.asinh(x), the inverse hyperbolic sine of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.asinh(x), the inverse hyperbolic sine of x
+     */
+    @SpecializedFunction
+    public static double asinh(final Object self, final double x) {
+        if (Double.isNaN(x) || Double.isInfinite(x) || x == 0.0) {
+            // preserves -0, and +/-Infinity map to themselves
+            return x;
+        }
+        return x < 0 ? -Math.log(-x + Math.sqrt(x * x + 1.0)) : Math.log(x + Math.sqrt(x * x + 1.0));
+    }
+
+    /**
+     * ECMAScript 2015 Math.acosh(x), the inverse hyperbolic cosine of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.acosh(x), the inverse hyperbolic cosine of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double acosh(final Object self, final Object x) {
+        return acosh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.acosh(x), the inverse hyperbolic cosine of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.acosh(x), the inverse hyperbolic cosine of x
+     */
+    @SpecializedFunction
+    public static double acosh(final Object self, final double x) {
+        if (Double.isNaN(x) || x < 1.0) {
+            return Double.NaN;
+        }
+        return Math.log(x + Math.sqrt(x * x - 1.0));
+    }
+
+    /**
+     * ECMAScript 2015 Math.atanh(x), the inverse hyperbolic tangent of x
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.atanh(x), the inverse hyperbolic tangent of x
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double atanh(final Object self, final Object x) {
+        return atanh(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.atanh(x), the inverse hyperbolic tangent of x - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.atanh(x), the inverse hyperbolic tangent of x
+     */
+    @SpecializedFunction
+    public static double atanh(final Object self, final double x) {
+        if (Double.isNaN(x) || x < -1.0 || x > 1.0) {
+            return Double.NaN;
+        }
+        if (x == 0.0) {
+            return x;
+        }
+        return 0.5 * Math.log((1.0 + x) / (1.0 - x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.sign(x): -1, -0, +0, +1 or NaN
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.sign(x): -1, -0, +0, +1 or NaN
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double sign(final Object self, final Object x) {
+        return sign(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.sign(x): -1, -0, +0, +1 or NaN - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.sign(x): -1, -0, +0, +1 or NaN
+     */
+    @SpecializedFunction
+    public static double sign(final Object self, final double x) {
+        if (Double.isNaN(x) || x == 0.0) {
+            // NaN, and both zeros, are returned unchanged
+            return x;
+        }
+        return Math.signum(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.trunc(x), x with any fractional part removed
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.trunc(x), x with any fractional part removed
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double trunc(final Object self, final Object x) {
+        return trunc(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.trunc(x), x with any fractional part removed - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.trunc(x), x with any fractional part removed
+     */
+    @SpecializedFunction
+    public static double trunc(final Object self, final double x) {
+        if (Double.isNaN(x) || Double.isInfinite(x) || x == 0.0) {
+            return x;
+        }
+        return x < 0 ? Math.ceil(x) : Math.floor(x);
+    }
+
+    /**
+     * ECMAScript 2015 Math.fround(x), x rounded to the nearest float
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.fround(x), x rounded to the nearest float
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double fround(final Object self, final Object x) {
+        return fround(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.fround(x), x rounded to the nearest float - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.fround(x), x rounded to the nearest float
+     */
+    @SpecializedFunction
+    public static double fround(final Object self, final double x) {
+        return (float)x;
+    }
+
+    /**
+     * ECMAScript 2015 Math.clz32(x), the leading zero count of x as a 32 bit integer
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.clz32(x), the leading zero count of x as a 32 bit integer
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double clz32(final Object self, final Object x) {
+        return clz32(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.clz32(x), the leading zero count of x as a 32 bit integer - specialized version for doubles
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.clz32(x), the leading zero count of x as a 32 bit integer
+     */
+    @SpecializedFunction
+    public static double clz32(final Object self, final double x) {
+        return Integer.numberOfLeadingZeros(JSType.toUint32(x) == 0 ? 0 : (int)JSType.toUint32(x));
+    }
+
+    /**
+     * ECMAScript 2015 Math.hypot(x, y, ...), the square root of the sum of squares.
+     *
+     * @param self self reference
+     * @param args the values
+     * @return the square root of the sum of the squares of the arguments
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static double hypot(final Object self, final Object... args) {
+        // An infinite argument wins over a NaN one, so both are collected before
+        // deciding, and every argument is coerced even after the answer is known.
+        boolean infinite = false;
+        boolean notANumber = false;
+        double sum = 0.0;
+        double max = 0.0;
+        final double[] values = new double[args.length];
+
+        for (int i = 0; i < args.length; i++) {
+            final double value = Math.abs(JSType.toNumber(args[i]));
+            values[i] = value;
+            if (Double.isInfinite(value)) {
+                infinite = true;
+            } else if (Double.isNaN(value)) {
+                notANumber = true;
+            } else if (value > max) {
+                max = value;
+            }
+        }
+
+        if (infinite) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (notANumber) {
+            return Double.NaN;
+        }
+        if (max == 0.0) {
+            return 0.0;
+        }
+
+        // scale by the largest term so that squaring cannot overflow
+        for (final double value : values) {
+            final double scaled = value / max;
+            sum += scaled * scaled;
+        }
+        return max * Math.sqrt(sum);
+    }
+
+    /**
+     * ECMAScript 2015 Math.imul(x, y), C-like 32 bit integer multiplication.
+     *
+     * @param self self reference
+     * @param x    first value
+     * @param y    second value
+     * @return the low 32 bits of the product, as a signed integer
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static int imul(final Object self, final Object x, final Object y) {
+        return JSType.toInt32(x) * JSType.toInt32(y);
+    }
 }
