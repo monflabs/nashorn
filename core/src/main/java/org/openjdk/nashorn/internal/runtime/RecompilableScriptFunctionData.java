@@ -143,7 +143,6 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
     @SuppressWarnings("serial") // Not statically typed as Serializable
     private final Set<String> internalSymbols;
 
-    private static final int GET_SET_PREFIX_LENGTH = "*et ".length();
 
     private static final long serialVersionUID = 4914839316174633726L;
 
@@ -350,8 +349,10 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         }
         final FunctionNode.Kind kind = fn.getKind();
         if (kind == FunctionNode.Kind.GETTER || kind == FunctionNode.Kind.SETTER) {
-            final String name = NameCodec.decode(fn.getIdent().getName());
-            return name.substring(GET_SET_PREFIX_LENGTH);
+            // ES2015 14.3.9 names an accessor "get x" or "set x" - the prefix is
+            // part of the name, not decoration, and the internal name already
+            // carries it in that form
+            return NameCodec.decode(fn.getIdent().getName());
         }
         return fn.getIdent().getName();
     }

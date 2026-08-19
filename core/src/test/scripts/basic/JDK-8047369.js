@@ -154,7 +154,7 @@ evalExpectValue(<<CODE
     }
 
     f()
-CODE, ":");
+CODE, "get :");
 
 evalExpectValue(<<CODE
     function f() {

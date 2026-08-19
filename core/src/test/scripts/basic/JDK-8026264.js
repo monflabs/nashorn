@@ -24,6 +24,10 @@
 /**
  * JDK-8026264: Getter, setter function name mangling issues
  *
+ * ES2015 14.3.9 names an accessor "get x" or "set x". The prefix is part of the
+ * name rather than the internal mangling this test was written to check, so the
+ * expectations carry it.
+ *
  * @test
  * @run
  */
@@ -36,19 +40,19 @@ var obj = {
 };
 
 var desc = Object.getOwnPropertyDescriptor(obj, ":");
-if (desc.get.name != ':') {
-    fail("getter name is expected to be ':' got " + desc.get.name);
+if (desc.get.name != 'get :') {
+    fail("getter name is expected to be 'get :' got " + desc.get.name);
 }
 
-if (desc.set.name != ':') {
-    fail("setter name is expected to be ':' got " + desc.set.name);
+if (desc.set.name != 'set :') {
+    fail("setter name is expected to be 'set :' got " + desc.set.name);
 }
 
 desc = Object.getOwnPropertyDescriptor(obj, "");
-if (desc.get.name != '') {
-    fail("getter name is expected to be '' got " + desc.get.name);
+if (desc.get.name != 'get ') {
+    fail("getter name is expected to be 'get ' got " + desc.get.name);
 }
 
-if (desc.set.name != '') {
-    fail("setter name is expected to be '' got " + desc.set.name);
+if (desc.set.name != 'set ') {
+    fail("setter name is expected to be 'set ' got " + desc.set.name);
 }
