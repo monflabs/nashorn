@@ -95,6 +95,10 @@ public final class Test262Runner {
      */
     private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 20L);
 
+    /** How many executions one engine serves before it is thrown away and rebuilt. */
+    private static final int EXECUTIONS_PER_ENGINE =
+            Integer.getInteger("test262.executions.per.engine", 250);
+
     private final Path suiteRoot;
     private final Path harnessDir;
     private final ConcurrentMap<String, Source> harnessSources = new ConcurrentHashMap<>();
@@ -133,11 +137,98 @@ public final class Test262Runner {
 
         final Test262Runner runner = new Test262Runner(suite);
         final List<Variant> variants = runner.discover(include);
-        System.out.printf("test262: %d executions from %s%n", variants.size(), suite);
 
-        final Map<String, String> results = runner.runAll(variants, threads);
+        final int shards = Integer.getInteger("test262.shards", DEFAULT_SHARDS);
+        final int shard = Integer.getInteger("test262.shard", -1);
+
+        if (shard < 0 && shards > 1) {
+            System.out.printf("test262: %d executions from %s, in %d processes%n",
+                    variants.size(), suite, shards);
+            System.exit(runShards(shards, expectationsFile));
+        }
+
+        final List<Variant> mine = shard < 0 ? variants : slice(variants, shard, shards);
+        if (shard < 0) {
+            System.out.printf("test262: %d executions from %s%n", mine.size(), suite);
+        }
+
+        final Map<String, String> results = runner.runAll(mine, threads);
+        if (shard >= 0) {
+            // a shard reports its failures to the parent rather than judging them
+            writeFailures(results, Path.of(required("test262.shard.output")));
+            System.exit(0);
+        }
         final int exitCode = report(results, expectationsFile);
         System.exit(exitCode);
+    }
+
+    /**
+     * How many processes the run is split across.
+     *
+     * One JVM cannot see the whole suite through any more. A generator's body
+     * runs on its own thread, and a body that loops without ever yielding - which
+     * this suite contains - can never be asked to stop, so it holds its realm for
+     * as long as the process lives. The heap fills somewhere past forty thousand
+     * executions and a worker dies, which used to show up only as a conformance
+     * number that moved by thousands between runs. Splitting the run bounds what
+     * any one process has to hold.
+     */
+    private static final int DEFAULT_SHARDS = Integer.getInteger("test262.default.shards", 4);
+
+    /** The variants this shard is responsible for. */
+    private static List<Variant> slice(final List<Variant> variants, final int shard, final int shards) {
+        final int size = (variants.size() + shards - 1) / shards;
+        final int from = Math.min(shard * size, variants.size());
+        return variants.subList(from, Math.min(from + size, variants.size()));
+    }
+
+    /** Runs each shard in a child JVM and judges the merged result. */
+    private static int runShards(final int shards, final Path expectationsFile) throws Exception {
+        final Map<String, String> merged = new java.util.TreeMap<>();
+
+        for (int shard = 0; shard < shards; shard++) {
+            final Path output = Files.createTempFile("test262-shard", ".txt");
+            try {
+                final List<String> command = new java.util.ArrayList<>();
+                command.add(ProcessHandle.current().info().command().orElse("java"));
+                // The suite runs on a module path with a long list of exports, so
+                // the child needs this JVM's own arguments; a bare classpath
+                // leaves it unable to load the engine at all.
+                command.addAll(java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments());
+                command.add("-cp");
+                command.add(System.getProperty("java.class.path"));
+                System.getProperties().stringPropertyNames().stream()
+                        .filter(name -> name.startsWith("test262.") || name.startsWith("nashorn."))
+                        .forEach(name -> command.add("-D" + name + "=" + System.getProperty(name)));
+                command.add("-Dtest262.shard=" + shard);
+                command.add("-Dtest262.shards=" + shards);
+                command.add("-Dtest262.shard.output=" + output);
+                command.add(Test262Runner.class.getName());
+
+                System.out.printf("  shard %d/%d%n", shard + 1, shards);
+                System.out.flush();
+                final Process process = new ProcessBuilder(command).inheritIO().start();
+                if (process.waitFor() != 0) {
+                    throw new IllegalStateException("shard " + shard + " did not finish");
+                }
+                for (final String line : Files.readAllLines(output)) {
+                    final int split = line.indexOf(" # ");
+                    if (split > 0) {
+                        merged.put(line.substring(0, split), line.substring(split + 3));
+                    }
+                }
+            } finally {
+                Files.deleteIfExists(output);
+            }
+        }
+        return report(merged, expectationsFile);
+    }
+
+    /** A shard's failures, one per line, for the parent to merge. */
+    private static void writeFailures(final Map<String, String> failures, final Path file) throws IOException {
+        final List<String> lines = new java.util.ArrayList<>();
+        failures.forEach((id, reason) -> lines.add(id + " # " + reason));
+        Files.write(file, lines);
     }
 
     private static String required(final String property) {
@@ -187,6 +278,10 @@ public final class Test262Runner {
     private Map<String, String> runAll(final List<Variant> variants, final int threads) throws InterruptedException {
         final ConcurrentMap<String, String> failures = new ConcurrentHashMap<>();
         final AtomicInteger done = new AtomicInteger();
+        // Counted separately from the progress tally so that a worker dying -
+        // of an OutOfMemoryError, say - cannot pass for a run in which those
+        // tests simply happened to pass.
+        final AtomicInteger completed = new AtomicInteger();
         final List<Thread> workers = new ArrayList<>();
         final int chunk = (variants.size() + threads - 1) / Math.max(threads, 1);
 
@@ -198,7 +293,34 @@ public final class Test262Runner {
             }
             final Thread worker = new Thread(() -> {
                 Sandbox sandbox = new Sandbox();
+                int sinceRecycled = 0;
                 for (final Variant variant : variants.subList(from, to)) {
+                  // Nothing in here may escape: a worker that dies takes the rest
+                  // of its chunk with it, and tests that never ran are
+                  // indistinguishable from tests that passed. The tally is taken
+                  // in the finally, so it counts each variant exactly once
+                  // whichever way it ended.
+                  try {
+                    if (++sinceRecycled > EXECUTIONS_PER_ENGINE) {
+                        // A worker's engine accumulates: compiled classes in its
+                        // class cache, and a parked thread for every generator a
+                        // test left mid-flight. Left alone for the whole run the
+                        // later tests start timing out and exhausting the heap,
+                        // and which ones do moves from run to run - so the suite
+                        // stops being a ratchet at all. Recycling bounds it.
+                        sandbox.discard();
+                        sandbox = null;
+                        // Give the collector a chance before building the next
+                        // one. What accumulates is not reachable - a discarded
+                        // engine's compiled classes, and the parked thread of
+                        // every generator a test left mid-flight, which only a
+                        // Cleaner can release - so without this the heap grows
+                        // until a worker dies and takes the rest of its chunk
+                        // with it.
+                        System.gc();
+                        sandbox = new Sandbox();
+                        sinceRecycled = 0;
+                    }
                     final Result result;
                     try {
                         result = sandbox.run(variant);
@@ -207,6 +329,7 @@ public final class Test262Runner {
                         failures.put(variant.id(suiteRoot), "timed out after " + TIMEOUT_SECONDS + "s");
                         sandbox.discard();
                         sandbox = new Sandbox();
+                        sinceRecycled = 0;
                         continue;
                     } catch (final Throwable t2) {
                         failures.put(variant.id(suiteRoot), "runner error: " + t2);
@@ -220,6 +343,21 @@ public final class Test262Runner {
                         System.out.println("  " + n + "/" + variants.size() + " executions, " + failures.size() + " failing");
                         System.out.flush();
                     }
+                  } catch (final Throwable fatal) {
+                    // Most often an OutOfMemoryError while building a fresh
+                    // engine. Record it against this test and carry on with a
+                    // clean one rather than losing the remainder of the chunk.
+                    failures.putIfAbsent(variant.id(suiteRoot), "runner error: " + fatal);
+                    try {
+                        sandbox.discard();
+                    } catch (final Throwable ignored) {
+                        // discarding a broken sandbox may fail too
+                    }
+                    sandbox = new Sandbox();
+                    sinceRecycled = 0;
+                  } finally {
+                    completed.incrementAndGet();
+                  }
                 }
                 sandbox.discard();
             }, "test262-" + t);
@@ -228,6 +366,14 @@ public final class Test262Runner {
         }
         for (final Thread worker : workers) {
             worker.join();
+        }
+
+        if (completed.get() != variants.size()) {
+            throw new IllegalStateException(String.format(
+                    "the run did not finish: %d of %d executions produced a verdict. "
+                    + "A test that never ran is indistinguishable from one that passed, so "
+                    + "the result cannot be compared against the expectations.",
+                    completed.get(), variants.size()));
         }
         return failures;
     }
@@ -288,9 +434,9 @@ public final class Test262Runner {
 
             final Global oldGlobal = Context.getGlobal();
             final int errorsBefore = errors.getNumberOfErrors();
+            // a fresh realm per execution: tests mutate the global freely
+            final Global global = context.createGlobal();
             try {
-                // a fresh realm per execution: tests mutate the global freely
-                final Global global = context.createGlobal();
                 Context.setGlobal(global);
 
                 if (fm != null && !fm.isRaw()) {
@@ -309,6 +455,10 @@ public final class Test262Runner {
             } finally {
                 context.getOut().flush();
                 context.getErr().flush();
+                // A generator this test left suspended holds its function, and
+                // through it this whole realm, so without this the run retains a
+                // realm for every generator it starts and eventually dies of it.
+                global.abandonGenerators();
                 Context.setGlobal(oldGlobal);
             }
         }

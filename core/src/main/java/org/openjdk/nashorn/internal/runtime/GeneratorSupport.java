@@ -95,6 +95,16 @@ public final class GeneratorSupport {
     private boolean done;
 
     /**
+     * Set when nobody can advance this generator any more.
+     *
+     * Once it is set the body must never block handing a value back: whatever it
+     * yielded last is still sitting unconsumed in the one-slot queue, so a
+     * blocking put would wait for a reader that is never coming and the thread
+     * would be stuck for the life of the program.
+     */
+    private volatile boolean abandoned;
+
+    /**
      * @param body   the generator function, which is re-entered on the generator's thread
      * @param self   its this value
      * @param args   its arguments
@@ -143,7 +153,7 @@ public final class GeneratorSupport {
      * @return the value the generator is resumed with
      */
     public Object yield(final Object value) {
-        put(toCaller, new Step.Yielded(value));
+        deliver(new Step.Yielded(value));
         final Resume resume = take(toBody);
         if (resume instanceof Resume.Return ret) {
             // return() unwinds the body so that its finally blocks run
@@ -224,11 +234,11 @@ public final class GeneratorSupport {
             final Global previous = Context.getGlobal();
             Context.setGlobal(global);
             try {
-                put(toCaller, new Step.Returned(ScriptRuntime.apply(body, self, args)));
+                deliver(new Step.Returned(ScriptRuntime.apply(body, self, args)));
             } catch (final Abort abort) {
-                put(toCaller, new Step.Returned(abort.value));
+                deliver(new Step.Returned(abort.value));
             } catch (final RuntimeException e) {
-                put(toCaller, new Step.Failed(e));
+                deliver(new Step.Failed(e));
             } finally {
                 Context.setGlobal(previous);
                 RUNNING.remove();
@@ -256,8 +266,21 @@ public final class GeneratorSupport {
             return;
         }
         done = true;
-        // offer, not put: if the body is not waiting there is nothing to unwind
+        abandoned = true;
+        // Clear whatever the body handed back last and nobody collected, so that
+        // its unwinding has somewhere to put its final step, and offer rather
+        // than put in case the body is not waiting at all.
+        toCaller.clear();
         toBody.offer(new Resume.Return(ScriptRuntime.UNDEFINED));
+    }
+
+    /** Hands a step back, without ever blocking once the generator is abandoned. */
+    private void deliver(final Step step) {
+        if (abandoned) {
+            toCaller.offer(step);
+            return;
+        }
+        put(toCaller, step);
     }
 
     private static <T> void put(final BlockingQueue<T> queue, final T value) {

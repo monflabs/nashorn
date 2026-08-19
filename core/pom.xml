@@ -76,7 +76,24 @@ questions.
     <nashorn.test262.suite>${nashorn.test.scripts}/external/test262-main</nashorn.test262.suite>
     <nashorn.test262.expectations>src/test/resources/test262-expectations.txt</nashorn.test262.expectations>
     <nashorn.test262.threads>${nashorn.test262.default.threads}</nashorn.test262.threads>
-    <nashorn.test262.default.threads>8</nashorn.test262.default.threads>
+    <!--
+      Four, not eight. The count was chosen when generators and promises did not
+      run: a generator now parks a virtual thread per live instance and a test can
+      allocate a great deal more, and at eight the workers starve each other into
+      timeouts and heap exhaustion. That is not a slow failure but a wrong one -
+      at eight, between 1600 and 2400 tests failed spuriously and the set moved
+      from run to run, which a ratchet cannot work with.
+    -->
+    <nashorn.test262.default.threads>4</nashorn.test262.default.threads>
+
+    <!--
+      How many processes the run is split across. A suspended generator's body
+      holds its function and through it the whole realm it came from, so a long
+      run accumulates realms until a worker dies of it - which used to surface
+      only as a conformance number that moved by thousands between runs. Twelve
+      keeps each process to a few thousand executions, which it can see through.
+    -->
+    <nashorn.test262.shards>12</nashorn.test262.shards>
     <!-- narrow the run while developing, e.g. -Dnashorn.test262.include=/built-ins/Math/ -->
     <nashorn.test262.include/>
     <!--
@@ -85,6 +102,12 @@ questions.
       a bare -Dtest262.write.expectations never reached the forked JVM.
     -->
     <nashorn.test262.write.expectations>false</nashorn.test262.write.expectations>
+    <!--
+      The suite runs several workers in one JVM, and since generators and promises
+      landed it executes far more code than it used to; 2G, which the rest of the
+      test JVM args ask for, is no longer enough and shows up as sporadic
+      "Java heap space" failures that move from run to run.
+    -->
 
     <nashorn.test.modulepath>${project.build.outputDirectory}${path.separator}${nashorn.modules.dir}</nashorn.test.modulepath>
 
@@ -503,7 +526,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.default.shards=${nashorn.test262.shards} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

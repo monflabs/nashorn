@@ -1637,8 +1637,9 @@ public final class ScriptRuntime {
         }
         final Global global = Context.getGlobal();
         final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
-        return new NativeGenerator(
-                new GeneratorSupport((ScriptFunction)callee, self, arguments, global), global);
+        final GeneratorSupport support = new GeneratorSupport((ScriptFunction)callee, self, arguments, global);
+        global.registerGenerator(support);
+        return new NativeGenerator(support, global);
     }
 
     /**

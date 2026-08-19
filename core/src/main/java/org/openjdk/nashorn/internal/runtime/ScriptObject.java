@@ -875,6 +875,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @return New property.
      */
     public final Property addOwnProperty(final Object key, final int propertyFlags, final ScriptFunction getter, final ScriptFunction setter) {
+        // Accessor properties do not go through addSpillProperty, so a well-known
+        // symbol installed as a getter has to be noticed here too. Missing it
+        // means a Symbol.toStringTag accessor is never consulted.
+        WellKnownSymbols.note(key);
         return addOwnProperty(newUserAccessors(key, propertyFlags, getter, setter));
     }
 

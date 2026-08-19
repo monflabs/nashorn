@@ -38,6 +38,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.SwitchPoint;
 import java.lang.reflect.Field;
+import java.lang.ref.WeakReference;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -63,6 +65,7 @@ import org.openjdk.nashorn.internal.runtime.ECMAErrors;
 import org.openjdk.nashorn.internal.runtime.FindProperty;
 import org.openjdk.nashorn.internal.runtime.GlobalConstants;
 import org.openjdk.nashorn.internal.runtime.GlobalFunctions;
+import org.openjdk.nashorn.internal.runtime.GeneratorSupport;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.NativeJavaPackage;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
@@ -1019,6 +1022,18 @@ public final class Global extends Scope {
     private ScriptFunction builtinJSAdapter;
     private ScriptObject   builtinMath;
     private ScriptObject   builtinReflect;
+
+    /**
+     * Every generator started in this realm, weakly.
+     *
+     * A suspended generator's thread holds its function, and through it this
+     * whole realm, so a realm with live generators cannot be collected until
+     * each of them is. An embedder gets that for free when the generator objects
+     * become unreachable; a host that knows a realm is finished can say so.
+     */
+    private final List<WeakReference<GeneratorSupport>> generators =
+            Collections.synchronizedList(new ArrayList<>());
+
     private ScriptObject   builtinGeneratorPrototype;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
@@ -1886,6 +1901,34 @@ public final class Global extends Scope {
      *
      * @return the %GeneratorPrototype% intrinsic
      */
+    /**
+     * Records a generator started in this realm.
+     *
+     * @param generator the generator's suspended body
+     */
+    public void registerGenerator(final GeneratorSupport generator) {
+        generators.add(new WeakReference<>(generator));
+    }
+
+    /**
+     * Unwinds every generator still suspended in this realm.
+     *
+     * For a host that knows the realm is finished - a test runner between tests,
+     * say - this releases the threads at once instead of waiting for each
+     * generator object to be collected.
+     */
+    public void abandonGenerators() {
+        synchronized (generators) {
+            for (final var reference : generators) {
+                final var generator = reference.get();
+                if (generator != null) {
+                    generator.abandon();
+                }
+            }
+            generators.clear();
+        }
+    }
+
     public ScriptObject getGeneratorPrototype() {
         if (builtinGeneratorPrototype == null) {
             builtinGeneratorPrototype = initPrototype("NativeGenerator", getIteratorPrototype());
