@@ -70,6 +70,7 @@ import org.openjdk.nashorn.internal.runtime.JobQueue;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.NativeJavaPackage;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
+import org.openjdk.nashorn.internal.runtime.ModuleRecord;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.Scope;
 import org.openjdk.nashorn.internal.runtime.ScriptEnvironment;
@@ -1921,6 +1922,35 @@ public final class Global extends Scope {
      *
      * @param generator the generator's suspended body
      */
+    /**
+     * The modules this realm has loaded, by the name each was resolved to.
+     *
+     * ES2015 15.2.1.17 gives a realm one module map, and asking for the same
+     * module twice has to give back the same record - a module's body runs once
+     * and its bindings are shared by everything that imports it.
+     */
+    private final java.util.Map<String, ModuleRecord> modules = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * A module this realm has already loaded.
+     *
+     * @param name the resolved name
+     * @return the record, or null if it has not been loaded
+     */
+    public ModuleRecord getModule(final String name) {
+        return modules.get(name);
+    }
+
+    /**
+     * Records a module under the name it was resolved to.
+     *
+     * @param name   the resolved name
+     * @param record the module
+     */
+    public void registerModule(final String name, final ModuleRecord record) {
+        modules.put(name, record);
+    }
+
     public void registerGenerator(final GeneratorSupport generator) {
         generators.add(new WeakReference<>(generator));
     }

@@ -297,12 +297,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public boolean enterFunctionNode(final FunctionNode functionNode) {
-        if (functionNode.getKind() == FunctionNode.Kind.MODULE) {
-            throwNotImplementedYet("es6.module", functionNode);
-        }
-
-
-
         return super.enterFunctionNode(functionNode);
     }
 

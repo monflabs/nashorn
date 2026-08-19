@@ -53,6 +53,7 @@ import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ECMAException;
 import org.openjdk.nashorn.internal.runtime.ErrorManager;
+import org.openjdk.nashorn.internal.runtime.ModuleRecord;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -494,15 +495,24 @@ public final class Test262Runner {
             final String expectedType = negative ? fm.getNegativeType() : null;
             final boolean expectParseFailure = negative && !"runtime".equals(fm.getNegativePhase());
 
+            final boolean module = fm != null && fm.isModule();
+
             ScriptFunction script = null;
+            ModuleRecord moduleRecord = null;
             String parseError = null;
             try {
-                script = context.compileScript(
-                        Source.sourceFor(variant.file().toString(), source), global);
+                if (module) {
+                    // a module is parsed and linked in one step, so a resolution
+                    // error arrives here rather than at evaluation
+                    moduleRecord = context.loadModule(variant.file().toString(), null);
+                } else {
+                    script = context.compileScript(
+                            Source.sourceFor(variant.file().toString(), source), global);
+                }
             } catch (final Throwable t) {
                 parseError = describe(t);
             }
-            if (script == null || errors.getNumberOfErrors() > errorsBefore) {
+            if ((module ? moduleRecord == null : script == null) || errors.getNumberOfErrors() > errorsBefore) {
                 if (parseError == null) {
                     parseError = stderr.toString(StandardCharsets.UTF_8).trim();
                 }
@@ -521,7 +531,11 @@ public final class Test262Runner {
             }
 
             try {
-                ScriptRuntime.apply(script, global);
+                if (module) {
+                    moduleRecord.evaluate();
+                } else {
+                    ScriptRuntime.apply(script, global);
+                }
             } catch (final Throwable t) {
                 final String thrownType = typeOf(t);
                 if (negative) {

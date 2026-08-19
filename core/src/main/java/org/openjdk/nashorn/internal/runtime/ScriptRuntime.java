@@ -1765,6 +1765,22 @@ public final class ScriptRuntime {
      * @return the value the generator is resumed with
      */
     /**
+     * ES2015 15.2.1.17: a module's environment, handed over by its own body.
+     *
+     * It is the one moment at which the imports can be installed - after the
+     * scope exists and before any of the body has run.
+     *
+     * @param scope the module's scope object
+     * @return undefined
+     */
+    public static Object MODULE_SCOPE(final Object scope) {
+        if (scope instanceof ScriptObject sobj) {
+            ModuleRecord.starting(sobj);
+        }
+        return UNDEFINED;
+    }
+
+    /**
      * ES2015 8.1.1.3.4 GetThisBinding: {@code this} inside a derived class
      * constructor, which does not exist until super() has run.
      *

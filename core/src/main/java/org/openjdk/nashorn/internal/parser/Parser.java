@@ -181,6 +181,9 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private boolean defaultNameIsBinding;
 
+    /** Declarations for the names a module's imports bind, collected while parsing them. */
+    private final List<Statement> importedBindings = new ArrayList<>();
+
     /** Namespace for function names where not explicitly given */
     private final Namespace namespace;
 
@@ -5202,17 +5205,47 @@ public class Parser extends AbstractParser implements Loggable {
 
             restoreBlock(body);
             body.setFlag(Block.NEEDS_SCOPE);
-            final Block programBody = new Block(functionToken, finish, body.getFlags() | Block.IS_SYNTHETIC | Block.IS_BODY, body.getStatements());
+            // the names the imports bind are declared first, so that the module's
+            // own code reaches them through its environment rather than through
+            // the global object; they store nothing, the values are installed
+            // before the body runs
+            final List<Statement> moduleStatements = new ArrayList<>(importedBindings);
+            moduleStatements.addAll(body.getStatements());
+            importedBindings.clear();
+            final Block programBody = new Block(functionToken, finish, body.getFlags() | Block.IS_SYNTHETIC | Block.IS_BODY, moduleStatements);
             lc.pop(module);
             lc.pop(script);
             script.setLastToken(token);
 
             expect(EOF);
 
-            script.setModule(module.createModule());
+            final Module parsedModule = module.createModule();
+            verifyUniqueExports(parsedModule, functionToken);
+            script.setModule(parsedModule);
             return createFunctionNode(script, functionToken, ident, Collections.emptyList(), FunctionNode.Kind.MODULE, functionLine, programBody);
         } finally {
             isStrictMode = oldStrictMode;
+        }
+    }
+
+    /**
+     * ES2015 15.2.1.1: a module's exported names have to be unique.
+     *
+     * The names a star export brings in are not known until the graph is linked
+     * and are not checked here; two written out with the same name are an early
+     * error, whichever kind they are.
+     */
+    private void verifyUniqueExports(final Module parsedModule, final long moduleToken) {
+        final Set<String> seen = new HashSet<>();
+        for (final Module.ExportEntry entry : parsedModule.getLocalExportEntries()) {
+            if (!seen.add(entry.getExportName().getName())) {
+                throw error(AbstractParser.message("duplicate.export", entry.getExportName().getName()), moduleToken);
+            }
+        }
+        for (final Module.ExportEntry entry : parsedModule.getIndirectExportEntries()) {
+            if (!seen.add(entry.getExportName().getName())) {
+                throw error(AbstractParser.message("duplicate.export", entry.getExportName().getName()), moduleToken);
+            }
         }
     }
 
@@ -5270,6 +5303,7 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private void importDeclaration() {
         final int startPosition = start;
+        final int importLine = line;
         expect(IMPORT);
         final ParserContextModuleNode module = lc.getCurrentModule();
         if (type == STRING || type == ESCSTRING) {
@@ -5287,11 +5321,20 @@ public class Parser extends AbstractParser implements Loggable {
             } else if (isBindingIdentifier()) {
                 // ImportedDefaultBinding
                 final IdentNode importedDefaultBinding = bindingIdentifier("ImportedBinding");
-                final Module.ImportEntry defaultImport = Module.ImportEntry.importSpecifier(importedDefaultBinding, startPosition, finish);
+                // the name imported is "default"; the identifier written is what
+                // it binds to, and the two are only the same for "import { x }"
+                final IdentNode defaultName = createIdentNode(
+                        Token.recast(importedDefaultBinding.getToken(), IDENT),
+                        importedDefaultBinding.getFinish(), Module.DEFAULT_NAME);
+                final Module.ImportEntry defaultImport =
+                        Module.ImportEntry.importSpecifier(defaultName, importedDefaultBinding, startPosition, finish);
 
                 if (type == COMMARIGHT) {
                     next();
+                    // "import def, { a } from m" binds the default as well as the
+                    // named ones; it used to be dropped on the floor here
                     importEntries = new ArrayList<>();
+                    importEntries.add(defaultImport);
                     if (type == MUL) {
                         importEntries.add(nameSpaceImport(startPosition));
                     } else if (type == LBRACE) {
@@ -5310,9 +5353,28 @@ public class Parser extends AbstractParser implements Loggable {
             module.addModuleRequest(moduleSpecifier);
             for (final Module.ImportEntry importEntry : importEntries) {
                 module.addImportEntry(importEntry.withFrom(moduleSpecifier, finish));
+                declareImportedBinding(importEntry.getLocalName(), importLine);
             }
         }
         expect(SEMICOLON);
+    }
+
+    /**
+     * Declares the name an import binds, so that the module's own code reaches it
+     * through the module's environment rather than through the global object.
+     *
+     * The declaration has no initialiser and so stores nothing: the binding's
+     * value is installed as an accessor before the body runs, because ES2015
+     * 8.1.1.5 makes an import name a binding somewhere else rather than a copy.
+     */
+    private void declareImportedBinding(final IdentNode localName, final int importLine) {
+        if (localName == null || env._parse_only) {
+            // the tree API is shown the module as written, not the declarations
+            // the runtime needs behind it
+            return;
+        }
+        final long varToken = Token.recast(localName.getToken(), VAR);
+        importedBindings.add(new VarNode(importLine, varToken, localName.getFinish(), localName, null));
     }
 
     /**

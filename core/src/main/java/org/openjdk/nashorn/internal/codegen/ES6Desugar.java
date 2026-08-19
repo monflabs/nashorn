@@ -419,7 +419,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(functionNode))));
+                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(moduleEnvironment(functionNode)))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -573,6 +573,33 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(new ExpressionStatement(line, token, finish, checkedThis(token, finish)));
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
+    /**
+     * A module hands over the scope that is its environment, as its first act.
+     *
+     * ES2015 15.2.1.17 gives a module's top level declarations a scope of their
+     * own rather than the global object, and the importing side has to reach
+     * them by name, so every one of them is put in scope. The call is the only
+     * moment at which the imports can be installed: after the scope exists and
+     * before any of the body has run.
+     */
+    private FunctionNode moduleEnvironment(final FunctionNode functionNode) {
+        if (!functionNode.isModule()) {
+            return functionNode;
+        }
+
+        final long token = functionNode.getToken();
+        final int finish = functionNode.getFinish();
+        final Block body = functionNode.getBody();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
+                new RuntimeNode(token, finish, RuntimeNode.Request.MODULE_SCOPE)));
+        statements.addAll(body.getStatements());
+
+        return functionNode.setFlag(lc, FunctionNode.HAS_ALL_VARS_IN_SCOPE)
+                .setBody(lc, body.setStatements(lc, statements));
     }
 
     /**

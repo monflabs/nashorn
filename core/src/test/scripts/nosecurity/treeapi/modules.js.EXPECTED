@@ -31,6 +31,30 @@
     "importEntries": [
       {
         "localName": {
+          "endPosition": "13",
+          "kind": "IDENTIFIER",
+          "name": "myDef",
+          "startPosition": "8"
+        },
+        "endPosition": "38",
+        "kind": "IMPORT_ENTRY",
+        "moduleRequest": {
+          "endPosition": "30",
+          "kind": "IDENTIFIER",
+          "name": "my-mod",
+          "startPosition": "32"
+        },
+        "importName": {
+          "default": "true",
+          "endPosition": "13",
+          "kind": "IDENTIFIER",
+          "name": "default",
+          "startPosition": "8"
+        },
+        "startPosition": "1"
+      },
+      {
+        "localName": {
           "endPosition": "25",
           "kind": "IDENTIFIER",
           "name": "myMod",

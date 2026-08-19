@@ -56,6 +56,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
@@ -661,6 +662,64 @@ public final class Context {
      */
     public static PropertyMap getGlobalMap() {
         return Context.getGlobal().getMap();
+    }
+
+    /**
+     * Compiles and runs a module, and everything it imports.
+     *
+     * @param source the module's source
+     * @return the module record, once its body has finished
+     */
+    public ModuleRecord evaluateModule(final Source source) {
+        return loadModule(source, source.getName()).evaluate();
+    }
+
+    /**
+     * Resolves one module specifier against the module that wrote it.
+     *
+     * ES2015 leaves resolution to the host. A specifier here names a file
+     * relative to the source that imported it, which is what a module written on
+     * disk means by it and what the conformance suite's fixtures rely on.
+     *
+     * @param specifier the text between the quotes
+     * @param referrer  the module the import was written in
+     * @return the module it names, already loaded if it has been asked for before
+     */
+    public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
+        final String base = referrer == null ? null : referrer.getName();
+        final Path resolved = resolveModule(specifier, base);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString());
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Path resolveModule(final String specifier, final String base) {
+        final Path path = Paths.get(specifier);
+        if (path.isAbsolute()) {
+            return Files.isReadable(path) ? path : null;
+        }
+        final Path from = base == null ? null : Paths.get(base).toAbsolutePath().getParent();
+        final Path candidate = from == null ? path.toAbsolutePath() : from.resolve(specifier).normalize();
+        return Files.isReadable(candidate) ? candidate : null;
+    }
+
+    private ModuleRecord loadModule(final Source source, final String name) {
+        final Global global = getGlobal();
+        final ModuleRecord known = global.getModule(name);
+        if (known != null) {
+            return known;
+        }
+
+        final FunctionNode moduleNode = compileModuleNode(source);
+        final ScriptFunction body = getProgramFunction(compileModule(source, moduleNode), global);
+        final ModuleRecord record = new ModuleRecord(name, moduleNode.getModule(), body, global);
+        global.registerModule(name, record);
+        return record;
     }
 
     /**
@@ -1283,6 +1342,32 @@ public final class Context {
 
     private ScriptFunction compileScript(final Source source, final ScriptObject scope, final ErrorManager errMan) {
         return getProgramFunction(compile(source, errMan, this._strict), scope);
+    }
+
+    /**
+     * Parses a module. Its body is a function rather than a program: its top
+     * level declarations belong to the module, not to the global object.
+     */
+    private FunctionNode compileModuleNode(final Source source) {
+        final FunctionNode moduleNode =
+                // the name becomes a method name, so it is the kind that programs use
+                // rather than the path the module was resolved to
+                new Parser(env, source, errors, true, getLogger(Parser.class)).parseModule(":module");
+        if (errors.hasErrors()) {
+            throw new ParserException(errors.getNumberOfErrors() + " module parse error(s) in " + source.getName());
+        }
+        return moduleNode;
+    }
+
+    private synchronized Class<?> compileModule(final Source source, final FunctionNode moduleNode) {
+        final ScriptLoader loader = env._loader_per_compile ? createNewLoader() : scriptLoader;
+        final CodeInstaller installer = new NamedContextCodeInstaller(this, loader);
+        final Compiler compiler = Compiler.forInitialCompilation(installer, source, errors, true);
+        final FunctionNode compiled = compiler.compile(moduleNode, Compiler.CompilationPhases.COMPILE_ALL);
+        if (errors.hasErrors()) {
+            throw new ParserException(errors.getNumberOfErrors() + " module compile error(s) in " + source.getName());
+        }
+        return compiled.getRootClass();
     }
 
     private synchronized Class<?> compile(final Source source, final ErrorManager errMan, final boolean strict) {

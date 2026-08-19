@@ -1992,8 +1992,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if (block.providesScopeCreator()) {
                 scopeObjectCreators.push(creator);
             }
-            // program function: merge scope into global
-            if (isFunctionBody && function.isProgram()) {
+            // program function: merge scope into global. A module is compiled the
+            // same way but keeps its scope to itself - ES2015 15.2.1.17 gives its
+            // top level declarations an environment of their own, and that
+            // environment is what the importing side reads.
+            if (isFunctionBody && function.isProgram() && !function.isModule()) {
                 method.invoke(ScriptRuntime.MERGE_SCOPE);
             }
 
@@ -3055,6 +3058,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(THIS);
         }
 
+        // a module names its own environment, which is its scope
+        final boolean pushesScope = request == Request.MODULE_SCOPE;
+        if (pushesScope) {
+            method.loadCompilerConstant(SCOPE);
+        }
+
         for (final Expression arg : args) {
             loadExpression(arg, TypeBounds.OBJECT);
         }
@@ -3067,7 +3076,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     false,
                     newRuntimeNode.getType(),
                     args.size() + (pushesVarargs ? 1 : 0) + (pushesFrame ? 3 : 0)
-                        + (pushesCallee ? 2 : 0)).toString());
+                        + (pushesCallee ? 2 : 0) + (pushesScope ? 1 : 0)).toString());
 
         method.convert(newRuntimeNode.getType());
     }
