@@ -81,8 +81,26 @@ public final class Test262Selector {
      * {@code intl402} is ECMA-402, a separate standard. {@code staging} is not
      * normative. {@code annexB} is normative-optional and aimed at browser
      * hosts, which Nashorn is not.
+     *
+     * The three async-function directories are ECMAScript 2017. They are named
+     * here rather than caught by the feature rule because the tests in them
+     * predate the {@code features:} convention and declare nothing.
      */
-    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging", "annexB");
+    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging", "annexB",
+            "AsyncFunction", "async-function", "async-generator");
+
+    /**
+     * Filename fragments that mark a test of something later than ES2015, in a
+     * directory that is otherwise in scope.
+     *
+     * Trailing commas in a function's parameter list or argument list are
+     * ECMAScript 2017. The tests are procedurally generated and named for what
+     * they cover, and like the async ones they declare no feature, so the name
+     * is what there is to go on. A trailing comma in an array or object literal
+     * is ES5 and is tested under other names.
+     */
+    private static final Set<String> EXCLUDED_NAME_PARTS = Set.of(
+            "params-trailing-comma", "args-trailing-comma");
 
     private Test262Selector() {
     }
@@ -103,9 +121,17 @@ public final class Test262Selector {
             }
         }
 
+        final String fileName = testFile.getFileName().toString();
+
         // _FIXTURE files are imported by module tests, never run on their own
-        if (testFile.getFileName().toString().endsWith("_FIXTURE.js")) {
+        if (fileName.endsWith("_FIXTURE.js")) {
             return false;
+        }
+
+        for (final String part : EXCLUDED_NAME_PARTS) {
+            if (fileName.contains(part)) {
+                return false;
+            }
         }
 
         if (frontmatter == null) {

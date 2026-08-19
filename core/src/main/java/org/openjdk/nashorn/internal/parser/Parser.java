@@ -1226,7 +1226,21 @@ public class Parser extends AbstractParser implements Loggable {
             isStrictMode = oldStrictMode;
         }
 
-        return classTail(classLineNumber, classToken, className, isStatement);
+        // ES2015 14.5.15 / 12.14.4: an anonymous class expression takes the name
+        // of the binding it is assigned to. It names only the constructor - there
+        // is no binding of that name inside the class body, which is what a
+        // written class name would add - so it is carried separately.
+        final String constructorName;
+        if (className != null) {
+            constructorName = className.getName();
+        } else {
+            defaultNameIsBinding = false;
+            final String inferred = getDefaultFunctionName();
+            constructorName = !isStatement && defaultNameIsBinding && inferred != null && isValidIdentifier(inferred)
+                    ? inferred : null;
+        }
+
+        return classTail(classLineNumber, classToken, className, constructorName, isStatement);
     }
 
     private static final class ClassElementKey {
@@ -1276,7 +1290,7 @@ public class Parser extends AbstractParser implements Loggable {
      *   ;
      */
     private ClassNode classTail(final int classLineNumber, final long classToken,
-            final IdentNode className, final boolean isStatement) {
+            final IdentNode className, final String constructorName, final boolean isStatement) {
         final boolean oldStrictMode = isStrictMode;
         isStrictMode = true;
         try {
@@ -1320,9 +1334,11 @@ public class Parser extends AbstractParser implements Loggable {
                         // name is fixed here rather than at run time because the
                         // name property is backed by an internal accessor that
                         // cannot be redefined.
-                        constructor = className == null
-                                ? classElement
-                                : classElement.setValue(((FunctionNode)classElement.getValue()).setName(null, className.getName()));
+                        // an anonymous class has an anonymous constructor, whatever
+                        // the element it was written as is called
+                        constructor = constructorName == null
+                                ? classElement.setValue(((FunctionNode)classElement.getValue()).setFlag(null, FunctionNode.IS_ANONYMOUS))
+                                : classElement.setValue(((FunctionNode)classElement.getValue()).setName(null, constructorName));
                     } else {
                         throw error(AbstractParser.message("multiple.constructors"), classElementToken);
                     }
@@ -1361,7 +1377,7 @@ public class Parser extends AbstractParser implements Loggable {
             expect(RBRACE);
 
             if (constructor == null) {
-                constructor = createDefaultClassConstructor(classLineNumber, classToken, lastToken, className, classHeritage != null);
+                constructor = createDefaultClassConstructor(classLineNumber, classToken, lastToken, className, constructorName, classHeritage != null);
             }
 
             classElements.trimToSize();
@@ -1371,7 +1387,7 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
-    private PropertyNode createDefaultClassConstructor(final int classLineNumber, final long classToken, final long lastToken, final IdentNode className, final boolean subclass) {
+    private PropertyNode createDefaultClassConstructor(final int classLineNumber, final long classToken, final long lastToken, final IdentNode className, final String constructorName, final boolean subclass) {
         final int ctorFinish = finish;
         final List<Statement> statements;
         final List<IdentNode> parameters;
@@ -1389,7 +1405,9 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         final Block body = new Block(classToken, ctorFinish, Block.IS_BODY, statements);
-        final IdentNode ctorName = className != null ? className : createIdentNode(identToken, ctorFinish, CONSTRUCTOR_NAME);
+        final IdentNode ctorName = constructorName != null
+                ? createIdentNode(identToken, ctorFinish, constructorName)
+                : createIdentNode(identToken, ctorFinish, CONSTRUCTOR_NAME);
         final ParserContextFunctionNode function = createParserContextFunctionNode(ctorName, classToken, FunctionNode.Kind.NORMAL, classLineNumber, parameters);
         function.setLastToken(lastToken);
 
@@ -1403,7 +1421,7 @@ public class Parser extends AbstractParser implements Loggable {
             function.setFlag(FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR);
             function.setFlag(FunctionNode.ES6_HAS_DIRECT_SUPER);
         }
-        if (className == null) {
+        if (constructorName == null) {
             function.setFlag(FunctionNode.IS_ANONYMOUS);
         }
 

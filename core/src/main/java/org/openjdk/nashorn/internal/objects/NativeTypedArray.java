@@ -133,7 +133,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object buffer(final Object self) {
-        return view(self).getArrayBuffer();
+        return described(self).getArrayBuffer();
     }
 
     /**
@@ -144,7 +144,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static int byteLength(final Object self) {
-        return view(self).getViewByteLength();
+        return described(self).getViewByteLength();
     }
 
     /**
@@ -155,7 +155,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static int byteOffset(final Object self) {
-        return view(self).getViewByteOffset();
+        return described(self).getViewByteOffset();
     }
 
     /**
@@ -166,7 +166,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static int length(final Object self) {
-        return view(self).getElementLength();
+        return described(self).getElementLength();
     }
 
     /**
@@ -527,11 +527,29 @@ public final class NativeTypedArray extends ScriptObject {
      * else: ES2015 22.2.3.5.1 rejects a this that is not a typed array before it
      * looks at any argument.
      */
-    private static ArrayBufferView view(final Object self) {
+    /**
+     * The receiver as a typed array, without asking whether its buffer is still
+     * there.
+     *
+     * ES2015 22.2.3.1-3 and 22.2.3.17: the four accessors that describe a view
+     * answer for a detached one rather than failing - the buffer as it was, and
+     * zero for the three lengths.
+     */
+    private static ArrayBufferView described(final Object self) {
         if (self instanceof ArrayBufferView view) {
             return view;
         }
         throw typeError("not.a.typed.array", ScriptRuntime.safeToString(self));
+    }
+
+    private static ArrayBufferView view(final Object self) {
+        final ArrayBufferView view = described(self);
+        if (view.isDetached()) {
+            // ES2015 22.2.3.5.1 ValidateTypedArray: a detached buffer is checked
+            // for before any argument is even looked at
+            throw typeError("detached.array.buffer");
+        }
+        return view;
     }
 
     /**

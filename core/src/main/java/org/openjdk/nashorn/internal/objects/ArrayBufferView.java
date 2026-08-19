@@ -110,15 +110,20 @@ public abstract class ArrayBufferView extends ScriptObject {
     }
 
     int getViewByteOffset() {
-        return byteOffset;
+        return isDetached() ? 0 : byteOffset;
     }
 
     int getViewByteLength() {
-        return ((TypedArrayData<?>)getArray()).getElementLength() * bytesPerElement();
+        return isDetached() ? 0 : ((TypedArrayData<?>)getArray()).getElementLength() * bytesPerElement();
     }
 
     int getElementLength() {
-        return elementLength();
+        return isDetached() ? 0 : elementLength();
+    }
+
+    /** ES2015 24.1.1.2: a view over a detached buffer has nothing to look at. */
+    boolean isDetached() {
+        return buffer.isDetached();
     }
 
     @Override

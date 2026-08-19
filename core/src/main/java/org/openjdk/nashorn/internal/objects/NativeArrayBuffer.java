@@ -38,6 +38,8 @@ import org.openjdk.nashorn.internal.objects.annotations.SpecializedFunction;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.api.scripting.ScriptObjectMirror;
+import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 
@@ -48,6 +50,17 @@ import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 @ScriptClass("ArrayBuffer")
 public final class NativeArrayBuffer extends ScriptObject {
     private final ByteBuffer nb;
+
+    /**
+     * Whether the host has detached this buffer.
+     *
+     * ES2015 24.1.1.3 DetachArrayBuffer is not reachable from a script; it exists
+     * for hosts that transfer a buffer elsewhere, and the conformance suite asks
+     * for it so that it can check what every operation over a detached buffer
+     * does. A detached buffer has a byte length of zero and every view over it
+     * becomes empty.
+     */
+    private volatile boolean detached;
 
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
@@ -141,6 +154,32 @@ public final class NativeArrayBuffer extends ScriptObject {
 
     ByteBuffer getNioBuffer() {
         return nb;
+    }
+
+    /**
+     * ES2015 24.1.1.3 DetachArrayBuffer, for a host that hands the storage to
+     * someone else. Not reachable from a script: the method is deliberately
+     * unannotated, so nasgen puts no property on ArrayBuffer for it.
+     *
+     * @param buffer the buffer to detach
+     */
+    public static void detach(final Object buffer) {
+        // a host reaches this through Java.type, so the buffer arrives wrapped
+        final Object target = buffer instanceof ScriptObjectMirror mirror
+                ? ScriptObjectMirror.unwrap(mirror, Context.getGlobal())
+                : buffer;
+        if (target instanceof NativeArrayBuffer arrayBuffer) {
+            arrayBuffer.detached = true;
+            return;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(buffer));
+    }
+
+    /**
+     * @return whether this buffer's storage has been taken away
+     */
+    public boolean isDetached() {
+        return detached;
     }
 
     @Override
@@ -238,7 +277,7 @@ public final class NativeArrayBuffer extends ScriptObject {
     }
 
     int getByteLength() {
-        return nb.limit();
+        return detached ? 0 : nb.limit();
     }
 
     ByteBuffer getBuffer() {
