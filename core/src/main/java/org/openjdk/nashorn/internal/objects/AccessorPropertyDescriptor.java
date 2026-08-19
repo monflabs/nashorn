@@ -48,21 +48,22 @@ import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
  */
 @ScriptClass("AccessorPropertyDescriptor")
 public final class AccessorPropertyDescriptor extends ScriptObject implements PropertyDescriptor {
-    /** is this property configurable? */
-    @Property
-    public Object configurable;
-
-    /** is this property enumerable? */
-    @Property
-    public Object enumerable;
-
-    /** getter for property */
+    /** The getter. ES2015 6.2.4.4 creates a descriptor's fields in this order,
+     *  and Object.keys of one shows it. */
     @Property
     public Object get;
 
-    /** setter for property */
+    /** The setter */
     @Property
     public Object set;
+
+    /** Is the property enumerable */
+    @Property
+    public Object enumerable;
+
+    /** Is the property configurable */
+    @Property
+    public Object configurable;
 
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;

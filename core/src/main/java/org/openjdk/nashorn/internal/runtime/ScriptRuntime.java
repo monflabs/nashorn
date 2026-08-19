@@ -620,6 +620,25 @@ public final class ScriptRuntime {
     }
 
     /**
+     * ES2015 7.2.10 SameValueZero, which is SameValue except that it does not
+     * distinguish the two zeroes - the comparison Array.prototype.includes and
+     * the Map and Set families use, so that a key of -0 is found by 0 while NaN
+     * is still found by NaN.
+     *
+     * @param x one value
+     * @param y the other
+     * @return whether they are the same for this purpose
+     */
+    public static boolean sameValueZero(final Object x, final Object y) {
+        if (x instanceof Number a && y instanceof Number b) {
+            final double dx = a.doubleValue();
+            final double dy = b.doubleValue();
+            return dx == dy || Double.isNaN(dx) && Double.isNaN(dy);
+        }
+        return sameValue(x, y);
+    }
+
+    /**
      * Generic implementation of ECMA 9.12 - SameValue algorithm
      *
      * @param x first value to compare

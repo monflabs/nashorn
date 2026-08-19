@@ -1488,6 +1488,38 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * ECMAScript 2016 22.1.3.11 Array.prototype.includes ( searchElement [ , fromIndex ] )
+     *
+     * Unlike indexOf it compares with SameValueZero, so it finds a NaN that
+     * indexOf cannot, and it does not skip holes: a missing element reads as
+     * undefined and matches one.
+     *
+     * @param self          the array
+     * @param searchElement what to look for
+     * @param fromIndex     where to start, negative counting from the end
+     * @return whether it is there
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static boolean includes(final Object self, final Object searchElement, final Object fromIndex) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            return false;
+        }
+        final long length = JSType.toUint32(sobj.getLength());
+        if (length == 0) {
+            return false;
+        }
+        final long relative = JSType.toLong(fromIndex);
+        long k = relative < 0 ? Math.max(length + relative, 0) : Math.min(relative, length);
+        for (; k < length; k++) {
+            if (ScriptRuntime.sameValueZero(searchElement, sobj.get(k))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * ECMA 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
      *
      * @param self self reference

@@ -1465,6 +1465,59 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
+     * ECMAScript 2017 21.1.3.14 String.prototype.padStart(maxLength [, fillString])
+     *
+     * @param self       self reference
+     * @param maxLength  the length to reach
+     * @param fillString what to pad with, a space by default
+     * @return the padded string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static String padStart(final Object self, final Object maxLength, final Object fillString) {
+        return pad(self, maxLength, fillString, true);
+    }
+
+    /**
+     * ECMAScript 2017 21.1.3.13 String.prototype.padEnd(maxLength [, fillString])
+     *
+     * @param self       self reference
+     * @param maxLength  the length to reach
+     * @param fillString what to pad with, a space by default
+     * @return the padded string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static String padEnd(final Object self, final Object maxLength, final Object fillString) {
+        return pad(self, maxLength, fillString, false);
+    }
+
+    /**
+     * ES2017 21.1.3.15 StringPad, the body both padding methods share.
+     *
+     * The order matters and the suite checks it: the receiver is coerced first,
+     * then the length, then the filler - so a filler whose toString throws does
+     * so after the length has already been read.
+     */
+    private static String pad(final Object self, final Object maxLength, final Object fillString,
+            final boolean atStart) {
+        final String str = checkObjectToString(self);
+        final long max = JSType.toLong(maxLength);
+        if (max <= str.length()) {
+            return str;
+        }
+        final String filler = fillString == UNDEFINED ? " " : JSType.toString(fillString);
+        if (filler.isEmpty()) {
+            return str;
+        }
+
+        final int padding = (int)Math.min(max - str.length(), Integer.MAX_VALUE - str.length());
+        final StringBuilder sb = new StringBuilder(padding);
+        while (sb.length() < padding) {
+            sb.append(filler, 0, Math.min(filler.length(), padding - sb.length()));
+        }
+        return atStart ? sb + str : str + sb;
+    }
+
+    /**
      * ECMAScript 2015 21.1.3.13 String.prototype.repeat(count)
      *
      * @param self  self reference

@@ -2904,6 +2904,18 @@ public class Parser extends AbstractParser implements Loggable {
 
             final Expression expression = expression();
 
+            if (type == COMMARIGHT) {
+                // "(a, b,) => ..." - a trailing comma is only legal here because
+                // the parentheses turn out to hold an arrow function's parameter
+                // list (ES2017 14.2), so the arrow has to follow. Anywhere else
+                // the comma operator wants an operand after it.
+                next();
+                expectDontAdvance(RPAREN);
+                nextOrEOL();
+                expectDontAdvance(ARROW);
+                return new ExpressionList(primaryToken, finish, List.of(expression));
+            }
+
             expect(RPAREN);
 
             return expression;
@@ -3786,6 +3798,11 @@ public class Parser extends AbstractParser implements Loggable {
             // Comma prior to every argument except the first.
             if (!first) {
                 expect(COMMARIGHT);
+                // ES2017 12.3.6: an argument list may end with a comma, so that
+                // adding an argument does not touch the line before it
+                if (type == RPAREN) {
+                    break;
+                }
             } else {
                 first = false;
             }
@@ -4089,6 +4106,12 @@ public class Parser extends AbstractParser implements Loggable {
             // Comma prior to every argument except the first.
             if (!first) {
                 expect(COMMARIGHT);
+                // ES2017 14.1: a parameter list may end with a comma too - but
+                // not after a rest parameter, which the loop below rejects by
+                // requiring the list to end where the rest parameter does
+                if (type == endType) {
+                    break;
+                }
             } else {
                 first = false;
             }
@@ -4678,6 +4701,13 @@ public class Parser extends AbstractParser implements Loggable {
     protected Expression expression() {
         Expression assignmentExpression = assignmentExpression(false);
         while (type == COMMARIGHT) {
+            if (T(k + 1) == RPAREN) {
+                // "(a, b,)" - the comma ends an arrow function's parameter list
+                // rather than joining two operands (ES2017 14.2), so it is left
+                // for whoever opened the parenthesis to make sense of. The comma
+                // operator would want something after it.
+                break;
+            }
             final long commaToken = token;
             next();
 

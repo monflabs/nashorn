@@ -449,6 +449,84 @@ public final class NativeObject {
     }
 
     /**
+     * ECMAScript 2017 19.1.2.21 Object.values ( O )
+     *
+     * @param self self reference
+     * @param obj  the object
+     * @return its own enumerable string-keyed property values, in key order
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static ScriptObject values(final Object self, final Object obj) {
+        return new NativeArray(entries(obj, false));
+    }
+
+    /**
+     * ECMAScript 2017 19.1.2.5 Object.entries ( O )
+     *
+     * @param self self reference
+     * @param obj  the object
+     * @return one two-element array per own enumerable string-keyed property
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static ScriptObject entries(final Object self, final Object obj) {
+        return new NativeArray(entries(obj, true));
+    }
+
+    /**
+     * The shared body of Object.values and Object.entries (ES2017 7.3.21
+     * EnumerableOwnProperties).
+     *
+     * A property is read only after it has been found enumerable, and a property
+     * a getter deletes while the walk is under way is simply not there any more.
+     */
+    private static Object[] entries(final Object obj, final boolean withKeys) {
+        final ScriptObject sobj = Global.toObject(obj) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw notAnObject(obj);
+        }
+        final List<Object> collected = new ArrayList<>();
+        for (final String key : sobj.getOwnKeys(false)) {
+            final Object descriptor = sobj.getOwnPropertyDescriptor(key);
+            if (!(descriptor instanceof ScriptObject own) || !JSType.toBoolean(own.get("enumerable"))) {
+                continue;
+            }
+            final Object value = sobj.get(key);
+            collected.add(withKeys ? new NativeArray(new Object[] { key, value }) : value);
+        }
+        return collected.toArray();
+    }
+
+    /**
+     * ECMAScript 2017 19.1.2.9 Object.getOwnPropertyDescriptors ( O )
+     *
+     * @param self self reference
+     * @param obj  the object
+     * @return an object holding one descriptor per own property, symbols included
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static ScriptObject getOwnPropertyDescriptors(final Object self, final Object obj) {
+        final ScriptObject sobj = Global.toObject(obj) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw notAnObject(obj);
+        }
+        final ScriptObject descriptors = Global.newEmptyInstance();
+        for (final Object key : sobj.getOwnKeys(true)) {
+            addDescriptor(descriptors, sobj, key);
+        }
+        for (final Object key : sobj.getOwnSymbols(true)) {
+            addDescriptor(descriptors, sobj, key);
+        }
+        return descriptors;
+    }
+
+    private static void addDescriptor(final ScriptObject descriptors, final ScriptObject sobj, final Object key) {
+        final Object descriptor = sobj.getOwnPropertyDescriptor(key);
+        if (descriptor != ScriptRuntime.UNDEFINED) {
+            descriptors.set(key, descriptor, 0);
+        }
+    }
+
+    /**
      * ECMA 15.2.3.14 Object.keys ( O )
      *
      * @param self self reference
