@@ -192,14 +192,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         if (bound != null) {
             return bound;
         }
+        if (statement instanceof VarNode varNode) {
+            return expandDestructuringInitialiser(varNode);
+        }
         if (!(statement instanceof ExpressionStatement expressionStatement)) {
             return null;
         }
         final Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryNode assignment)
-                || !assignment.isTokenType(TokenType.ASSIGN)
-                || !isPattern(assignment.lhs())) {
+        if (!(expression instanceof BinaryNode assignment) || !assignment.isTokenType(TokenType.ASSIGN)) {
             return null;
+        }
+        if (!isPattern(assignment.lhs())) {
+            return expandChainedDestructuring(expressionStatement, assignment);
         }
 
         temporaries = 0;
@@ -207,6 +211,56 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> bindings = new ArrayList<>();
         destructure(expressionStatement, assignment.lhs(), assignment.rhs(), bindings);
         return bindings;
+    }
+
+    /**
+     * {@code var x = [a, b] = xs}, the same thing in a declaration.
+     */
+    private List<Statement> expandDestructuringInitialiser(final VarNode varNode) {
+        if (!(varNode.getInit() instanceof BinaryNode inner)
+                || !inner.isTokenType(TokenType.ASSIGN)
+                || !isPattern(inner.lhs())) {
+            return null;
+        }
+
+        temporaries = 0;
+        declaring = false;
+        final String value = newTemporary();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(temporaryFor(varNode, value, inner.rhs()));
+        destructure(varNode, inner.lhs(), ref(varNode, value), statements);
+        statements.add(varNode.setInit(ref(varNode, value)));
+        return statements;
+    }
+
+    /**
+     * {@code x = [a, b] = xs}, a destructuring assignment used for its value.
+     *
+     * ES2015 12.14.5 says the value of one is the object it destructured, which a
+     * pattern taken apart into a sequence of bindings no longer leaves anywhere.
+     * The right hand side is therefore read into a temporary that the pattern is
+     * matched against and that the outer assignment then takes.
+     */
+    private List<Statement> expandChainedDestructuring(final ExpressionStatement statement,
+            final BinaryNode assignment) {
+        if (!(assignment.rhs() instanceof BinaryNode inner)
+                || !inner.isTokenType(TokenType.ASSIGN)
+                || !isPattern(inner.lhs())) {
+            return null;
+        }
+
+        temporaries = 0;
+        declaring = false;
+        final String value = newTemporary();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(temporaryFor(statement, value, inner.rhs()));
+        destructure(statement, inner.lhs(), ref(statement, value), statements);
+        statements.add(new ExpressionStatement(statement.getLineNumber(), statement.getToken(),
+                statement.getFinish(),
+                new BinaryNode(assignment.getToken(), assignment.lhs(), ref(statement, value))));
+        return statements;
     }
 
     /**
