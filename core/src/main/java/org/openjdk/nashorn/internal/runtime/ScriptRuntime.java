@@ -57,6 +57,7 @@ import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.ir.debug.JSONWriter;
 import org.openjdk.nashorn.internal.objects.AbstractIterator;
 import org.openjdk.nashorn.internal.objects.Global;
+import org.openjdk.nashorn.internal.objects.NativeSymbol;
 import org.openjdk.nashorn.internal.objects.NativeArray;
 import org.openjdk.nashorn.internal.objects.NativeObject;
 import org.openjdk.nashorn.internal.objects.NativeJava;
@@ -204,6 +205,15 @@ public final class ScriptRuntime {
      * @return string representation as object
      */
     public static String builtinObjectToString(final Object self) {
+        // ES2015 19.1.3.6: a string-valued Symbol.toStringTag names the object
+        // instead of its class.
+        if (WellKnownSymbols.toStringTagInstalled() && self instanceof ScriptObject sobj) {
+            final Object tag = sobj.get(NativeSymbol.toStringTag);
+            if (JSType.isString(tag)) {
+                return "[object " + tag + ']';
+            }
+        }
+
         String className;
         // Spec tells us to convert primitives by ToObject..
         // But we don't need to -- all we need is the right class name
@@ -1052,6 +1062,16 @@ public final class ScriptRuntime {
      * @return true if {@code obj} is an instanceof {@code clazz}
      */
     public static boolean INSTANCEOF(final Object obj, final Object clazz) {
+        // ES2015 12.9.4: Symbol.hasInstance takes over the operator entirely when
+        // present. The flag keeps the ordinary path free of a symbol lookup until
+        // some script actually installs one.
+        if (WellKnownSymbols.hasInstanceInstalled() && clazz instanceof ScriptObject target) {
+            final Object hasInstance = target.get(NativeSymbol.hasInstance);
+            if (hasInstance instanceof ScriptFunction handler) {
+                return JSType.toBoolean(apply(handler, clazz, obj));
+            }
+        }
+
         if (clazz instanceof ScriptFunction) {
             if (obj instanceof ScriptObject) {
                 return ((ScriptObject)clazz).isInstance((ScriptObject)obj);

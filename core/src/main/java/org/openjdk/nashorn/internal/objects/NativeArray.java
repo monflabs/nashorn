@@ -61,6 +61,7 @@ import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
+import org.openjdk.nashorn.internal.runtime.WellKnownSymbols;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Undefined;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayData;
@@ -788,6 +789,24 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     private static void concatToList(final ArrayList<Object> list, final Object obj) {
         final boolean isScriptArray  = isArray(obj);
         final boolean isScriptObject = isScriptArray || obj instanceof ScriptObject;
+
+        // ES2015 22.1.3.1.1: Symbol.isConcatSpreadable overrides the decision
+        // either way. The flag keeps the lookup off concat until one is installed.
+        if (WellKnownSymbols.isConcatSpreadableInstalled() && obj instanceof ScriptObject sobj) {
+            final Object spreadable = sobj.get(NativeSymbol.isConcatSpreadable);
+            if (spreadable != ScriptRuntime.UNDEFINED) {
+                if (JSType.toBoolean(spreadable)) {
+                    final long length = JSType.toUint32(sobj.getLength());
+                    for (long i = 0; i < length; i++) {
+                        list.add(sobj.get(i));
+                    }
+                } else {
+                    list.add(obj);
+                }
+                return;
+            }
+        }
+
         if (isScriptArray || obj instanceof Iterable || obj instanceof JSObject || (obj != null && obj.getClass().isArray())) {
             final Iterator<Object> iter = arrayLikeIterator(obj, true);
             if (iter.hasNext()) {

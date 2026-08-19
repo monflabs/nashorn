@@ -2566,6 +2566,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @return Added property.
      */
     private Property addSpillProperty(final Object key, final int flags, final Object value, final boolean hasInitialValue) {
+        // Every symbol-keyed property is created here, which makes this the one
+        // place that has to notice a well-known symbol being installed.
+        WellKnownSymbols.note(key);
+
         final PropertyMap propertyMap = getMap();
         final int fieldSlot  = propertyMap.getFreeFieldSlot();
         final int propertyFlags = flags | (useDualFields() ? Property.DUAL_FIELDS : 0);

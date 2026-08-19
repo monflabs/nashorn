@@ -73,6 +73,46 @@ public final class NativeSymbol extends ScriptObject {
     @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "iterator")
     public static final Symbol iterator = new Symbol("Symbol.iterator");
 
+    /** ECMAScript 2015 Symbol.hasInstance, consulted by instanceof. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "hasInstance")
+    public static final Symbol hasInstance = new Symbol("Symbol.hasInstance");
+
+    /** ECMAScript 2015 Symbol.isConcatSpreadable, consulted by Array.prototype.concat. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "isConcatSpreadable")
+    public static final Symbol isConcatSpreadable = new Symbol("Symbol.isConcatSpreadable");
+
+    /** ECMAScript 2015 Symbol.match. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "match")
+    public static final Symbol match = new Symbol("Symbol.match");
+
+    /** ECMAScript 2015 Symbol.replace. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "replace")
+    public static final Symbol replace = new Symbol("Symbol.replace");
+
+    /** ECMAScript 2015 Symbol.search. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "search")
+    public static final Symbol search = new Symbol("Symbol.search");
+
+    /** ECMAScript 2015 Symbol.species, the constructor a builtin derives from. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "species")
+    public static final Symbol species = new Symbol("Symbol.species");
+
+    /** ECMAScript 2015 Symbol.split. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "split")
+    public static final Symbol split = new Symbol("Symbol.split");
+
+    /** ECMAScript 2015 Symbol.toPrimitive, consulted when coercing to a primitive. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "toPrimitive")
+    public static final Symbol toPrimitive = new Symbol("Symbol.toPrimitive");
+
+    /** ECMAScript 2015 Symbol.toStringTag, consulted by Object.prototype.toString. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "toStringTag")
+    public static final Symbol toStringTag = new Symbol("Symbol.toStringTag");
+
+    /** ECMAScript 2015 Symbol.unscopables, consulted by with. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "unscopables")
+    public static final Symbol unscopables = new Symbol("Symbol.unscopables");
+
     NativeSymbol(final Symbol symbol) {
         this(symbol, Global.instance());
     }

@@ -481,6 +481,16 @@ public enum JSType {
     }
 
     private static Object toPrimitive(final ScriptObject sobj, final Class<?> hint) {
+        // ES2015 7.1.1: Symbol.toPrimitive replaces the whole OrdinaryToPrimitive
+        // dance when present. The flag keeps a symbol lookup off a path that runs
+        // on every coercion until some script installs one.
+        if (WellKnownSymbols.toPrimitiveInstalled()) {
+            final Object exotic = sobj.get(NativeSymbol.toPrimitive);
+            if (exotic instanceof ScriptFunction handler) {
+                final String name = hint == null ? "default" : hint == String.class ? "string" : "number";
+                return requirePrimitive(ScriptRuntime.apply(handler, sobj, name));
+            }
+        }
         return requirePrimitive(sobj.getDefaultValue(hint));
     }
 
