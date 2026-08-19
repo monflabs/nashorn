@@ -112,6 +112,10 @@ public class RuntimeNode extends Expression {
         GENERATOR_ENTER(TokenType.VOID, Type.OBJECT, 0),
         /** The prologue of a class constructor, which may only be reached with new. */
         REQUIRE_NEW(TokenType.VOID, Type.OBJECT, 0),
+        /** ES2015 8.1.1.3.4 GetThisBinding, for a derived class constructor */
+        REQUIRE_THIS_INITIALIZED(TokenType.VOID, Type.OBJECT, 2),
+        /** ES2015 8.1.1.3.1 BindThisValue, for a derived class constructor */
+        BIND_THIS(TokenType.VOID, Type.OBJECT, 2),
         /** yield - suspends the generator body. */
         YIELD(TokenType.VOID, Type.OBJECT, 1),
         /** yield* - delegates to another iterable. */

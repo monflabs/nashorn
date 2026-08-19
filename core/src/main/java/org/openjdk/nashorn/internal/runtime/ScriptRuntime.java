@@ -1765,6 +1765,39 @@ public final class ScriptRuntime {
      * @return the value the generator is resumed with
      */
     /**
+     * ES2015 8.1.1.3.4 GetThisBinding: {@code this} inside a derived class
+     * constructor, which does not exist until super() has run.
+     *
+     * The specification models this as a binding in a temporal dead zone rather
+     * than as an object that is not ready, and a script can tell the difference:
+     * reading it early is a ReferenceError, not a look at a half-built object.
+     *
+     * @param initialized whether super() has returned
+     * @param thiz        the object being built
+     * @return the object
+     */
+    public static Object REQUIRE_THIS_INITIALIZED(final Object initialized, final Object thiz) {
+        if (!JSType.toBoolean(initialized)) {
+            throw referenceError("this.before.super");
+        }
+        return thiz;
+    }
+
+    /**
+     * ES2015 8.1.1.3.1 BindThisValue, run when super() returns.
+     *
+     * @param initialized whether super() has already run in this constructor
+     * @param result      the super call's result, evaluated before this is called
+     * @return true, to be stored back into the flag
+     */
+    public static Object BIND_THIS(final Object initialized, final Object result) {
+        if (JSType.toBoolean(initialized)) {
+            throw referenceError("super.called.twice");
+        }
+        return Boolean.TRUE;
+    }
+
+    /**
      * ES2015 9.2.2: a class constructor may only be reached with new.
      *
      * The test is the same one new.target answers, so it inherits the same

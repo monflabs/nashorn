@@ -26,10 +26,13 @@
 package org.openjdk.nashorn.internal.codegen;
 
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
+import org.openjdk.nashorn.internal.ir.CallNode;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.ClassNode;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -55,6 +58,7 @@ import org.openjdk.nashorn.internal.ir.TryNode;
 import org.openjdk.nashorn.internal.ir.UnaryNode;
 import org.openjdk.nashorn.internal.ir.VarNode;
 import org.openjdk.nashorn.internal.ir.visitor.NodeVisitor;
+import org.openjdk.nashorn.internal.ir.visitor.SimpleNodeVisitor;
 import org.openjdk.nashorn.internal.parser.Token;
 import org.openjdk.nashorn.internal.parser.TokenType;
 
@@ -97,6 +101,17 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private static final String ARROW_THIS = ":arrowThis";
 
+    /**
+     * Whether super() has run, in a derived class constructor.
+     *
+     * ES2015 8.1.1.3 gives such a constructor a this binding that does not exist
+     * until super() returns, and a script can tell: reading this early is a
+     * ReferenceError, not a look at a half-built object. Nashorn allocates the
+     * object before the constructor is entered, so the binding's state is kept
+     * beside it.
+     */
+    private static final String THIS_INITIALIZED = ":thisInitialized";
+
     /** The global binding a default test compares against. */
     private static final String UNDEFINED_NAME = "undefined";
 
@@ -109,6 +124,12 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * but a declaration's are the initialising ones.
      */
     private boolean declaring;
+
+    /**
+     * For each derived class constructor being desugared, whether its this
+     * binding can be tracked - see {@link #bindThis}.
+     */
+    private final Deque<Boolean> bindsThis = new ArrayDeque<>();
 
     ES6Desugar() {
         super(new LexicalContext());
@@ -167,6 +188,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             // already rewritten, or none of our business
             return null;
         }
+        final List<Statement> bound = bindThisStatement(statement);
+        if (bound != null) {
+            return bound;
+        }
         if (!(statement instanceof ExpressionStatement expressionStatement)) {
             return null;
         }
@@ -213,6 +238,73 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * compiled variable arity and that array exists.
      */
     /**
+     * {@code super(...);} in a derived class constructor, which is what brings
+     * its {@code this} into existence.
+     *
+     * The flag is set from the call's own result, so the parent constructor has
+     * finished by the time the binding is made - and a second super() in the same
+     * constructor is caught, which is the rule the specification states as
+     * binding a value that is already bound.
+     */
+    private List<Statement> bindThisStatement(final Statement statement) {
+        if (!Boolean.TRUE.equals(bindsThis.peek())
+                || !(statement instanceof ExpressionStatement expressionStatement)
+                || !isDirectSuperCall(expressionStatement.getExpression())) {
+            return null;
+        }
+        final long token = statement.getToken();
+        final int finish = statement.getFinish();
+        final Expression bind = new BinaryNode(Token.recast(token, TokenType.ASSIGN),
+                new IdentNode(token, finish, THIS_INITIALIZED),
+                new RuntimeNode(token, finish, RuntimeNode.Request.BIND_THIS,
+                        new IdentNode(token, finish, THIS_INITIALIZED),
+                        expressionStatement.getExpression()));
+        return List.of(new ExpressionStatement(statement.getLineNumber(), token, finish, bind));
+    }
+
+    private static boolean isDirectSuperCall(final Expression expression) {
+        return expression instanceof CallNode call
+                && call.getFunction() instanceof IdentNode ident && ident.isDirectSuper();
+    }
+
+    /**
+     * Whether every super() in a constructor is a statement on its own.
+     *
+     * It nearly always is, and when it is not - "var o = super();" - the binding
+     * cannot be tracked from here, because the node that would record it has to
+     * remain a call. Such a constructor keeps the older behaviour of a this that
+     * simply exists from the start, which is wrong but not newly wrong.
+     */
+    private static boolean superCallsAreStatements(final Block body) {
+        final int[] counts = new int[2];
+        body.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterCallNode(final CallNode callNode) {
+                if (isDirectSuperCall(callNode)) {
+                    counts[0]++;
+                }
+                return true;
+            }
+
+            @Override
+            public boolean enterExpressionStatement(final ExpressionStatement expressionStatement) {
+                if (isDirectSuperCall(expressionStatement.getExpression())) {
+                    counts[1]++;
+                }
+                return true;
+            }
+        });
+        return counts[0] == counts[1];
+    }
+
+    /** {@code this}, checked against the binding having been made. */
+    private static Expression checkedThis(final long token, final int finish) {
+        return new RuntimeNode(token, finish, RuntimeNode.Request.REQUIRE_THIS_INITIALIZED,
+                new IdentNode(token, finish, THIS_INITIALIZED),
+                new IdentNode(token, finish, CompilerConstants.THIS.symbolName()));
+    }
+
+    /**
      * {@code this} inside an arrow function, which is the enclosing function's.
      *
      * The nearest enclosing function that is not itself an arrow is the one that
@@ -222,18 +314,32 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveIdentNode(final IdentNode identNode) {
-        if (!CompilerConstants.THIS.symbolName().equals(identNode.getName())
-                || lc.getCurrentFunction().getKind() != FunctionNode.Kind.ARROW) {
+        if (!CompilerConstants.THIS.symbolName().equals(identNode.getName())) {
             return super.leaveIdentNode(identNode);
         }
 
-        return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
+        final FunctionNode function = lc.getCurrentFunction();
+        if (function.getKind() == FunctionNode.Kind.ARROW) {
+            return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
+        }
+        if (function.isSubclassConstructor() && Boolean.TRUE.equals(bindsThis.peek())) {
+            return checkedThis(identNode.getToken(), identNode.getFinish());
+        }
+        return super.leaveIdentNode(identNode);
+    }
+
+    @Override
+    public boolean enterFunctionNode(final FunctionNode functionNode) {
+        if (functionNode.isSubclassConstructor()) {
+            bindsThis.push(superCallsAreStatements(functionNode.getBody()));
+        }
+        return super.enterFunctionNode(functionNode);
     }
 
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
         final FunctionNode withGenerator =
-                publishThis(addGeneratorPrologue(addClassConstructorGuard(functionNode)));
+                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(functionNode))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -361,6 +467,34 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * running anything, and the body runs later by calling the same function
      * again from the generator's own thread. The prologue distinguishes them.
      */
+    /**
+     * Declares the this-binding state of a derived class constructor, and checks
+     * at the end that super() actually ran.
+     *
+     * ES2015 9.2.2 step 13: a derived constructor that falls off its end returns
+     * its this binding, and reading a binding that was never made is a
+     * ReferenceError - so a constructor that forgets super() fails there rather
+     * than quietly returning a half-built object.
+     */
+    private FunctionNode bindThis(final FunctionNode functionNode) {
+        if (!functionNode.isSubclassConstructor() || !bindsThis.pop()) {
+            return functionNode;
+        }
+
+        final long token = Token.recast(functionNode.getToken(), TokenType.VAR);
+        final int finish = functionNode.getFinish();
+        final int line = functionNode.getLineNumber();
+        final Block body = functionNode.getBody();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_INITIALIZED),
+                LiteralNode.newInstance(token, finish, false)));
+        statements.addAll(body.getStatements());
+        statements.add(new ExpressionStatement(line, token, finish, checkedThis(token, finish)));
+
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
     /**
      * Copies {@code this} into a variable an arrow function can capture, for a
      * function that contains one reading it.
