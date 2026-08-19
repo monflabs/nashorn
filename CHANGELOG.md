@@ -104,3 +104,20 @@ Unreleased
 
 `   ` `           ` Parsing `for (let x of xs) ...` through the `api.tree` parser used to return the loop variable's declaration and silently drop the loop itself; it now returns the block that scopes the variable, containing both. The tree API's own test suite no longer skips ES2015 scripts, which is how this surfaced.
 
+
+`   ` `           ` **The rest of ECMAScript 2015 is implemented.** Everything upstream left throwing "is not yet implemented" from the lowering phase now runs, and the engine is measured against the ES2015 slice of a pinned `tc39/test262` commit rather than the frozen ES5.1 branch: 19221 failing executions at the start of the work, 6324 now, compared against a checked-in expectations file that fails on an unexpected pass as well as an unexpected failure.
+
+* **Classes**, including `extends`, `super`, static and computed members, accessors, and `new.target`. A derived constructor's `this` does not exist until `super()` returns, so reading it early, calling `super()` twice, and never calling it at all are each a `ReferenceError`. A class constructor called without `new` is a `TypeError`.
+* **Generators**, on virtual threads, so a generator body is an ordinary compiled function: arbitrary control flow, `try`/`finally`, labelled breaks and deoptimisation all work with no special handling, and `return()`/`throw()` run the body's `finally` blocks.
+* **Destructuring** in every position, **rest parameters** and **spread**, including a destructuring assignment used for its value and a pattern with a default in a parameter list.
+* **Modules**: a module's top level declarations belong to the module rather than the global object, an import is a live binding into the exporting module rather than a copy, and a realm loads each module once. Specifiers resolve as files relative to the module that wrote them.
+* **Proxy** and **Reflect**, `Proxy.revocable`, and the `getPrototypeOf`/`setPrototypeOf` traps. A proxy sitting in an ordinary object's prototype chain is not yet consulted.
+* **Promise**, with a job queue drained when the JavaScript stack empties.
+* **The well-known symbols**: `@@hasInstance`, `@@toPrimitive`, `@@toStringTag`, `@@isConcatSpreadable`, `@@iterator`, `@@species`, `@@unscopables`, and `@@match`/`@@replace`/`@@search`/`@@split`, which `String.prototype.match` and its three siblings now dispatch through. The paths that would have to consult a symbol on every call check a flag first, so a program that installs none pays nothing.
+* **`%TypedArray%`**, the intrinsic the nine typed array constructors share. They had none: no `forEach`, `map`, `filter`, `reduce`, `sort`, `join`, `find`, `entries`, `from` or `of`, and the accessors describing a view were properties of every instance rather than of a shared prototype.
+* **`RegExp.prototype`'s four symbol methods and `flags`** are the specification's own algorithms over any object, so a subclass that overrides `exec` or a flag is honoured. `u` and `y` are accepted and sticky matching works; code point semantics in `u` mode are not implemented.
+* Function names follow ES2015: `var f = function () {}` is called `f`, an accessor is called `get x`, a bound function `bound f`, and a method with a computed key is named after the key once it has been evaluated.
+
+`   ` `           ` Three ES2015 features that upstream reported as working did not. An **arrow function never captured `this`** - it saw the global object, in methods, in classes and in strict code alike. A **computed property key** was evaluated with every local variable it read typed as undefined, so `function f(){ var k = 'a'; return {[k]: 1} }` returned an object whose only key was the string `"undefined"`. And a **default or destructured parameter in a nested function** failed an assertion the moment that function was compiled on its own.
+
+`   ` `           ` Two documented exclusions remain: proper tail calls, and Annex B. Async functions and trailing commas in parameter lists are ECMAScript 2017 and are outside the current target rather than removed.
