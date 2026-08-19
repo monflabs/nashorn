@@ -700,6 +700,16 @@ public class ScriptFunction extends ScriptObject {
      *
      * @return the name
      */
+    /**
+     * Whether this function may be used with {@code new}. A builtin generally may
+     * not, which is what Reflect.construct and test262's isConstructor check.
+     *
+     * @return true if this function is a constructor
+     */
+    public final boolean isConstructor() {
+        return data.isConstructor();
+    }
+
     public final String getName() {
         return data.getName();
     }

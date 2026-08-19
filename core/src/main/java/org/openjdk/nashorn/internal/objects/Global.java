@@ -340,6 +340,10 @@ public final class Global extends Scope {
     @Property(name = "Math", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object math;
 
+    /** ECMAScript 2015 26.1 - The Reflect object */
+    @Property(name = "Reflect", attributes = Attribute.NOT_ENUMERABLE)
+    public volatile Object reflect;
+
     /** Error object */
     @Property(name = "Error", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object error;
@@ -1014,6 +1018,7 @@ public final class Global extends Scope {
     private ScriptObject   builtinJSON;
     private ScriptFunction builtinJSAdapter;
     private ScriptObject   builtinMath;
+    private ScriptObject   builtinReflect;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
     private ScriptFunction builtinString;
@@ -2583,6 +2588,7 @@ public final class Global extends Scope {
         this.builtinNumber.set("parseFloat", this.parseFloat, 0);
         this.builtinString    = initConstructorAndSwitchPoint("String", ScriptFunction.class);
         this.builtinMath      = initConstructorAndSwitchPoint("Math", ScriptObject.class);
+        this.builtinReflect   = initConstructorAndSwitchPoint("Reflect", ScriptObject.class);
 
         // initialize String.prototype.length to 0
         // add String.prototype.length
@@ -2765,6 +2771,7 @@ public final class Global extends Scope {
         this.javax             = this.builtinJavax;
         this.org               = this.builtinOrg;
         this.math              = this.builtinMath;
+        this.reflect           = this.builtinReflect;
         this.number            = this.builtinNumber;
         this.object            = this.builtinObject;
         this.packages          = this.builtinPackages;

@@ -189,7 +189,7 @@ public abstract class ScriptFunctionData implements Serializable {
         return (flags & IS_BUILTIN) != 0;
     }
 
-    final boolean isConstructor() {
+    boolean isConstructor() {
         return (flags & IS_CONSTRUCTOR) != 0;
     }
 
