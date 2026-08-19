@@ -330,7 +330,15 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(new IfNode(line, token, finish, isNotUndefined, returnBlock, null));
 
         statements.addAll(body.getStatements());
-        return functionNode.setBody(lc, body.setStatements(lc, statements));
+        // A generator is compiled with an arguments object. It needs the argument
+        // array to replay the call on the generator's thread, and going through
+        // arguments rather than merely forcing variable arity is what makes the
+        // parameter reads safe: a bare varargs function indexes the array without
+        // a bounds check, so a generator called with fewer arguments than it
+        // declares would fail with ArrayIndexOutOfBoundsException.
+        return functionNode
+                .setFlag(lc, FunctionNode.USES_ARGUMENTS)
+                .setBody(lc, body.setStatements(lc, statements));
     }
 
     /**
