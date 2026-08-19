@@ -122,6 +122,9 @@ public class ScriptFunction extends ScriptObject {
     private static final PropertyMap boundfunctionmap$;
     // property map for non-strict, non-bound functions.
     private static final PropertyMap map$;
+    // property maps for functions that have no "prototype" property at all
+    private static final PropertyMap noprototypemap$;
+    private static final PropertyMap strictnoprototypemap$;
 
     // Marker object for lazily initialized prototype object
     private static final Object LAZY_PROTOTYPE = new Object();
@@ -153,6 +156,12 @@ public class ScriptFunction extends ScriptObject {
         map$ = PropertyMap.newMap(properties);
         strictmodemap$ = createStrictModeMap(map$);
         boundfunctionmap$ = createBoundFunctionMap(strictmodemap$);
+        noprototypemap$ = deletePrototype(map$);
+        strictnoprototypemap$ = deletePrototype(strictmodemap$);
+    }
+
+    private static PropertyMap deletePrototype(final PropertyMap map) {
+        return map.deleteProperty(map.findProperty("prototype"));
     }
 
     private static boolean isStrict(final int flags) {
@@ -162,6 +171,23 @@ public class ScriptFunction extends ScriptObject {
     // Choose the map based on strict mode!
     private static PropertyMap getMap(final boolean strict) {
         return strict ? strictmodemap$ : map$;
+    }
+
+    /**
+     * Choose the map for a script function.
+     *
+     * ES2015 gives a "prototype" property only to functions that can be used to
+     * construct something: ordinary functions and class constructors, plus
+     * generator functions, whose prototype is what their generators inherit
+     * from (25.2.4). Methods, accessors and arrow functions have none, and the
+     * property has to be absent rather than undefined - test262 asks with
+     * hasOwnProperty.
+     */
+    private static PropertyMap getMap(final ScriptFunctionData data) {
+        if (data.isConstructor() || data.isGenerator()) {
+            return getMap(data.isStrict());
+        }
+        return data.isStrict() ? strictnoprototypemap$ : noprototypemap$;
     }
 
     /**
@@ -297,7 +323,7 @@ public class ScriptFunction extends ScriptObject {
      */
     public static ScriptFunction create(final Object[] constants, final int index, final ScriptObject scope) {
         final RecompilableScriptFunctionData data = (RecompilableScriptFunctionData) constants[index];
-        return new ScriptFunction(data, getMap(data.isStrict()), scope, Global.instance());
+        return new ScriptFunction(data, getMap(data), scope, Global.instance());
     }
 
     /**

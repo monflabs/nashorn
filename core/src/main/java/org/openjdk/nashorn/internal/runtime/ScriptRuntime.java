@@ -1717,7 +1717,7 @@ public final class ScriptRuntime {
         final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
         final GeneratorSupport support = new GeneratorSupport((ScriptFunction)callee, self, arguments, global);
         global.registerGenerator(support);
-        return new NativeGenerator(support, global);
+        return new NativeGenerator(support, global, generatorPrototype((ScriptFunction)callee, global));
     }
 
     /**
@@ -1726,6 +1726,44 @@ public final class ScriptRuntime {
      * @param value the value to hand to whoever is advancing the generator
      * @return the value the generator is resumed with
      */
+    /**
+     * ES2015 9.2.2: a class constructor may only be reached with new.
+     *
+     * The test is the same one new.target answers, so it inherits the same
+     * approximation - which is exact for a plain call, the case this guards.
+     *
+     * @param callee the constructor
+     * @param thiz   its receiver
+     * @return undefined when the call is legitimate
+     */
+    public static Object REQUIRE_NEW(final Object callee, final Object thiz) {
+        if (NEW_TARGET(callee, thiz) == UNDEFINED) {
+            throw typeError("constructor.requires.new",
+                    callee instanceof ScriptFunction function ? function.getName() : safeToString(callee));
+        }
+        return UNDEFINED;
+    }
+
+    /**
+     * The object a generator gets as its prototype.
+     *
+     * ES2015 25.2.4: it is the generator function's own "prototype" property, and
+     * that object in turn inherits from %GeneratorPrototype%, which is where
+     * next, return and throw live. Nashorn builds an ordinary prototype object
+     * for every function, so the chain is completed here, the first time one of
+     * this function's generators is made.
+     */
+    private static ScriptObject generatorPrototype(final ScriptFunction generatorFunction, final Global global) {
+        final Object own = generatorFunction.getPrototype();
+        if (!(own instanceof ScriptObject prototype)) {
+            return global.getGeneratorPrototype();
+        }
+        if (prototype.getProto() != global.getGeneratorPrototype()) {
+            prototype.setProto(global.getGeneratorPrototype());
+        }
+        return prototype;
+    }
+
     /**
      * {@code yield* iterable} - yields everything the iterable produces.
      *

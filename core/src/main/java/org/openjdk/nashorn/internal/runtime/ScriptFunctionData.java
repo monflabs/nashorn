@@ -196,6 +196,10 @@ public abstract class ScriptFunctionData implements Serializable {
         return (flags & IS_BUILTIN) != 0;
     }
 
+    boolean isGenerator() {
+        return (flags & IS_ES6_GENERATOR) != 0;
+    }
+
     boolean isConstructor() {
         return (flags & IS_CONSTRUCTOR) != 0;
     }

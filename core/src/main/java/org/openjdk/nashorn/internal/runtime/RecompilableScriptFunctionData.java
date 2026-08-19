@@ -363,7 +363,18 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
     }
 
     private static int getDataFlags(final FunctionNode functionNode) {
-        int flags = IS_CONSTRUCTOR;
+        // ES2015 makes four kinds of function non-constructible: a method
+        // (14.3.8 does not give one a prototype), an accessor, an arrow
+        // function (14.2.16) and a generator function, whose "new" is
+        // reserved. A class constructor is constructible but may only be
+        // reached that way, which is checked when it is called.
+        final boolean constructible = !functionNode.isMethod()
+                && functionNode.getKind() != FunctionNode.Kind.GENERATOR
+                && functionNode.getKind() != FunctionNode.Kind.GETTER
+                && functionNode.getKind() != FunctionNode.Kind.SETTER
+                && functionNode.getKind() != FunctionNode.Kind.ARROW
+                || functionNode.isClassConstructor();
+        int flags = constructible ? IS_CONSTRUCTOR : 0;
         if (functionNode.isStrict()) {
             flags |= IS_STRICT;
         }

@@ -747,6 +747,7 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         // A method using super reaches its home object through the callee, so it
         // needs one even when nothing else would give it one.
         return needsParentScope() || usesSelfSymbol() || isSplit() || usesSuper() || hasDirectSuper() || usesNewTarget()
+                || isClassConstructor()
                 || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
     }
 

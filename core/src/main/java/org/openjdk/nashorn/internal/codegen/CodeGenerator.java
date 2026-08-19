@@ -3026,6 +3026,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(VARARGS);
         }
 
+        // the class-constructor guard asks the same question new.target does
+        final boolean pushesCallee = request == Request.REQUIRE_NEW;
+        if (pushesCallee) {
+            method.loadCompilerConstant(CALLEE);
+            method.loadCompilerConstant(THIS);
+        }
+
         for (final Expression arg : args) {
             loadExpression(arg, TypeBounds.OBJECT);
         }
@@ -3037,7 +3044,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     false,
                     false,
                     newRuntimeNode.getType(),
-                    args.size() + (pushesVarargs ? 1 : 0) + (pushesFrame ? 3 : 0)).toString());
+                    args.size() + (pushesVarargs ? 1 : 0) + (pushesFrame ? 3 : 0)
+                        + (pushesCallee ? 2 : 0)).toString());
 
         method.convert(newRuntimeNode.getType());
     }

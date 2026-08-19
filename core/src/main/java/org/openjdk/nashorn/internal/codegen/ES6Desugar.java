@@ -197,7 +197,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
-        final FunctionNode withGenerator = addGeneratorPrologue(functionNode);
+        final FunctionNode withGenerator = addGeneratorPrologue(addClassConstructorGuard(functionNode));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -294,6 +294,27 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             return LiteralNode.newInstance(key.getToken(), key.getFinish(), name.getName());
         }
         return key;
+    }
+
+    /**
+     * A class constructor may only be reached with new, so it says so itself.
+     *
+     * The guard goes in the body rather than at the call site because a class
+     * constructor is an ordinary function object as far as the linker is
+     * concerned, and it can be reached by apply, by call, or by a bound wrapper.
+     */
+    private FunctionNode addClassConstructorGuard(final FunctionNode functionNode) {
+        if (!functionNode.isClassConstructor()) {
+            return functionNode;
+        }
+        final long token = functionNode.getToken();
+        final int finish = functionNode.getFinish();
+        final Block body = functionNode.getBody();
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
+                new RuntimeNode(token, finish, RuntimeNode.Request.REQUIRE_NEW)));
+        statements.addAll(body.getStatements());
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
     }
 
     /**

@@ -110,6 +110,8 @@ public class RuntimeNode extends Expression {
         NEW_TARGET(TokenType.VOID, Type.OBJECT, 2),
         /** The prologue of a generator function; the code generator supplies the frame. */
         GENERATOR_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** The prologue of a class constructor, which may only be reached with new. */
+        REQUIRE_NEW(TokenType.VOID, Type.OBJECT, 0),
         /** yield - suspends the generator body. */
         YIELD(TokenType.VOID, Type.OBJECT, 1),
         /** yield* - delegates to another iterable. */

@@ -51,8 +51,8 @@ public final class NativeGenerator extends ScriptObject {
     /** Unwinds generators nobody can advance any more, so their threads can exit. */
     private static final java.lang.ref.Cleaner CLEANER = java.lang.ref.Cleaner.create();
 
-    public NativeGenerator(final GeneratorSupport support, final Global global) {
-        super(global.getGeneratorPrototype(), $nasgenmap$);
+    public NativeGenerator(final GeneratorSupport support, final Global global, final ScriptObject prototype) {
+        super(prototype, $nasgenmap$);
         this.support = support;
         this.global = global;
         // the action must not capture this, or the generator is never collected
