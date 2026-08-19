@@ -40,16 +40,14 @@ new RegExp({
     }
 });
 
-try {
-    new RegExp(/asdf/, {
-        toString: function() {
-            fail("toString should not be called");
-        }
-    });
-    fail("expected TypeError");
-} catch (e) {
-    if (!(e instanceof TypeError)) {
-        fail("expected TypeError");
+// ES2015 21.2.3.1 step 5 made flags legal with a RegExp pattern, where ES5.1
+// made it a TypeError. The flags are read, and they replace the pattern's own.
+var replaced = new RegExp(/asdf/g, {
+    toString: function() {
+        print("flags again");
+        return "i";
     }
-    print(e);
+});
+if (String(replaced) !== "/asdf/i") {
+    fail("expected /asdf/i, got " + replaced);
 }

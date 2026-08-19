@@ -209,11 +209,13 @@ public final class NativeRegExp extends ScriptObject {
         String  flagString    = "";
 
         if (regexp != UNDEFINED) {
-            if (regexp instanceof NativeRegExp) {
-                if (flags != UNDEFINED) {
-                    throw typeError("regex.cant.supply.flags");
-                }
-                return (NativeRegExp)regexp; // 15.10.3.1 - undefined flags and regexp as
+            if (regexp instanceof NativeRegExp source) {
+                // ES2015 21.2.3.1 step 5: a RegExp pattern with flags is now
+                // legal and means "the same source, these flags instead", where
+                // ES5.1 made it a TypeError. Without flags it is still a copy.
+                return flags == UNDEFINED
+                        ? source
+                        : new NativeRegExp(source.getRegExp().getSource(), JSType.toString(flags));
             }
             patternString = JSType.toString(regexp);
         }

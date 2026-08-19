@@ -221,7 +221,10 @@ public final class NativeObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object getOwnPropertyDescriptor(final Object self, final Object obj, final Object prop) {
         if (obj instanceof ScriptObject) {
-            final String       key  = JSType.toString(prop);
+            // ES2015 19.1.2.6 takes a property key, which is a string or a
+            // symbol. Coercing to a string threw for every symbol there is, so
+            // no symbol-keyed property could be described at all.
+            final Object       key  = JSType.toPropertyKey(prop);
             final ScriptObject sobj = (ScriptObject)obj;
 
             return sobj.getOwnPropertyDescriptor(key);

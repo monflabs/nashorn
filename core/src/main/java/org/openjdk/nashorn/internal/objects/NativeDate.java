@@ -841,6 +841,33 @@ public final class NativeDate extends ScriptObject {
     }
 
     /**
+     * ES2015 20.3.4.45 Date.prototype [ @@toPrimitive ] ( hint )
+     *
+     * A Date is the one built-in that prefers a string when asked for no
+     * particular kind, which is why "date + ''" concatenates where every other
+     * object would add. The ordinary algorithm has the opposite default, so a
+     * Date needs its own.
+     *
+     * @param self the date
+     * @param hint "default", "number" or "string"
+     * @return the primitive
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toPrimitive", arity = 1)
+    public static Object toPrimitive(final Object self, final Object hint) {
+        if (!(self instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final String kind = JSType.toString(hint);
+        if ("string".equals(kind) || "default".equals(kind)) {
+            return sobj.getDefaultValue(String.class);
+        }
+        if ("number".equals(kind)) {
+            return sobj.getDefaultValue(Number.class);
+        }
+        throw typeError("invalid.hint", ScriptRuntime.safeToString(hint));
+    }
+
+    /**
      * ECMA 15.9.5.44 Date.prototype.toJSON ( key )
      *
      * Provides a string representation of this Date for use by {@link NativeJSON#stringify(Object, Object, Object, Object)}

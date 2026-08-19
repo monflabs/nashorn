@@ -1615,6 +1615,20 @@ public final class ScriptRuntime {
     private static void defineClassElement(final ScriptObject target, final Object key, final int flags,
             final Object value) {
         final Object propertyKey = key instanceof Symbol ? key : JSType.toPropertyKey(key);
+
+        // ES2015 14.5.14 step 16: a static element called name or length is the
+        // class's own, and the specification skips the step that would have
+        // named the constructor. Both are accessors with no setter here, which
+        // defineOwnProperty can read but not overwrite, so the built-in one goes
+        // first and the element defines a fresh property in its place.
+        if (target instanceof ScriptFunction
+                && ("name".equals(propertyKey) || "length".equals(propertyKey))) {
+            final Property existing = target.getMap().findProperty(propertyKey);
+            if (existing != null) {
+                target.deleteOwnProperty(existing);
+            }
+        }
+
         final ScriptObject descriptor = Global.newEmptyInstance();
 
         if ((flags & CLASS_ELEMENT_GETTER) != 0) {
