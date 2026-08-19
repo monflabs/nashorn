@@ -160,6 +160,22 @@ public final class NativeSymbol extends ScriptObject {
      * @param self self reference
      * @return localized string for this Number
      */
+    /**
+     * ES2015 19.4.3.4 Symbol.prototype [ @@toPrimitive ] ( hint ).
+     *
+     * A symbol has no primitive form other than itself, and this is what stops
+     * the usual coercion from turning it into a string behind the program's
+     * back.
+     *
+     * @param self the symbol or its wrapper
+     * @param hint ignored; a symbol answers the same for every hint
+     * @return the symbol itself
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toPrimitive", arity = 1)
+    public static Object toPrimitive(final Object self, final Object hint) {
+        return getSymbolValue(self);
+    }
+
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toString(final Object self) {
         return getSymbolValue(self).toString();

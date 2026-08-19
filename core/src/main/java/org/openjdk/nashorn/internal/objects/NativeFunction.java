@@ -88,6 +88,25 @@ public final class NativeFunction {
     }
 
     /**
+     * ES2015 19.2.3.6 Function.prototype [ @@hasInstance ] ( V ).
+     *
+     * The default of what {@code instanceof} does, reachable as a method so that
+     * a class can call it after overriding the symbol - and so that overriding
+     * it on one function does not lose the ordinary meaning for the rest.
+     *
+     * @param self the constructor
+     * @param v    the value being tested
+     * @return whether v was built by self
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE,
+            name = "@@hasInstance", arity = 1)
+    public static boolean hasInstance(final Object self, final Object v) {
+        return self instanceof ScriptFunction function
+                && v instanceof ScriptObject instance
+                && function.isInstance(instance);
+    }
+
+    /**
      * ECMA 15.3.4.3 Function.prototype.apply (thisArg, argArray)
      *
      * @param self   self reference

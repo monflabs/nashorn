@@ -2747,6 +2747,9 @@ public final class Global extends Scope {
         arrayPrototype.setIsArray();
         arrayPrototype.addOwnProperty(NativeSymbol.unscopables, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
                 arrayUnscopables());
+        // ES2015 22.1.3.30: [ @@iterator ] is the same function object as values
+        arrayPrototype.addOwnProperty(NativeSymbol.iterator, Attribute.NOT_ENUMERABLE,
+                arrayPrototype.get("values"));
 
         this.symbol   = LAZY_SENTINEL;
         this.map      = LAZY_SENTINEL;

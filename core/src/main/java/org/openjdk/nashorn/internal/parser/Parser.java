@@ -174,6 +174,13 @@ public class Parser extends AbstractParser implements Loggable {
     private final ParserContext lc;
     private final Deque<Object> defaultNames;
 
+    /**
+     * Whether the name {@link #getDefaultFunctionName()} last produced came from a
+     * binding or a property, which ES2015 12.14.4 turns into the function's name,
+     * rather than from a member expression, which it does not.
+     */
+    private boolean defaultNameIsBinding;
+
     /** Namespace for function names where not explicitly given */
     private final Namespace namespace;
 
@@ -3825,10 +3832,12 @@ public class Parser extends AbstractParser implements Loggable {
 
         // name is null, generate anonymous name
         boolean isAnonymous = false;
+        boolean hasInferredName = false;
         if (name == null) {
             final String tmpName = getDefaultValidFunctionName(functionLine, isStatement);
             name = new IdentNode(functionToken, Token.descPosition(functionToken), tmpName);
             isAnonymous = true;
+            hasInferredName = defaultNameIsBinding && !isStatement;
         }
 
         final FunctionNode.Kind functionKind = generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
@@ -3869,6 +3878,9 @@ public class Parser extends AbstractParser implements Loggable {
 
         if (isAnonymous) {
             functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
+            if (hasInferredName) {
+                functionNode.setFlag(FunctionNode.ES6_HAS_INFERRED_NAME);
+            }
         }
 
         verifyParameterList(parameters, functionNode);
@@ -3936,6 +3948,7 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private String getDefaultValidFunctionName(final int functionLine, final boolean isStatement) {
+        defaultNameIsBinding = false;
         final String defaultFunctionName = getDefaultFunctionName();
         if (isValidIdentifier(defaultFunctionName)) {
             if (isStatement) {
@@ -3968,9 +3981,12 @@ public class Parser extends AbstractParser implements Loggable {
             final Object nameExpr = defaultNames.peek();
             if (nameExpr instanceof PropertyKey) {
                 markDefaultNameUsed();
+                defaultNameIsBinding = true;
                 return ((PropertyKey)nameExpr).getPropertyName();
             } else if (nameExpr instanceof AccessNode) {
                 markDefaultNameUsed();
+                // "o.p = function () {}" leaves the function anonymous
+                defaultNameIsBinding = false;
                 return ((AccessNode)nameExpr).getProperty();
             }
         }
@@ -4781,9 +4797,18 @@ public class Parser extends AbstractParser implements Loggable {
         expect(ARROW);
 
         final long functionToken = Token.recast(startToken, ARROW);
-        final IdentNode name = new IdentNode(functionToken, Token.descPosition(functionToken), NameCodec.encode("=>:") + functionLine);
+        // ES2015 12.14.4 names an arrow after the binding it is assigned to; with
+        // nothing to take a name from it keeps the internal one, which is not a
+        // valid identifier and so never reported.
+        final String inferred = getDefaultValidFunctionName(functionLine, false);
+        final boolean hasInferredName = defaultNameIsBinding;
+        final IdentNode name = new IdentNode(functionToken, Token.descPosition(functionToken),
+                hasInferredName ? inferred : NameCodec.encode("=>:") + functionLine);
         final ParserContextFunctionNode functionNode = createParserContextFunctionNode(name, functionToken, FunctionNode.Kind.ARROW, functionLine, null);
         functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
+        if (hasInferredName) {
+            functionNode.setFlag(FunctionNode.ES6_HAS_INFERRED_NAME);
+        }
 
         lc.push(functionNode);
         try {

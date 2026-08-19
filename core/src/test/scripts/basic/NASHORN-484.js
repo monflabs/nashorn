@@ -24,6 +24,10 @@
 /*
  * NASHORN-484 : the name of an anonymous function is the empty string.
  *
+ * ES2015 12.14.4 changed that for one written on the right of a binding: it
+ * takes the name of the binding. Only a function with nothing to take a name
+ * from is still nameless.
+ *
  * @test
  * @run
  */

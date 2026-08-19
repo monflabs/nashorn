@@ -1726,17 +1726,6 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
-     * 22.1.3.30 Array.prototype [ @@iterator ] ( )
-     *
-     * @param self the self reference
-     * @return an iterator over the array's values
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@iterator")
-    public static Object getIterator(final Object self) {
-        return ArrayIterator.newArrayValueIterator(self);
-    }
-
-    /**
      * Determine if Java bulk array operations may be used on the underlying
      * storage. This is possible only if the object's prototype chain is empty
      * or each of the prototypes in the chain is empty.

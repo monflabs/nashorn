@@ -337,7 +337,10 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
 
     private static String functionName(final FunctionNode fn) {
         if (fn.isAnonymous()) {
-            return "";
+            // ES2015 12.14.4: "var f = function () {}" names the function after
+            // the binding, and an object literal after the property. Anything
+            // else stays nameless, whatever the parser called it internally.
+            return fn.hasInferredName() ? fn.getIdent().getName() : "";
         }
         if (fn.isClassConstructor()) {
             // ES2015 14.5.15: a class names its constructor. The identifier is

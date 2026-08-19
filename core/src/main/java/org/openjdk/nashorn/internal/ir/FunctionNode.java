@@ -283,6 +283,14 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public static final int ES6_ARROW_USES_THIS         = 1 << 29;
 
+    /**
+     * Set on an anonymous function that ES2015 12.14.4 nevertheless gives a
+     * name: the one of the binding or property it is being assigned to. Assigning
+     * to a member expression does not count, which is why this is a flag rather
+     * than "the parser found some name for it".
+     */
+    public static final int ES6_HAS_INFERRED_NAME       = 1 << 30;
+
     /** Does this function or any nested functions contain an eval? */
     private static final int HAS_DEEP_EVAL = HAS_EVAL | HAS_NESTED_EVAL;
 
@@ -761,6 +769,15 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         return needsParentScope() || usesSelfSymbol() || isSplit() || usesSuper() || hasDirectSuper() || usesNewTarget()
                 || isClassConstructor()
                 || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
+    }
+
+    /**
+     * Whether this anonymous function takes its name from what it is assigned to.
+     *
+     * @return true if the name the parser recorded is the one to report
+     */
+    public boolean hasInferredName() {
+        return getFlag(ES6_HAS_INFERRED_NAME);
     }
 
     /**
