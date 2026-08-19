@@ -342,10 +342,13 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
             return fn.hasInferredName() ? fn.getIdent().getName() : "";
         }
         if (fn.isClassConstructor()) {
-            // ES2015 14.5.15: a class names its constructor. The identifier is
-            // the literal word "constructor" when one was written out, so the
-            // name the parser recorded from the class binding is used instead.
-            return fn.getName();
+            // ES2015 14.5.15: a class names its constructor. Which of the two
+            // carries the name depends on how the constructor came about: a
+            // synthesised one is created under the class's name, while one
+            // written out is called "constructor" as written and had the class
+            // name put on the function instead.
+            final String written = NameCodec.decode(fn.getIdent().getName());
+            return CONSTRUCTOR_NAME.equals(written) ? fn.getName() : written;
         }
         final FunctionNode.Kind kind = fn.getKind();
         if (kind == FunctionNode.Kind.GETTER || kind == FunctionNode.Kind.SETTER) {
@@ -365,6 +368,9 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
 
         return Token.toDesc(TokenType.FUNCTION, position, length);
     }
+
+    /** The name a constructor written out in a class body is parsed under. */
+    private static final String CONSTRUCTOR_NAME = "constructor";
 
     private static int getDataFlags(final FunctionNode functionNode) {
         // ES2015 makes four kinds of function non-constructible: a method

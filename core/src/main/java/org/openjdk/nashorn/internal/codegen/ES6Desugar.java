@@ -131,8 +131,27 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private final Deque<Boolean> bindsThis = new ArrayDeque<>();
 
-    ES6Desugar() {
+    /**
+     * Whether this is an on-demand compilation, in which every nested function
+     * but the one being compiled has a body the parser did not read.
+     */
+    private final boolean onDemand;
+
+    ES6Desugar(final boolean onDemand) {
         super(new LexicalContext());
+        this.onDemand = onDemand;
+    }
+
+    /**
+     * Whether a function's body is one the parser skipped, and so must be left
+     * exactly as empty as it was found.
+     *
+     * A class's synthesised default constructor is the exception: it has a body
+     * on every compilation, because the parser builds it rather than reading it.
+     */
+    private boolean isSkipped(final FunctionNode functionNode) {
+        return onDemand && functionNode != lc.getOutermostFunction()
+                && !functionNode.isDefaultClassConstructor();
     }
 
     /**
@@ -392,6 +411,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
+        if (isSkipped(functionNode)) {
+            if (functionNode.isSubclassConstructor()) {
+                bindsThis.pop();
+            }
+            return super.leaveFunctionNode(functionNode);
+        }
+
         final FunctionNode withGenerator =
                 publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(functionNode))));
         final List<IdentNode> parameters = withGenerator.getParameters();
@@ -806,7 +832,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         for (final PropertyNode property : pattern.getElements()) {
             final Expression key = property.getKey();
             final Expression read = property.isComputed() || !(key instanceof LiteralNode<?> || key instanceof IdentNode)
-                    ? new IndexNode(at.getToken(), at.getFinish(), ref(at, source), key)
+                    ? new IndexNode(Token.recast(at.getToken(), TokenType.LBRACKET), at.getFinish(), ref(at, source), key)
                     : new AccessOrIndex(at, ref(at, source), key).build();
             bindWithDefault(at, property.getValue(), read, statements);
         }
@@ -931,7 +957,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             if (value instanceof String string) {
                 return new org.openjdk.nashorn.internal.ir.AccessNode(at.getToken(), at.getFinish(), base, string);
             }
-            return new IndexNode(at.getToken(), at.getFinish(), base, key);
+            // the token type is what says this is o[k] rather than o.k
+            return new IndexNode(Token.recast(at.getToken(), TokenType.LBRACKET), at.getFinish(), base, key);
         }
     }
 }

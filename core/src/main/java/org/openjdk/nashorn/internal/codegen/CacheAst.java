@@ -59,8 +59,8 @@ class CacheAst extends SimpleNodeVisitor {
         if (functionNode.isDefaultClassConstructor()) {
             // A class's synthesised default constructor has no source text to go
             // back to - its token points at the class keyword, which reparses as
-            // a declaration and so fails outright for an anonymous class
-            // expression. Caching its AST is the only way it can be recompiled.
+            // a declaration and so fails outright. Caching its AST is the only
+            // way it can be recompiled.
             data.setCachedAst(functionNode);
         }
         if (functionNode.isSplit()) {

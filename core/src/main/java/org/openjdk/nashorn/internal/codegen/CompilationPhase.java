@@ -76,7 +76,7 @@ abstract class CompilationPhase {
     private static final class ES6DesugaringPhase extends CompilationPhase {
         @Override
         FunctionNode transform(final Compiler compiler, final CompilationPhases phases, final FunctionNode fn) {
-            return transformFunction(fn, new ES6Desugar());
+            return transformFunction(fn, new ES6Desugar(compiler.isOnDemandCompilation()));
         }
 
         @Override

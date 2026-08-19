@@ -451,7 +451,10 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     }
 
     private boolean isUnparsedFunction(final FunctionNode fn) {
-        return isOnDemand && fn != lc.getOutermostFunction();
+        // A class's synthesised default constructor has a body even on an
+        // on-demand compilation - the parser builds it rather than reading it,
+        // so there is nothing for the lazy pass to have skipped.
+        return isOnDemand && fn != lc.getOutermostFunction() && !fn.isDefaultClassConstructor();
     }
 
     @Override

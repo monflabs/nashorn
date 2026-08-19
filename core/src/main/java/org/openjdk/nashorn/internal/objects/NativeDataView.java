@@ -995,10 +995,17 @@ public class NativeDataView extends ScriptObject {
     }
 
     private static NativeDataView checkSelf(final Object self) {
-        if (!(self instanceof NativeDataView)) {
+        if (!(self instanceof NativeDataView view)) {
             throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
         }
-        return (NativeDataView)self;
+        // ES2015 24.2.1.1 GetViewValue and 24.2.1.2 SetViewValue check for a
+        // detached buffer once the index has been converted; without it the read
+        // reached the storage the host had taken away and failed as a Java error
+        // the script could not catch
+        if (view.buffer instanceof NativeArrayBuffer arrayBuffer && arrayBuffer.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+        return view;
     }
 
     private static ByteBuffer getBuffer(final Object self) {
