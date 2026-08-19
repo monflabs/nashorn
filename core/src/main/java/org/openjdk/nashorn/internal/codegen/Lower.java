@@ -304,9 +304,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         if (functionNode.getKind() == FunctionNode.Kind.GENERATOR) {
             throwNotImplementedYet("es6.generator", functionNode);
         }
-        if (functionNode.usesSuper()) {
-            throwNotImplementedYet("es6.super", functionNode);
-        }
 
 
         return super.enterFunctionNode(functionNode);
@@ -667,12 +664,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
     @Override
     public Node leaveWithNode(final WithNode withNode) {
         return addStatement(withNode);
-    }
-
-    @Override
-    public boolean enterClassNode(final ClassNode classNode) {
-        throwNotImplementedYet("es6.class", classNode);
-        return super.enterClassNode(classNode);
     }
 
     /**

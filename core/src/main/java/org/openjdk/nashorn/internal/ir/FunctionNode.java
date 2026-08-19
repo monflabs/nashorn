@@ -262,6 +262,15 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public static final int ES6_HAS_REST_PARAMETER      = 1 << 27;
 
+    /**
+     * Is this the default constructor the parser synthesises for a class that
+     * does not write one?
+     *
+     * It has no source text of its own - its token points at the class - so it
+     * cannot be recovered by reparsing, and its AST has to be cached instead.
+     */
+    public static final int ES6_IS_DEFAULT_CONSTRUCTOR  = 1 << 28;
+
     /** Does this function or any nested functions contain an eval? */
     private static final int HAS_DEEP_EVAL = HAS_EVAL | HAS_NESTED_EVAL;
 
@@ -735,7 +744,10 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public boolean needsCallee() {
         // NOTE: we only need isSplit() here to ensure that :scope can never drop below slot 2 for splitting array units.
-        return needsParentScope() || usesSelfSymbol() || isSplit() || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
+        // A method using super reaches its home object through the callee, so it
+        // needs one even when nothing else would give it one.
+        return needsParentScope() || usesSelfSymbol() || isSplit() || usesSuper() || hasDirectSuper() || usesNewTarget()
+                || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
     }
 
     /**
@@ -822,6 +834,16 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public boolean hasRestParameter() {
         return getFlag(ES6_HAS_REST_PARAMETER);
+    }
+
+    /**
+     * Whether this is a class's synthesised default constructor, which cannot be
+     * recovered by reparsing its source range.
+     *
+     * @return true for a synthesised default constructor
+     */
+    public boolean isDefaultClassConstructor() {
+        return getFlag(ES6_IS_DEFAULT_CONSTRUCTOR);
     }
 
     /**

@@ -56,6 +56,13 @@ class CacheAst extends SimpleNodeVisitor {
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
         final RecompilableScriptFunctionData data = dataStack.pop();
+        if (functionNode.isDefaultClassConstructor()) {
+            // A class's synthesised default constructor has no source text to go
+            // back to - its token points at the class keyword, which reparses as
+            // a declaration and so fails outright for an anonymous class
+            // expression. Caching its AST is the only way it can be recompiled.
+            data.setCachedAst(functionNode);
+        }
         if (functionNode.isSplit()) {
             // NOTE: cache only split function ASTs from eager pass. Caching non-split functions would require
             // some additional work, namely creating the concept of "uncacheable" function and reworking

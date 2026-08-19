@@ -1,1 +1,1 @@
-TypeError: "length" is not a configurable property
+TypeError: Cannot delete property "x" of [object Object]

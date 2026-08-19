@@ -339,6 +339,12 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         if (fn.isAnonymous()) {
             return "";
         }
+        if (fn.isClassConstructor()) {
+            // ES2015 14.5.15: a class names its constructor. The identifier is
+            // the literal word "constructor" when one was written out, so the
+            // name the parser recorded from the class binding is used instead.
+            return fn.getName();
+        }
         final FunctionNode.Kind kind = fn.getKind();
         if (kind == FunctionNode.Kind.GETTER || kind == FunctionNode.Kind.SETTER) {
             final String name = NameCodec.decode(fn.getIdent().getName());
@@ -375,6 +381,9 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         }
         if (functionNode.isMethod() || functionNode.isClassConstructor()) {
             flags |= IS_ES6_METHOD;
+        }
+        if (functionNode.isSubclassConstructor()) {
+            flags |= IS_ES6_SUBCLASS_CONSTRUCTOR;
         }
         return flags;
     }

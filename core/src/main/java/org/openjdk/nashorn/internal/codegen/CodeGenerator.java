@@ -176,6 +176,9 @@ import org.openjdk.nashorn.internal.runtime.options.Options;
  */
 @Logger(name="codegen")
 final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContext> implements Loggable {
+    /** The name the parser gives the new.target meta-property. */
+    private static final String NEW_TARGET_NAME = "new.target";
+
 
     private static final Type SCOPE_TYPE = Type.typeFor(ScriptObject.class);
 
@@ -330,6 +333,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * @param identNode an identity node to load
      */
     private void loadIdent(final IdentNode identNode, final TypeBounds resultBounds) {
+        if (NEW_TARGET_NAME.equals(identNode.getName())) {
+            // new.target is not a variable; it is answered from the frame.
+            method.loadCompilerConstant(CALLEE);
+            method.loadCompilerConstant(THIS);
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "NEW_TARGET",
+                    new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+            return;
+        }
         checkTemporalDeadZone(identNode);
         final Symbol symbol = identNode.getSymbol();
 
@@ -870,6 +881,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterAccessNode(final AccessNode accessNode) {
+                if (accessNode.isSuper()) {
+                    loadSuperGet(accessNode);
+                    return false;
+                }
                 new OptimisticOperation(accessNode, resultBounds) {
                     @Override
                     void loadStack() {
@@ -889,6 +904,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterIndexNode(final IndexNode indexNode) {
+                if (indexNode.isSuper()) {
+                    loadSuperGet(indexNode);
+                    return false;
+                }
                 new OptimisticOperation(indexNode, resultBounds) {
                     @Override
                     void loadStack() {
@@ -1434,7 +1453,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private boolean loadCallNode(final CallNode callNode, final TypeBounds resultBounds) {
         lineNumber(callNode.getLineNumber());
 
-        if (hasSpread(callNode.getArgs())) {
+        if (isSuperCall(callNode) || hasSpread(callNode.getArgs())) {
             loadSpreadCall(callNode);
             return false;
         }
@@ -2321,6 +2340,28 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final Expression function = callNode.getFunction();
         final String helper;
 
+        if (function instanceof IdentNode ident && ident.isDirectSuper()) {
+            // super(...) - the parent constructor runs on the object already
+            // allocated for this one
+            method.loadCompilerConstant(CALLEE);
+            method.loadCompilerConstant(THIS);
+            loadSpreadArray(callNode.getArgs());
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CONSTRUCT",
+                    new FunctionSignature(false, false, Type.OBJECT, 3).toString());
+            return;
+        }
+
+        if (function instanceof BaseNode base && base.isSuper()) {
+            // super.m(...) and super[k](...) - the inherited method, run on this
+            method.loadCompilerConstant(CALLEE);
+            loadSuperKey(base);
+            method.loadCompilerConstant(THIS);
+            loadSpreadArray(callNode.getArgs());
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CALL",
+                    new FunctionSignature(false, false, Type.OBJECT, 4).toString());
+            return;
+        }
+
         if (function instanceof AccessNode access) {
             loadExpressionAsObject(access.getBase());
             method.load(access.getProperty());
@@ -2338,6 +2379,36 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         loadSpreadArray(callNode.getArgs());
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), helper,
                 new FunctionSignature(false, false, Type.OBJECT, 3).toString());
+    }
+
+    /** Whether this call is super(...) or super.m(...). */
+    private static boolean isSuperCall(final CallNode callNode) {
+        final Expression function = callNode.getFunction();
+        return function instanceof IdentNode ident && ident.isDirectSuper()
+                || function instanceof BaseNode base && base.isSuper();
+    }
+
+    /** Pushes the property a super access names. */
+    private void loadSuperKey(final BaseNode base) {
+        if (base instanceof AccessNode access) {
+            method.load(access.getProperty());
+        } else {
+            loadExpressionAsObject(((IndexNode)base).getIndex());
+        }
+    }
+
+    /**
+     * {@code super.x}, read rather than called.
+     *
+     * The lookup starts above the home object of the running method, which is
+     * why the callee is pushed: super is fixed where the method was written and
+     * does not follow the receiver.
+     */
+    private void loadSuperGet(final BaseNode base) {
+        method.loadCompilerConstant(CALLEE);
+        loadSuperKey(base);
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_GET",
+                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
     }
 
     private void loadArray(final ArrayLiteralNode arrayLiteralNode, final ArrayType arrayType) {

@@ -130,10 +130,55 @@ public class ClassNode extends Expression {
     @Override
     public Node accept(final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterClassNode(this)) {
-            return visitor.leaveClassNode(this);
+            // The children have to be visited like any others. They were not
+            // while classes were unimplemented, which meant the heritage
+            // expression and every method body were invisible to every phase.
+            return visitor.leaveClassNode(
+                    setClassHeritage(classHeritage == null ? null : (Expression)classHeritage.accept(visitor))
+                    .setConstructor(constructor == null ? null : (PropertyNode)constructor.accept(visitor))
+                    .setClassElements(Node.accept(visitor, classElements)));
         }
 
         return this;
+    }
+
+    /**
+     * Reset the expression this class extends.
+     *
+     * @param classHeritage new heritage expression
+     * @return new or same class node
+     */
+    public ClassNode setClassHeritage(final Expression classHeritage) {
+        if (this.classHeritage == classHeritage) {
+            return this;
+        }
+        return new ClassNode(line, getToken(), getFinish(), ident, classHeritage, constructor, classElements, isStatement);
+    }
+
+    /**
+     * Reset the constructor of this class.
+     *
+     * @param constructor new constructor
+     * @return new or same class node
+     */
+    public ClassNode setConstructor(final PropertyNode constructor) {
+        if (this.constructor == constructor) {
+            return this;
+        }
+        return new ClassNode(line, getToken(), getFinish(), ident, classHeritage, constructor, classElements, isStatement);
+    }
+
+    /**
+     * Reset the elements of this class.
+     *
+     * @param classElements new elements
+     * @return new or same class node
+     */
+    public ClassNode setClassElements(final List<PropertyNode> classElements) {
+        if (this.classElements == classElements) {
+            return this;
+        }
+        return new ClassNode(line, getToken(), getFinish(), ident, classHeritage, constructor, classElements, isStatement);
     }
 
     @Override

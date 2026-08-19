@@ -93,7 +93,19 @@ public class RuntimeNode extends Expression {
          * declared before it; the argument array itself is pushed by the code
          * generator, straight from the frame.
          */
-        REST_ARGUMENTS(TokenType.VOID, Type.OBJECT, 1);
+        REST_ARGUMENTS(TokenType.VOID, Type.OBJECT, 1),
+        /** Builds a class from its constructor, heritage and elements. */
+        DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 4),
+        /** super.x - the code generator supplies the running method. */
+        SUPER_GET(TokenType.VOID, Type.OBJECT, 2),
+        /** super.x = value. */
+        SUPER_SET(TokenType.VOID, Type.OBJECT, 4),
+        /** super.m(...). */
+        SUPER_CALL(TokenType.VOID, Type.OBJECT, 4),
+        /** super(...) in a derived constructor. */
+        SUPER_CONSTRUCT(TokenType.VOID, Type.OBJECT, 3),
+        /** new.target - the code generator supplies the callee and receiver. */
+        NEW_TARGET(TokenType.VOID, Type.OBJECT, 2);
 
         /** token type */
         private final TokenType tokenType;

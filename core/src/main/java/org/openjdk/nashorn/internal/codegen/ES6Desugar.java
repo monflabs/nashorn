@@ -31,6 +31,8 @@ import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.CatchNode;
+import org.openjdk.nashorn.internal.ir.ClassNode;
+import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.ir.Expression;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.ir.ForNode;
@@ -195,6 +197,80 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 .setFlag(lc, FunctionNode.ES6_HAS_REST_PARAMETER)
                 .setParameters(lc, new ArrayList<>(declared))
                 .setBody(lc, body.setStatements(lc, statements)));
+    }
+
+    /**
+     * A class definition.
+     *
+     * The whole class becomes one runtime call rather than a sequence of
+     * property assignments, because the ordering rules are not an object
+     * literal's: a computed key has to be evaluated in source order interleaved
+     * with the methods, and class elements are non-enumerable, which the object
+     * literal path cannot express. The elements are passed as one flat array of
+     * key, flags and value so that the call has a fixed arity.
+     *
+     * The functions are the parser's own - nothing here synthesises a
+     * FunctionNode, including the default constructor, which the parser already
+     * supplies as {@code constructor(...args) { super(...args) }}.
+     */
+    @Override
+    public Node leaveClassNode(final ClassNode classNode) {
+        final long token = classNode.getToken();
+        final int finish = classNode.getFinish();
+
+        final List<Expression> elements = new ArrayList<>();
+        for (final PropertyNode element : classNode.getClassElements()) {
+            addClassElement(elements, element);
+        }
+
+        final Expression heritage = classNode.getClassHeritage();
+        return new RuntimeNode(token, finish, RuntimeNode.Request.DEFINE_CLASS,
+                classNode.getConstructor().getValue(),
+                heritage == null ? LiteralNode.newInstance(token, finish) : heritage,
+                LiteralNode.newInstance(token, finish, heritage != null),
+                LiteralNode.newInstance(token, finish, elements));
+    }
+
+    /**
+     * Appends one element's key, flags and value to the flattened element list.
+     *
+     * A get/set pair written as two class elements arrives as a single
+     * PropertyNode holding both, and has to go back out as two entries or the
+     * setter is dropped.
+     */
+    private static void addClassElement(final List<Expression> elements, final PropertyNode element) {
+        final int shared = element.isStatic() ? ScriptRuntime.CLASS_ELEMENT_STATIC : 0;
+
+        if (element.getGetter() != null || element.getSetter() != null) {
+            if (element.getGetter() != null) {
+                addEntry(elements, element, shared | ScriptRuntime.CLASS_ELEMENT_GETTER, element.getGetter());
+            }
+            if (element.getSetter() != null) {
+                addEntry(elements, element, shared | ScriptRuntime.CLASS_ELEMENT_SETTER, element.getSetter());
+            }
+            return;
+        }
+
+        addEntry(elements, element, shared, element.getValue());
+    }
+
+    private static void addEntry(final List<Expression> elements, final PropertyNode element, final int flags,
+            final Expression value) {
+        elements.add(keyOf(element));
+        elements.add(LiteralNode.newInstance(element.getToken(), element.getFinish(), flags));
+        elements.add(value);
+    }
+
+    /**
+     * A class element's key as a value expression. A written name is an
+     * IdentNode standing for a string; a computed key is already an expression.
+     */
+    private static Expression keyOf(final PropertyNode element) {
+        final Expression key = element.getKey();
+        if (!element.isComputed() && key instanceof IdentNode name) {
+            return LiteralNode.newInstance(key.getToken(), key.getFinish(), name.getName());
+        }
+        return key;
     }
 
     /**

@@ -63,6 +63,7 @@ import org.openjdk.nashorn.internal.objects.NativeJava;
 import org.openjdk.nashorn.internal.parser.Lexer;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
+import org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import org.openjdk.nashorn.internal.runtime.linker.InvokeByName;
 
 /**
@@ -1373,5 +1374,223 @@ public final class ScriptRuntime {
             throw typeError("not.a.constructor", safeToString(function));
         }
         return construct(scriptFunction, SPREAD_TO_ARGUMENTS(argsArray));
+    }
+
+    /** A class element defined on the constructor rather than the prototype. */
+    public static final int CLASS_ELEMENT_STATIC = 1;
+    /** A class element that is a getter. */
+    public static final int CLASS_ELEMENT_GETTER = 2;
+    /** A class element that is a setter. */
+    public static final int CLASS_ELEMENT_SETTER = 4;
+
+    /**
+     * Builds a class.
+     *
+     * The whole definition arrives as one call rather than as inline property
+     * assignments because the ordering rules are not those of an object literal:
+     * computed keys have to be evaluated in source order interleaved with the
+     * methods, and class methods are non-enumerable, which the object literal
+     * path cannot express.
+     *
+     * @param constructor the constructor function, already created
+     * @param heritage    what the class extends, or undefined
+     * @param derived     whether an extends clause was written at all, which is
+     *                    not the same as heritage being non-null: "extends null"
+     *                    is legal and still makes the class derived
+     * @param elements    key, flags and value for each element, flattened
+     * @return the constructor
+     */
+    public static Object DEFINE_CLASS(final Object constructor, final Object heritage, final Object derived,
+            final Object elements) {
+        final ScriptFunction ctor = (ScriptFunction)constructor;
+        final ScriptObject prototype = (ScriptObject)ctor.getPrototype();
+
+        if (JSType.toBoolean(derived)) {
+            if (heritage == null || heritage == UNDEFINED) {
+                // "class C extends null" - the prototype chain simply ends
+                prototype.setProto(null);
+            } else if (heritage instanceof ScriptFunction parent) {
+                final Object parentPrototype = parent.getPrototype();
+                if (parentPrototype != null && parentPrototype != UNDEFINED
+                        && !(parentPrototype instanceof ScriptObject)) {
+                    throw typeError("cant.inherit.from", safeToString(heritage));
+                }
+                prototype.setProto(parentPrototype instanceof ScriptObject p ? p : null);
+                ctor.setProto(parent);
+            } else {
+                throw typeError("cant.inherit.from", safeToString(heritage));
+            }
+        }
+
+        // super in the constructor resolves above the prototype, just as in a method
+        ctor.setHomeObject(prototype);
+
+        final NativeArray flattened = (NativeArray)elements;
+        final int length = (int)flattened.getArray().length();
+        for (int i = 0; i < length; i += 3) {
+            final Object key = flattened.get(i);
+            final int flags = JSType.toInt32(flattened.get(i + 1));
+            final Object value = flattened.get(i + 2);
+            final ScriptObject target = (flags & CLASS_ELEMENT_STATIC) != 0 ? ctor : prototype;
+            if (value instanceof ScriptFunction method) {
+                // super in this method resolves above whichever object it is
+                // defined on, so the home object is recorded now
+                method.setHomeObject(target);
+            }
+            defineClassElement(target, key, flags, value);
+        }
+
+        // unlike a function's, a class's prototype property is not writable
+        final ScriptObject prototypeDescriptor = Global.newEmptyInstance();
+        prototypeDescriptor.set("writable", false, 0);
+        prototypeDescriptor.set("enumerable", false, 0);
+        prototypeDescriptor.set("configurable", false, 0);
+        ctor.defineOwnProperty("prototype", prototypeDescriptor, true);
+
+        return ctor;
+    }
+
+    private static void defineClassElement(final ScriptObject target, final Object key, final int flags,
+            final Object value) {
+        final Object propertyKey = key instanceof Symbol ? key : JSType.toPropertyKey(key);
+        final ScriptObject descriptor = Global.newEmptyInstance();
+
+        if ((flags & CLASS_ELEMENT_GETTER) != 0) {
+            descriptor.set("get", value, 0);
+        } else if ((flags & CLASS_ELEMENT_SETTER) != 0) {
+            descriptor.set("set", value, 0);
+        } else {
+            descriptor.set("value", value, 0);
+            descriptor.set("writable", true, 0);
+        }
+        // class elements are non-enumerable; a get/set pair written as two
+        // elements merges into one property, which defineOwnProperty does for us
+        descriptor.set("enumerable", false, 0);
+        descriptor.set("configurable", true, 0);
+
+        target.defineOwnProperty(propertyKey, descriptor, true);
+    }
+
+    /**
+     * The object {@code super} resolves against: the prototype of the object the
+     * running method was defined on.
+     *
+     * It comes from the method rather than from the receiver, because super is
+     * fixed where the method was written - a method borrowed by another object
+     * still calls the same super.
+     */
+    private static ScriptObject superBase(final Object callee) {
+        if (!(callee instanceof ScriptFunction function)) {
+            throw typeError("no.super");
+        }
+        final ScriptObject home = function.getHomeObject();
+        if (home == null) {
+            throw typeError("no.super");
+        }
+        return home.getProto();
+    }
+
+    /**
+     * {@code super.x} and {@code super[x]}.
+     *
+     * @param callee the running method
+     * @param key    the property
+     * @return its value, looked up above the method's home object
+     */
+    public static Object SUPER_GET(final Object callee, final Object key) {
+        final ScriptObject base = superBase(callee);
+        return base == null ? UNDEFINED : base.get(key);
+    }
+
+    /**
+     * {@code super.x = value} and {@code super[x] = value}, which per ES2015
+     * assigns on the receiver rather than on the super object.
+     *
+     * @param callee the running method
+     * @param thiz   the receiver
+     * @param key    the property
+     * @param value  the value
+     * @return the value
+     */
+    public static Object SUPER_SET(final Object callee, final Object thiz, final Object key, final Object value) {
+        superBase(callee);
+        if (thiz instanceof ScriptObject receiver) {
+            receiver.set(key, value, NashornCallSiteDescriptor.CALLSITE_STRICT);
+        }
+        return value;
+    }
+
+    /**
+     * {@code super.m(...)}, which runs the inherited method with the current
+     * receiver.
+     *
+     * @param callee    the running method
+     * @param key       the method name
+     * @param thiz      the receiver
+     * @param argsArray the arguments
+     * @return the call's result
+     */
+    public static Object SUPER_CALL(final Object callee, final Object key, final Object thiz,
+            final Object argsArray) {
+        final ScriptObject base = superBase(callee);
+        final Object method = base == null ? UNDEFINED : base.get(key);
+        return SPREAD_CALL(method, thiz, argsArray);
+    }
+
+    /**
+     * {@code super(...)} in a derived constructor.
+     *
+     * Nashorn allocates the object before the constructor runs, so rather than
+     * constructing a second one this calls the parent constructor on the object
+     * that already exists. That is the documented limit of this implementation:
+     * a base class that would return an exotic object - Array, Map - does not
+     * get to do so for a subclass.
+     *
+     * @param callee    the running constructor
+     * @param thiz      the object being constructed
+     * @param argsArray the arguments
+     * @return undefined
+     */
+    public static Object SUPER_CONSTRUCT(final Object callee, final Object thiz, final Object argsArray) {
+        if (!(callee instanceof ScriptFunction constructor)) {
+            throw typeError("no.super");
+        }
+        final ScriptObject parent = constructor.getProto();
+        if (!(parent instanceof ScriptFunction parentConstructor)) {
+            throw typeError("no.super");
+        }
+        apply(parentConstructor, thiz, SPREAD_TO_ARGUMENTS(argsArray));
+        return UNDEFINED;
+    }
+
+    /**
+     * {@code new.target}: the constructor a function is being invoked as, or
+     * undefined when it is being called normally.
+     *
+     * This is inferred from the receiver rather than passed down, because
+     * Nashorn's calling convention has nowhere to carry it. That is exact for
+     * "new F()" and for a class constructed directly, and it is a documented
+     * approximation in two places: inside a base constructor reached through
+     * super() it reports that base rather than the most derived constructor,
+     * and Reflect.construct's newTarget argument is not honoured.
+     *
+     * @param callee the running function
+     * @param thiz   its receiver
+     * @return the constructor, or undefined
+     */
+    public static Object NEW_TARGET(final Object callee, final Object thiz) {
+        if (!(callee instanceof ScriptFunction function) || !(thiz instanceof ScriptObject receiver)) {
+            return UNDEFINED;
+        }
+        final Object prototype = function.getPrototype();
+        if (!(prototype instanceof ScriptObject expected)) {
+            return UNDEFINED;
+        }
+        for (ScriptObject proto = receiver.getProto(); proto != null; proto = proto.getProto()) {
+            if (proto == expected) {
+                return function;
+            }
+        }
+        return UNDEFINED;
     }
 }

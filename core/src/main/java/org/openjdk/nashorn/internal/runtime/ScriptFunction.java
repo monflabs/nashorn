@@ -145,8 +145,11 @@ public class ScriptFunction extends ScriptObject {
         anonmap$ = PropertyMap.newMap();
         final ArrayList<Property> properties = new ArrayList<>(3);
         properties.add(AccessorProperty.create("prototype", Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, G$PROTOTYPE, S$PROTOTYPE));
-        properties.add(AccessorProperty.create("length", Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE | Property.NOT_WRITABLE, G$LENGTH, null));
-        properties.add(AccessorProperty.create("name", Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE | Property.NOT_WRITABLE, G$NAME, null));
+        // ES2015 19.2.4.1/19.2.4.2 made length and name configurable, where ES5.1
+        // had them fixed. Classes rely on it: a class names its constructor, which
+        // is otherwise called "constructor".
+        properties.add(AccessorProperty.create("length", Property.NOT_ENUMERABLE | Property.NOT_WRITABLE, G$LENGTH, null));
+        properties.add(AccessorProperty.create("name", Property.NOT_ENUMERABLE | Property.NOT_WRITABLE, G$NAME, null));
         map$ = PropertyMap.newMap(properties);
         strictmodemap$ = createStrictModeMap(map$);
         boundfunctionmap$ = createBoundFunctionMap(strictmodemap$);
@@ -595,6 +598,31 @@ public class ScriptFunction extends ScriptObject {
      *
      * @return prototype
      */
+    /**
+     * The object this function was defined on, for a class or object literal
+     * method. {@code super} resolves against its prototype, which is fixed where
+     * the method was written and does not follow the receiver.
+     */
+    private ScriptObject homeObject;
+
+    /**
+     * The object this method was defined on, which {@code super} looks above.
+     *
+     * @return the home object, or null for an ordinary function
+     */
+    public final ScriptObject getHomeObject() {
+        return homeObject;
+    }
+
+    /**
+     * Records the object this method was defined on.
+     *
+     * @param homeObject the defining object
+     */
+    public final void setHomeObject(final ScriptObject homeObject) {
+        this.homeObject = homeObject;
+    }
+
     public final Object getPrototype() {
         if (prototype == LAZY_PROTOTYPE) {
             prototype = new PrototypeObject(this);

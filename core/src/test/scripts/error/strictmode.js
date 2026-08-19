@@ -28,8 +28,11 @@
  * @run/fail --strict-mode
  */
 
-function func() {}
+var obj = {};
+Object.defineProperty(obj, "x", { value: 1, configurable: false });
 
-// should not be able to delete non-configurable property
-delete func.length;
+// should not be able to delete a non-configurable property.
+// This used to delete a function's length, which ECMAScript 2015 made
+// configurable, so that is no longer an error.
+delete obj.x;
 

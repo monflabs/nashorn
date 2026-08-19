@@ -96,6 +96,12 @@ public abstract class ScriptFunctionData implements Serializable {
     /** Is this an ES6 method? */
     public static final int IS_ES6_METHOD        = 1 << 7;
 
+    /**
+     * Is this the constructor of a class with an extends clause? A reparse has
+     * to know, because only such a constructor may write {@code super(...)}.
+     */
+    public static final int IS_ES6_SUBCLASS_CONSTRUCTOR = 1 << 8;
+
     /** Flag for strict or built-in functions */
     public static final int IS_STRICT_OR_BUILTIN = IS_STRICT | IS_BUILTIN;
     /** Flag for built-in constructors */

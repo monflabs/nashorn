@@ -922,7 +922,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private void erasePropertyValue(final Property property) {
         // Erase the property field value with undefined. If the property is an accessor property
         // we don't want to call the setter!!
-        if (property != null && !property.isAccessorProperty()) {
+        // A non-writable property is skipped too: there is nothing to erase, and
+        // the built-in ones backed by an internal accessor - a function's length
+        // and name - have no setter at all, so writing through them fails outright.
+        if (property != null && !property.isAccessorProperty() && property.isWritable()) {
             property.setValue(this, this, UNDEFINED, false);
         }
     }

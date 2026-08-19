@@ -1126,8 +1126,17 @@ public class Parser extends AbstractParser implements Loggable {
                 final int propertyLine = line;
                 final Expression propertyKey = propertyName();
 
-                // Code below will need refinement once we fully support ES6 class syntax
-                final int flags = CONSTRUCTOR_NAME.equals(ident) ? FunctionNode.ES6_IS_CLASS_CONSTRUCTOR : FunctionNode.ES6_IS_METHOD;
+                // A reparsed method has to be given back the flags it was parsed
+                // with, or it is no longer recognisably a method: super would be
+                // rejected outright, and super(...) needs to know that the class
+                // had an extends clause.
+                int flags = FunctionNode.ES6_IS_METHOD;
+                if (CONSTRUCTOR_NAME.equals(ident)) {
+                    flags |= FunctionNode.ES6_IS_CLASS_CONSTRUCTOR;
+                    if ((reparseFlags & ScriptFunctionData.IS_ES6_SUBCLASS_CONSTRUCTOR) != 0) {
+                        flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
+                    }
+                }
                 addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, false, flags, false));
                 return;
             }
@@ -1169,9 +1178,20 @@ public class Parser extends AbstractParser implements Loggable {
         final long classToken = token;
         next();
 
-        IdentNode className = null;
-        if (isStatement || type == IDENT) {
-            className = getIdent();
+        // ES2015 10.2.1: a class body is strict code, and that covers the class's
+        // own name - "class let {}" and "class static {}" are SyntaxErrors even
+        // in sloppy surroundings. The name is read here, before classTail, so
+        // strict mode has to be entered here too.
+        final boolean oldStrictMode = isStrictMode;
+        isStrictMode = true;
+        final IdentNode className;
+        try {
+            className = isStatement || type == IDENT ? getIdent() : null;
+            if (className != null) {
+                verifyIdent(className, "class name");
+            }
+        } finally {
+            isStrictMode = oldStrictMode;
         }
 
         return classTail(classLineNumber, classToken, className, isStatement);
@@ -1263,7 +1283,14 @@ public class Parser extends AbstractParser implements Loggable {
                     classElements.add(classElement);
                 } else if (!classElement.isStatic() && CONSTRUCTOR_NAME.equals(classElement.getKeyName())) {
                     if (constructor == null) {
-                        constructor = classElement;
+                        // ES2015 14.5.15: the class binding names the constructor.
+                        // The function is called "constructor" as written, and the
+                        // name is fixed here rather than at run time because the
+                        // name property is backed by an internal accessor that
+                        // cannot be redefined.
+                        constructor = className == null
+                                ? classElement
+                                : classElement.setValue(((FunctionNode)classElement.getValue()).setName(null, className.getName()));
                     } else {
                         throw error(AbstractParser.message("multiple.constructors"), classElementToken);
                     }
@@ -1336,6 +1363,10 @@ public class Parser extends AbstractParser implements Loggable {
 
         function.setFlag(FunctionNode.ES6_IS_METHOD);
         function.setFlag(FunctionNode.ES6_IS_CLASS_CONSTRUCTOR);
+        // This constructor has no source text of its own; its token points at the
+        // class, which does not reparse on its own for an anonymous class
+        // expression. The flag tells the compiler to cache its AST instead.
+        function.setFlag(FunctionNode.ES6_IS_DEFAULT_CONSTRUCTOR);
         if (subclass) {
             function.setFlag(FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR);
             function.setFlag(FunctionNode.ES6_HAS_DIRECT_SUPER);
@@ -1448,6 +1479,15 @@ public class Parser extends AbstractParser implements Loggable {
      * @param ident         Identifier that is verified
      * @param contextString String used in error message to give context to the user
      */
+    /** The words ECMAScript reserves in strict code but not in sloppy code. */
+    private static boolean isFutureStrictName(final String name) {
+        return switch (name) {
+            case "implements", "interface", "let", "package", "private",
+                 "protected", "public", "static", "yield" -> true;
+            default -> false;
+        };
+    }
+
     private void verifyIdent(final IdentNode ident, final String contextString) {
         verifyStrictIdent(ident, contextString);
         checkEscapedKeyword(ident);
@@ -1469,7 +1509,10 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             }
 
-            if (ident.isFutureStrictName()) {
+            if (ident.isFutureStrictName() || isFutureStrictName(ident.getName())) {
+                // The flag comes from the token type, which an escaped spelling
+                // never gets: "l\u0065t" lexes as a plain identifier. The name
+                // has to be checked as well, since it means the same thing.
                 throw error(AbstractParser.message("strict.name", ident.getName(), contextString), ident.getToken());
             }
         }
