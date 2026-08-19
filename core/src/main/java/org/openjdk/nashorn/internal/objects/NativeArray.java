@@ -1627,8 +1627,8 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return array with elements transformed by map function
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static NativeArray map(final Object self, final Object callbackfn, final Object thisArg) {
-        return new IteratorAction<NativeArray>(Global.toObject(self), callbackfn, thisArg, null) {
+    public static ScriptObject map(final Object self, final Object callbackfn, final Object thisArg) {
+        return new IteratorAction<ScriptObject>(Global.toObject(self), callbackfn, thisArg, null) {
             private final MethodHandle mapInvoker = getMAP_CALLBACK_INVOKER();
 
             @Override
@@ -1642,7 +1642,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             public void applyLoopBegin(final ArrayLikeIterator<Object> iter0) {
                 // map return array should be of same length as source array
                 // even if callback reduces source array length
-                result = new NativeArray(iter0.getLength());
+                result = speciesCreate(self, iter0.getLength());
             }
         }.apply();
     }
@@ -1656,8 +1656,8 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return filtered array
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static NativeArray filter(final Object self, final Object callbackfn, final Object thisArg) {
-        return new IteratorAction<>(Global.toObject(self), callbackfn, thisArg, new NativeArray()) {
+    public static ScriptObject filter(final Object self, final Object callbackfn, final Object thisArg) {
+        return new IteratorAction<ScriptObject>(Global.toObject(self), callbackfn, thisArg, speciesCreate(self, 0)) {
             private long to = 0;
             private final MethodHandle filterInvoker = getFILTER_CALLBACK_INVOKER();
 
@@ -1669,6 +1669,52 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
                 return true;
             }
         }.apply();
+    }
+
+    /**
+     * ES2015 9.4.2.3 ArraySpeciesCreate: what the operations deriving one array
+     * from another build.
+     *
+     * The answer is an ordinary array unless a subclass has said otherwise, and
+     * the check for that is one reference comparison: an array whose prototype
+     * is the realm's own Array.prototype has the realm's own constructor and so
+     * the default species. Walking constructor and @@species on every map or
+     * filter of a plain array would put two property reads on a hot path to
+     * reach a conclusion already known.
+     *
+     * @param original the array being derived from
+     * @param length   the length to create with
+     * @return the object to fill in
+     */
+    private static ScriptObject speciesCreate(final Object original, final long length) {
+        final Global global = Global.instance();
+        if (!(original instanceof ScriptObject sobj) || sobj.getProto() == global.getArrayPrototype()) {
+            return new NativeArray(length);
+        }
+        if (!isArray(sobj)) {
+            return new NativeArray(length);
+        }
+
+        final Object constructor = sobj.get("constructor");
+        if (constructor == ScriptRuntime.UNDEFINED) {
+            return new NativeArray(length);
+        }
+        if (!(constructor instanceof ScriptObject ctor)) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
+        }
+        final Object species = ctor.get(NativeSymbol.species);
+        if (species == ScriptRuntime.UNDEFINED || species == null
+                || species == global.get("Array")) {
+            return new NativeArray(length);
+        }
+        if (!(species instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(species));
+        }
+        final Object created = ScriptRuntime.construct(function, (double)length);
+        if (created instanceof ScriptObject target) {
+            return target;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(created));
     }
 
     private static Object reduceInner(final ArrayLikeIterator<Object> iter, final Object self, final Object... args) {
