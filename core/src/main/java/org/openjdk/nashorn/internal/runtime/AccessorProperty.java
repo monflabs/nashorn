@@ -494,6 +494,28 @@ public class AccessorProperty extends Property {
         initGetterSetter(structure);
     }
 
+    /*
+     * A built-in accessor - Map.prototype.size, %TypedArray%.prototype.buffer -
+     * is implemented by a method handle rather than by a script function, but
+     * ES2015 6.2.4.5 says its property descriptor carries a callable get, and
+     * that is how the conformance suite reads one. The function is built on
+     * demand: describing a property is rare, and the handle is the authority.
+     */
+
+    @Override
+    public ScriptFunction getGetterFunction(final ScriptObject obj) {
+        return isAccessorProperty() && objectGetter != null
+                ? ScriptFunction.createBuiltin("get " + getKey(), objectGetter)
+                : null;
+    }
+
+    @Override
+    public ScriptFunction getSetterFunction(final ScriptObject obj) {
+        return isAccessorProperty() && objectSetter != null
+                ? ScriptFunction.createBuiltin("set " + getKey(), objectSetter)
+                : null;
+    }
+
     @Override
     public MethodHandle getGetter(final Class<?> type) {
         final int i = getAccessorTypeIndex(type);

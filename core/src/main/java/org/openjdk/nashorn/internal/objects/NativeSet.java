@@ -56,6 +56,20 @@ public class NativeSet extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
+    /**
+     * ES2015 23.2.2.2 get Set [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
     private NativeSet(final ScriptObject proto, final PropertyMap map) {
         super(proto, map);
     }

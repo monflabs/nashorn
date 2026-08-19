@@ -53,6 +53,20 @@ public final class NativeArrayBuffer extends ScriptObject {
     private static PropertyMap $nasgenmap$;
 
     /**
+     * ES2015 24.1.3.3 get ArrayBuffer [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
+    /**
      * Constructor
      * @param nb native byte buffer to wrap
      * @param global global instance

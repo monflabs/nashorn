@@ -32,6 +32,7 @@ import java.util.List;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Constructor;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
+import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.ECMAException;
@@ -52,6 +53,20 @@ import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 public final class NativePromise extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
+
+    /**
+     * ES2015 25.4.4.6 get Promise [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
 
     private enum State { PENDING, FULFILLED, REJECTED }
 

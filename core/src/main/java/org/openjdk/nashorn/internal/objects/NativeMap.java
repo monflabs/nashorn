@@ -58,6 +58,20 @@ public class NativeMap extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
+    /**
+     * ES2015 23.1.2.2 get Map [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
     private NativeMap(final ScriptObject proto, final PropertyMap map) {
         super(proto, map);
     }

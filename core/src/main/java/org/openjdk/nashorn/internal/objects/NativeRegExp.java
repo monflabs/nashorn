@@ -70,6 +70,20 @@ public final class NativeRegExp extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
+    /**
+     * ES2015 21.2.4.2 get RegExp [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
     private NativeRegExp(final Global global) {
         super(global.getRegExpPrototype(), $nasgenmap$);
         this.globalObject = global;
@@ -339,7 +353,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return the input string for the regexp
      */
-    @Getter(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object source(final Object self) {
         return checkRegExp(self).getRegExp().getSource();
     }
@@ -353,7 +367,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return the flags
      */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object flags(final Object self) {
         final NativeRegExp regExp = checkRegExp(self);
         final StringBuilder sb = new StringBuilder(3);
@@ -381,7 +395,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return true if this regexp only matches at lastIndex
      */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object sticky(final Object self) {
         return checkRegExp(self).getRegExp().isSticky();
     }
@@ -392,7 +406,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return true if this regexp is in unicode mode
      */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object unicode(final Object self) {
         return checkRegExp(self).getRegExp().isUnicode();
     }
@@ -403,7 +417,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return true if this regexp is flagged global, false otherwise
      */
-    @Getter(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object global(final Object self) {
         return checkRegExp(self).getRegExp().isGlobal();
     }
@@ -414,7 +428,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return true if this regexp if flagged to ignore case, false otherwise
      */
-    @Getter(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object ignoreCase(final Object self) {
         return checkRegExp(self).getRegExp().isIgnoreCase();
     }
@@ -425,7 +439,7 @@ public final class NativeRegExp extends ScriptObject {
      * @param self self reference
      * @return true if this regexp is flagged to be multiline, false otherwise
      */
-    @Getter(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object multiline(final Object self) {
         return checkRegExp(self).getRegExp().isMultiline();
     }

@@ -223,6 +223,20 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
+    /**
+     * ES2015 22.1.2.5 get Array [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
     @Override
     public String getClassName() {
         return "Array";
