@@ -352,6 +352,10 @@ public final class Global extends Scope {
     @Property(name = "Promise", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object promise;
 
+    /** ECMAScript 2015 26.2 - The Proxy constructor */
+    @Property(name = "Proxy", attributes = Attribute.NOT_ENUMERABLE)
+    public volatile Object proxy;
+
     /** Error object */
     @Property(name = "Error", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object error;
@@ -1028,6 +1032,7 @@ public final class Global extends Scope {
     private ScriptObject   builtinMath;
     private ScriptObject   builtinReflect;
     private ScriptFunction builtinPromise;
+    private ScriptFunction builtinProxy;
 
     /** Where promise reactions wait until the JavaScript stack empties. */
     private final JobQueue jobQueue = new JobQueue();
@@ -2678,6 +2683,7 @@ public final class Global extends Scope {
         this.builtinMath      = initConstructorAndSwitchPoint("Math", ScriptObject.class);
         this.builtinReflect   = initConstructorAndSwitchPoint("Reflect", ScriptObject.class);
         this.builtinPromise   = initConstructorAndSwitchPoint("Promise", ScriptFunction.class);
+        this.builtinProxy     = initConstructorAndSwitchPoint("Proxy", ScriptFunction.class);
 
         // initialize String.prototype.length to 0
         // add String.prototype.length
@@ -2862,6 +2868,7 @@ public final class Global extends Scope {
         this.math              = this.builtinMath;
         this.reflect           = this.builtinReflect;
         this.promise           = this.builtinPromise;
+        this.proxy             = this.builtinProxy;
         this.number            = this.builtinNumber;
         this.object            = this.builtinObject;
         this.packages          = this.builtinPackages;
