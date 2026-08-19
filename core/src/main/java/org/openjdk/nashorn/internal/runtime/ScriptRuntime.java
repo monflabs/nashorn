@@ -518,12 +518,20 @@ public final class ScriptRuntime {
      * @return Call result.
      */
     public static Object apply(final ScriptFunction target, final Object self, final Object... args) {
+        JobQueue.enterScript();
         try {
             return target.invoke(self, args);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
             throw new RuntimeException(t);
+        } finally {
+            if (JobQueue.exitScript()) {
+                final Global global = Context.getGlobal();
+                if (global != null) {
+                    global.getJobQueue().drain();
+                }
+            }
         }
     }
 

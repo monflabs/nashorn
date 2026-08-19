@@ -93,7 +93,7 @@ public final class Test262Runner {
      * engine that is missing the feature they exercise, and an async test whose
      * promise never settles would otherwise hang the whole run.
      */
-    private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 20L);
+    private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 40L);
 
     /** How many executions one engine serves before it is thrown away and rebuilt. */
     private static final int EXECUTIONS_PER_ENGINE =

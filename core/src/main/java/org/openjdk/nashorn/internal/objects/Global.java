@@ -66,6 +66,7 @@ import org.openjdk.nashorn.internal.runtime.FindProperty;
 import org.openjdk.nashorn.internal.runtime.GlobalConstants;
 import org.openjdk.nashorn.internal.runtime.GlobalFunctions;
 import org.openjdk.nashorn.internal.runtime.GeneratorSupport;
+import org.openjdk.nashorn.internal.runtime.JobQueue;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.NativeJavaPackage;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
@@ -346,6 +347,10 @@ public final class Global extends Scope {
     /** ECMAScript 2015 26.1 - The Reflect object */
     @Property(name = "Reflect", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object reflect;
+
+    /** ECMAScript 2015 25.4 - The Promise constructor */
+    @Property(name = "Promise", attributes = Attribute.NOT_ENUMERABLE)
+    public volatile Object promise;
 
     /** Error object */
     @Property(name = "Error", attributes = Attribute.NOT_ENUMERABLE)
@@ -1022,6 +1027,10 @@ public final class Global extends Scope {
     private ScriptFunction builtinJSAdapter;
     private ScriptObject   builtinMath;
     private ScriptObject   builtinReflect;
+    private ScriptFunction builtinPromise;
+
+    /** Where promise reactions wait until the JavaScript stack empties. */
+    private final JobQueue jobQueue = new JobQueue();
 
     /**
      * Every generator started in this realm, weakly.
@@ -1918,15 +1927,38 @@ public final class Global extends Scope {
      * generator object to be collected.
      */
     public void abandonGenerators() {
+        // Snapshot under the lock and unwind outside it: unwinding wakes a
+        // generator's thread, which may go on to start another generator and
+        // register it here, and that must not happen while this is iterating.
+        final List<WeakReference<GeneratorSupport>> snapshot;
         synchronized (generators) {
-            for (final var reference : generators) {
-                final var generator = reference.get();
-                if (generator != null) {
-                    generator.abandon();
-                }
-            }
+            snapshot = new ArrayList<>(generators);
             generators.clear();
         }
+        for (final WeakReference<GeneratorSupport> reference : snapshot) {
+            final GeneratorSupport generator = reference.get();
+            if (generator != null) {
+                generator.abandon();
+            }
+        }
+    }
+
+    /**
+     * The prototype every promise gets.
+     *
+     * @return the %PromisePrototype% intrinsic
+     */
+    public ScriptObject getPromisePrototype() {
+        return ScriptFunction.getPrototype(builtinPromise);
+    }
+
+    /**
+     * The realm's microtask queue.
+     *
+     * @return the queue promise reactions run on
+     */
+    public JobQueue getJobQueue() {
+        return jobQueue;
     }
 
     public ScriptObject getGeneratorPrototype() {
@@ -2645,6 +2677,7 @@ public final class Global extends Scope {
         this.builtinString    = initConstructorAndSwitchPoint("String", ScriptFunction.class);
         this.builtinMath      = initConstructorAndSwitchPoint("Math", ScriptObject.class);
         this.builtinReflect   = initConstructorAndSwitchPoint("Reflect", ScriptObject.class);
+        this.builtinPromise   = initConstructorAndSwitchPoint("Promise", ScriptFunction.class);
 
         // initialize String.prototype.length to 0
         // add String.prototype.length
@@ -2828,6 +2861,7 @@ public final class Global extends Scope {
         this.org               = this.builtinOrg;
         this.math              = this.builtinMath;
         this.reflect           = this.builtinReflect;
+        this.promise           = this.builtinPromise;
         this.number            = this.builtinNumber;
         this.object            = this.builtinObject;
         this.packages          = this.builtinPackages;
