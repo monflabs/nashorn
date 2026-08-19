@@ -1713,12 +1713,22 @@ public final class ScriptRuntime {
         if (!(prototype instanceof ScriptObject expected)) {
             return UNDEFINED;
         }
+        boolean constructing = false;
         for (ScriptObject proto = receiver.getProto(); proto != null; proto = proto.getProto()) {
             if (proto == expected) {
-                return function;
+                constructing = true;
+                break;
             }
         }
-        return UNDEFINED;
+        if (!constructing) {
+            return UNDEFINED;
+        }
+        // The receiver was allocated from new.target's prototype (ES2015 9.2.2
+        // step 5), so the object being built names it: a derived constructor
+        // running super() sees the derived class, not its own function, and
+        // Reflect.construct's third argument is recovered the same way.
+        final Object target = receiver.getProto().get("constructor");
+        return target instanceof ScriptFunction ? target : function;
     }
 
     /**

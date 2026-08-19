@@ -99,45 +99,26 @@ public abstract class ArrayBufferView extends ScriptObject {
         return factory().bytesPerElement;
     }
 
-    /**
-     * Buffer getter as per spec
-     * @param self ArrayBufferView instance
-     * @return buffer
+    /*
+     * ES2015 22.2.3 puts buffer, byteOffset, byteLength and length on
+     * %TypedArrayPrototype% as accessors, not on the instance, so they are
+     * declared in NativeTypedArray and read the view through these.
      */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE)
-    public static Object buffer(final Object self) {
-        return ((ArrayBufferView)self).buffer;
+
+    NativeArrayBuffer getArrayBuffer() {
+        return buffer;
     }
 
-    /**
-     * Buffer offset getter as per spec
-     * @param self ArrayBufferView instance
-     * @return buffer offset
-     */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE)
-    public static int byteOffset(final Object self) {
-        return ((ArrayBufferView)self).byteOffset;
+    int getViewByteOffset() {
+        return byteOffset;
     }
 
-    /**
-     * Byte length getter as per spec
-     * @param self ArrayBufferView instance
-     * @return array buffer view length in bytes
-     */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE)
-    public static int byteLength(final Object self) {
-        final ArrayBufferView view = (ArrayBufferView)self;
-        return ((TypedArrayData<?>)view.getArray()).getElementLength() * view.bytesPerElement();
+    int getViewByteLength() {
+        return ((TypedArrayData<?>)getArray()).getElementLength() * bytesPerElement();
     }
 
-    /**
-     * Length getter as per spec
-     * @param self ArrayBufferView instance
-     * @return length in elements
-     */
-    @Getter(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE)
-    public static int length(final Object self) {
-        return ((ArrayBufferView)self).elementLength();
+    int getElementLength() {
+        return elementLength();
     }
 
     @Override

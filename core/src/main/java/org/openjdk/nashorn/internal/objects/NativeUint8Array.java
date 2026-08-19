@@ -54,6 +54,10 @@ public final class NativeUint8Array extends ArrayBufferView {
     @Property(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE, where = Where.CONSTRUCTOR)
     public static final int BYTES_PER_ELEMENT = 1;
 
+    /** ES2015 22.2.6.1: the element size is on the prototype too. */
+    @Property(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE | Attribute.NOT_CONFIGURABLE, where = Where.PROTOTYPE, name = "BYTES_PER_ELEMENT")
+    public static final int BYTES_PER_ELEMENT_PROTOTYPE = 1;
+
     // initialized by nasgen
     @SuppressWarnings("unused")
     private static PropertyMap $nasgenmap$;
@@ -191,54 +195,6 @@ public final class NativeUint8Array extends ArrayBufferView {
     @Override
     protected Factory factory() {
         return FACTORY;
-    }
-
-    /**
-     * Set values
-     * @param self   self reference
-     * @param array  multiple values of array's type to set
-     * @param offset optional start index, interpreted  0 if undefined
-     * @return undefined
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
-    protected static Object set(final Object self, final Object array, final Object offset) {
-        return ArrayBufferView.setImpl(self, array, offset);
-    }
-
-    /**
-     * Returns a new TypedArray view of the ArrayBuffer store for this TypedArray,
-     * referencing the elements at begin, inclusive, up to end, exclusive. If either
-     * begin or end is negative, it refers to an index from the end of the array,
-     * as opposed to from the beginning.
-     * <p>
-     * If end is unspecified, the subarray contains all elements from begin to the end
-     * of the TypedArray. The range specified by the begin and end values is clamped to
-     * the valid index range for the current array. If the computed length of the new
-     * TypedArray would be negative, it is clamped to zero.
-     * <p>
-     * The returned TypedArray will be of the same type as the array on which this
-     * method is invoked.
-     *
-     * @param self self reference
-     * @param begin begin position
-     * @param end end position
-     *
-     * @return sub array
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
-    protected static NativeUint8Array subarray(final Object self, final Object begin, final Object end) {
-        return (NativeUint8Array)ArrayBufferView.subarrayImpl(self, begin, end);
-    }
-
-    /**
-     * ECMA 6 22.2.3.30 %TypedArray%.prototype [ @@iterator ] ( )
-     *
-     * @param self the self reference
-     * @return an iterator over the array's values
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@iterator")
-    public static Object getIterator(final Object self) {
-        return ArrayIterator.newArrayValueIterator(self);
     }
 
     @Override

@@ -1071,6 +1071,7 @@ public final class Global extends Scope {
     private ScriptObject   builtinJavaApi;
     private ScriptFunction builtinArrayBuffer;
     private ScriptFunction builtinDataView;
+    private ScriptFunction builtinTypedArray;
     private ScriptFunction builtinInt8Array;
     private ScriptFunction builtinUint8Array;
     private ScriptFunction builtinUint8ClampedArray;
@@ -2002,9 +2003,42 @@ public final class Global extends Scope {
         return ScriptFunction.getPrototype(getBuiltinDataView());
     }
 
+    /**
+     * %TypedArray%, the intrinsic the nine typed array constructors inherit from.
+     *
+     * ES2015 22.2.1 gives it no name in the global object: a script can only
+     * reach it through Object.getPrototypeOf(Int8Array), so it is built on
+     * demand along with the first concrete type that needs it.
+     */
+    private synchronized ScriptFunction getBuiltinTypedArray() {
+        if (this.builtinTypedArray == null) {
+            final ScriptFunction typedArray = initConstructorAndSwitchPoint("TypedArray", ScriptFunction.class);
+            final ScriptObject prototype = ScriptFunction.getPrototype(typedArray);
+            // 22.2.3.29: values and [ @@iterator ] are the same function object,
+            // and 22.2.3.28 makes toString the one Array.prototype has
+            prototype.addOwnProperty(NativeSymbol.iterator, Attribute.NOT_ENUMERABLE, prototype.get("values"));
+            prototype.addOwnProperty("toString", Attribute.NOT_ENUMERABLE, getArrayPrototype().get("toString"));
+            this.builtinTypedArray = typedArray;
+        }
+        return this.builtinTypedArray;
+    }
+
+    /**
+     * Puts one concrete typed array constructor and its prototype under
+     * %TypedArray% (ES2015 22.2.4, 22.2.6), which is where everything they share
+     * lives.
+     */
+    private ScriptFunction initTypedArrayConstructor(final String name) {
+        final ScriptFunction constructor = initConstructorAndSwitchPoint(name, ScriptFunction.class);
+        final ScriptFunction typedArray = getBuiltinTypedArray();
+        constructor.setProto(typedArray);
+        ScriptFunction.getPrototype(constructor).setProto(ScriptFunction.getPrototype(typedArray));
+        return constructor;
+    }
+
     private synchronized ScriptFunction getBuiltinInt8Array() {
         if (this.builtinInt8Array == null) {
-            this.builtinInt8Array = initConstructorAndSwitchPoint("Int8Array", ScriptFunction.class);
+            this.builtinInt8Array = initTypedArrayConstructor("Int8Array");
         }
         return this.builtinInt8Array;
     }
@@ -2015,7 +2049,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinUint8Array() {
         if (this.builtinUint8Array == null) {
-            this.builtinUint8Array = initConstructorAndSwitchPoint("Uint8Array", ScriptFunction.class);
+            this.builtinUint8Array = initTypedArrayConstructor("Uint8Array");
         }
         return this.builtinUint8Array;
     }
@@ -2026,7 +2060,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinUint8ClampedArray() {
         if (this.builtinUint8ClampedArray == null) {
-            this.builtinUint8ClampedArray = initConstructorAndSwitchPoint("Uint8ClampedArray", ScriptFunction.class);
+            this.builtinUint8ClampedArray = initTypedArrayConstructor("Uint8ClampedArray");
         }
         return this.builtinUint8ClampedArray;
     }
@@ -2037,7 +2071,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinInt16Array() {
         if (this.builtinInt16Array == null) {
-            this.builtinInt16Array = initConstructorAndSwitchPoint("Int16Array", ScriptFunction.class);
+            this.builtinInt16Array = initTypedArrayConstructor("Int16Array");
         }
         return this.builtinInt16Array;
     }
@@ -2048,7 +2082,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinUint16Array() {
         if (this.builtinUint16Array == null) {
-            this.builtinUint16Array = initConstructorAndSwitchPoint("Uint16Array", ScriptFunction.class);
+            this.builtinUint16Array = initTypedArrayConstructor("Uint16Array");
         }
         return this.builtinUint16Array;
     }
@@ -2059,7 +2093,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinInt32Array() {
         if (this.builtinInt32Array == null) {
-            this.builtinInt32Array = initConstructorAndSwitchPoint("Int32Array", ScriptFunction.class);
+            this.builtinInt32Array = initTypedArrayConstructor("Int32Array");
         }
         return this.builtinInt32Array;
     }
@@ -2070,7 +2104,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinUint32Array() {
         if (this.builtinUint32Array == null) {
-            this.builtinUint32Array = initConstructorAndSwitchPoint("Uint32Array", ScriptFunction.class);
+            this.builtinUint32Array = initTypedArrayConstructor("Uint32Array");
         }
         return this.builtinUint32Array;
     }
@@ -2081,7 +2115,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinFloat32Array() {
         if (this.builtinFloat32Array == null) {
-            this.builtinFloat32Array = initConstructorAndSwitchPoint("Float32Array", ScriptFunction.class);
+            this.builtinFloat32Array = initTypedArrayConstructor("Float32Array");
         }
         return this.builtinFloat32Array;
     }
@@ -2092,7 +2126,7 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinFloat64Array() {
         if (this.builtinFloat64Array == null) {
-            this.builtinFloat64Array = initConstructorAndSwitchPoint("Float64Array", ScriptFunction.class);
+            this.builtinFloat64Array = initTypedArrayConstructor("Float64Array");
         }
         return this.builtinFloat64Array;
     }
