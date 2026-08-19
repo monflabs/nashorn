@@ -33,6 +33,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.SwitchPoint;
 import jdk.dynalink.CallSiteDescriptor;
+import org.openjdk.nashorn.internal.objects.NativeSymbol;
 import jdk.dynalink.NamedOperation;
 import jdk.dynalink.Operation;
 import jdk.dynalink.StandardOperation;
@@ -103,7 +104,7 @@ public final class WithObject extends Scope {
         assert op instanceof NamedOperation; // WithObject is a scope object, access is always named
         final String name = ((NamedOperation)op).getName().toString();
 
-        FindProperty find = expression.findProperty(name, true);
+        FindProperty find = unscopable(name) ? null : expression.findProperty(name, true);
 
         if (find != null) {
             link = expression.lookup(desc, request);
@@ -176,10 +177,34 @@ public final class WithObject extends Scope {
         // This way in ScriptObject.setObject we can tell the property is from a 'with' expression
         // (as opposed from another non-scope object in the proto chain such as Object.prototype).
         final FindProperty exprProperty = expression.findProperty(key, true, false, expression);
-        if (exprProperty != null) {
+        if (exprProperty != null && !unscopable(key)) {
             return exprProperty;
         }
         return super.findProperty(key, deep, isScope, start);
+    }
+
+    /**
+     * ES2015 8.1.1.2.1 HasBinding: an object can hide names from a with block
+     * through its @@unscopables, which is how Array.prototype's own additions
+     * were made not to shadow a variable in code written before them.
+     *
+     * The lookup only happens once some script has installed the symbol
+     * somewhere, which is what Array.prototype's own does at start-up - so the
+     * check costs a property read on a with block, and with blocks are already
+     * the slow way to write anything.
+     */
+    private boolean unscopable(final Object key) {
+        if (!(key instanceof String name)) {
+            return false;
+        }
+        // found rather than read: reading a property an object does not have
+        // calls its __noSuchProperty__, which has no business being asked about
+        // a symbol it never mentioned
+        final FindProperty found = expression.findProperty(NativeSymbol.unscopables, true);
+        if (found == null) {
+            return false;
+        }
+        return found.getObjectValue() instanceof ScriptObject list && JSType.toBoolean(list.get(name));
     }
 
     @Override
