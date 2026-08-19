@@ -29,20 +29,22 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2015 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2017 conformance.
  *
- * test262 has no ES2015 branch or tag - only the frozen {@code es5-tests} branch
- * and {@code main}, which tracks the current draft spec. The ES2015 suite has to
- * be selected out of {@code main}, and the selection is a <em>deny</em> rule
- * rather than an allow rule:
+ * test262 has no branch or tag for any edition - only the frozen
+ * {@code es5-tests} branch and {@code main}, which tracks the current draft
+ * spec. The suite for an edition has to be selected out of {@code main}, and the
+ * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2015.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2017.</b>
  *
- * <p>That is deliberate. An allow rule - take only tests tagged with an ES2015
- * feature - would select about 10,600 tests and quietly drop the ~15,000
- * untagged ones that cover the ES5.1 core as ES2015 amended it. ES2015 contains
- * all of ES5.1, so those tests are part of conformance too. The deny rule keeps
- * them and selects about 25,000.
+ * <p>That is deliberate. An allow rule - take only tests tagged with a feature
+ * of the edition - would quietly drop the thousands of untagged tests covering
+ * the core as later editions amended it, and each edition contains all of the
+ * ones before it, so those tests are part of conformance too. Several ES2017
+ * additions carry no tag at all: {@code Object.values}, {@code Object.entries},
+ * {@code Object.getOwnPropertyDescriptors}, {@code String.prototype.padStart}
+ * and {@code padEnd} are only ever tagged with what they happen to use.
  *
  * <p>{@code features:} is the only mechanism that reliably marks a test as
  * needing something newer, because the legacy {@code es6id:} marker is only
@@ -51,14 +53,15 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015 introduced. A test tagged only
-     * with these - or with none at all - is in scope.
+     * Every {@code features:} tag that ES2015, ES2016 or ES2017 introduced. A
+     * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately absent: {@code tail-call-optimization}. Proper tail calls are
-     * ES2015, but implementing them on the JVM costs a trampoline in tail
-     * position, so they are an explicit, documented exclusion.
+     * normative from ES2015 on, but implementing them on the JVM costs a
+     * trampoline in tail position, so they are an explicit, documented
+     * exclusion - as they are in every engine but JavaScriptCore.
      */
-    private static final Set<String> ES2015_FEATURES = Set.of(
+    private static final Set<String> FEATURES = Set.of(
         // syntax
         "arrow-function", "class", "computed-property-names", "const", "let",
         "default-parameters", "destructuring-binding", "destructuring-assignment",
@@ -73,7 +76,12 @@ public final class Test262Selector {
         "Promise", "Map", "Set", "WeakMap", "WeakSet",
         "TypedArray", "ArrayBuffer", "DataView",
         // a property of ES2015 strict functions rather than a new feature
-        "caller-no-arguments-strict");
+        "caller-no-arguments-strict",
+        // ES2016
+        "exponentiation", "Array.prototype.includes",
+        // ES2017. The library additions of that edition carry no tag of their
+        // own and are in scope by the deny rule alone.
+        "async-functions", "SharedArrayBuffer", "Atomics");
 
     /**
      * Suite directories that are out of scope regardless of tags.
@@ -82,25 +90,13 @@ public final class Test262Selector {
      * normative. {@code annexB} is normative-optional and aimed at browser
      * hosts, which Nashorn is not.
      *
-     * The three async-function directories are ECMAScript 2017. They are named
-     * here rather than caught by the feature rule because the tests in them
-     * predate the {@code features:} convention and declare nothing.
+     * The async-generator directories are ECMAScript 2018 - async iteration,
+     * not async functions. They are named here rather than caught by the feature
+     * rule because the tests in them predate the {@code features:} convention
+     * and declare nothing.
      */
     private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging", "annexB",
-            "AsyncFunction", "async-function", "async-generator");
-
-    /**
-     * Filename fragments that mark a test of something later than ES2015, in a
-     * directory that is otherwise in scope.
-     *
-     * Trailing commas in a function's parameter list or argument list are
-     * ECMAScript 2017. The tests are procedurally generated and named for what
-     * they cover, and like the async ones they declare no feature, so the name
-     * is what there is to go on. A trailing comma in an array or object literal
-     * is ES5 and is tested under other names.
-     */
-    private static final Set<String> EXCLUDED_NAME_PARTS = Set.of(
-            "params-trailing-comma", "args-trailing-comma");
+            "async-generator", "async-generators");
 
     private Test262Selector() {
     }
@@ -111,7 +107,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2015 conformance
+     * @return true if the test counts towards ES2017 conformance
      */
     public static boolean isInScope(final Path suiteRoot, final Path testFile, final Test262Frontmatter frontmatter) {
         final Path relative = suiteRoot.relativize(testFile);
@@ -121,39 +117,31 @@ public final class Test262Selector {
             }
         }
 
-        final String fileName = testFile.getFileName().toString();
-
         // _FIXTURE files are imported by module tests, never run on their own
-        if (fileName.endsWith("_FIXTURE.js")) {
+        if (testFile.getFileName().toString().endsWith("_FIXTURE.js")) {
             return false;
-        }
-
-        for (final String part : EXCLUDED_NAME_PARTS) {
-            if (fileName.contains(part)) {
-                return false;
-            }
         }
 
         if (frontmatter == null) {
             return true;
         }
 
-        return ES2015_FEATURES.containsAll(frontmatter.getFeatures());
+        return FEATURES.containsAll(frontmatter.getFeatures());
     }
 
     /**
-     * The features a test needs that ES2015 does not have. Used to explain why a
+     * The features a test needs that ES2017 does not have. Used to explain why a
      * test was skipped.
      *
      * @param frontmatter a parsed header
      * @return the offending tags, empty when the test is in scope
      */
-    public static Set<String> postEs2015Features(final Test262Frontmatter frontmatter) {
+    public static Set<String> laterFeatures(final Test262Frontmatter frontmatter) {
         if (frontmatter == null) {
             return Set.of();
         }
         return frontmatter.getFeatures().stream()
-                .filter(f -> !ES2015_FEATURES.contains(f))
+                .filter(f -> !FEATURES.contains(f))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 }

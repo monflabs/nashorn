@@ -296,9 +296,34 @@ public final class PerfBenchmark {
 
         for (final Path script : perfScripts()) {
             final String name = script.getFileName().toString().replace(".js", "");
-            results.put("run." + name + ".ms", timeScript(name, Files.readString(script)));
+            final String source = Files.readString(script);
+            if (!parses(source)) {
+                // A benchmark for a feature this engine does not have yet. The
+                // base revision of a comparison is an older engine, and a metric
+                // it cannot produce is not a metric that regressed - the
+                // comparison walks the baseline's own keys, so this drops out of
+                // it rather than failing it.
+                System.err.println("note: " + name + " needs a feature this engine lacks, skipping");
+                continue;
+            }
+            results.put("run." + name + ".ms", timeScript(name, source));
         }
         return results;
+    }
+
+    /** Whether this engine can compile a benchmark at all. */
+    private static boolean parses(final String source) {
+        final Context context = newContext();
+        final Global global = context.createGlobal();
+        final Global old = Context.getGlobal();
+        Context.setGlobal(global);
+        try {
+            return context.compileScript(Source.sourceFor("<probe>", source), global) != null;
+        } catch (final RuntimeException e) {
+            return false;
+        } finally {
+            Context.setGlobal(old);
+        }
     }
 
     private static List<Path> perfScripts() throws IOException {

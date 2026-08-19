@@ -61,7 +61,7 @@ import org.openjdk.nashorn.internal.runtime.Source;
 import org.openjdk.nashorn.internal.runtime.options.Options;
 
 /**
- * Runs the ECMAScript 2015 slice of a modern test262 checkout.
+ * Runs the ECMAScript 2017 slice of a modern test262 checkout.
  *
  * This is a separate runner from {@link ParallelTestRunner} because the modern
  * suite is driven by YAML frontmatter rather than by Nashorn's own {@code @test}
@@ -655,7 +655,7 @@ public final class Test262Runner {
             // whenever a message is reworded; keeping it here would churn the
             // diff of a file whose whole purpose is to show what changed.
             final List<String> lines = new ArrayList<>();
-            lines.add("# test262 ES2015 slice: known failures. Every line is work to do.");
+            lines.add("# test262 ES2017 slice: known failures. Every line is work to do.");
             lines.add("# Regenerate with -Dtest262.write.expectations=true.");
             lines.add("# Reasons for the current run are written to target/test262-failures.txt.");
             lines.addAll(new TreeSet<>(failures.keySet()));
