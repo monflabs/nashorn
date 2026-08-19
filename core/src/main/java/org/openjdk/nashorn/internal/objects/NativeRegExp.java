@@ -337,6 +337,87 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
+     * ES2015 21.2.5.6 RegExp.prototype [ @@match ] ( string ).
+     *
+     * String.prototype.match delegates here, which is what makes the behaviour
+     * replaceable: an object with its own @@match decides for itself.
+     *
+     * @param self   the regular expression
+     * @param string what to match against
+     * @return the matches, or null if there are none
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@match", arity = 1)
+    public static Object match(final Object self, final Object string) {
+        final NativeRegExp regexp = checkRegExp(self);
+        final String str = JSType.toString(string);
+
+        if (!regexp.getGlobal()) {
+            return regexp.exec(str);
+        }
+
+        regexp.setLastIndex(0);
+
+        final List<Object> matches = new ArrayList<>();
+        ScriptObject result;
+        // ES2015 21.2.5.6 steps 8.e-f: an empty match still advances, where ES5.1
+        // compared the index and matched the empty string twice
+        while ((result = regexp.exec(str)) != null) {
+            final String matched = JSType.toString(result.get(0));
+            if (matched.isEmpty()) {
+                regexp.setLastIndex(regexp.getLastIndex() + 1);
+            }
+            matches.add(matched);
+        }
+
+        return matches.isEmpty() ? null : new NativeArray(matches.toArray());
+    }
+
+    /**
+     * ES2015 21.2.5.8 RegExp.prototype [ @@replace ] ( string, replaceValue ).
+     *
+     * @param self        the regular expression
+     * @param string      what to search
+     * @param replacement the replacement text, or a function producing it
+     * @return the resulting string
+     * @throws Throwable if the replacement function throws
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@replace", arity = 2)
+    public static Object replace(final Object self, final Object string, final Object replacement) throws Throwable {
+        final NativeRegExp regexp = checkRegExp(self);
+        final String str = JSType.toString(string);
+
+        return Bootstrap.isCallable(replacement)
+                ? regexp.replace(str, "", replacement)
+                : regexp.replace(str, JSType.toString(replacement), null);
+    }
+
+    /**
+     * ES2015 21.2.5.9 RegExp.prototype [ @@search ] ( string ).
+     *
+     * @param self   the regular expression
+     * @param string what to search
+     * @return the offset of the first match, or -1
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@search", arity = 1)
+    public static Object search(final Object self, final Object string) {
+        return checkRegExp(self).search(JSType.toString(string));
+    }
+
+    /**
+     * ES2015 21.2.5.11 RegExp.prototype [ @@split ] ( string, limit ).
+     *
+     * @param self   the regular expression
+     * @param string what to split
+     * @param limit  how many pieces at most
+     * @return the pieces
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@split", arity = 2)
+    public static Object split(final Object self, final Object string, final Object limit) {
+        return checkRegExp(self).split(JSType.toString(string),
+                limit == ScriptRuntime.UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit));
+    }
+
+    /**
      * ECMA 15.10.6.4 RegExp.prototype.toString()
      *
      * @param self self reference

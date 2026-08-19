@@ -2010,6 +2010,24 @@ public final class Global extends Scope {
      * reach it through Object.getPrototypeOf(Int8Array), so it is built on
      * demand along with the first concrete type that needs it.
      */
+    /**
+     * ES2015 22.1.3.32 Array.prototype [ @@unscopables ] - the names a
+     * {@code with} block does not take from an array, so that a program written
+     * before ES2015 added them still sees its own variables of those names.
+     *
+     * The object is listed because the specification lists it; a with statement
+     * does not consult it yet.
+     */
+    private static ScriptObject arrayUnscopables() {
+        final ScriptObject unscopables = newEmptyInstance();
+        unscopables.setProto(null);
+        for (final String name : new String[] {
+                "copyWithin", "entries", "fill", "find", "findIndex", "keys", "values" }) {
+            unscopables.addOwnProperty(name, 0, true);
+        }
+        return unscopables;
+    }
+
     private synchronized ScriptFunction getBuiltinTypedArray() {
         if (this.builtinTypedArray == null) {
             final ScriptFunction typedArray = initConstructorAndSwitchPoint("TypedArray", ScriptFunction.class);
@@ -2727,6 +2745,8 @@ public final class Global extends Scope {
         // set isArray flag on Array.prototype
         final ScriptObject arrayPrototype = getArrayPrototype();
         arrayPrototype.setIsArray();
+        arrayPrototype.addOwnProperty(NativeSymbol.unscopables, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                arrayUnscopables());
 
         this.symbol   = LAZY_SENTINEL;
         this.map      = LAZY_SENTINEL;

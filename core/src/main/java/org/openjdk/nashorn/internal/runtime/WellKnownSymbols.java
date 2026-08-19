@@ -32,7 +32,9 @@ package org.openjdk.nashorn.internal.runtime;
  * ECMAScript 2015 lets a program redefine {@code instanceof}, coercion to a
  * primitive, and how {@code concat} treats a value, by giving an object a
  * {@code Symbol.hasInstance}, {@code Symbol.toPrimitive} or
- * {@code Symbol.isConcatSpreadable} property. Consulting them unconditionally
+ * {@code Symbol.isConcatSpreadable} property, and to redirect
+ * {@code String.prototype.match}, {@code replace}, {@code search} and
+ * {@code split} with the matching symbol. Consulting them unconditionally
  * would put a symbol lookup on paths that run constantly, so each is checked
  * only after a program has stored that symbol on something - which almost no
  * program ever does.
@@ -48,6 +50,7 @@ public final class WellKnownSymbols {
     private static volatile boolean toPrimitive;
     private static volatile boolean isConcatSpreadable;
     private static volatile boolean toStringTag;
+    private static volatile boolean stringMethods;
 
     private WellKnownSymbols() {
     }
@@ -67,6 +70,7 @@ public final class WellKnownSymbols {
             case "Symbol.toPrimitive" -> toPrimitive = true;
             case "Symbol.isConcatSpreadable" -> isConcatSpreadable = true;
             case "Symbol.toStringTag" -> toStringTag = true;
+            case "Symbol.match", "Symbol.replace", "Symbol.search", "Symbol.split" -> stringMethods = true;
             default -> { }
         }
     }
@@ -89,5 +93,20 @@ public final class WellKnownSymbols {
     /** @return whether Symbol.toStringTag has ever been installed */
     public static boolean toStringTagInstalled() {
         return toStringTag;
+    }
+
+    /**
+     * Whether any of Symbol.match, replace, search or split has ever been
+     * installed, which is what lets an object other than a regular expression
+     * decide what String.prototype.match and its three siblings do (ES2015
+     * 21.1.3.11, .14, .15, .17).
+     *
+     * The four share one flag: they appear together, and the only thing the flag
+     * decides is whether those four methods look for a symbol at all.
+     *
+     * @return whether any of the four has been installed
+     */
+    public static boolean stringMethodsInstalled() {
+        return stringMethods;
     }
 }

@@ -59,6 +59,9 @@ import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.OptimisticBuiltins;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
+import org.openjdk.nashorn.internal.runtime.Symbol;
+import org.openjdk.nashorn.internal.runtime.WellKnownSymbols;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
@@ -673,7 +676,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @return array of regexp matches
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static ScriptObject match(final Object self, final Object regexp) {
+    public static Object match(final Object self, final Object regexp) {
+
+        final Object delegated = delegate(self, regexp, NativeSymbol.match);
+        if (delegated != NOT_DELEGATED) {
+            return delegated;
+        }
 
         final String str = checkObjectToString(self);
 
@@ -719,7 +727,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @throws Throwable if replacement fails
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static String replace(final Object self, final Object string, final Object replacement) throws Throwable {
+    public static Object replace(final Object self, final Object string, final Object replacement) throws Throwable {
+
+        final Object delegated = delegate(self, string, NativeSymbol.replace, replacement);
+        if (delegated != NOT_DELEGATED) {
+            return delegated;
+        }
 
         final String str = checkObjectToString(self);
 
@@ -745,7 +758,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @return offset where match occurred
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static int search(final Object self, final Object string) {
+    public static Object search(final Object self, final Object string) {
+
+        final Object delegated = delegate(self, string, NativeSymbol.search);
+        if (delegated != NOT_DELEGATED) {
+            return delegated;
+        }
 
         final String       str          = checkObjectToString(self);
         final NativeRegExp nativeRegExp = Global.toRegExp(string == UNDEFINED ? "" : string);
@@ -840,7 +858,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @return array object in which splits have been placed
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static ScriptObject split(final Object self, final Object separator, final Object limit) {
+    public static Object split(final Object self, final Object separator, final Object limit) {
+        final Object delegated = delegate(self, separator, NativeSymbol.split, limit);
+        if (delegated != NOT_DELEGATED) {
+            return delegated;
+        }
+
         final String str = checkObjectToString(self);
         final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
 
@@ -854,6 +877,43 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
 
         // when separator is a string, it is treated as a literal search string to be used for splitting.
         return splitString(str, JSType.toString(separator), lim);
+    }
+
+    /** Distinguishes "the argument had no such method" from a method that returned null. */
+    private static final Object NOT_DELEGATED = new Object();
+
+    /**
+     * ES2015 21.1.3.11, .14, .15 and .17: match, replace, search and split each
+     * hand the work to the argument's own @@match, @@replace, @@search or
+     * @@split if it has one, which is how a value other than a regular
+     * expression gets to decide what they mean.
+     *
+     * The lookup is skipped entirely until some script has installed one of the
+     * four symbols somewhere. Until then the only objects carrying them are
+     * RegExp.prototype's own, and taking the delegated path for those would only
+     * arrive back where the direct path starts - on methods hot enough that the
+     * detour is worth avoiding.
+     */
+    private static Object delegate(final Object self, final Object argument, final Symbol symbol,
+            final Object... rest) {
+        if (!WellKnownSymbols.stringMethodsInstalled()
+                || argument == UNDEFINED || argument == null
+                || !(argument instanceof ScriptObject sobj)) {
+            return NOT_DELEGATED;
+        }
+        // Only a script function: an embedder's JSObject could in principle carry
+        // one of these symbols, but nothing here can call it with a receiver, and
+        // the four are the only place it would matter.
+        if (!(sobj.get(symbol) instanceof ScriptFunction method)) {
+            return NOT_DELEGATED;
+        }
+
+        // RequireObjectCoercible on the receiver happens before the symbol is
+        // called, and the string it becomes is the argument
+        final Object[] arguments = new Object[rest.length + 1];
+        arguments[0] = checkObjectToString(self);
+        System.arraycopy(rest, 0, arguments, 1, rest.length);
+        return ScriptRuntime.apply(method, argument, arguments);
     }
 
     private static ScriptObject splitString(final String str, final String separator, final long limit) {
