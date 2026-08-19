@@ -110,7 +110,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * object before the constructor is entered, so the binding's state is kept
      * beside it.
      */
-    private static final String THIS_INITIALIZED = ":thisInitialized";
+    static final String THIS_BINDING = ":thisInitialized";
 
     /** The global binding a default test compares against. */
     private static final String UNDEFINED_NAME = "undefined";
@@ -314,10 +314,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * {@code super(...);} in a derived class constructor, which is what brings
      * its {@code this} into existence.
      *
-     * The flag is set from the call's own result, so the parent constructor has
-     * finished by the time the binding is made - and a second super() in the same
-     * constructor is caught, which is the rule the specification states as
-     * binding a value that is already bound.
+     * The binding is made from the call's own result, so the parent constructor
+     * has finished by the time it happens, and a second super() in the same
+     * constructor is caught - the rule the specification states as binding a
+     * value that is already bound.
      */
     private List<Statement> bindThisStatement(final Statement statement) {
         if (!Boolean.TRUE.equals(bindsThis.peek())
@@ -328,9 +328,9 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final long token = statement.getToken();
         final int finish = statement.getFinish();
         final Expression bind = new BinaryNode(Token.recast(token, TokenType.ASSIGN),
-                new IdentNode(token, finish, THIS_INITIALIZED),
+                new IdentNode(token, finish, THIS_BINDING),
                 new RuntimeNode(token, finish, RuntimeNode.Request.BIND_THIS,
-                        new IdentNode(token, finish, THIS_INITIALIZED),
+                        new IdentNode(token, finish, THIS_BINDING),
                         expressionStatement.getExpression()));
         return List.of(new ExpressionStatement(statement.getLineNumber(), token, finish, bind));
     }
@@ -344,9 +344,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * Whether every super() in a constructor is a statement on its own.
      *
      * It nearly always is, and when it is not - "var o = super();" - the binding
-     * cannot be tracked from here, because the node that would record it has to
-     * remain a call. Such a constructor keeps the older behaviour of a this that
-     * simply exists from the start, which is wrong but not newly wrong.
+     * cannot be tracked, because the node that would record it has to remain a
+     * call and the variable it would write is one no later phase knows about.
+     * Such a constructor keeps the older behaviour of a this that simply exists
+     * from the start.
      */
     private static boolean superCallsAreStatements(final Block body) {
         final int[] counts = new int[2];
@@ -370,10 +371,33 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         return counts[0] == counts[1];
     }
 
+    /**
+     * {@code return x} in a derived class constructor.
+     *
+     * ES2015 9.2.2 step 13 makes the completion value of one mean something it
+     * means nowhere else: an object is the result, undefined hands back the
+     * object super() made, and anything else is a TypeError where a base
+     * constructor would simply have ignored it.
+     */
+    @Override
+    public Node leaveReturnNode(final ReturnNode returnNode) {
+        if (!Boolean.TRUE.equals(bindsThis.peek())
+                || !lc.getCurrentFunction().isSubclassConstructor()) {
+            return super.leaveReturnNode(returnNode);
+        }
+        final long token = returnNode.getToken();
+        final int finish = returnNode.getFinish();
+        final Expression value = returnNode.getExpression();
+        return returnNode.setExpression(new RuntimeNode(token, finish, RuntimeNode.Request.DERIVED_RETURN,
+                value == null ? new IdentNode(token, finish, "undefined") : value,
+                new IdentNode(token, finish, THIS_BINDING),
+                new IdentNode(token, finish, CompilerConstants.THIS.symbolName())));
+    }
+
     /** {@code this}, checked against the binding having been made. */
     private static Expression checkedThis(final long token, final int finish) {
         return new RuntimeNode(token, finish, RuntimeNode.Request.REQUIRE_THIS_INITIALIZED,
-                new IdentNode(token, finish, THIS_INITIALIZED),
+                new IdentNode(token, finish, THIS_BINDING),
                 new IdentNode(token, finish, CompilerConstants.THIS.symbolName()));
     }
 
@@ -567,8 +591,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Block body = functionNode.getBody();
 
         final List<Statement> statements = new ArrayList<>();
-        statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_INITIALIZED),
-                LiteralNode.newInstance(token, finish, false)));
+        // undefined rather than false: the variable holds the object once super()
+        // has made the binding, and a slot typed boolean cannot take one
+        statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_BINDING),
+                new IdentNode(token, finish, "undefined")));
         statements.addAll(body.getStatements());
         statements.add(new ExpressionStatement(line, token, finish, checkedThis(token, finish)));
 

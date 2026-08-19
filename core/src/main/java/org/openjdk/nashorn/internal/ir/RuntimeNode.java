@@ -116,6 +116,8 @@ public class RuntimeNode extends Expression {
         MODULE_SCOPE(TokenType.VOID, Type.OBJECT, 0),
         /** ES2015 8.1.1.3.4 GetThisBinding, for a derived class constructor */
         REQUIRE_THIS_INITIALIZED(TokenType.VOID, Type.OBJECT, 2),
+        /** ES2015 9.2.2 step 13, what a derived class constructor returns */
+        DERIVED_RETURN(TokenType.VOID, Type.OBJECT, 3),
         /** ES2015 8.1.1.3.1 BindThisValue, for a derived class constructor */
         BIND_THIS(TokenType.VOID, Type.OBJECT, 2),
         /** yield - suspends the generator body. */

@@ -1537,6 +1537,12 @@ public final class ScriptRuntime {
                 // "class C extends null" - the prototype chain simply ends
                 prototype.setProto(null);
             } else if (heritage instanceof ScriptFunction parent) {
+                // ES2015 14.5.14 step 6.f: the superclass has to be a
+                // constructor. An arrow function, a generator, a method and an
+                // accessor are all callable and none of them is one.
+                if (!parent.isConstructor()) {
+                    throw typeError("cant.inherit.from", safeToString(heritage));
+                }
                 final Object parentPrototype = parent.getPrototype();
                 if (parentPrototype != null && parentPrototype != UNDEFINED
                         && !(parentPrototype instanceof ScriptObject)) {
@@ -1697,7 +1703,9 @@ public final class ScriptRuntime {
             throw typeError("no.super");
         }
         apply(parentConstructor, thiz, SPREAD_TO_ARGUMENTS(argsArray));
-        return UNDEFINED;
+        // ES2015 12.3.5.1 step 7: super() evaluates to the this binding it makes,
+        // which is the object being built - not whatever the parent returned
+        return thiz;
     }
 
     /**
@@ -1791,6 +1799,29 @@ public final class ScriptRuntime {
     }
 
     /**
+     * ES2015 9.2.2 step 13: what a derived class constructor returns.
+     *
+     * An object is the result. Undefined means the constructor is handing back
+     * the object super() gave it, so the binding has to have been made. Anything
+     * else - a number, a string, null - is a TypeError, where a base
+     * constructor would simply have ignored it.
+     *
+     * @param value       the constructor's completion value
+     * @param thisBinding whether super() has run
+     * @param thiz        the object being built
+     * @return what the construction evaluates to
+     */
+    public static Object DERIVED_RETURN(final Object value, final Object thisBinding, final Object thiz) {
+        if (value instanceof ScriptObject) {
+            return value;
+        }
+        if (value == UNDEFINED) {
+            return REQUIRE_THIS_INITIALIZED(thisBinding, thiz);
+        }
+        throw typeError("derived.constructor.return", safeToString(value));
+    }
+
+    /**
      * ES2015 8.1.1.3.4 GetThisBinding: {@code this} inside a derived class
      * constructor, which does not exist until super() has run.
      *
@@ -1802,8 +1833,8 @@ public final class ScriptRuntime {
      * @param thiz        the object being built
      * @return the object
      */
-    public static Object REQUIRE_THIS_INITIALIZED(final Object initialized, final Object thiz) {
-        if (!JSType.toBoolean(initialized)) {
+    public static Object REQUIRE_THIS_INITIALIZED(final Object binding, final Object thiz) {
+        if (binding == UNDEFINED) {
             throw referenceError("this.before.super");
         }
         return thiz;
@@ -1816,11 +1847,12 @@ public final class ScriptRuntime {
      * @param result      the super call's result, evaluated before this is called
      * @return true, to be stored back into the flag
      */
-    public static Object BIND_THIS(final Object initialized, final Object result) {
-        if (JSType.toBoolean(initialized)) {
+    public static Object BIND_THIS(final Object binding, final Object result) {
+        if (binding != UNDEFINED) {
             throw referenceError("super.called.twice");
         }
-        return Boolean.TRUE;
+        // 12.3.5.1 step 7: super() evaluates to the object it bound
+        return result;
     }
 
     /**
