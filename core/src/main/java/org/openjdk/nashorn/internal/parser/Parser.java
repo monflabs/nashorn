@@ -4936,7 +4936,10 @@ public class Parser extends AbstractParser implements Loggable {
                     } else {
                         final BinaryNode test = new BinaryNode(Token.recast(paramToken, EQ_STRICT), ident, newUndefinedLiteral(paramToken, finish));
                         final TernaryNode value = new TernaryNode(Token.recast(paramToken, TERNARY), test, new JoinPredecessorExpression(initializer), new JoinPredecessorExpression(ident));
-                        final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), param, value);
+                        // the target is the pattern, not the whole "pattern = initializer"
+                        // the arrow was written with; assigning to that is not a
+                        // destructuring assignment at all and nothing downstream knows it
+                        final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), lhs, value);
                         lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                     }
                 }

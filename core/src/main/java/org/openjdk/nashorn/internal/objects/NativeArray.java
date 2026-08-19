@@ -2038,7 +2038,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     public static Object of(final Object self, final Object... args) {
         // unlike the Array constructor, a single numeric argument is an element
         // rather than a length
-        return collect(self, java.util.Arrays.asList(args));
+        final ScriptObject target = create(self, (double)args.length);
+        for (int i = 0; i < args.length; i++) {
+            define(target, i, args[i]);
+        }
+        target.set("length", (double)args.length, CALLSITE_STRICT);
+        return target;
     }
 
     /**
@@ -2059,30 +2064,38 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
         final ScriptFunction mapper = mapFn == ScriptRuntime.UNDEFINED ? null : asFunction(mapFn);
 
-        // ES2015 22.1.2.1 maps each element as it arrives rather than afterwards,
-        // so the mapper's side effects interleave with the iterator's and an
-        // error from it stops the walk where it happened.
-        final List<Object> collected = new ArrayList<>();
+        // ES2015 22.1.2.1 steps 5.a and 7.b: the target is built before anything
+        // is read, so a constructor that throws does so before the iterator is
+        // even asked for. It also maps each element as it arrives rather than
+        // afterwards, so the mapper's side effects interleave with the
+        // iterator's and an error from it stops the walk where it happened.
         if (isIterable(items)) {
+            final ScriptObject target = create(self, null);
             final Iterator<?> iterator = ScriptRuntime.toES6Iterator(items);
+            long index = 0;
             while (iterator.hasNext()) {
                 final Object element = iterator.next();
-                collected.add(mapper == null ? element
-                        : ScriptRuntime.apply(mapper, thisArg, element, (double)(collected.size())));
+                define(target, index, mapper == null ? element
+                        : ScriptRuntime.apply(mapper, thisArg, element, (double)index));
+                index++;
             }
-        } else {
-            // array-like: read by index up to length
-            final Object source = JSType.toScriptObject(Global.instance(), items);
-            if (source instanceof ScriptObject sobj) {
-                final long length = JSType.toUint32(sobj.getLength());
-                for (long i = 0; i < length; i++) {
-                    final Object element = sobj.get(i);
-                    collected.add(mapper == null ? element
-                            : ScriptRuntime.apply(mapper, thisArg, element, (double)i));
-                }
+            target.set("length", (double)index, CALLSITE_STRICT);
+            return target;
+        }
+
+        // array-like: read by index up to length
+        final Object source = JSType.toScriptObject(Global.instance(), items);
+        final long length = source instanceof ScriptObject sobj ? JSType.toUint32(sobj.getLength()) : 0;
+        final ScriptObject target = create(self, (double)length);
+        if (source instanceof ScriptObject sobj) {
+            for (long i = 0; i < length; i++) {
+                final Object element = sobj.get(i);
+                define(target, i, mapper == null ? element
+                        : ScriptRuntime.apply(mapper, thisArg, element, (double)i));
             }
         }
-        return collect(self, collected);
+        target.set("length", (double)length, CALLSITE_STRICT);
+        return target;
     }
 
     /**
@@ -2093,28 +2106,40 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * are defined on it one by one, so that a constructor returning a hostile
      * object reports its own errors.
      */
-    private static Object collect(final Object self, final List<Object> elements) {
-        final int length = elements.size();
-        if (!(self instanceof ScriptFunction constructor) || self == Global.instance().get("Array")) {
-            return new NativeArray(elements.toArray());
+    /**
+     * The object {@code Array.from} and {@code Array.of} fill in: whatever the
+     * this they were called on constructs, or a plain array when that is Array
+     * itself or not a constructor at all (ES2015 22.1.2.1 step 5.a, 22.1.2.3
+     * step 3).
+     *
+     * @param self   the constructor they were called on
+     * @param length the argument to give it, or null to construct with none
+     */
+    private static ScriptObject create(final Object self, final Double length) {
+        if (!(self instanceof ScriptFunction constructor) || !constructor.isConstructor()
+                || self == Global.instance().get("Array")) {
+            return length == null ? new NativeArray() : new NativeArray(length.longValue());
         }
+        final Object created = length == null
+                ? ScriptRuntime.construct(constructor)
+                : ScriptRuntime.construct(constructor, length);
+        if (created instanceof ScriptObject target) {
+            return target;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(created));
+    }
 
-        final Object created = ScriptRuntime.construct(constructor, (double)length);
-        if (!(created instanceof ScriptObject target)) {
-            return created;
-        }
-        for (int i = 0; i < length; i++) {
-            // CreateDataPropertyOrThrow, not Set: an existing non-configurable
-            // element must make this fail even when it is writable.
-            final ScriptObject descriptor = Global.newEmptyInstance();
-            descriptor.set("value", elements.get(i), 0);
-            descriptor.set("writable", true, 0);
-            descriptor.set("enumerable", true, 0);
-            descriptor.set("configurable", true, 0);
-            target.defineOwnProperty(JSType.toString(i), descriptor, true);
-        }
-        target.set("length", (double)length, CALLSITE_STRICT);
-        return target;
+    /**
+     * CreateDataPropertyOrThrow, not Set: an existing non-configurable element
+     * has to make this fail even when it is writable.
+     */
+    private static void define(final ScriptObject target, final long index, final Object value) {
+        final ScriptObject descriptor = Global.newEmptyInstance();
+        descriptor.set("value", value, 0);
+        descriptor.set("writable", true, 0);
+        descriptor.set("enumerable", true, 0);
+        descriptor.set("configurable", true, 0);
+        target.defineOwnProperty(JSType.toString(index), descriptor, true);
     }
 
     /**

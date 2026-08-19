@@ -1170,6 +1170,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      */
     @Constructor(arity = 1)
     public static Object constructor(final boolean newObj, final Object self, final Object... args) {
+        // ES2015 21.1.1.1 step 2: String(symbol) is how a program describes a
+        // symbol on purpose, and is the one conversion of one that does not
+        // throw. new String(symbol) still does.
+        if (!newObj && args.length > 0 && args[0] instanceof Symbol symbol) {
+            return symbol.toString();
+        }
         final CharSequence str = args.length > 0 ? JSType.toCharSequence(args[0]) : "";
         return newObj ? newObj(str) : str.toString();
     }
@@ -1202,6 +1208,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      */
     @SpecializedFunction(isConstructor=true)
     public static Object constructor(final boolean newObj, final Object self, final Object arg) {
+        if (!newObj && arg instanceof Symbol symbol) {
+            return symbol.toString();
+        }
         final CharSequence str = JSType.toCharSequence(arg);
         return newObj ? newObj(str) : str.toString();
     }

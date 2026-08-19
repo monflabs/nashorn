@@ -169,6 +169,12 @@ public abstract class AbstractIterator extends ScriptObject {
                     }
                     return value;
 
+                } catch (final RuntimeException | Error e) {
+                    // An error thrown by the script's own @@iterator is the
+                    // program's, not a failure of the call: wrapping it made it a
+                    // Java object with no constructor, which a catch block cannot
+                    // tell apart from anything else.
+                    throw e;
                 } catch (final Throwable t) {
                     throw new RuntimeException(t);
                 }
