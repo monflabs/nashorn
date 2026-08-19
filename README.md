@@ -9,7 +9,8 @@ This fork is working towards full ES2015 conformance; see the
 [change log](CHANGELOG.md) for what has landed. There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols and the
 `Map`/`Set` family, which upstream hid behind `--language=es6`, are simply the
-language. Proper tail calls are a documented exclusion.
+language. Proper tail calls are a documented exclusion, as are Annex B and
+ECMA-402.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.
@@ -57,12 +58,18 @@ The reactor has three modules: `core` (the published `nashorn-core` artifact),
 bytecode post-processor that Nashorn does not work without — so always build
 through Maven rather than compiling the sources directly).
 
-To run the [official ECMA-262 test suite for ECMAScript 5.1](https://github.com/tc39/test262/tree/es5-tests),
+To run the [official ECMA-262 conformance suite](https://github.com/tc39/test262),
 fetch it once and then run it:
 ```
 mvn -Pfetch-externals -pl core generate-test-resources
 mvn -Ptest262 -DskipTests verify
 ```
+
+test262 has no ES2015 branch, so the suite is pinned by commit and the ES2015
+slice is selected out of it: a test counts unless it needs a feature that
+postdates ES2015. The run is compared against a checked-in expectations file and
+fails on an unexpected pass as well as an unexpected failure, so conformance only
+moves forwards.
 
 Other profiles: `-Pbenchmark` and `-Psunspider` for the benchmarks,
 `-Pcoverage` for a JaCoCo report, `-Prun` to execute a sample script through
