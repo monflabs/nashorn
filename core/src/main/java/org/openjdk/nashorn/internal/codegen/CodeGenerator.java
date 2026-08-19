@@ -1434,6 +1434,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private boolean loadCallNode(final CallNode callNode, final TypeBounds resultBounds) {
         lineNumber(callNode.getLineNumber());
 
+        if (hasSpread(callNode.getArgs())) {
+            loadSpreadCall(callNode);
+            return false;
+        }
+
         final List<Expression> args = callNode.getArgs();
         final Expression function = callNode.getFunction();
         final Block currentBlock = lc.getCurrentBlock();
@@ -2255,6 +2260,86 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * @param arrayLiteralNode the array of contents
      * @param arrayType        the type of the array, e.g. ARRAY_NUMBER or ARRAY_OBJECT
      */
+    /** Whether any element of a literal or argument list is a spread. */
+    private static boolean hasSpread(final List<Expression> elements) {
+        for (final Expression element : elements) {
+            if (isSpread(element)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasSpread(final Expression[] elements) {
+        return hasSpread(Arrays.asList(elements));
+    }
+
+    private static boolean isSpread(final Expression element) {
+        return element instanceof UnaryNode unary
+                && (unary.isTokenType(TokenType.SPREAD_ARRAY) || unary.isTokenType(TokenType.SPREAD_ARGUMENT));
+    }
+
+    /**
+     * Builds an array whose length is not known until it runs, because one of
+     * its elements is a spread.
+     *
+     * The fixed-length path cannot express this - it allocates the Java array up
+     * front from the element count - so the array is built by appending instead.
+     * Each helper returns the array, so it stays on the stack across the whole
+     * sequence and no temporary is needed. Leaves a NativeArray on the stack.
+     */
+    private void loadSpreadArray(final List<Expression> elements) {
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SPREAD_NEW",
+                new FunctionSignature(false, false, Type.OBJECT, 0).toString());
+
+        for (final Expression element : elements) {
+            final boolean spread = isSpread(element);
+            // an elision contributes undefined, as reading a hole would
+            loadExpressionAsObject(spread ? ((UnaryNode)element).getExpression() : element);
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                    spread ? "SPREAD_APPEND_ALL" : "SPREAD_APPEND",
+                    new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+        }
+    }
+
+    private void loadSpreadArray(final Expression[] elements) {
+        loadSpreadArray(Arrays.asList(elements));
+    }
+
+    /**
+     * A call whose argument list contains a spread, so its arity is not known
+     * until it runs.
+     *
+     * None of the specialised call paths can express that - they emit an
+     * invokedynamic whose signature has one parameter per argument - so this
+     * collects the arguments into an array and hands the whole thing to the
+     * runtime. A method call passes its receiver rather than a resolved
+     * function, so that the receiver is evaluated exactly once and serves as
+     * both the lookup base and the this value.
+     */
+    private void loadSpreadCall(final CallNode callNode) {
+        final Expression function = callNode.getFunction();
+        final String helper;
+
+        if (function instanceof AccessNode access) {
+            loadExpressionAsObject(access.getBase());
+            method.load(access.getProperty());
+            helper = "SPREAD_CALL_METHOD";
+        } else if (function instanceof IndexNode index) {
+            loadExpressionAsObject(index.getBase());
+            loadExpressionAsObject(index.getIndex());
+            helper = "SPREAD_CALL_METHOD";
+        } else {
+            loadExpressionAsObject(function);
+            method.loadUndefined(Type.OBJECT);
+            helper = "SPREAD_CALL";
+        }
+
+        loadSpreadArray(callNode.getArgs());
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), helper,
+                new FunctionSignature(false, false, Type.OBJECT, 3).toString());
+    }
+
     private void loadArray(final ArrayLiteralNode arrayLiteralNode, final ArrayType arrayType) {
         assert arrayType == Type.INT_ARRAY || arrayType == Type.NUMBER_ARRAY || arrayType == Type.OBJECT_ARRAY;
 
@@ -2411,9 +2496,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
         } else if (node instanceof ArrayLiteralNode) {
             final ArrayLiteralNode arrayLiteral = (ArrayLiteralNode)node;
-            final ArrayType atype = arrayLiteral.getArrayType();
-            loadArray(arrayLiteral, atype);
-            globalAllocateArray(atype);
+            if (hasSpread(arrayLiteral.getValue())) {
+                loadSpreadArray(arrayLiteral.getValue());
+            } else {
+                final ArrayType atype = arrayLiteral.getArrayType();
+                loadArray(arrayLiteral, atype);
+                globalAllocateArray(atype);
+            }
         } else {
             throw new UnsupportedOperationException("Unknown literal for " + node.getClass() + " " + value.getClass() + " " + value);
         }
@@ -3734,6 +3823,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final Expression func = callNode.getFunction();
         // Load function reference.
         loadExpressionAsObject(func); // must detect type error
+
+        if (hasSpread(args)) {
+            // dynamicNew emits one call site parameter per argument, which a
+            // spread has no fixed count for; collect them and construct through
+            // the runtime instead.
+            loadSpreadArray(args);
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SPREAD_CONSTRUCT",
+                    new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+            return;
+        }
 
         method.dynamicNew(1 + loadArgs(args), getCallSiteFlags(), func.toString(false));
     }

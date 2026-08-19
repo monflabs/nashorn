@@ -625,16 +625,6 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         if (unaryNode.isTokenType(TokenType.YIELD) ||
             unaryNode.isTokenType(TokenType.YIELD_STAR)) {
             throwNotImplementedYet("es6.yield", unaryNode);
-        } else if (unaryNode.isTokenType(TokenType.SPREAD_ARGUMENT) ||
-                   unaryNode.isTokenType(TokenType.SPREAD_ARRAY)) {
-            // Spread cannot be desugared the way destructuring is. An
-            // ArrayLiteralNode is a LexicalContextNode, and LexicalContext.pop
-            // returns the node it popped rather than whatever leaveLiteralNode
-            // produced, so the literal cannot be replaced from inside its own
-            // visit - and a call's argument list has the same problem in reverse,
-            // needing a temporary in expression position. Spread belongs in the
-            // code generator, where the array is materialised anyway.
-            throwNotImplementedYet("es6.spread", unaryNode);
         }
 
         return super.enterUnaryNode(unaryNode);

@@ -1243,4 +1243,135 @@ public final class ScriptRuntime {
         }
         return Global.allocate(Arrays.copyOfRange(args, start, args.length));
     }
+
+    /**
+     * A new, empty array for a literal or argument list that contains a spread
+     * element, whose length is not known until it runs.
+     *
+     * @return the array
+     */
+    public static Object SPREAD_NEW() {
+        return Global.allocate(ScriptRuntime.EMPTY_ARRAY);
+    }
+
+    /**
+     * Appends one element to an array under construction.
+     *
+     * @param array the array being built
+     * @param value the element
+     * @return the array, so that appends chain on the stack
+     */
+    public static Object SPREAD_APPEND(final Object array, final Object value) {
+        final NativeArray target = (NativeArray)array;
+        target.set((int)target.getArray().length(), value, 0);
+        return target;
+    }
+
+    /**
+     * Appends everything an iterable yields - the {@code ...xs} itself.
+     *
+     * @param array    the array being built
+     * @param iterable the value being spread
+     * @return the array, so that appends chain on the stack
+     */
+    public static Object SPREAD_APPEND_ALL(final Object array, final Object iterable) {
+        final NativeArray target = (NativeArray)array;
+        final Iterator<?> iterator = toES6Iterator(iterable);
+        while (iterator.hasNext()) {
+            target.set((int)target.getArray().length(), iterator.next(), 0);
+        }
+        return target;
+    }
+
+    /**
+     * The argument array for a call whose argument list contains a spread.
+     *
+     * @param array the collected arguments, as a script array
+     * @return them as a Java array, ready for a call
+     */
+    public static Object[] SPREAD_TO_ARGUMENTS(final Object array) {
+        final NativeArray collected = (NativeArray)array;
+        final int length = (int)collected.getArray().length();
+        final Object[] arguments = new Object[length];
+        for (int i = 0; i < length; i++) {
+            arguments[i] = collected.get(i);
+        }
+        return arguments;
+    }
+
+    /**
+     * A call whose argument list contains a spread, so its arity is only known
+     * at run time.
+     *
+     * @param function the callee
+     * @param thiz     the this value
+     * @param argsArray the collected arguments
+     * @return the call's result
+     */
+    public static Object SPREAD_CALL(final Object function, final Object thiz, final Object argsArray) {
+        final Object[] args = SPREAD_TO_ARGUMENTS(argsArray);
+        if (function instanceof ScriptFunction scriptFunction) {
+            return apply(scriptFunction, thiz, args);
+        }
+        if (function instanceof ScriptObjectMirror mirror) {
+            return mirror.call(thiz, args);
+        }
+        if (Bootstrap.isCallable(function)) {
+            try {
+                // the general path: one invoker per arity, built on demand
+                final Object[] callArgs = new Object[args.length + 2];
+                callArgs[0] = function;
+                callArgs[1] = thiz;
+                System.arraycopy(args, 0, callArgs, 2, args.length);
+                final Class<?>[] types = new Class<?>[callArgs.length];
+                java.util.Arrays.fill(types, Object.class);
+                return Bootstrap.createDynamicCallInvoker(Object.class, types)
+                        .invokeWithArguments(callArgs);
+            } catch (final RuntimeException | Error e) {
+                throw e;
+            } catch (final Throwable t) {
+                throw new RuntimeException(t);
+            }
+        }
+        throw typeError("not.a.function", safeToString(function));
+    }
+
+    /**
+     * A method call whose argument list contains a spread.
+     *
+     * The receiver is evaluated once and used both to find the method and as its
+     * this value, which is why this reads the property rather than taking a
+     * function already on the stack.
+     *
+     * @param base      the receiver
+     * @param key       the property naming the method
+     * @param argsArray the collected arguments
+     * @return the call's result
+     */
+    public static Object SPREAD_CALL_METHOD(final Object base, final Object key, final Object argsArray) {
+        if (base == null || base == UNDEFINED) {
+            throw typeError("cant.get.property", safeToString(key), safeToString(base));
+        }
+        final Object holder = base instanceof ScriptObject
+                ? base
+                : JSType.toScriptObject(Context.getGlobal(), base);
+        if (!(holder instanceof ScriptObject scriptObject)) {
+            throw typeError("not.a.function", safeToString(key));
+        }
+        return SPREAD_CALL(scriptObject.get(key), base, argsArray);
+    }
+
+    /**
+     * A constructor call whose argument list contains a spread.
+     *
+     * @param function  the constructor
+     * @param argsArray the collected arguments
+     * @return the new object
+     */
+    public static Object SPREAD_CONSTRUCT(final Object function, final Object argsArray) {
+        if (!(function instanceof ScriptFunction scriptFunction)) {
+            throw typeError("not.a.constructor", safeToString(function));
+        }
+        return construct(scriptFunction, SPREAD_TO_ARGUMENTS(argsArray));
+    }
 }
