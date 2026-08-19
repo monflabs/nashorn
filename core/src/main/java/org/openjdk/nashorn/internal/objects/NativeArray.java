@@ -2056,11 +2056,16 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
         final ScriptFunction mapper = mapFn == ScriptRuntime.UNDEFINED ? null : asFunction(mapFn);
 
+        // ES2015 22.1.2.1 maps each element as it arrives rather than afterwards,
+        // so the mapper's side effects interleave with the iterator's and an
+        // error from it stops the walk where it happened.
         final List<Object> collected = new ArrayList<>();
         if (isIterable(items)) {
             final Iterator<?> iterator = ScriptRuntime.toES6Iterator(items);
             while (iterator.hasNext()) {
-                collected.add(iterator.next());
+                final Object element = iterator.next();
+                collected.add(mapper == null ? element
+                        : ScriptRuntime.apply(mapper, thisArg, element, (double)(collected.size())));
             }
         } else {
             // array-like: read by index up to length
@@ -2068,14 +2073,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             if (source instanceof ScriptObject sobj) {
                 final long length = JSType.toUint32(sobj.getLength());
                 for (long i = 0; i < length; i++) {
-                    collected.add(sobj.get(i));
+                    final Object element = sobj.get(i);
+                    collected.add(mapper == null ? element
+                            : ScriptRuntime.apply(mapper, thisArg, element, (double)i));
                 }
-            }
-        }
-
-        if (mapper != null) {
-            for (int i = 0; i < collected.size(); i++) {
-                collected.set(i, ScriptRuntime.apply(mapper, thisArg, collected.get(i), (double)i));
             }
         }
         return collect(self, collected);

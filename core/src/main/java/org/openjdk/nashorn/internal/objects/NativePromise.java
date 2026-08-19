@@ -180,24 +180,37 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object all(final Object self, final Object iterable) {
+        requireConstructor(self);
         final Global global = Global.instance();
         final NativePromise result = allocate(global);
         final List<Object> values = new ArrayList<>();
         final int[] remaining = { 1 };
 
-        combine(self, iterable, promised -> {
-            final int slot = values.size();
-            values.add(ScriptRuntime.UNDEFINED);
-            remaining[0]++;
-            subscribe(promised,
-                v -> {
-                    values.set(slot, v);
-                    if (--remaining[0] == 0) {
-                        result.resolveWith(new NativeArray(values.toArray()));
-                    }
-                },
-                r -> result.settle(State.REJECTED, r));
-        });
+        try {
+            combine(self, iterable, promised -> {
+                final int slot = values.size();
+                values.add(ScriptRuntime.UNDEFINED);
+                remaining[0]++;
+                // ES2015 25.4.4.1.2: a resolve element function takes effect once
+                final boolean[] alreadyCalled = { false };
+                subscribe(promised,
+                    v -> {
+                        if (alreadyCalled[0]) {
+                            return;
+                        }
+                        alreadyCalled[0] = true;
+                        values.set(slot, v);
+                        if (--remaining[0] == 0) {
+                            result.resolveWith(new NativeArray(values.toArray()));
+                        }
+                    },
+                    r -> result.settle(State.REJECTED, r));
+            });
+        } catch (final ECMAException e) {
+            // IfAbruptRejectPromise: the returned promise rejects, nothing escapes
+            result.settle(State.REJECTED, e.getThrown());
+            return result;
+        }
 
         if (--remaining[0] == 0) {
             result.resolveWith(new NativeArray(values.toArray()));
@@ -214,10 +227,26 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object race(final Object self, final Object iterable) {
+        requireConstructor(self);
         final NativePromise result = allocate(Global.instance());
-        combine(self, iterable,
-                promised -> subscribe(promised, result::resolveWith, r -> result.settle(State.REJECTED, r)));
+        try {
+            combine(self, iterable,
+                    promised -> subscribe(promised, result::resolveWith, r -> result.settle(State.REJECTED, r)));
+        } catch (final ECMAException e) {
+            result.settle(State.REJECTED, e.getThrown());
+        }
         return result;
+    }
+
+    /** ES2015 25.4.4.1/25.4.4.3 step 2: the combinators are methods of a constructor. */
+    private static void requireConstructor(final Object self) {
+        if (!(self instanceof ScriptObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        // step 6 goes on to NewPromiseCapability(C), which needs C to be one
+        if (!(self instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(self));
+        }
     }
 
     /**

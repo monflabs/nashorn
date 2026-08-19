@@ -468,6 +468,20 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             bindWithDefault(at, element,
                     runtime(at, RuntimeNode.Request.ITERATOR_NEXT, ref(at, iterator)), statements);
         }
+
+        // ES2015 13.3.3.6: a pattern that stops before its iterator is done has
+        // to say so, which is how a generator gets to run its finally blocks. A
+        // rest element always drains the iterator, so there is nothing to close.
+        if (!endsWithRest(pattern)) {
+            statements.add(new ExpressionStatement(at.getLineNumber(), at.getToken(), at.getFinish(),
+                    runtime(at, RuntimeNode.Request.ITERATOR_CLOSE, ref(at, iterator))));
+        }
+    }
+
+    private static boolean endsWithRest(final ArrayLiteralNode pattern) {
+        final Expression[] elements = pattern.getValue();
+        return elements.length > 0 && elements[elements.length - 1] instanceof UnaryNode unary
+                && unary.isTokenType(TokenType.SPREAD_ARRAY);
     }
 
     /** {@code {p, q: t, r = 1} = o}. */

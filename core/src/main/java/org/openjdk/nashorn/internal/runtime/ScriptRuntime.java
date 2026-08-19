@@ -442,9 +442,21 @@ public final class ScriptRuntime {
         final MethodHandle doneInvoker = AbstractIterator.getDoneInvoker(global);
         final MethodHandle valueInvoker = AbstractIterator.getValueInvoker(global);
 
-        return new Iterator<>() {
+        return new CloseableIterator() {
 
-            private Object nextResult = nextResult();
+            /**
+             * The step this iterator is holding, or null before the first one is
+             * asked for.
+             *
+             * It is fetched when hasNext() asks, and not a moment sooner. The
+             * obvious implementation - fetch the following step while returning
+             * the current one - reads one element too many, which a script can
+             * see: "for (x of it) break" would call next() twice, and Array.from
+             * with a mapping function would interleave its calls wrongly.
+             */
+            private Object nextResult;
+            private boolean fetched;
+            private boolean exhausted;
 
             private Object nextResult() {
                 try {
@@ -462,12 +474,21 @@ public final class ScriptRuntime {
 
             @Override
             public boolean hasNext() {
+                if (!fetched) {
+                    nextResult = nextResult();
+                    fetched = true;
+                }
                 if (nextResult == null) {
+                    exhausted = true;
                     return false;
                 }
                 try {
                     final Object done = doneInvoker.invokeExact(nextResult);
-                    return !JSType.toBoolean(done);
+                    if (JSType.toBoolean(done)) {
+                        exhausted = true;
+                        return false;
+                    }
+                    return true;
                 } catch (final RuntimeException|Error r) {
                     throw r;
                 } catch (final Throwable t) {
@@ -476,14 +497,37 @@ public final class ScriptRuntime {
             }
 
             @Override
+            public void close() {
+                if (exhausted) {
+                    return;
+                }
+                exhausted = true;
+                // ES2015 7.4.6 IteratorClose: tell an unfinished iterator that
+                // nobody will ask it for more, so a generator can run its finally
+                // blocks. A failure here is not worth reporting over whatever the
+                // caller was doing.
+                if (iterator instanceof ScriptObject sobj) {
+                    try {
+                        if (sobj.get("return") instanceof ScriptFunction close) {
+                            apply(close, iterator);
+                        }
+                    } catch (final RuntimeException ignored) {
+                        // best effort
+                    }
+                }
+            }
+
+            @Override
             public Object next() {
+                if (!fetched) {
+                    hasNext();
+                }
+                fetched = false;
                 if (nextResult == null) {
                     return Undefined.getUndefined();
                 }
                 try {
-                    final Object result = nextResult;
-                    nextResult = nextResult();
-                    return valueInvoker.invokeExact(result);
+                    return valueInvoker.invokeExact(nextResult);
                 } catch (final RuntimeException|Error r) {
                     throw r;
                 } catch (final Throwable t) {
@@ -1199,6 +1243,32 @@ public final class ScriptRuntime {
         template.addOwnProperty("raw", Property.NOT_WRITABLE | Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, rawObj.freeze());
         template.freeze();
         return template;
+    }
+
+    /**
+     * An iteration that can be told it will not be asked for more.
+     *
+     * The ES2015 protocol lets an iterator clean up when a consumer stops early -
+     * a generator runs its finally blocks - and java.util.Iterator has nowhere to
+     * say that, so the adapter carries it here.
+     */
+    public interface CloseableIterator extends Iterator<Object> {
+        /** ES2015 7.4.6 IteratorClose, if the iteration has not already finished. */
+        void close();
+    }
+
+    /**
+     * ES2015 7.4.6 IteratorClose, for a destructuring pattern that stopped before
+     * its iterator was done.
+     *
+     * @param iterator from {@link #GET_ITERATOR}
+     * @return undefined
+     */
+    public static Object ITERATOR_CLOSE(final Object iterator) {
+        if (iterator instanceof CloseableIterator closeable) {
+            closeable.close();
+        }
+        return UNDEFINED;
     }
 
     /**

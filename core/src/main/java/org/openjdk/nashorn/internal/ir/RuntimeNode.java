@@ -86,6 +86,8 @@ public class RuntimeNode extends Expression {
         ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
         /** Everything an iterator has left, as an array - the {@code ...rest} case. */
         ITERATOR_REST(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2015 7.4.6 IteratorClose, when a pattern stops before its iterator does. */
+        ITERATOR_CLOSE(TokenType.VOID, Type.OBJECT, 1),
         /** ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring. */
         REQUIRE_OBJECT_COERCIBLE(TokenType.VOID, Type.OBJECT, 1),
         /**

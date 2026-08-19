@@ -490,6 +490,11 @@ public enum JSType {
                 final String name = hint == null ? "default" : hint == String.class ? "string" : "number";
                 return requirePrimitive(ScriptRuntime.apply(handler, sobj, name));
             }
+            if (exotic != null && exotic != ScriptRuntime.UNDEFINED) {
+                // ES2015 7.1.1 step 4 goes through GetMethod, which rejects a
+                // property that is present but not callable
+                throw typeError("not.a.function", ScriptRuntime.safeToString(exotic));
+            }
         }
         return requirePrimitive(sobj.getDefaultValue(hint));
     }

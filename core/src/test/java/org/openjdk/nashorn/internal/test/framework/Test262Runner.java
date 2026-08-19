@@ -95,6 +95,27 @@ public final class Test262Runner {
      */
     private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 40L);
 
+    /** The name the host object's bootstrap is compiled under. */
+    private static final String HOST_OBJECT_NAME = "<$262>";
+
+    /** The host object test262 expects, as source, evaluated into every realm. */
+    private static final String HOST_OBJECT =
+            "var $262 = {"
+            + "  global: this,"
+            + "  evalScript: function (source) { return (0, eval)(source); },"
+            + "  gc: function () { java.lang.System.gc(); },"
+            + "  detachArrayBuffer: function () {"
+            + "    throw new Error('detachArrayBuffer is not supported by this host');"
+            + "  },"
+            + "  createRealm: function () {"
+            + "    return loadWithNewGlobal({ name: 'realm', script: "
+            + "      \"var $262 = { global: this, evalScript: function (s) { return (0, eval)(s); },\""
+            + "      + \" gc: function () {}, detachArrayBuffer: function () { throw new Error('unsupported'); },\""
+            + "      + \" createRealm: function () { throw new Error('nested createRealm is not supported'); } }; $262\""
+            + "    });"
+            + "  }"
+            + "};";
+
     /** How many executions one engine serves before it is thrown away and rebuilt. */
     private static final int EXECUTIONS_PER_ENGINE =
             Integer.getInteger("test262.executions.per.engine", 250);
@@ -440,6 +461,7 @@ public final class Test262Runner {
                 Context.setGlobal(global);
 
                 if (fm != null && !fm.isRaw()) {
+                    installHostObject(global);
                     for (final String harness : DEFAULT_HARNESS) {
                         loadHarness(global, harness);
                     }
@@ -520,6 +542,25 @@ public final class Test262Runner {
                     : new Result.Fail("async test did not complete: " + firstLine(printed.trim()));
             }
             return new Result.Pass();
+        }
+
+        /**
+         * Installs $262, the object test262 expects its host to provide.
+         *
+         * evalScript has to reach global scope, so it goes through indirect eval
+         * rather than a direct one, which would see this function's scope.
+         * createRealm builds a fresh realm and hands back its own $262, which
+         * loadWithNewGlobal is exactly the right shape for. detachArrayBuffer
+         * needs engine support that does not exist yet and says so rather than
+         * failing obscurely.
+         */
+        private void installHostObject(final Global global) {
+            final Source source = harnessSources.computeIfAbsent(HOST_OBJECT_NAME,
+                    n -> Source.sourceFor(n, HOST_OBJECT));
+            final ScriptFunction install = context.compileScript(source, global);
+            if (install != null) {
+                ScriptRuntime.apply(install, global);
+            }
         }
 
         private void loadHarness(final Global global, final String name) {
