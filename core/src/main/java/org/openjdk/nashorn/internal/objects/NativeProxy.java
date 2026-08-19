@@ -59,8 +59,8 @@ public final class NativeProxy extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
-    private final ScriptObject target;
-    private final ScriptObject handler;
+    private ScriptObject target;
+    private ScriptObject handler;
 
     private NativeProxy(final ScriptObject target, final ScriptObject handler, final Global global) {
         super(global.getObjectPrototype(), $nasgenmap$);
@@ -68,9 +68,58 @@ public final class NativeProxy extends ScriptObject {
         this.handler = handler;
     }
 
+    /**
+     * ECMAScript 2015 26.2.2.1 Proxy.revocable(target, handler).
+     *
+     * @param self    self reference
+     * @param target  the object being wrapped
+     * @param handler the object holding the traps
+     * @return an object holding the proxy and the function that switches it off
+     */
+    @Function(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object revocable(final Object self, final Object target, final Object handler) {
+        final NativeProxy proxy = (NativeProxy)construct(true, self, target, handler);
+        final ScriptObject result = Global.newEmptyInstance();
+        result.set("proxy", proxy, 0);
+        result.set("revoke", ScriptFunction.createBuiltin("", REVOKE.bindTo(proxy)), 0);
+        return result;
+    }
+
+    @SuppressWarnings("unused")
+    private static Object revoke(final NativeProxy proxy, final Object self) {
+        // 26.2.2.1.1: revoking twice is not an error, it simply does nothing more
+        proxy.target = null;
+        proxy.handler = null;
+        return ScriptRuntime.UNDEFINED;
+    }
+
+    private static final java.lang.invoke.MethodHandle REVOKE =
+            find("revoke", Object.class, NativeProxy.class, Object.class);
+
+    /**
+     * The handler, or a TypeError if this proxy has been revoked.
+     *
+     * ES2015 26.2.2.1.1 leaves a revoked proxy with no target and no handler, and
+     * every internal method on one throws.
+     */
+    private ScriptObject handler() {
+        if (handler == null) {
+            throw typeError("proxy.revoked");
+        }
+        return handler;
+    }
+
+    /** The target, or a TypeError if this proxy has been revoked. */
+    private ScriptObject target() {
+        if (target == null) {
+            throw typeError("proxy.revoked");
+        }
+        return target;
+    }
+
     @Override
     public String getClassName() {
-        return target.getClassName();
+        return target == null ? "Object" : target.getClassName();
     }
 
     /**
@@ -99,7 +148,7 @@ public final class NativeProxy extends ScriptObject {
 
     /** The trap of this name, or null when the handler does not define one. */
     private ScriptFunction trap(final String name) {
-        final Object value = handler.get(name);
+        final Object value = handler().get(name);
         if (value == null || value == ScriptRuntime.UNDEFINED) {
             return null;
         }
@@ -116,7 +165,8 @@ public final class NativeProxy extends ScriptObject {
     @Override
     public Object get(final Object key) {
         final ScriptFunction trap = trap("get");
-        return trap == null ? target.get(key) : call(trap, target, propertyKey(key), this);
+        final ScriptObject rx = target();
+        return trap == null ? rx.get(key) : call(trap, rx, propertyKey(key), this);
     }
 
     @Override
@@ -133,10 +183,10 @@ public final class NativeProxy extends ScriptObject {
     public void set(final Object key, final Object value, final int flags) {
         final ScriptFunction trap = trap("set");
         if (trap == null) {
-            target.set(key, value, flags);
+            target().set(key, value, flags);
             return;
         }
-        if (!JSType.toBoolean(call(trap, target, propertyKey(key), value, this))
+        if (!JSType.toBoolean(call(trap, target(), propertyKey(key), value, this))
                 && NashornCallSiteDescriptorStrictness.isStrict(flags)) {
             throw typeError("cant.set.proto.to.non.object", ScriptRuntime.safeToString(key));
         }
@@ -145,32 +195,34 @@ public final class NativeProxy extends ScriptObject {
     @Override
     public boolean has(final Object key) {
         final ScriptFunction trap = trap("has");
-        return trap == null ? target.has(key) : JSType.toBoolean(call(trap, target, propertyKey(key)));
+        final ScriptObject rx = target();
+        return trap == null ? rx.has(key) : JSType.toBoolean(call(trap, rx, propertyKey(key)));
     }
 
     @Override
     public boolean hasOwnProperty(final Object key) {
         final ScriptFunction trap = trap("getOwnPropertyDescriptor");
         if (trap == null) {
-            return target.hasOwnProperty(key);
+            return target().hasOwnProperty(key);
         }
-        return call(trap, target, propertyKey(key)) != ScriptRuntime.UNDEFINED;
+        return call(trap, target(), propertyKey(key)) != ScriptRuntime.UNDEFINED;
     }
 
     @Override
     public boolean delete(final Object key, final boolean strict) {
         final ScriptFunction trap = trap("deleteProperty");
-        return trap == null ? target.delete(key, strict)
-                : JSType.toBoolean(call(trap, target, propertyKey(key)));
+        final ScriptObject rx = target();
+        return trap == null ? rx.delete(key, strict)
+                : JSType.toBoolean(call(trap, rx, propertyKey(key)));
     }
 
     @Override
     public boolean defineOwnProperty(final Object key, final Object descriptor, final boolean reject) {
         final ScriptFunction trap = trap("defineProperty");
         if (trap == null) {
-            return target.defineOwnProperty(key, descriptor, reject);
+            return target().defineOwnProperty(key, descriptor, reject);
         }
-        final boolean defined = JSType.toBoolean(call(trap, target, propertyKey(key), descriptor));
+        final boolean defined = JSType.toBoolean(call(trap, target(), propertyKey(key), descriptor));
         if (!defined && reject) {
             throw typeError("cant.redefine.property", ScriptRuntime.safeToString(key),
                     ScriptRuntime.safeToString(this));
@@ -178,19 +230,58 @@ public final class NativeProxy extends ScriptObject {
         return defined;
     }
 
+    /**
+     * ES2015 9.5.1 [[GetPrototypeOf]] and 9.5.2 [[SetPrototypeOf]].
+     *
+     * The linker's own {@link #getProto()} is left alone - it is what the
+     * property lookup walks - so a proxy's answer is only seen by the operations
+     * a script can reach, which is what the specification describes.
+     */
+    @Override
+    public ScriptObject getPrototypeOf() {
+        final ScriptFunction trap = trap("getPrototypeOf");
+        if (trap == null) {
+            return target().getPrototypeOf();
+        }
+        final Object proto = call(trap, target());
+        if (proto == null || proto instanceof ScriptObject) {
+            return (ScriptObject)proto;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(proto));
+    }
+
+    @Override
+    public void setPrototypeOf(final Object newProto) {
+        final ScriptFunction trap = trap("setPrototypeOf");
+        if (trap == null) {
+            target().setPrototypeOf(newProto);
+            return;
+        }
+        if (!JSType.toBoolean(call(trap, target(), newProto))) {
+            throw typeError("cant.set.proto.to.non.object", ScriptRuntime.safeToString(this));
+        }
+    }
+
+    /** Whether the object behind however many proxies is an array (ES2015 7.2.2). */
+    ScriptObject unwrap() {
+        final ScriptObject rx = target();
+        return rx instanceof NativeProxy proxy ? proxy.unwrap() : rx;
+    }
+
     @Override
     public boolean isExtensible() {
         final ScriptFunction trap = trap("isExtensible");
-        return trap == null ? target.isExtensible() : JSType.toBoolean(call(trap, target));
+        final ScriptObject rx = target();
+        return trap == null ? rx.isExtensible() : JSType.toBoolean(call(trap, rx));
     }
 
     @Override
     public ScriptObject preventExtensions() {
         final ScriptFunction trap = trap("preventExtensions");
         if (trap == null) {
-            target.preventExtensions();
+            target().preventExtensions();
         } else {
-            call(trap, target);
+            call(trap, target());
         }
         return this;
     }
@@ -208,12 +299,12 @@ public final class NativeProxy extends ScriptObject {
         final ScriptFunction trap = trap("ownKeys");
         if (trap == null) {
             // the protected three-argument form is not reachable across packages
-            final Object[] own = type == Symbol.class ? target.getOwnSymbols(all) : target.getOwnKeys(all);
+            final Object[] own = type == Symbol.class ? target().getOwnSymbols(all) : target().getOwnKeys(all);
             return java.util.Arrays.copyOf(own, own.length,
                     (Class<? extends T[]>)java.lang.reflect.Array.newInstance(type, 0).getClass());
         }
 
-        final Object keys = call(trap, target);
+        final Object keys = call(trap, target());
         if (!(keys instanceof ScriptObject list)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(keys));
         }

@@ -452,7 +452,9 @@ public class ScriptFunction extends ScriptObject {
             throw typeError("prototype.not.an.object", ScriptRuntime.safeToString(getTargetFunction()), ScriptRuntime.safeToString(basePrototype));
         }
 
-        for (ScriptObject proto = instance.getProto(); proto != null; proto = proto.getProto()) {
+        // ES2015 7.3.19 OrdinaryHasInstance walks the chain through
+        // [[GetPrototypeOf]], so a proxy in it answers with its own trap
+        for (ScriptObject proto = instance.getPrototypeOf(); proto != null; proto = proto.getPrototypeOf()) {
             if (proto == basePrototype) {
                 return true;
             }

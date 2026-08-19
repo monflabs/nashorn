@@ -1227,6 +1227,20 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * Return the __proto__ of an object.
      * @return __proto__ object.
      */
+    /**
+     * The [[GetPrototypeOf]] internal method (ES2015 9.1.1), which a Proxy
+     * answers with its handler's trap.
+     *
+     * {@link #getProto()} remains what the linker and the property lookup use
+     * and remains final; this is the one an operation reachable from a script
+     * goes through.
+     *
+     * @return this object's prototype
+     */
+    public ScriptObject getPrototypeOf() {
+        return getProto();
+    }
+
     public final ScriptObject getProto() {
         return proto;
     }
@@ -1288,7 +1302,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      *
      * @param newProto Prototype to set.
      */
-    public final void setPrototypeOf(final Object newProto) {
+    public void setPrototypeOf(final Object newProto) {
         if (newProto == null || newProto instanceof ScriptObject) {
             if (! isExtensible()) {
                 // okay to set same proto again - even if non-extensible

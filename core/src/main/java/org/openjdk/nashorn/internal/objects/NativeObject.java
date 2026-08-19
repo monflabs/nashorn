@@ -173,7 +173,7 @@ public final class NativeObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object getPrototypeOf(final Object self, final Object obj) {
         if (obj instanceof ScriptObject) {
-            return ((ScriptObject)obj).getProto();
+            return ((ScriptObject)obj).getPrototypeOf();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).getProto();
         } else {

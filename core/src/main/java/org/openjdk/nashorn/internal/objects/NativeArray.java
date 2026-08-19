@@ -432,7 +432,9 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static boolean isArray(final Object self, final Object arg) {
-        return isArray(arg) || (arg instanceof JSObject && ((JSObject)arg).isArray());
+        // ES2015 7.2.2 IsArray looks through however many proxies stand in the way
+        final Object value = arg instanceof NativeProxy proxy ? proxy.unwrap() : arg;
+        return isArray(value) || (value instanceof JSObject && ((JSObject)value).isArray());
     }
 
     /**

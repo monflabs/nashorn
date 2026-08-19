@@ -176,7 +176,7 @@ public final class NativeReflect extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object getPrototypeOf(final Object self, final Object target) {
-        final ScriptObject proto = object(target, "getPrototypeOf").getProto();
+        final ScriptObject proto = object(target, "getPrototypeOf").getPrototypeOf();
         return proto == null ? null : proto;
     }
 
