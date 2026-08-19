@@ -57,6 +57,7 @@ import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.ir.debug.JSONWriter;
 import org.openjdk.nashorn.internal.objects.AbstractIterator;
 import org.openjdk.nashorn.internal.objects.Global;
+import org.openjdk.nashorn.internal.objects.NativeGenerator;
 import org.openjdk.nashorn.internal.objects.NativeSymbol;
 import org.openjdk.nashorn.internal.objects.NativeArray;
 import org.openjdk.nashorn.internal.objects.NativeObject;
@@ -1612,5 +1613,64 @@ public final class ScriptRuntime {
             }
         }
         return UNDEFINED;
+    }
+
+    /**
+     * The first thing a generator function does.
+     *
+     * A generator function is compiled as an ordinary function and serves two
+     * roles. Called normally it must not run its body at all, but hand back a
+     * generator object; the body then runs later, on the generator's own thread,
+     * by calling the very same function again. This tells the two apart: the
+     * outer call gets a generator back and returns it immediately, and the call
+     * made from the generator's thread gets undefined and falls through into the
+     * body.
+     *
+     * @param callee the generator function itself
+     * @param self   its this value
+     * @param args   its arguments
+     * @return a new generator object, or undefined when the body should run
+     */
+    public static Object GENERATOR_ENTER(final Object callee, final Object self, final Object args) {
+        if (GeneratorSupport.entering()) {
+            return UNDEFINED;
+        }
+        final Global global = Context.getGlobal();
+        final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
+        return new NativeGenerator(
+                new GeneratorSupport((ScriptFunction)callee, self, arguments, global), global);
+    }
+
+    /**
+     * {@code yield value} - suspends the generator body until it is resumed.
+     *
+     * @param value the value to hand to whoever is advancing the generator
+     * @return the value the generator is resumed with
+     */
+    /**
+     * {@code yield* iterable} - yields everything the iterable produces.
+     *
+     * On a thread this is just a loop; there is no state machine to thread the
+     * delegation through. Values sent in with next() are not forwarded to the
+     * inner iterator, and the delegated iterator's own return value is not
+     * propagated - both are documented gaps.
+     *
+     * @param iterable what to delegate to
+     * @return undefined
+     */
+    public static Object YIELD_STAR(final Object iterable) {
+        final Iterator<?> iterator = toES6Iterator(iterable);
+        while (iterator.hasNext()) {
+            YIELD(iterator.next());
+        }
+        return UNDEFINED;
+    }
+
+    public static Object YIELD(final Object value) {
+        final GeneratorSupport generator = GeneratorSupport.running();
+        if (generator == null) {
+            throw typeError("yield.outside.generator");
+        }
+        return generator.yield(value);
     }
 }

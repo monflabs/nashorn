@@ -3017,6 +3017,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(VARARGS);
         }
 
+        // A generator's prologue needs the whole frame: the function to re-enter
+        // on the generator's thread, its receiver, and the arguments to replay.
+        final boolean pushesFrame = request == Request.GENERATOR_ENTER;
+        if (pushesFrame) {
+            method.loadCompilerConstant(CALLEE);
+            method.loadCompilerConstant(THIS);
+            method.loadCompilerConstant(VARARGS);
+        }
+
         for (final Expression arg : args) {
             loadExpression(arg, TypeBounds.OBJECT);
         }
@@ -3028,7 +3037,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     false,
                     false,
                     newRuntimeNode.getType(),
-                    args.size() + (pushesVarargs ? 1 : 0)).toString());
+                    args.size() + (pushesVarargs ? 1 : 0) + (pushesFrame ? 3 : 0)).toString());
 
         method.convert(newRuntimeNode.getType());
     }

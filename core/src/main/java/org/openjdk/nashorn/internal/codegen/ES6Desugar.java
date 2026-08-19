@@ -38,6 +38,8 @@ import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.ir.ForNode;
 import org.openjdk.nashorn.internal.ir.ExpressionStatement;
 import org.openjdk.nashorn.internal.ir.IdentNode;
+import org.openjdk.nashorn.internal.ir.IfNode;
+import org.openjdk.nashorn.internal.ir.ReturnNode;
 import org.openjdk.nashorn.internal.ir.IndexNode;
 import org.openjdk.nashorn.internal.ir.JoinPredecessorExpression;
 import org.openjdk.nashorn.internal.ir.LexicalContext;
@@ -166,6 +168,25 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     /**
+     * {@code yield value}.
+     *
+     * The body runs on its own thread, so a yield is an ordinary call that
+     * blocks until the generator is advanced again - no state machine, and no
+     * restriction on where a yield may appear.
+     */
+    @Override
+    public Node leaveUnaryNode(final UnaryNode unaryNode) {
+        if (unaryNode.isTokenType(TokenType.YIELD) || unaryNode.isTokenType(TokenType.YIELD_STAR)) {
+            final RuntimeNode.Request request = unaryNode.isTokenType(TokenType.YIELD_STAR)
+                    ? RuntimeNode.Request.YIELD_STAR
+                    : RuntimeNode.Request.YIELD;
+            return new RuntimeNode(unaryNode.getToken(), unaryNode.getFinish(), request,
+                    unaryNode.getExpression());
+        }
+        return super.leaveUnaryNode(unaryNode);
+    }
+
+    /**
      * {@code function f(a, ...rest) body}.
      *
      * The rest parameter leaves the parameter list - which also gives
@@ -176,24 +197,26 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
-        final List<IdentNode> parameters = functionNode.getParameters();
+        final FunctionNode withGenerator = addGeneratorPrologue(functionNode);
+        final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
-            return super.leaveFunctionNode(functionNode);
+            return super.leaveFunctionNode(withGenerator);
         }
+        final FunctionNode functionNode0 = withGenerator;
 
         final IdentNode rest = parameters.get(parameters.size() - 1);
         final List<IdentNode> declared = parameters.subList(0, parameters.size() - 1);
 
-        final Block body = functionNode.getBody();
+        final Block body = functionNode0.getBody();
         final List<Statement> statements = new ArrayList<>();
-        statements.add(new VarNode(functionNode.getLineNumber(),
-                Token.recast(functionNode.getToken(), TokenType.VAR), rest.getFinish(),
+        statements.add(new VarNode(functionNode0.getLineNumber(),
+                Token.recast(functionNode0.getToken(), TokenType.VAR), rest.getFinish(),
                 new IdentNode(rest.getToken(), rest.getFinish(), rest.getName()),
                 new RuntimeNode(rest.getToken(), rest.getFinish(), RuntimeNode.Request.REST_ARGUMENTS,
                         LiteralNode.newInstance(rest.getToken(), rest.getFinish(), declared.size()))));
         statements.addAll(body.getStatements());
 
-        return super.leaveFunctionNode(functionNode
+        return super.leaveFunctionNode(functionNode0
                 .setFlag(lc, FunctionNode.ES6_HAS_REST_PARAMETER)
                 .setParameters(lc, new ArrayList<>(declared))
                 .setBody(lc, body.setStatements(lc, statements)));
@@ -271,6 +294,43 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             return LiteralNode.newInstance(key.getToken(), key.getFinish(), name.getName());
         }
         return key;
+    }
+
+    /**
+     * Gives a generator function the prologue that turns it into a generator.
+     *
+     * A generator function is compiled as an ordinary function that plays two
+     * roles: called normally it must hand back a generator object without
+     * running anything, and the body runs later by calling the same function
+     * again from the generator's own thread. The prologue distinguishes them.
+     */
+    private FunctionNode addGeneratorPrologue(final FunctionNode functionNode) {
+        if (functionNode.getKind() != FunctionNode.Kind.GENERATOR) {
+            return functionNode;
+        }
+
+        final long token = functionNode.getToken();
+        final int finish = functionNode.getFinish();
+        final int line = functionNode.getLineNumber();
+        final String created = ":generator";
+
+        final Block body = functionNode.getBody();
+        final List<Statement> statements = new ArrayList<>();
+
+        // var :generator = GENERATOR_ENTER();
+        statements.add(new VarNode(line, Token.recast(token, TokenType.VAR), finish,
+                new IdentNode(token, finish, created),
+                new RuntimeNode(token, finish, RuntimeNode.Request.GENERATOR_ENTER)));
+
+        // if (:generator !== undefined) { return :generator; }
+        final Expression isNotUndefined = new RuntimeNode(token, finish, RuntimeNode.Request.IS_NOT_UNDEFINED,
+                new IdentNode(token, finish, created), new IdentNode(token, finish, UNDEFINED_NAME));
+        final Block returnBlock = new Block(token, finish,
+                new ReturnNode(line, token, finish, new IdentNode(token, finish, created)));
+        statements.add(new IfNode(line, token, finish, isNotUndefined, returnBlock, null));
+
+        statements.addAll(body.getStatements());
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
     }
 
     /**

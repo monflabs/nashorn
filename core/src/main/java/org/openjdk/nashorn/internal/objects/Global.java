@@ -1019,6 +1019,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinJSAdapter;
     private ScriptObject   builtinMath;
     private ScriptObject   builtinReflect;
+    private ScriptObject   builtinGeneratorPrototype;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
     private ScriptFunction builtinString;
@@ -1878,6 +1879,18 @@ public final class Global extends Scope {
             builtinArrayIteratorPrototype = initPrototype("ArrayIterator", getIteratorPrototype());
         }
         return builtinArrayIteratorPrototype;
+    }
+
+    /**
+     * The prototype every generator object gets, holding next, return and throw.
+     *
+     * @return the %GeneratorPrototype% intrinsic
+     */
+    public ScriptObject getGeneratorPrototype() {
+        if (builtinGeneratorPrototype == null) {
+            builtinGeneratorPrototype = initPrototype("NativeGenerator", getIteratorPrototype());
+        }
+        return builtinGeneratorPrototype;
     }
 
     ScriptObject getStringIteratorPrototype() {

@@ -747,6 +747,7 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         // A method using super reaches its home object through the callee, so it
         // needs one even when nothing else would give it one.
         return needsParentScope() || usesSelfSymbol() || isSplit() || usesSuper() || hasDirectSuper() || usesNewTarget()
+                || getKind() == Kind.GENERATOR
                 || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
     }
 
@@ -823,7 +824,8 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      * @see LinkerCallSite#ARGLIMIT
      */
     public boolean isVarArg() {
-        return needsArguments() || hasRestParameter() || parameters.size() > LinkerCallSite.ARGLIMIT;
+        return needsArguments() || hasRestParameter() || getKind() == Kind.GENERATOR
+                || parameters.size() > LinkerCallSite.ARGLIMIT;
     }
 
     /**

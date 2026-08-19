@@ -105,7 +105,13 @@ public class RuntimeNode extends Expression {
         /** super(...) in a derived constructor. */
         SUPER_CONSTRUCT(TokenType.VOID, Type.OBJECT, 3),
         /** new.target - the code generator supplies the callee and receiver. */
-        NEW_TARGET(TokenType.VOID, Type.OBJECT, 2);
+        NEW_TARGET(TokenType.VOID, Type.OBJECT, 2),
+        /** The prologue of a generator function; the code generator supplies the frame. */
+        GENERATOR_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** yield - suspends the generator body. */
+        YIELD(TokenType.VOID, Type.OBJECT, 1),
+        /** yield* - delegates to another iterable. */
+        YIELD_STAR(TokenType.VOID, Type.OBJECT, 1);
 
         /** token type */
         private final TokenType tokenType;

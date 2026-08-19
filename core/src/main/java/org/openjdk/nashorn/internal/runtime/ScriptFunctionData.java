@@ -102,6 +102,13 @@ public abstract class ScriptFunctionData implements Serializable {
      */
     public static final int IS_ES6_SUBCLASS_CONSTRUCTOR = 1 << 8;
 
+    /**
+     * Is this a generator? A reparse cannot always tell from the source: a class
+     * generator method's recorded range starts at its name, the star having
+     * already been consumed by the class body parser.
+     */
+    public static final int IS_ES6_GENERATOR = 1 << 9;
+
     /** Flag for strict or built-in functions */
     public static final int IS_STRICT_OR_BUILTIN = IS_STRICT | IS_BUILTIN;
     /** Flag for built-in constructors */

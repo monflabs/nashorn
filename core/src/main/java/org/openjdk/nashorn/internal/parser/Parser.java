@@ -1120,10 +1120,22 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             if ((reparseFlags & ScriptFunctionData.IS_ES6_METHOD) != 0
-                    && (type == IDENT || type == LBRACKET || isNonStrictModeIdent())) {
-                final String ident = (String)getValue();
+                    && (type == IDENT || type == LBRACKET || type == MUL || isNonStrictModeIdent())) {
+                // A generator method's source begins with the star, which has to
+                // be consumed here or the reparse fails on it as an operand. The
+                // token is captured first: it has to be the one the function was
+                // originally created with, or the reparsed function no longer
+                // matches the recorded one and its compilation data is lost.
                 final long propertyToken = token;
                 final int propertyLine = line;
+                // The star is there for an object literal method and absent for a
+                // class one, whose recorded range starts at the name, so the flag
+                // is the authority and the star is merely consumed if present.
+                final boolean generator = (reparseFlags & ScriptFunctionData.IS_ES6_GENERATOR) != 0;
+                if (type == MUL) {
+                    next();
+                }
+                final String ident = (String)getValue();
                 final Expression propertyKey = propertyName();
 
                 // A reparsed method has to be given back the flags it was parsed
@@ -1137,7 +1149,7 @@ public class Parser extends AbstractParser implements Loggable {
                         flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
                     }
                 }
-                addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, false, flags, false));
+                addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, flags, false));
                 return;
             }
 
