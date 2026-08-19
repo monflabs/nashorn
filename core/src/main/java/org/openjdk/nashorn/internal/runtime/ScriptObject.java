@@ -1072,7 +1072,17 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param getter {@link UserAccessorProperty} defined getter, or null if none
      * @param setter {@link UserAccessorProperty} defined setter, or null if none
      */
+    private static Object prefixedKey(final String prefix, final Object key) {
+        return key instanceof Symbol symbol ? prefix + "[" + symbol.getName() + "]" : prefix + JSType.toString(key);
+    }
+
     public final void setUserAccessors(final Object key, final ScriptFunction getter, final ScriptFunction setter) {
+        // ES2015 9.2.11: an accessor written with a computed key is named after
+        // it, which is only known here. One written with a name already has it,
+        // so this only ever names the nameless.
+        ScriptFunction.setFunctionName(prefixedKey("get ", key), getter);
+        ScriptFunction.setFunctionName(prefixedKey("set ", key), setter);
+
         final Object realKey = JSType.toPropertyKey(key);
         final Property oldProperty = getMap().findProperty(realKey);
         if (oldProperty instanceof UserAccessorProperty) {

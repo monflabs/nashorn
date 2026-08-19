@@ -1563,6 +1563,11 @@ public final class ScriptRuntime {
                 // super in this method resolves above whichever object it is
                 // defined on, so the home object is recorded now
                 method.setHomeObject(target);
+                // ES2015 14.5.14 step 20: a method with a computed key is named
+                // after it, which is only known now that the key is evaluated
+                final int accessor = flags & (CLASS_ELEMENT_GETTER | CLASS_ELEMENT_SETTER);
+                ScriptFunction.setFunctionName(accessor == 0 ? key
+                        : prefixed(accessor == CLASS_ELEMENT_GETTER ? "get " : "set ", key), value);
             }
             defineClassElement(target, key, flags, value);
         }
@@ -1575,6 +1580,11 @@ public final class ScriptRuntime {
         ctor.defineOwnProperty("prototype", prototypeDescriptor, true);
 
         return ctor;
+    }
+
+    /** An accessor's name carries "get " or "set " in front of the key's. */
+    private static Object prefixed(final String prefix, final Object key) {
+        return key instanceof Symbol symbol ? prefix + "[" + symbol.getName() + "]" : prefix + JSType.toString(key);
     }
 
     private static void defineClassElement(final ScriptObject target, final Object key, final int flags,

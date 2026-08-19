@@ -55,7 +55,15 @@ public abstract class ScriptFunctionData implements Serializable {
     }
 
     /** Name of the function or "" for anonymous functions */
-    protected final String name;
+    /**
+     * The function's name.
+     *
+     * Not final because ES2015 9.2.11 SetFunctionName is applied after the
+     * function object exists, for the cases the parser cannot see a name for -
+     * a computed property key is only known when it is evaluated. It is set at
+     * most once, before anything can have read it.
+     */
+    protected String name;
 
     /**
      * A list of code versions of a function sorted in ascending order of generic descriptors.
@@ -217,6 +225,16 @@ public abstract class ScriptFunctionData implements Serializable {
 
     String toSource() {
         return "function " + (name == null ? "" : name) + "() { [native code] }";
+    }
+
+    /**
+     * ES2015 9.2.11 SetFunctionName, for a function whose name was not known
+     * when it was compiled.
+     *
+     * @param newName the name to give it
+     */
+    void setName(final String newName) {
+        this.name = newName;
     }
 
     String getName() {

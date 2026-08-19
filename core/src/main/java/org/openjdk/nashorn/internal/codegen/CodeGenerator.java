@@ -2761,7 +2761,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             method.dup();
 
-            if (propertyNode.isComputed()) {
+            final boolean computed = propertyNode.isComputed();
+            if (computed) {
                 assert propertyNode.getKeyName() == null;
                 loadExpressionAsObject(propertyNode.getKey());
             } else {
@@ -2769,7 +2770,17 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             if (propertyNode.getValue() != null) {
+                if (computed) {
+                    // ES2015 9.2.11: the function gets the name of the key it is
+                    // being defined under, which is only known now that the key
+                    // has been evaluated
+                    method.dup();
+                }
                 loadExpressionAsObject(propertyNode.getValue());
+                if (computed) {
+                    method.invokestatic(CompilerConstants.className(ScriptFunction.class), "setFunctionName",
+                            new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+                }
                 method.load(0);
                 method.invoke(ScriptObject.GENERIC_SET);
             } else {

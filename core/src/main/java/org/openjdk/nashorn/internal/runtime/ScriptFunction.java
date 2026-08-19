@@ -746,6 +746,24 @@ public class ScriptFunction extends ScriptObject {
         return data.isConstructor();
     }
 
+    /**
+     * ES2015 9.2.11 SetFunctionName: gives an anonymous function the name of the
+     * property it is being defined as, when that name was only known once it had
+     * been evaluated.
+     *
+     * @param value the function, or anything else, in which case nothing happens
+     * @param key   the property key it is being defined under
+     * @return the value, so this can stand in an expression
+     */
+    public static Object setFunctionName(final Object key, final Object value) {
+        if (value instanceof ScriptFunction function && function.data.getName().isEmpty()) {
+            function.data.setName(key instanceof Symbol symbol
+                    ? "[" + symbol.getName() + "]"
+                    : JSType.toString(key));
+        }
+        return value;
+    }
+
     public final String getName() {
         return data.getName();
     }
