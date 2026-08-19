@@ -51,6 +51,7 @@ import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.objects.NativeFunction;
+import org.openjdk.nashorn.internal.objects.NativeProxy;
 import org.openjdk.nashorn.internal.objects.annotations.SpecializedFunction.LinkLogic;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
 import org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
@@ -453,11 +454,18 @@ public class ScriptFunction extends ScriptObject {
         }
 
         // ES2015 7.3.19 OrdinaryHasInstance walks the chain through
-        // [[GetPrototypeOf]], so a proxy in it answers with its own trap
-        for (ScriptObject proto = instance.getPrototypeOf(); proto != null; proto = proto.getPrototypeOf()) {
+        // [[GetPrototypeOf]], which only a proxy answers differently. Asking
+        // every object on the way costs a virtual call per step and made this a
+        // quarter slower; the class check is free and a proxy further along the
+        // chain is the case the property lookup does not honour either.
+        ScriptObject proto = instance instanceof NativeProxy
+                ? instance.getPrototypeOf()
+                : instance.getProto();
+        while (proto != null) {
             if (proto == basePrototype) {
                 return true;
             }
+            proto = proto.getProto();
         }
 
         return false;
