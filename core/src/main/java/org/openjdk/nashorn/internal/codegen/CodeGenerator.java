@@ -2374,6 +2374,43 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * function, so that the receiver is evaluated exactly once and serves as
      * both the lookup base and the this value.
      */
+    /**
+     * Records that super() has run, right where it ran.
+     *
+     * ES2015 8.1.1.3.1: the this binding of a derived constructor is made by
+     * super(), and reading it before that is a ReferenceError. The desugaring
+     * phase declares the variable that holds it, but it cannot write the
+     * assignment wherever super() happens to appear - the lexical context
+     * replaces a call node only with another call node - so the store is emitted
+     * here, beside the call.
+     *
+     * The object stays on the stack: 12.3.5.1 step 7 makes super() evaluate to
+     * it.
+     */
+    private void bindThis() {
+        final Symbol binding = thisBinding();
+        if (binding == null) {
+            return;
+        }
+        method.load(binding, Type.OBJECT);
+        method.swap();
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "BIND_THIS",
+                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+        method.dup();
+        method.store(binding, Type.OBJECT);
+    }
+
+    /** The variable holding a derived constructor's this binding, if it has one. */
+    private Symbol thisBinding() {
+        for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
+            final Symbol symbol = blocks.next().getExistingSymbol(ES6Desugar.THIS_BINDING);
+            if (symbol != null) {
+                return symbol;
+            }
+        }
+        return null;
+    }
+
     private void loadSpreadCall(final CallNode callNode) {
         final Expression function = callNode.getFunction();
         final String helper;
@@ -2386,6 +2423,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             loadSpreadArray(callNode.getArgs());
             method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CONSTRUCT",
                     new FunctionSignature(false, false, Type.OBJECT, 3).toString());
+            bindThis();
             return;
         }
 

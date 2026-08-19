@@ -26,13 +26,10 @@
 package org.openjdk.nashorn.internal.codegen;
 
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
-import org.openjdk.nashorn.internal.ir.CallNode;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.ClassNode;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -58,7 +55,6 @@ import org.openjdk.nashorn.internal.ir.TryNode;
 import org.openjdk.nashorn.internal.ir.UnaryNode;
 import org.openjdk.nashorn.internal.ir.VarNode;
 import org.openjdk.nashorn.internal.ir.visitor.NodeVisitor;
-import org.openjdk.nashorn.internal.ir.visitor.SimpleNodeVisitor;
 import org.openjdk.nashorn.internal.parser.Token;
 import org.openjdk.nashorn.internal.parser.TokenType;
 
@@ -124,12 +120,6 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * but a declaration's are the initialising ones.
      */
     private boolean declaring;
-
-    /**
-     * For each derived class constructor being desugared, whether its this
-     * binding can be tracked - see {@link #bindThis}.
-     */
-    private final Deque<Boolean> bindsThis = new ArrayDeque<>();
 
     /**
      * Whether this is an on-demand compilation, in which every nested function
@@ -206,10 +196,6 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         if (statement instanceof TryNode) {
             // already rewritten, or none of our business
             return null;
-        }
-        final List<Statement> bound = bindThisStatement(statement);
-        if (bound != null) {
-            return bound;
         }
         if (statement instanceof VarNode varNode) {
             return expandDestructuringInitialiser(varNode);
@@ -311,67 +297,6 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * compiled variable arity and that array exists.
      */
     /**
-     * {@code super(...);} in a derived class constructor, which is what brings
-     * its {@code this} into existence.
-     *
-     * The binding is made from the call's own result, so the parent constructor
-     * has finished by the time it happens, and a second super() in the same
-     * constructor is caught - the rule the specification states as binding a
-     * value that is already bound.
-     */
-    private List<Statement> bindThisStatement(final Statement statement) {
-        if (!Boolean.TRUE.equals(bindsThis.peek())
-                || !(statement instanceof ExpressionStatement expressionStatement)
-                || !isDirectSuperCall(expressionStatement.getExpression())) {
-            return null;
-        }
-        final long token = statement.getToken();
-        final int finish = statement.getFinish();
-        final Expression bind = new BinaryNode(Token.recast(token, TokenType.ASSIGN),
-                new IdentNode(token, finish, THIS_BINDING),
-                new RuntimeNode(token, finish, RuntimeNode.Request.BIND_THIS,
-                        new IdentNode(token, finish, THIS_BINDING),
-                        expressionStatement.getExpression()));
-        return List.of(new ExpressionStatement(statement.getLineNumber(), token, finish, bind));
-    }
-
-    private static boolean isDirectSuperCall(final Expression expression) {
-        return expression instanceof CallNode call
-                && call.getFunction() instanceof IdentNode ident && ident.isDirectSuper();
-    }
-
-    /**
-     * Whether every super() in a constructor is a statement on its own.
-     *
-     * It nearly always is, and when it is not - "var o = super();" - the binding
-     * cannot be tracked, because the node that would record it has to remain a
-     * call and the variable it would write is one no later phase knows about.
-     * Such a constructor keeps the older behaviour of a this that simply exists
-     * from the start.
-     */
-    private static boolean superCallsAreStatements(final Block body) {
-        final int[] counts = new int[2];
-        body.accept(new SimpleNodeVisitor() {
-            @Override
-            public boolean enterCallNode(final CallNode callNode) {
-                if (isDirectSuperCall(callNode)) {
-                    counts[0]++;
-                }
-                return true;
-            }
-
-            @Override
-            public boolean enterExpressionStatement(final ExpressionStatement expressionStatement) {
-                if (isDirectSuperCall(expressionStatement.getExpression())) {
-                    counts[1]++;
-                }
-                return true;
-            }
-        });
-        return counts[0] == counts[1];
-    }
-
-    /**
      * {@code return x} in a derived class constructor.
      *
      * ES2015 9.2.2 step 13 makes the completion value of one mean something it
@@ -381,8 +306,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveReturnNode(final ReturnNode returnNode) {
-        if (!Boolean.TRUE.equals(bindsThis.peek())
-                || !lc.getCurrentFunction().isSubclassConstructor()) {
+        if (!lc.getCurrentFunction().isSubclassConstructor()) {
             return super.leaveReturnNode(returnNode);
         }
         final long token = returnNode.getToken();
@@ -419,26 +343,15 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         if (function.getKind() == FunctionNode.Kind.ARROW) {
             return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
         }
-        if (function.isSubclassConstructor() && Boolean.TRUE.equals(bindsThis.peek())) {
+        if (function.isSubclassConstructor()) {
             return checkedThis(identNode.getToken(), identNode.getFinish());
         }
         return super.leaveIdentNode(identNode);
     }
 
     @Override
-    public boolean enterFunctionNode(final FunctionNode functionNode) {
-        if (functionNode.isSubclassConstructor()) {
-            bindsThis.push(superCallsAreStatements(functionNode.getBody()));
-        }
-        return super.enterFunctionNode(functionNode);
-    }
-
-    @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
         if (isSkipped(functionNode)) {
-            if (functionNode.isSubclassConstructor()) {
-                bindsThis.pop();
-            }
             return super.leaveFunctionNode(functionNode);
         }
 
@@ -581,7 +494,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * than quietly returning a half-built object.
      */
     private FunctionNode bindThis(final FunctionNode functionNode) {
-        if (!functionNode.isSubclassConstructor() || !bindsThis.pop()) {
+        if (!functionNode.isSubclassConstructor()) {
             return functionNode;
         }
 
@@ -591,10 +504,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Block body = functionNode.getBody();
 
         final List<Statement> statements = new ArrayList<>();
-        // undefined rather than false: the variable holds the object once super()
-        // has made the binding, and a slot typed boolean cannot take one
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_BINDING),
-                new IdentNode(token, finish, "undefined")));
+                new RuntimeNode(token, finish, RuntimeNode.Request.UNINITIALIZED_THIS)));
         statements.addAll(body.getStatements());
         statements.add(new ExpressionStatement(line, token, finish, checkedThis(token, finish)));
 

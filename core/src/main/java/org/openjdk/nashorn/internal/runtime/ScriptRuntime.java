@@ -1855,6 +1855,22 @@ public final class ScriptRuntime {
     }
 
     /**
+     * The value a derived class constructor's this binding holds before super()
+     * has made it.
+     *
+     * It is a call rather than the undefined literal so that the variable is
+     * typed as an object from the start. The binding is written by the code
+     * generator, next to the super() that makes it, and a slot the local
+     * variable type calculation has only ever seen hold undefined cannot take
+     * an object.
+     *
+     * @return undefined
+     */
+    public static Object UNINITIALIZED_THIS() {
+        return UNDEFINED;
+    }
+
+    /**
      * ES2015 8.1.1.3.4 GetThisBinding: {@code this} inside a derived class
      * constructor, which does not exist until super() has run.
      *
