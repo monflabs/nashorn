@@ -3271,7 +3271,15 @@ public class Parser extends AbstractParser implements Loggable {
                 // TODO if not destructuring, this is a SyntaxError
                 final long assignToken = token;
                 next();
-                final Expression rhs = assignmentExpression(false);
+                // ES2015 12.14.5.2: "{ p = function () {} }" names the function
+                // after the name it is defaulting
+                final Expression rhs;
+                defaultNames.push(propertyName);
+                try {
+                    rhs = assignmentExpression(false);
+                } finally {
+                    defaultNames.pop();
+                }
                 propertyValue = verifyAssignment(assignToken, propertyValue, rhs);
             }
         } else {
@@ -3968,6 +3976,23 @@ public class Parser extends AbstractParser implements Loggable {
         return functionBody;
     }
 
+    /**
+     * Adds one of a parameter list's desugared statements to the function body.
+     *
+     * On an on-demand compilation the parser reads the parameter list of every
+     * function it passes, because the caller needs to know the shape, but reads
+     * only the body of the one being compiled. A statement added to a body that
+     * was skipped makes it something other than empty, which every later phase
+     * takes for a body it is meant to look at.
+     */
+    private void appendParameterStatement(final ParserContextFunctionNode currentFunction,
+            final Statement statement) {
+        if (reparsedFunction != null && currentFunction.getId() > reparsedFunction.getFunctionNodeId()) {
+            return;
+        }
+        lc.getFunctionBody(currentFunction).appendStatement(statement);
+    }
+
     private String getDefaultValidFunctionName(final int functionLine, final boolean isStatement) {
         defaultNameIsBinding = false;
         final String defaultFunctionName = getDefaultFunctionName();
@@ -4098,8 +4123,15 @@ public class Parser extends AbstractParser implements Loggable {
                         expect(IDENT);
                     }
 
-                    // default parameter
-                    final Expression initializer = assignmentExpression(false);
+                    // default parameter. ES2015 14.1.19: an anonymous function
+                    // written as one is named after the parameter
+                    final Expression initializer;
+                    defaultNames.push(ident);
+                    try {
+                        initializer = assignmentExpression(false);
+                    } finally {
+                        defaultNames.pop();
+                    }
 
                     final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
                     if (currentFunction != null) {
@@ -4113,7 +4145,7 @@ public class Parser extends AbstractParser implements Loggable {
                             final BinaryNode test = new BinaryNode(Token.recast(paramToken, EQ_STRICT), ident, newUndefinedLiteral(paramToken, finish));
                             final TernaryNode value = new TernaryNode(Token.recast(paramToken, TERNARY), test, new JoinPredecessorExpression(initializer), new JoinPredecessorExpression(ident));
                             final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), ident, value);
-                            lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
+                            appendParameterStatement(currentFunction, new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                         }
                     }
                 }
@@ -4161,7 +4193,7 @@ public class Parser extends AbstractParser implements Loggable {
                             currentFunction.addParameterExpression(ident, pattern);
                         }
                     } else {
-                        lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
+                        appendParameterStatement(currentFunction, new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                     }
                 }
             }
@@ -4180,7 +4212,7 @@ public class Parser extends AbstractParser implements Loggable {
             if (currentFunction != null) {
                 // declare function-scope variables for destructuring bindings
                 if (!env._parse_only) {
-                    lc.getFunctionBody(currentFunction).appendStatement(new VarNode(paramLine, Token.recast(paramToken, VAR), pattern.getFinish(), identNode, null));
+                    appendParameterStatement(currentFunction, new VarNode(paramLine, Token.recast(paramToken, VAR), pattern.getFinish(), identNode, null));
                 }
                 // detect duplicate bounds names in parameter list
                 currentFunction.addParameterBinding(identNode);
@@ -4937,7 +4969,7 @@ public class Parser extends AbstractParser implements Loggable {
                         final BinaryNode test = new BinaryNode(Token.recast(paramToken, EQ_STRICT), ident, newUndefinedLiteral(paramToken, finish));
                         final TernaryNode value = new TernaryNode(Token.recast(paramToken, TERNARY), test, new JoinPredecessorExpression(initializer), new JoinPredecessorExpression(ident));
                         final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), ident, value);
-                        lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
+                        appendParameterStatement(currentFunction, new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                     }
 
                     currentFunction.addParameterBinding(ident);
@@ -4961,7 +4993,7 @@ public class Parser extends AbstractParser implements Loggable {
                         // the arrow was written with; assigning to that is not a
                         // destructuring assignment at all and nothing downstream knows it
                         final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), lhs, value);
-                        lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
+                        appendParameterStatement(currentFunction, new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                     }
                 }
                 return ident;
@@ -4980,7 +5012,7 @@ public class Parser extends AbstractParser implements Loggable {
                     currentFunction.addParameterExpression(ident, param);
                 } else {
                     final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), param, ident);
-                    lc.getFunctionBody(currentFunction).appendStatement(new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
+                    appendParameterStatement(currentFunction, new ExpressionStatement(paramLine, assignment.getToken(), assignment.getFinish(), assignment));
                 }
             }
             return ident;
