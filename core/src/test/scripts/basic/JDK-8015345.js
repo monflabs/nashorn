@@ -43,8 +43,9 @@ function checkFunction(code) {
 // invalid body
 checkFunction("}),print('test'),({");
 
-// invalid param list
-checkFunction("x**y", "print('x')");
+// invalid param list. It reads as a body, checkFunction taking only one
+// argument, and "x**y" became a valid one when ES2016 added exponentiation.
+checkFunction("x***y", "print('x')");
 
 // invalid param identifier
 checkFunction("in", "print('hello')");

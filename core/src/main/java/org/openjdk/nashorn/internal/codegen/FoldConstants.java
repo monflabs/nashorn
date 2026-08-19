@@ -324,6 +324,9 @@ final class FoldConstants extends SimpleNodeVisitor implements Loggable {
             case MUL:
                 value = lhs.getNumber() * rhs.getNumber();
                 break;
+            case EXP:
+                value = Math.pow(lhs.getNumber(), rhs.getNumber());
+                break;
             case MOD:
                 value = lhs.getNumber() % rhs.getNumber();
                 break;

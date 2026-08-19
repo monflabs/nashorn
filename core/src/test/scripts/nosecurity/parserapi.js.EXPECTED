@@ -4527,11 +4527,11 @@
 ,
 {
   "fileName": "parsernegativetests/illegaloperator.js",
-  "code": "* (1089, 1)",
-  "columnNumber": "3",
+  "code": "* (1090, 1)",
+  "columnNumber": "4",
   "kind": "ERROR",
-  "position": "1089",
-  "message": "parsernegativetests/illegaloperator.js:29:3 Expected an operand but found *\nx ** y\n   ^",
+  "position": "1090",
+  "message": "parsernegativetests/illegaloperator.js:29:4 Expected an operand but found *\nx *** y\n    ^",
   "lineNumber": "29"
 }
 ,
@@ -4541,13 +4541,13 @@
   "sourceElements": [
     {
       "expression": {
-        "endPosition": "1092",
+        "endPosition": "1093",
         "kind": "ERROR",
-        "startPosition": "1089"
+        "startPosition": "1090"
       },
-      "endPosition": "1092",
+      "endPosition": "1093",
       "kind": "EXPRESSION_STATEMENT",
-      "startPosition": "1089"
+      "startPosition": "1090"
     }
   ],
   "sourceName": "parsernegativetests/illegaloperator.js",

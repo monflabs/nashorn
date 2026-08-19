@@ -57,6 +57,7 @@ import static org.openjdk.nashorn.internal.parser.TokenType.LBRACE;
 import static org.openjdk.nashorn.internal.parser.TokenType.LBRACKET;
 import static org.openjdk.nashorn.internal.parser.TokenType.LET;
 import static org.openjdk.nashorn.internal.parser.TokenType.LPAREN;
+import static org.openjdk.nashorn.internal.parser.TokenType.EXP;
 import static org.openjdk.nashorn.internal.parser.TokenType.MUL;
 import static org.openjdk.nashorn.internal.parser.TokenType.PERIOD;
 import static org.openjdk.nashorn.internal.parser.TokenType.RBRACE;
@@ -708,6 +709,7 @@ public class Parser extends AbstractParser implements Loggable {
         case ASSIGN_BIT_OR:
         case ASSIGN_BIT_XOR:
         case ASSIGN_DIV:
+        case ASSIGN_EXP:
         case ASSIGN_MOD:
         case ASSIGN_MUL:
         case ASSIGN_SAR:
@@ -4440,7 +4442,12 @@ public class Parser extends AbstractParser implements Loggable {
 
     private RuntimeNode referenceError(final Expression lhs, final Expression rhs, final boolean earlyError) {
         if (env._parse_only || earlyError) {
-            throw error(JSErrorType.REFERENCE_ERROR, AbstractParser.message("invalid.lvalue"), lhs.getToken());
+            // ES2015 12.4.4 and 12.15.1 make an assignment or an update whose
+            // target is not a valid one an early SyntaxError. ES5.1 left the
+            // choice open and Nashorn reported a ReferenceError, which is what
+            // the runtime path below still does for the cases the specification
+            // leaves until then.
+            throw error(JSErrorType.SYNTAX_ERROR, AbstractParser.message("invalid.lvalue"), lhs.getToken());
         }
         final ArrayList<Expression> args = new ArrayList<>();
         args.add(lhs);
@@ -4474,6 +4481,22 @@ public class Parser extends AbstractParser implements Loggable {
      * Parse unary expression.
      * @return Expression node.
      */
+    /**
+     * ES2016 12.6: the left operand of {@code **} is an UpdateExpression, so a
+     * unary operator in front of it is an early error - {@code -2 ** 2} has to
+     * be written {@code (-2) ** 2} or {@code -(2 ** 2)}, because the two read
+     * alike and mean different things.
+     *
+     * A parenthesised operand never reaches here: it is a primary expression, so
+     * {@code (-2) ** 2} is unaffected. {@code ++a ** 2} is unaffected too, an
+     * update expression being exactly what the grammar allows.
+     */
+    private void rejectExponentiationOfUnary() {
+        if (type == EXP) {
+            throw error(AbstractParser.message("unary.before.exponentiation"), token);
+        }
+    }
+
     private Expression unaryExpression() {
         final long unaryToken = token;
 
@@ -4483,6 +4506,7 @@ public class Parser extends AbstractParser implements Loggable {
             final TokenType opType = type;
             next();
             final Expression expr = unaryExpression();
+            rejectExponentiationOfUnary();
             return new UnaryNode(Token.recast(unaryToken, (opType == TokenType.ADD) ? TokenType.POS : TokenType.NEG), expr);
         }
         case DELETE:
@@ -4492,6 +4516,7 @@ public class Parser extends AbstractParser implements Loggable {
         case NOT:
             next();
             final Expression expr = unaryExpression();
+            rejectExponentiationOfUnary();
             return new UnaryNode(unaryToken, expr);
 
         case INCPREFIX:
@@ -4819,6 +4844,7 @@ public class Parser extends AbstractParser implements Loggable {
         case ASSIGN_BIT_OR:
         case ASSIGN_BIT_XOR:
         case ASSIGN_DIV:
+        case ASSIGN_EXP:
         case ASSIGN_MOD:
         case ASSIGN_MUL:
         case ASSIGN_SAR:

@@ -982,6 +982,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             @Override
+            public boolean enterASSIGN_EXP(final BinaryNode binaryNode) {
+                checkAssignTarget(binaryNode.lhs());
+                loadASSIGN_EXP(binaryNode);
+                return false;
+            }
+
+            @Override
             public boolean enterASSIGN_MOD(final BinaryNode binaryNode) {
                 checkAssignTarget(binaryNode.lhs());
                 loadASSIGN_MOD(binaryNode);
@@ -1067,6 +1074,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             @Override
             public boolean enterDIV(final BinaryNode binaryNode) {
                 loadDIV(binaryNode, resultBounds);
+                return false;
+            }
+
+            @Override
+            public boolean enterEXP(final BinaryNode binaryNode) {
+                loadEXP(binaryNode);
                 return false;
             }
 
@@ -4486,6 +4499,33 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         method.label(trueLabel);
         method.load(Boolean.TRUE);
         method.label(afterLabel);
+    }
+
+    /**
+     * ES2016 12.6: exponentiation, which is Math.pow with both operands coerced
+     * to a number.
+     *
+     * Unlike the other arithmetic operators it has no integer form to be
+     * optimistic about - Math.pow answers a double for every input - so it needs
+     * neither a program point nor the overflow machinery.
+     */
+    private void loadEXP(final BinaryNode binaryNode) {
+        loadExpressionAsType(binaryNode.lhs(), Type.NUMBER);
+        loadExpressionAsType(binaryNode.rhs(), Type.NUMBER);
+        method.invokestatic("java/lang/Math", "pow", "(DD)D");
+    }
+
+    private void loadASSIGN_EXP(final BinaryNode binaryNode) {
+        new SelfModifyingStore<BinaryNode>(binaryNode, binaryNode.lhs()) {
+            @Override
+            protected void evaluate() {
+                // the target's base is already on the stack, so the operands are
+                // loaded the way the other self-assigning operators load theirs
+                loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(),
+                        new TypeBounds(Type.NUMBER, Type.NUMBER), true, false);
+                method.invokestatic("java/lang/Math", "pow", "(DD)D");
+            }
+        }.store();
     }
 
     private void loadMOD(final BinaryNode binaryNode, final TypeBounds resultBounds) {

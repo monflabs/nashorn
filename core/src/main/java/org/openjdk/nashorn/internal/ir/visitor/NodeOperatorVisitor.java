@@ -121,6 +121,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return enterASSIGN_BIT_XOR(binaryNode);
         case ASSIGN_DIV:
             return enterASSIGN_DIV(binaryNode);
+        case ASSIGN_EXP:
+            return enterASSIGN_EXP(binaryNode);
         case ASSIGN_MOD:
             return enterASSIGN_MOD(binaryNode);
         case ASSIGN_MUL:
@@ -161,6 +163,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return enterLE(binaryNode);
         case LT:
             return enterLT(binaryNode);
+        case EXP:
+            return enterEXP(binaryNode);
         case MOD:
             return enterMOD(binaryNode);
         case MUL:
@@ -203,6 +207,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return leaveASSIGN_BIT_XOR(binaryNode);
         case ASSIGN_DIV:
             return leaveASSIGN_DIV(binaryNode);
+        case ASSIGN_EXP:
+            return leaveASSIGN_EXP(binaryNode);
         case ASSIGN_MOD:
             return leaveASSIGN_MOD(binaryNode);
         case ASSIGN_MUL:
@@ -243,6 +249,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return leaveLE(binaryNode);
         case LT:
             return leaveLT(binaryNode);
+        case EXP:
+            return leaveEXP(binaryNode);
         case MOD:
             return leaveMOD(binaryNode);
         case MUL:
@@ -1012,6 +1020,26 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
         return leaveDefault(binaryNode);
     }
     /**
+     * Binary enter - callback for entering ** operator
+     *
+     * @param  binaryNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterEXP(final BinaryNode binaryNode) {
+        return enterDefault(binaryNode);
+    }
+
+    /**
+     * Binary enter - callback for entering {@literal **=} operator
+     *
+     * @param  binaryNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterASSIGN_EXP(final BinaryNode binaryNode) {
+        return enterDefault(binaryNode);
+    }
+
+    /**
      * Binary enter - callback for entering % operator
      *
      * @param  binaryNode the node
@@ -1019,6 +1047,26 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
      */
     public boolean enterMOD(final BinaryNode binaryNode) {
         return enterDefault(binaryNode);
+    }
+
+    /**
+     * Binary leave - callback for leaving ** operator
+     *
+     * @param  binaryNode the node
+     * @return processed node, which will replace the original one, or the original node
+     */
+    public Node leaveEXP(final BinaryNode binaryNode) {
+        return leaveDefault(binaryNode);
+    }
+
+    /**
+     * Binary leave - callback for leaving {@literal **=} operator
+     *
+     * @param  binaryNode the node
+     * @return processed node, which will replace the original one, or the original node
+     */
+    public Node leaveASSIGN_EXP(final BinaryNode binaryNode) {
+        return leaveDefault(binaryNode);
     }
 
     /**

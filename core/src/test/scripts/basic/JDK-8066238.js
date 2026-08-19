@@ -26,18 +26,22 @@
  *
  * @test
  * @run
+ *
+ * ES2016 12.15.1 makes an assignment whose target is not a valid one an early
+ * SyntaxError. ES5.1 left the choice open and this recorded the ReferenceError
+ * Nashorn used to raise.
  */
 try {
     eval("function f() { L: ({ set prop(){0 = null} }); }");
 } catch (e) {
-    if (!(e instanceof ReferenceError)) {
+    if (!(e instanceof SyntaxError)) {
         throw e;
     }
 }
 try {
     eval("function g() { do ; while({ get x()1-- }); }");
 } catch (e) {
-    if (!(e instanceof ReferenceError)) {
+    if (!(e instanceof SyntaxError)) {
         throw e;
     }
 }

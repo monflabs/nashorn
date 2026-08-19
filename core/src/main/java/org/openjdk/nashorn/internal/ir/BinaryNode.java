@@ -219,6 +219,10 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case SAR:
         case SHL:
             return Type.INT;
+        case EXP:
+        case ASSIGN_EXP:
+            // Math.pow always answers a double
+            return Type.NUMBER;
         case DIV:
         case MOD:
         case ASSIGN_DIV:
@@ -288,6 +292,7 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case ASSIGN_BIT_OR:
         case ASSIGN_BIT_XOR:
         case ASSIGN_DIV:
+        case ASSIGN_EXP:
         case ASSIGN_MOD:
         case ASSIGN_MUL:
         case ASSIGN_SAR:
@@ -344,6 +349,7 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case BIT_XOR:
         case ADD:
         case DIV:
+        case EXP:
         case MOD:
         case MUL:
         case SUB:
@@ -354,6 +360,7 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case ASSIGN_BIT_OR:
         case ASSIGN_BIT_XOR:
         case ASSIGN_DIV:
+        case ASSIGN_EXP:
         case ASSIGN_MOD:
         case ASSIGN_MUL:
         case ASSIGN_SAR:

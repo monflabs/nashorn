@@ -61,7 +61,12 @@ public enum TokenType {
     LPAREN         (BRACKET, "(",    16, true),
     RPAREN         (BRACKET, ")",     0, true),
     MUL            (BINARY,  "*",    13, true),
+    // ES2016 exponentiation. Binds tighter than * and is right associative, so
+    // 2 ** 3 ** 2 is 2 ** 9. Sharing a precedence with the unary operators is
+    // harmless: a unary operator is never read in binary position.
+    EXP            (BINARY,  "**",   14, false),
     ASSIGN_MUL     (BINARY,  "*=",    2, false),
+    ASSIGN_EXP     (BINARY,  "**=",   2, false),
     POS            (UNARY,   "+",    14, false),
     ADD            (BINARY,  "+",    12, true),
     INCPREFIX      (UNARY,   "++",   15, true),

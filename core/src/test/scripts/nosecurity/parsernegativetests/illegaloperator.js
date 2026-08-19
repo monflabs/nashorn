@@ -26,4 +26,4 @@
  * @negative
  */
 
-x ** y
+x *** y
