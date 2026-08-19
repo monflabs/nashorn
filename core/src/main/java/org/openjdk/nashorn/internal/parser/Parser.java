@@ -1014,6 +1014,17 @@ public class Parser extends AbstractParser implements Loggable {
      * @param singleStatement are we in a single statement context?
      */
     private void statement(final boolean topLevel, final int reparseFlags, final boolean singleStatement, final boolean labelledStatement) {
+        if ((reparseFlags & ScriptFunctionData.IS_ES6_METHOD) != 0
+                && (reparseFlags & ScriptFunctionData.IS_PROPERTY_ACCESSOR) == 0) {
+            // The recorded source range of a method starts at its name, so on a
+            // reparse the whole "statement" is the method - there is nothing else
+            // in range. It has to be recognised before the switch below, because
+            // a property name may be a reserved word ("return() {}" is a method,
+            // not a return statement) or a string or number literal, none of
+            // which reach the identifier case.
+            reparsedMethodStatement(reparseFlags);
+            return;
+        }
         switch (type) {
         case LBRACE:
             block();
@@ -1119,43 +1130,45 @@ public class Parser extends AbstractParser implements Loggable {
                 }
             }
 
-            if ((reparseFlags & ScriptFunctionData.IS_ES6_METHOD) != 0
-                    && (type == IDENT || type == LBRACKET || type == MUL || isNonStrictModeIdent())) {
-                // A generator method's source begins with the star, which has to
-                // be consumed here or the reparse fails on it as an operand. The
-                // token is captured first: it has to be the one the function was
-                // originally created with, or the reparsed function no longer
-                // matches the recorded one and its compilation data is lost.
-                final long propertyToken = token;
-                final int propertyLine = line;
-                // The star is there for an object literal method and absent for a
-                // class one, whose recorded range starts at the name, so the flag
-                // is the authority and the star is merely consumed if present.
-                final boolean generator = (reparseFlags & ScriptFunctionData.IS_ES6_GENERATOR) != 0;
-                if (type == MUL) {
-                    next();
-                }
-                final String ident = (String)getValue();
-                final Expression propertyKey = propertyName();
-
-                // A reparsed method has to be given back the flags it was parsed
-                // with, or it is no longer recognisably a method: super would be
-                // rejected outright, and super(...) needs to know that the class
-                // had an extends clause.
-                int flags = FunctionNode.ES6_IS_METHOD;
-                if (CONSTRUCTOR_NAME.equals(ident)) {
-                    flags |= FunctionNode.ES6_IS_CLASS_CONSTRUCTOR;
-                    if ((reparseFlags & ScriptFunctionData.IS_ES6_SUBCLASS_CONSTRUCTOR) != 0) {
-                        flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
-                    }
-                }
-                addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, flags, false));
-                return;
-            }
-
             expressionStatement();
             break;
         }
+    }
+
+    /**
+     * A method being recompiled on its own, whose source text is just
+     * {@code name(params) { body }} - or {@code *name(params) { body }} for a
+     * generator in an object literal.
+     */
+    private void reparsedMethodStatement(final int reparseFlags) {
+        // The token is captured first: it has to be the one the function was
+        // originally created with, or the reparsed function no longer matches the
+        // recorded one and its compilation data is lost.
+        final long propertyToken = token;
+        final int propertyLine = line;
+        // A generator method's source begins with the star, which has to be
+        // consumed or the reparse fails on it as an operand. The star is there for
+        // an object literal method and absent for a class one, whose recorded
+        // range starts at the name, so the flag is the authority and the star is
+        // merely consumed if present.
+        final boolean generator = (reparseFlags & ScriptFunctionData.IS_ES6_GENERATOR) != 0;
+        if (type == MUL) {
+            next();
+        }
+        final Expression propertyKey = propertyName();
+        final String ident = propertyKey instanceof PropertyKey key ? key.getPropertyName() : null;
+
+        // A reparsed method has to be given back the flags it was parsed with, or
+        // it is no longer recognisably a method: super would be rejected outright,
+        // and super(...) needs to know that the class had an extends clause.
+        int flags = FunctionNode.ES6_IS_METHOD;
+        if (CONSTRUCTOR_NAME.equals(ident)) {
+            flags |= FunctionNode.ES6_IS_CLASS_CONSTRUCTOR;
+            if ((reparseFlags & ScriptFunctionData.IS_ES6_SUBCLASS_CONSTRUCTOR) != 0) {
+                flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
+            }
+        }
+        addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, flags, false));
     }
 
     private void addPropertyFunctionStatement(final PropertyFunction propertyFunction) {
@@ -3340,7 +3353,22 @@ public class Parser extends AbstractParser implements Loggable {
         return new PropertyFunction(propertyName, function, computed);
     }
 
-    private PropertyFunction propertyMethodFunction(final Expression key, final long methodToken, final int methodLine, final boolean generator, final int flags, final boolean computed) {
+    /**
+     * A method's source range is taken from its function token, and a method named
+     * by a string literal starts at the quote. A string token spans only the
+     * contents, so recompiling such a method on its own would begin lexing inside
+     * the literal and fail on the missing close quote.
+     */
+    private static long includeOpeningQuote(final long propertyToken) {
+        final TokenType type = Token.descType(propertyToken);
+        if (type != TokenType.STRING && type != TokenType.ESCSTRING) {
+            return propertyToken;
+        }
+        return Token.toDesc(type, Token.descPosition(propertyToken) - 1, Token.descLength(propertyToken) + 2);
+    }
+
+    private PropertyFunction propertyMethodFunction(final Expression key, final long propertyToken, final int methodLine, final boolean generator, final int flags, final boolean computed) {
+        final long methodToken = includeOpeningQuote(propertyToken);
         final String methodName = key instanceof PropertyKey ? ((PropertyKey) key).getPropertyName() : getDefaultValidFunctionName(methodLine, false);
         final IdentNode methodNameNode = createIdentNode(key.getToken(), finish, methodName);
 

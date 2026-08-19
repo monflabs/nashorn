@@ -404,6 +404,11 @@ public final class ScriptRuntime {
      * @return iterator based on the ECMA 6 Iterator interface.
      */
     public static Iterator<?> toES6Iterator(final Object obj) {
+        if (obj instanceof CloseableIterator closeable) {
+            // a for-of loop whose iterator was obtained ahead of the loop, so that
+            // the finally block that closes it can reach it
+            return closeable;
+        }
         // if not a ScriptObject, try convenience iterator for Java objects!
         if (!(obj instanceof ScriptObject)) {
             final Iterator<?> itr = iteratorForJavaArrayOrList(obj);
@@ -1281,7 +1286,30 @@ public final class ScriptRuntime {
      * @return an iterator over it
      */
     public static Object GET_ITERATOR(final Object iterable) {
-        return toES6Iterator(iterable);
+        final Iterator<?> iterator = toES6Iterator(iterable);
+        if (iterator instanceof CloseableIterator) {
+            return iterator;
+        }
+        // A Java array, list or map iterated as an extension: there is no script
+        // iterator to close, but the result still has to be recognisable as one
+        // already obtained, because a for-of loop hands it back to
+        // {@link #toES6Iterator} when it starts.
+        return new CloseableIterator() {
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public Object next() {
+                return iterator.next();
+            }
+
+            @Override
+            public void close() {
+                // nothing to tell a Java iterator
+            }
+        };
     }
 
     /**

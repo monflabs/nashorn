@@ -1781,6 +1781,28 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         return false;
     }
 
+    /**
+     * Whether an enclosing block put a scope creator on the stack for the loop
+     * being emitted.
+     *
+     * Normally that block is the immediately enclosing one, but a for-of loop
+     * sits inside the try/finally that closes its iterator, so the search has to
+     * look outwards - stopping at the first block that introduces a scope of its
+     * own, which would mean the creator on the stack belongs to something else.
+     */
+    private boolean hasScopeCreator() {
+        for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
+            final Block block = blocks.next();
+            if (block.providesScopeCreator()) {
+                return true;
+            }
+            if (block.needsScope()) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     private void enterForIn(final ForNode forNode) {
         loadExpression(forNode.getModify(), TypeBounds.OBJECT);
         if (forNode.isForEach()) {
@@ -1841,7 +1863,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }.store();
         body.accept(this);
 
-        if (forNode.needsScopeCreator() && lc.getCurrentBlock().providesScopeCreator()) {
+        if (forNode.needsScopeCreator() && hasScopeCreator()) {
             // for-in loops with lexical declaration need a new scope for each iteration.
             final FieldObjectCreator<?> creator = scopeObjectCreators.peek();
             assert creator != null;

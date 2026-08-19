@@ -489,9 +489,51 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
      * @return true if child nodes need access to this block's scope creator
      */
     public boolean providesScopeCreator() {
-        return needsScope() && isSynthetic()
-                && (getLastStatement() instanceof ForNode)
-                && ((ForNode) getLastStatement()).needsScopeCreator();
+        if (!needsScope() || !isSynthetic()) {
+            return false;
+        }
+        for (final Statement statement : statements) {
+            if (lexicalIterationLoop(statement) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The for-in or for-of loop this block was created to hold, if the statement
+     * is one that binds afresh on every iteration.
+     *
+     * A for-of loop is wrapped in a try/finally by the ES6 desugaring phase so
+     * that leaving it early can close its iterator, and the lowering phase then
+     * inlines the finally, leaving the loop inside a synthetic block and a copy
+     * of the close beside it. So the loop is neither this block's only statement
+     * nor its last one, and the wrappers have to be looked through.
+     */
+    private static ForNode lexicalIterationLoop(final Statement statement) {
+        if (statement instanceof ForNode forNode) {
+            return forNode.needsScopeCreator() ? forNode : null;
+        }
+        final Block wrapped;
+        if (statement instanceof TryNode tryNode) {
+            wrapped = tryNode.getBody();
+        } else if (statement instanceof BlockStatement blockStatement) {
+            wrapped = blockStatement.getBlock();
+        } else {
+            return null;
+        }
+        if (!wrapped.isSynthetic()) {
+            return null;
+        }
+        // Exactly one wrapper deep, and the loop must be an immediate statement of
+        // it: anything further away belongs to some other block, whose creator
+        // would build the wrong scope.
+        for (final Statement inner : wrapped.getStatements()) {
+            if (inner instanceof ForNode loop && loop.isForOf() && loop.needsScopeCreator()) {
+                return loop;
+            }
+        }
+        return null;
     }
 
     @Override

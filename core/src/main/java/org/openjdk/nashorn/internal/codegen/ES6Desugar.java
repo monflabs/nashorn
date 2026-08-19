@@ -51,6 +51,7 @@ import org.openjdk.nashorn.internal.ir.PropertyNode;
 import org.openjdk.nashorn.internal.ir.RuntimeNode;
 import org.openjdk.nashorn.internal.ir.Statement;
 import org.openjdk.nashorn.internal.ir.TernaryNode;
+import org.openjdk.nashorn.internal.ir.TryNode;
 import org.openjdk.nashorn.internal.ir.UnaryNode;
 import org.openjdk.nashorn.internal.ir.VarNode;
 import org.openjdk.nashorn.internal.ir.visitor.NodeVisitor;
@@ -149,6 +150,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     private List<Statement> expand(final Statement statement) {
         if (statement instanceof ForNode forNode) {
             return forNode.isForInOrOf() ? expandForInOrOf(forNode) : expandForInitialiser(forNode);
+        }
+        if (statement instanceof TryNode) {
+            // already rewritten, or none of our business
+            return null;
         }
         if (!(statement instanceof ExpressionStatement expressionStatement)) {
             return null;
@@ -399,7 +404,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private List<Statement> expandForInOrOf(final ForNode forNode) {
         final Expression init = forNode.getInit();
-        if (init == null || !isPattern(init)) {
+        final boolean pattern = init != null && isPattern(init);
+        if (!pattern && !forNode.isForOf()) {
             return null;
         }
 
@@ -409,20 +415,64 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // "for (const x of xs)" case itself but has no identifier to mark when
         // the binding is a pattern.
         declaring = true;
-        final String element = newTemporary();
 
-        final List<Statement> bindings = new ArrayList<>();
-        destructure(forNode, init, ref(forNode, element), bindings);
+        ForNode loop = forNode;
+        final List<Statement> hoisted = new ArrayList<>();
+        if (pattern) {
+            final String element = newTemporary();
+            final List<Statement> bindings = new ArrayList<>();
+            destructure(forNode, init, ref(forNode, element), bindings);
 
-        final Block body = forNode.getBody();
-        final List<Statement> statements = new ArrayList<>(bindings);
-        statements.addAll(body.getStatements());
+            final Block body = forNode.getBody();
+            final List<Statement> statements = new ArrayList<>(bindings);
+            statements.addAll(body.getStatements());
 
-        final ForNode bound = forNode
-                .setInit(lc, ref(forNode, element))
-                .setBody(lc, body.setStatements(lc, statements));
+            hoisted.add(declareTemporary(forNode, element));
+            loop = loop.setInit(lc, ref(forNode, element))
+                       .setBody(lc, body.setStatements(lc, statements));
+        }
 
-        return List.of(declareTemporary(forNode, element), bound);
+        if (forNode.isForOf()) {
+            hoisted.addAll(closingIteration(loop));
+        } else {
+            hoisted.add(loop);
+        }
+        return hoisted;
+    }
+
+    /**
+     * {@code for (x of xs) body}, wrapped so that leaving the loop early tells
+     * the iterator about it.
+     *
+     * ES2015 13.7.5.13 calls IteratorClose on any abrupt completion of a for-of -
+     * break, return, throw, or a labelled break out of an enclosing statement -
+     * which is what lets a generator being iterated run its finally blocks. That
+     * is a try/finally, and rather than emit one by hand in the code generator,
+     * where the loop is a bare java.util.Iterator with no handler around it, the
+     * loop is put inside a real one here and left to the lowering phase.
+     *
+     * The iterator has to be reachable from the finally block, so it is obtained
+     * here into a temporary instead of by the loop itself; the code generator's
+     * call to it then passes the temporary straight through. Closing an iterator
+     * that ran to completion is a no-op, so the normal exit costs nothing beyond
+     * the call.
+     */
+    private List<Statement> closingIteration(final ForNode forNode) {
+        final String iterator = newTemporary();
+        final Expression get = runtime(forNode, RuntimeNode.Request.GET_ITERATOR,
+                forNode.getModify().getExpression());
+        final Expression store = new BinaryNode(Token.recast(forNode.getToken(), TokenType.ASSIGN),
+                ref(forNode, iterator), get);
+
+        final ForNode loop = forNode.setModify(lc, new JoinPredecessorExpression(store));
+        final Block body = new Block(forNode.getToken(), forNode.getFinish(), loop);
+        final Block close = new Block(forNode.getToken(), forNode.getFinish(),
+                new ExpressionStatement(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
+                        runtime(forNode, RuntimeNode.Request.ITERATOR_CLOSE, ref(forNode, iterator))));
+
+        return List.of(declareTemporary(forNode, iterator),
+                new TryNode(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
+                        body, List.of(), close));
     }
 
     /**
