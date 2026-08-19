@@ -26,6 +26,7 @@
 package org.openjdk.nashorn.internal.objects;
 
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
+import static org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.CALLSITE_STRICT;
 import static org.openjdk.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
 
 import java.lang.invoke.MethodHandle;
@@ -44,6 +45,7 @@ import org.openjdk.nashorn.internal.runtime.BitVector;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.ParserException;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
@@ -340,55 +342,38 @@ public final class NativeRegExp extends ScriptObject {
      * ES2015 21.2.5.6 RegExp.prototype [ @@match ] ( string ).
      *
      * String.prototype.match delegates here, which is what makes the behaviour
-     * replaceable: an object with its own @@match decides for itself.
+     * replaceable. Like its three siblings it is generic: it reads flags and
+     * lastIndex as properties and goes through the object's own exec, so it
+     * works on a subclass that overrides either.
      *
-     * @param self   the regular expression
+     * @param self   the regular expression, or anything shaped like one
      * @param string what to match against
      * @return the matches, or null if there are none
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@match", arity = 1)
     public static Object match(final Object self, final Object string) {
-        final NativeRegExp regexp = checkRegExp(self);
+        final ScriptObject rx = matcherObject(self);
         final String str = JSType.toString(string);
 
-        if (!regexp.getGlobal()) {
-            return regexp.exec(str);
+        if (!JSType.toBoolean(rx.get("global"))) {
+            return regExpExec(rx, str);
         }
 
-        regexp.setLastIndex(0);
+        final boolean unicode = JSType.toBoolean(rx.get("unicode"));
+        rx.set("lastIndex", 0, CALLSITE_STRICT);
 
         final List<Object> matches = new ArrayList<>();
-        ScriptObject result;
-        // ES2015 21.2.5.6 steps 8.e-f: an empty match still advances, where ES5.1
-        // compared the index and matched the empty string twice
-        while ((result = regexp.exec(str)) != null) {
-            final String matched = JSType.toString(result.get(0));
-            if (matched.isEmpty()) {
-                regexp.setLastIndex(regexp.getLastIndex() + 1);
+        while (true) {
+            final ScriptObject result = regExpExec(rx, str);
+            if (result == null) {
+                return matches.isEmpty() ? null : new NativeArray(matches.toArray());
             }
+            final String matched = JSType.toString(result.get(0));
             matches.add(matched);
+            if (matched.isEmpty()) {
+                rx.set("lastIndex", (double)advanceStringIndex(str, lastIndex(rx), unicode), CALLSITE_STRICT);
+            }
         }
-
-        return matches.isEmpty() ? null : new NativeArray(matches.toArray());
-    }
-
-    /**
-     * ES2015 21.2.5.8 RegExp.prototype [ @@replace ] ( string, replaceValue ).
-     *
-     * @param self        the regular expression
-     * @param string      what to search
-     * @param replacement the replacement text, or a function producing it
-     * @return the resulting string
-     * @throws Throwable if the replacement function throws
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@replace", arity = 2)
-    public static Object replace(final Object self, final Object string, final Object replacement) throws Throwable {
-        final NativeRegExp regexp = checkRegExp(self);
-        final String str = JSType.toString(string);
-
-        return Bootstrap.isCallable(replacement)
-                ? regexp.replace(str, "", replacement)
-                : regexp.replace(str, JSType.toString(replacement), null);
     }
 
     /**
@@ -400,11 +385,102 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@search", arity = 1)
     public static Object search(final Object self, final Object string) {
-        return checkRegExp(self).search(JSType.toString(string));
+        final ScriptObject rx = matcherObject(self);
+        final String str = JSType.toString(string);
+
+        // searching must not be observable through lastIndex, so it is put back
+        final Object previous = rx.get("lastIndex");
+        if (!ScriptRuntime.sameValue(previous, 0)) {
+            rx.set("lastIndex", 0, CALLSITE_STRICT);
+        }
+        final ScriptObject result = regExpExec(rx, str);
+        if (!ScriptRuntime.sameValue(rx.get("lastIndex"), previous)) {
+            rx.set("lastIndex", previous, CALLSITE_STRICT);
+        }
+        return result == null ? -1 : result.get("index");
+    }
+
+    /**
+     * ES2015 21.2.5.8 RegExp.prototype [ @@replace ] ( string, replaceValue ).
+     *
+     * @param self        the regular expression
+     * @param string      what to search
+     * @param replacement the replacement text, or a function producing it
+     * @return the resulting string
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@replace", arity = 2)
+    public static Object replace(final Object self, final Object string, final Object replacement) {
+        final ScriptObject rx = matcherObject(self);
+        final String str = JSType.toString(string);
+        final boolean callable = Bootstrap.isCallable(replacement);
+        final String replaceText = callable ? null : JSType.toString(replacement);
+
+        final boolean global = JSType.toBoolean(rx.get("global"));
+        final boolean unicode = global && JSType.toBoolean(rx.get("unicode"));
+        if (global) {
+            rx.set("lastIndex", 0, CALLSITE_STRICT);
+        }
+
+        // every match is collected before any replacement is built, so that a
+        // replacement function cannot disturb the walk
+        final List<ScriptObject> results = new ArrayList<>();
+        while (true) {
+            final ScriptObject result = regExpExec(rx, str);
+            if (result == null) {
+                break;
+            }
+            results.add(result);
+            if (!global) {
+                break;
+            }
+            if (JSType.toString(result.get(0)).isEmpty()) {
+                rx.set("lastIndex", (double)advanceStringIndex(str, lastIndex(rx), unicode), CALLSITE_STRICT);
+            }
+        }
+
+        final StringBuilder accumulated = new StringBuilder();
+        int nextSourcePosition = 0;
+        for (final ScriptObject result : results) {
+            final String matched = JSType.toString(result.get(0));
+            final int captureCount = (int)Math.max(JSType.toUint32(result.getLength()) - 1, 0);
+            final int position = Math.min(Math.max(JSType.toInteger(result.get("index")), 0), str.length());
+
+            final Object[] captures = new Object[captureCount];
+            for (int i = 0; i < captureCount; i++) {
+                final Object capture = result.get(i + 1);
+                captures[i] = capture == UNDEFINED ? UNDEFINED : JSType.toString(capture);
+            }
+
+            final String replaced;
+            if (callable) {
+                final Object[] arguments = new Object[captureCount + 3];
+                arguments[0] = matched;
+                System.arraycopy(captures, 0, arguments, 1, captureCount);
+                arguments[captureCount + 1] = (double)position;
+                arguments[captureCount + 2] = str;
+                replaced = JSType.toString(ScriptRuntime.apply((ScriptFunction)replacement, UNDEFINED, arguments));
+            } else {
+                replaced = getSubstitution(matched, str, position, captures, replaceText);
+            }
+
+            if (position >= nextSourcePosition) {
+                accumulated.append(str, nextSourcePosition, position).append(replaced);
+                nextSourcePosition = position + matched.length();
+            }
+        }
+        if (nextSourcePosition < str.length()) {
+            accumulated.append(str, nextSourcePosition, str.length());
+        }
+        return accumulated.toString();
     }
 
     /**
      * ES2015 21.2.5.11 RegExp.prototype [ @@split ] ( string, limit ).
+     *
+     * The splitting is done by a second regular expression built from this one
+     * with the sticky flag added, so that each attempt is anchored where the last
+     * match ended - and it is built through the species constructor, so a
+     * subclass splits with its own kind.
      *
      * @param self   the regular expression
      * @param string what to split
@@ -413,8 +489,192 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@split", arity = 2)
     public static Object split(final Object self, final Object string, final Object limit) {
-        return checkRegExp(self).split(JSType.toString(string),
-                limit == ScriptRuntime.UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit));
+        final ScriptObject rx = matcherObject(self);
+        final String str = JSType.toString(string);
+
+        final String flags = JSType.toString(rx.get("flags"));
+        final boolean unicode = flags.indexOf('u') >= 0;
+        final String stickyFlags = flags.indexOf('y') >= 0 ? flags : flags + "y";
+        final ScriptObject splitter = construct(speciesConstructor(rx), rx, stickyFlags);
+
+        final List<Object> pieces = new ArrayList<>();
+        final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
+        if (lim == 0) {
+            return new NativeArray();
+        }
+
+        final int size = str.length();
+        if (size == 0) {
+            return regExpExec(splitter, str) != null ? new NativeArray() : new NativeArray(new Object[] { str });
+        }
+
+        int p = 0;
+        long q = 0;
+        while (q < size) {
+            splitter.set("lastIndex", (double)q, CALLSITE_STRICT);
+            final ScriptObject result = regExpExec(splitter, str);
+            if (result == null) {
+                q = advanceStringIndex(str, q, unicode);
+                continue;
+            }
+            final int e = (int)Math.min(JSType.toUint32(splitter.get("lastIndex")), size);
+            if (e == p) {
+                q = advanceStringIndex(str, q, unicode);
+                continue;
+            }
+            pieces.add(str.substring(p, (int)q));
+            if (pieces.size() == lim) {
+                return new NativeArray(pieces.toArray());
+            }
+            p = e;
+            final int captureCount = (int)Math.max(JSType.toUint32(result.getLength()) - 1, 0);
+            for (int i = 1; i <= captureCount; i++) {
+                pieces.add(result.get(i));
+                if (pieces.size() == lim) {
+                    return new NativeArray(pieces.toArray());
+                }
+            }
+            q = p;
+        }
+        pieces.add(str.substring(p, size));
+        return new NativeArray(pieces.toArray());
+    }
+
+    /**
+     * The receiver of one of the four symbol methods, which ES2015 21.2.5.6 and
+     * its siblings require to be an object and nothing more - not a regular
+     * expression, which is what lets a plain object with an exec method stand in
+     * for one.
+     */
+    private static ScriptObject matcherObject(final Object self) {
+        if (self instanceof ScriptObject sobj) {
+            return sobj;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+    }
+
+    /**
+     * ES2015 21.2.5.2.1 RegExpExec: the object's own exec if it has a callable
+     * one, and the built-in otherwise.
+     */
+    private static ScriptObject regExpExec(final ScriptObject rx, final String str) {
+        final Object exec = rx.get("exec");
+        if (Bootstrap.isCallable(exec) && exec instanceof ScriptFunction function) {
+            final Object result = ScriptRuntime.apply(function, rx, str);
+            if (result == null || result == UNDEFINED) {
+                return null;
+            }
+            if (result instanceof ScriptObject sobj) {
+                return sobj;
+            }
+            throw typeError("not.an.object", ScriptRuntime.safeToString(result));
+        }
+        return checkRegExp(rx).exec(str);
+    }
+
+    /** ES2015 21.2.5.2.3 AdvanceStringIndex, which steps over a whole code point in unicode mode. */
+    private static long advanceStringIndex(final String str, final long index, final boolean unicode) {
+        if (!unicode || index + 1 >= str.length()) {
+            return index + 1;
+        }
+        final char first = str.charAt((int)index);
+        if (first < 0xD800 || first > 0xDBFF) {
+            return index + 1;
+        }
+        final char second = str.charAt((int)index + 1);
+        return second < 0xDC00 || second > 0xDFFF ? index + 1 : index + 2;
+    }
+
+    private static long lastIndex(final ScriptObject rx) {
+        return JSType.toUint32(rx.get("lastIndex"));
+    }
+
+    /** The constructor a derived operation should build with (ES2015 7.3.20). */
+    private static Object speciesConstructor(final ScriptObject rx) {
+        final Object constructor = rx.get("constructor");
+        if (constructor == UNDEFINED) {
+            return Global.instance().get("RegExp");
+        }
+        if (!(constructor instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(constructor));
+        }
+        final Object species = sobj.get(NativeSymbol.species);
+        return species == UNDEFINED || species == null ? Global.instance().get("RegExp") : species;
+    }
+
+    private static ScriptObject construct(final Object constructor, final Object pattern, final String flags) {
+        if (!(constructor instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
+        }
+        final Object splitter = ScriptRuntime.construct(function, pattern, flags);
+        if (splitter instanceof ScriptObject sobj) {
+            return sobj;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(splitter));
+    }
+
+    /**
+     * ES2015 21.1.3.14.1 GetSubstitution - what the dollar sequences in a
+     * replacement string stand for.
+     */
+    private static String getSubstitution(final String matched, final String str, final int position,
+            final Object[] captures, final String replacement) {
+        final StringBuilder sb = new StringBuilder();
+        final int tail = position + matched.length();
+
+        for (int i = 0; i < replacement.length(); i++) {
+            final char c = replacement.charAt(i);
+            if (c != '$' || i + 1 == replacement.length()) {
+                sb.append(c);
+                continue;
+            }
+            final char next = replacement.charAt(i + 1);
+            switch (next) {
+            case '$' -> {
+                sb.append('$');
+                i++;
+            }
+            case '&' -> {
+                sb.append(matched);
+                i++;
+            }
+            case '`' -> {
+                sb.append(str, 0, position);
+                i++;
+            }
+            case '\'' -> {
+                sb.append(str, Math.min(tail, str.length()), str.length());
+                i++;
+            }
+            default -> {
+                // $n and $nn, taking two digits when they name a group that exists
+                final int one = Character.digit(next, 10);
+                if (one < 0) {
+                    sb.append(c);
+                    break;
+                }
+                int group = one;
+                int consumed = 1;
+                if (i + 2 < replacement.length()) {
+                    final int two = Character.digit(replacement.charAt(i + 2), 10);
+                    if (two >= 0 && one * 10 + two <= captures.length && one * 10 + two > 0) {
+                        group = one * 10 + two;
+                        consumed = 2;
+                    }
+                }
+                if (group == 0 || group > captures.length) {
+                    sb.append(c);
+                    break;
+                }
+                final Object capture = captures[group - 1];
+                if (capture != UNDEFINED) {
+                    sb.append(JSType.toString(capture));
+                }
+                i += consumed;
+            }
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -450,21 +710,24 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object flags(final Object self) {
-        final NativeRegExp regExp = checkRegExp(self);
-        final StringBuilder sb = new StringBuilder(3);
-        if (regExp.getRegExp().isGlobal()) {
+        // ES2015 21.2.5.3 reads the five flags as properties of the receiver, in
+        // that order, so a subclass that overrides one of them is honoured and an
+        // object that is not a regular expression at all still gets an answer
+        final ScriptObject rx = matcherObject(self);
+        final StringBuilder sb = new StringBuilder(5);
+        if (JSType.toBoolean(rx.get("global"))) {
             sb.append('g');
         }
-        if (regExp.getRegExp().isIgnoreCase()) {
+        if (JSType.toBoolean(rx.get("ignoreCase"))) {
             sb.append('i');
         }
-        if (regExp.getRegExp().isMultiline()) {
+        if (JSType.toBoolean(rx.get("multiline"))) {
             sb.append('m');
         }
-        if (regExp.getRegExp().isUnicode()) {
+        if (JSType.toBoolean(rx.get("unicode"))) {
             sb.append('u');
         }
-        if (regExp.getRegExp().isSticky()) {
+        if (JSType.toBoolean(rx.get("sticky"))) {
             sb.append('y');
         }
         return sb.toString();
