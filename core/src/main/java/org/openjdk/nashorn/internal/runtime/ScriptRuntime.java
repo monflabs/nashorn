@@ -1735,10 +1735,19 @@ public final class ScriptRuntime {
         if (!(parent instanceof ScriptFunction parentConstructor)) {
             throw typeError("no.super");
         }
-        apply(parentConstructor, thiz, SPREAD_TO_ARGUMENTS(argsArray));
-        // ES2015 12.3.5.1 step 7: super() evaluates to the this binding it makes,
-        // which is the object being built - not whatever the parent returned
-        return thiz;
+        // ES2015 12.3.5.1 step 5: the parent is constructed, not called, and it
+        // is told what new.target is - which for a derived constructor is what
+        // its own this slot holds, since it allocated nothing.
+        if (!(thiz instanceof ScriptFunction newTarget)) {
+            throw typeError("no.super");
+        }
+        try {
+            return parentConstructor.construct(newTarget, SPREAD_TO_ARGUMENTS(argsArray));
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     /**
@@ -1757,6 +1766,11 @@ public final class ScriptRuntime {
      * @return the constructor, or undefined
      */
     public static Object NEW_TARGET(final Object callee, final Object thiz) {
+        if (callee instanceof ScriptFunction running && running.isSubclassConstructor()) {
+            // a derived constructor allocated nothing, so its this slot is
+            // new.target itself
+            return thiz instanceof ScriptFunction ? thiz : UNDEFINED;
+        }
         if (!(callee instanceof ScriptFunction function) || !(thiz instanceof ScriptObject receiver)) {
             return UNDEFINED;
         }
@@ -1844,12 +1858,12 @@ public final class ScriptRuntime {
      * @param thiz        the object being built
      * @return what the construction evaluates to
      */
-    public static Object DERIVED_RETURN(final Object value, final Object thisBinding, final Object thiz) {
+    public static Object DERIVED_RETURN(final Object value, final Object thisBinding) {
         if (value instanceof ScriptObject) {
             return value;
         }
         if (value == UNDEFINED) {
-            return REQUIRE_THIS_INITIALIZED(thisBinding, thiz);
+            return REQUIRE_THIS_INITIALIZED(thisBinding);
         }
         throw typeError("derived.constructor.return", safeToString(value));
     }
@@ -1882,11 +1896,11 @@ public final class ScriptRuntime {
      * @param thiz        the object being built
      * @return the object
      */
-    public static Object REQUIRE_THIS_INITIALIZED(final Object binding, final Object thiz) {
+    public static Object REQUIRE_THIS_INITIALIZED(final Object binding) {
         if (binding == UNDEFINED) {
             throw referenceError("this.before.super");
         }
-        return thiz;
+        return binding;
     }
 
     /**

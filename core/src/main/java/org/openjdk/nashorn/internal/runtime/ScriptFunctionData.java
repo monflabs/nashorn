@@ -204,6 +204,16 @@ public abstract class ScriptFunctionData implements Serializable {
         return (flags & IS_BUILTIN) != 0;
     }
 
+    /**
+     * Whether this is the constructor of a class with an extends clause, which
+     * ES2015 9.2.2 gives a this binding it does not have until super() runs.
+     *
+     * @return true for a derived class constructor
+     */
+    public boolean isSubclassConstructor() {
+        return (flags & IS_ES6_SUBCLASS_CONSTRUCTOR) != 0;
+    }
+
     boolean isGenerator() {
         return (flags & IS_ES6_GENERATOR) != 0;
     }

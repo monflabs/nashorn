@@ -314,15 +314,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Expression value = returnNode.getExpression();
         return returnNode.setExpression(new RuntimeNode(token, finish, RuntimeNode.Request.DERIVED_RETURN,
                 value == null ? new IdentNode(token, finish, "undefined") : value,
-                new IdentNode(token, finish, THIS_BINDING),
-                new IdentNode(token, finish, CompilerConstants.THIS.symbolName())));
+                new IdentNode(token, finish, THIS_BINDING)));
     }
 
     /** {@code this}, checked against the binding having been made. */
     private static Expression checkedThis(final long token, final int finish) {
         return new RuntimeNode(token, finish, RuntimeNode.Request.REQUIRE_THIS_INITIALIZED,
-                new IdentNode(token, finish, THIS_BINDING),
-                new IdentNode(token, finish, CompilerConstants.THIS.symbolName()));
+                new IdentNode(token, finish, THIS_BINDING));
     }
 
     /**
@@ -507,7 +505,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_BINDING),
                 new RuntimeNode(token, finish, RuntimeNode.Request.UNINITIALIZED_THIS)));
         statements.addAll(body.getStatements());
-        statements.add(new ExpressionStatement(line, token, finish, checkedThis(token, finish)));
+        statements.add(new ReturnNode(line, token, finish, checkedThis(token, finish)));
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
     }

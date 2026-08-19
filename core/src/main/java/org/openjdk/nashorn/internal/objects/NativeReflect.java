@@ -97,19 +97,18 @@ public final class NativeReflect extends ScriptObject {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(args[2]));
         }
         final Object list = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
-        final Object result = ScriptRuntime.construct((ScriptFunction)target, toArguments(list));
+        final ScriptFunction constructor = (ScriptFunction)target;
+        final ScriptFunction newTarget = args.length > 2 ? (ScriptFunction)args[2] : constructor;
 
-        // ES2015 26.1.2 allocates the object from newTarget's prototype. Nashorn
-        // allocates inside the constructor's own call sequence, from the function
-        // being called, so the prototype is corrected afterwards - which the
-        // finished object cannot tell apart, but a constructor that reads
-        // new.target while it runs still sees the function it was called on.
-        if (args.length > 2 && args[2] != target && result instanceof ScriptObject object
-                && object.getProto() == ((ScriptFunction)target).getPrototype()
-                && ((ScriptFunction)args[2]).getPrototype() instanceof ScriptObject prototype) {
-            object.setProto(prototype);
+        // ES2015 26.1.2 builds the object for newTarget, which is what decides
+        // its prototype and what new.target reads as inside it
+        try {
+            return constructor.construct(newTarget, toArguments(list));
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
         }
-        return result;
     }
 
     /**

@@ -117,9 +117,9 @@ public class RuntimeNode extends Expression {
         /** The value a derived class constructor's this binding has before super() */
         UNINITIALIZED_THIS(TokenType.VOID, Type.OBJECT, 0),
         /** ES2015 8.1.1.3.4 GetThisBinding, for a derived class constructor */
-        REQUIRE_THIS_INITIALIZED(TokenType.VOID, Type.OBJECT, 2),
+        REQUIRE_THIS_INITIALIZED(TokenType.VOID, Type.OBJECT, 1),
         /** ES2015 9.2.2 step 13, what a derived class constructor returns */
-        DERIVED_RETURN(TokenType.VOID, Type.OBJECT, 3),
+        DERIVED_RETURN(TokenType.VOID, Type.OBJECT, 2),
         /** ES2015 8.1.1.3.1 BindThisValue, for a derived class constructor */
         BIND_THIS(TokenType.VOID, Type.OBJECT, 2),
         /** yield - suspends the generator body. */

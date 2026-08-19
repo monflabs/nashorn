@@ -572,6 +572,15 @@ public class ScriptFunction extends ScriptObject {
 
         assert !isBoundFunction(); // allocate never invoked on bound functions
 
+        if (data.isSubclassConstructor()) {
+            // ES2015 9.2.2 step 5: a derived class constructor allocates
+            // nothing. Its this does not exist until super() makes it - from
+            // the base constructor at the bottom of the chain, which is what
+            // lets "class X extends Int8Array" produce a real typed array - so
+            // the slot carries new.target instead, for super() to pass on.
+            return this;
+        }
+
         final ScriptObject prototype = getAllocatorPrototype();
         final ScriptObject object = data.allocate(getAllocatorMap(prototype));
 
@@ -580,6 +589,70 @@ public class ScriptFunction extends ScriptObject {
         }
 
         return object;
+    }
+
+    /**
+     * ES2015 9.2.2 Construct, with a new.target that is not this function.
+     *
+     * A derived constructor allocates nothing and is handed new.target as its
+     * this. A base constructor written in script allocates from new.target's
+     * prototype, so that new.target read inside it is right. A built-in one has
+     * to be constructed the ordinary way, its allocation being its own business,
+     * and the prototype is corrected afterwards - which the finished object
+     * cannot tell apart, though a built-in that reads new.target while it runs
+     * still sees itself.
+     *
+     * @param newTarget the constructor the object is being built for
+     * @param args      the arguments
+     * @return the object
+     * @throws Throwable if the constructor throws
+     */
+    public Object construct(final ScriptFunction newTarget, final Object[] args) throws Throwable {
+        if (data.isSubclassConstructor()) {
+            return ScriptRuntime.apply(this, newTarget, args);
+        }
+
+        if (!data.isBuiltin() && newTarget.getPrototype() instanceof ScriptObject prototype
+                && inherits(prototype, getPrototype())) {
+            final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
+            if (allocated != null) {
+                allocated.setInitialProto(prototype);
+                final Object result = ScriptRuntime.apply(this, allocated, args);
+                return result instanceof ScriptObject ? result : allocated;
+            }
+        }
+
+        final Object built = construct(args);
+        if (built instanceof ScriptObject object
+                && newTarget.getPrototype() instanceof ScriptObject prototype
+                && object.getProto() != prototype) {
+            object.setProto(prototype);
+        }
+        return built;
+    }
+
+    /**
+     * Whether new.target's prototype descends from this constructor's, which is
+     * what makes the object allocated for it recognisably one of ours.
+     *
+     * Nashorn reconstructs new.target from the object rather than being handed
+     * it, and that only works while the object's chain reaches the running
+     * constructor's prototype. A new.target unrelated to this function -
+     * Reflect.construct(A, [], B) for unrelated A and B - leaves nothing to
+     * reconstruct from, so such an object is allocated the ordinary way and its
+     * prototype corrected afterwards, and new.target read inside reports the
+     * function itself.
+     */
+    private static boolean inherits(final ScriptObject prototype, final Object own) {
+        if (!(own instanceof ScriptObject target)) {
+            return false;
+        }
+        for (ScriptObject proto = prototype; proto != null; proto = proto.getProto()) {
+            if (proto == target) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -762,6 +835,13 @@ public class ScriptFunction extends ScriptObject {
                     : JSType.toString(key));
         }
         return value;
+    }
+
+    /**
+     * @return whether this is a derived class constructor
+     */
+    public final boolean isSubclassConstructor() {
+        return data.isSubclassConstructor();
     }
 
     public final String getName() {
