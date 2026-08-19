@@ -271,6 +271,18 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public static final int ES6_IS_DEFAULT_CONSTRUCTOR  = 1 << 28;
 
+    /**
+     * Set on a function that is not itself an arrow but contains one reading
+     * {@code this}, so that it publishes its own into a variable the arrow can
+     * capture (ES2015 8.1.1.3).
+     *
+     * The parser records it, rather than the desugaring phase working it out,
+     * because a function may be compiled on its own long after the one that
+     * contains it, and the two compilations have to agree on whether it takes a
+     * callee.
+     */
+    public static final int ES6_ARROW_USES_THIS         = 1 << 29;
+
     /** Does this function or any nested functions contain an eval? */
     private static final int HAS_DEEP_EVAL = HAS_EVAL | HAS_NESTED_EVAL;
 
@@ -749,6 +761,15 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         return needsParentScope() || usesSelfSymbol() || isSplit() || usesSuper() || hasDirectSuper() || usesNewTarget()
                 || isClassConstructor()
                 || ((needsArguments() || hasApplyToCallSpecialization()) && !isStrict());
+    }
+
+    /**
+     * Whether an arrow function written inside this one reads {@code this}.
+     *
+     * @return true if this function has to publish its {@code this}
+     */
+    public boolean arrowUsesThis() {
+        return getFlag(ES6_ARROW_USES_THIS);
     }
 
     /**

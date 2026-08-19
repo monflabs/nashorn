@@ -801,7 +801,14 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterObjectNode(final ObjectNode objectNode) {
         for(final PropertyNode propertyNode: objectNode.getElements()) {
-            // Avoid falsely adding property keys to the control flow graph
+            // A literal key is a name, not a reference, and adding it to the
+            // control flow graph would be false. A computed one is an ordinary
+            // expression, evaluated where it stands and before its value, and
+            // leaving it out left every local variable it reads typed as it was
+            // before the function began - which is to say undefined.
+            if (propertyNode.isComputed()) {
+                visitExpression(propertyNode.getKey());
+            }
             final Expression value = propertyNode.getValue();
             if (value != null) {
                 visitExpression(value);

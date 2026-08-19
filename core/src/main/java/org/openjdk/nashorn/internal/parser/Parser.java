@@ -5556,12 +5556,19 @@ public class Parser extends AbstractParser implements Loggable {
 
     private static void markThis(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        boolean throughArrow = false;
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             fn.setFlag(FunctionNode.USES_THIS);
             if (fn.getKind() != FunctionNode.Kind.ARROW) {
+                if (throughArrow) {
+                    // an arrow inside this function reads its this, so it has to
+                    // be published where the arrow can capture it
+                    fn.setFlag(FunctionNode.ES6_ARROW_USES_THIS);
+                }
                 break;
             }
+            throughArrow = true;
         }
     }
 

@@ -85,6 +85,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     /** Internal temporaries are named with a leading colon, as elsewhere in the compiler. */
     private static final String TEMP_PREFIX = ":destructuring";
 
+    /**
+     * Where a function keeps the {@code this} its arrow functions see.
+     *
+     * ES2015 8.1.1.3: an arrow function has no this binding of its own and takes
+     * the one of the function it was written in, which is why call and apply
+     * cannot change it. Nashorn gives every function its own {@code :this}
+     * parameter and refuses to let it be captured across a function boundary, so
+     * the enclosing function copies it into an ordinary variable that the arrow
+     * reads through the scope it already captures.
+     */
+    private static final String ARROW_THIS = ":arrowThis";
+
     /** The global binding a default test compares against. */
     private static final String UNDEFINED_NAME = "undefined";
 
@@ -200,9 +212,28 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * argument array. The function is marked as having had one so that it is
      * compiled variable arity and that array exists.
      */
+    /**
+     * {@code this} inside an arrow function, which is the enclosing function's.
+     *
+     * The nearest enclosing function that is not itself an arrow is the one that
+     * publishes it - the parser marked it while parsing this very reference -
+     * and arrows nested in arrows all reach the same one, because none of them
+     * declares the variable.
+     */
+    @Override
+    public Node leaveIdentNode(final IdentNode identNode) {
+        if (!CompilerConstants.THIS.symbolName().equals(identNode.getName())
+                || lc.getCurrentFunction().getKind() != FunctionNode.Kind.ARROW) {
+            return super.leaveIdentNode(identNode);
+        }
+
+        return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
+    }
+
     @Override
     public Node leaveFunctionNode(final FunctionNode functionNode) {
-        final FunctionNode withGenerator = addGeneratorPrologue(addClassConstructorGuard(functionNode));
+        final FunctionNode withGenerator =
+                publishThis(addGeneratorPrologue(addClassConstructorGuard(functionNode)));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -330,6 +361,28 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * running anything, and the body runs later by calling the same function
      * again from the generator's own thread. The prologue distinguishes them.
      */
+    /**
+     * Copies {@code this} into a variable an arrow function can capture, for a
+     * function that contains one reading it.
+     */
+    private FunctionNode publishThis(final FunctionNode functionNode) {
+        if (!functionNode.arrowUsesThis()) {
+            return functionNode;
+        }
+
+        final long token = Token.recast(functionNode.getToken(), TokenType.VAR);
+        final int finish = functionNode.getFinish();
+        final Block body = functionNode.getBody();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new VarNode(functionNode.getLineNumber(), token, finish,
+                new IdentNode(token, finish, ARROW_THIS),
+                new IdentNode(token, finish, CompilerConstants.THIS.symbolName())));
+        statements.addAll(body.getStatements());
+
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
     private FunctionNode addGeneratorPrologue(final FunctionNode functionNode) {
         if (functionNode.getKind() != FunctionNode.Kind.GENERATOR) {
             return functionNode;
