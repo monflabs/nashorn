@@ -40,12 +40,16 @@ import org.openjdk.nashorn.api.scripting.JSObject;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
+import org.openjdk.nashorn.internal.lookup.Lookup;
 import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayData;
+import org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
+import org.openjdk.nashorn.internal.runtime.linker.NashornGuards;
 import org.openjdk.nashorn.internal.runtime.arrays.TypedArrayData;
 
 /**
@@ -604,6 +608,186 @@ public abstract class ArrayBufferView extends ScriptObject {
      *
      * @return sub array
      */
+
+    /*
+     * ES2015 9.4.5: a typed array is an integer-indexed exotic object, and what
+     * makes it exotic is how it answers for a key that looks like a number. Such
+     * a key is its own business whether or not it names an element: it is never
+     * an ordinary property, never reaches the prototype chain, and cannot be
+     * turned into one by defineProperty. A key that does not look like a number
+     * is ordinary in every way, which is why each of these falls through.
+     */
+
+    /**
+     * ES2015 7.1.16 CanonicalNumericIndexString: the number a key denotes, when
+     * the key is exactly what ToString makes of that number.
+     *
+     * "1.1", "-0" and "NaN" are all canonical and none of them is a valid index;
+     * "1e2" and " 1" are not canonical, and are ordinary property names.
+     *
+     * @return the number, or null if the key is an ordinary name
+     */
+    private static Double canonicalNumericIndex(final Object key) {
+        if (!(key instanceof String name)) {
+            return null;
+        }
+        if (name.isEmpty()) {
+            return null;
+        }
+        final char first = name.charAt(0);
+        if ((first < '0' || first > '9') && first != '-' && first != 'N' && first != 'I') {
+            // nothing ToString ever produces starts with anything else, and this
+            // is on the path of every named property read
+            return null;
+        }
+        if ("-0".equals(name)) {
+            return -0.0;
+        }
+        final double number = JSType.toNumber(name);
+        return JSType.toString(number).equals(name) ? number : null;
+    }
+
+    /** Whether a key names an element of this array: canonical, integral, in range. */
+    private boolean isElementIndex(final Double index) {
+        if (index == null) {
+            return false;
+        }
+        final double value = index;
+        if (Double.doubleToRawLongBits(value) == Double.doubleToRawLongBits(-0.0)) {
+            return false;
+        }
+        return value == Math.floor(value) && !Double.isInfinite(value)
+                && value >= 0 && value < getElementLength();
+    }
+
+    @Override
+    public Object get(final Object key) {
+        final Double index = canonicalNumericIndex(key);
+        if (index != null && !isElementIndex(index)) {
+            // 9.4.5.4 step 3.c: undefined, rather than whatever the prototype
+            // chain has under that name
+            return ScriptRuntime.UNDEFINED;
+        }
+        return super.get(key);
+    }
+
+    @Override
+    public boolean has(final Object key) {
+        final Double index = canonicalNumericIndex(key);
+        if (index != null) {
+            return isElementIndex(index);
+        }
+        return super.has(key);
+    }
+
+    /**
+     * Whether a write to this key is one 9.4.5.5 drops on the floor.
+     *
+     * Out of range, the write is simply not made: it does not become an
+     * ordinary property, and it is not an error either. An integer key that is
+     * out of range the array data already handles; what has to be caught here
+     * is a key that only looks like one - "-0", "1.5", "NaN" - which would
+     * otherwise be taken for an ordinary property name.
+     */
+    private boolean dropWrite(final Object key) {
+        final Double index = canonicalNumericIndex(key);
+        return index != null && !isElementIndex(index);
+    }
+
+    private boolean dropWrite(final double key) {
+        return dropWrite(JSType.toString(key));
+    }
+
+    @Override
+    public void set(final Object key, final Object value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final Object key, final int value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final Object key, final double value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final Object value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final int value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final double value, final int callSiteFlags) {
+        if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public boolean defineOwnProperty(final Object key, final Object propertyDesc, final boolean reject) {
+        final Double index = canonicalNumericIndex(key);
+        if (index == null) {
+            return super.defineOwnProperty(key, propertyDesc, reject);
+        }
+
+        // 9.4.5.3: an element can be redefined, but only as the kind of property
+        // it already is - a writable, enumerable, configurable data property
+        final PropertyDescriptor desc = toPropertyDescriptor(Global.instance(), propertyDesc);
+        final boolean acceptable = isElementIndex(index)
+                && desc.type() != PropertyDescriptor.ACCESSOR
+                && !(desc.has(PropertyDescriptor.CONFIGURABLE) && !desc.isConfigurable())
+                && !(desc.has(PropertyDescriptor.ENUMERABLE) && !desc.isEnumerable())
+                && !(desc.has(PropertyDescriptor.WRITABLE) && !desc.isWritable());
+        if (!acceptable) {
+            if (reject) {
+                throw typeError("cant.redefine.property", JSType.toString(key), ScriptRuntime.safeToString(this));
+            }
+            return false;
+        }
+        if (desc.has(PropertyDescriptor.VALUE)) {
+            super.set(key, desc.getValue(), 0);
+        }
+        return true;
+    }
+
+    @Override
+    public boolean delete(final Object key, final boolean strict) {
+        final Double index = canonicalNumericIndex(key);
+        if (index != null) {
+            // an element cannot be deleted; anything else numeric was never there
+            return !isElementIndex(index);
+        }
+        return super.delete(key, strict);
+    }
+
+    @Override
+    protected GuardedInvocation findSetMethod(final CallSiteDescriptor desc, final LinkRequest request) {
+        // A constant key is linked by name rather than going through set, so the
+        // same rule has to be applied at link time: "sample.NaN = 1" writes
+        // nothing, where "sample.foo = 1" is an ordinary property.
+        if (dropWrite(NashornCallSiteDescriptor.getOperand(desc))) {
+            return new GuardedInvocation(Lookup.EMPTY_SETTER,
+                    NashornGuards.getMapGuard(getMap(), true));
+        }
+        return super.findSetMethod(desc, request);
+    }
 
     @Override
     protected GuardedInvocation findGetIndexMethod(final CallSiteDescriptor desc, final LinkRequest request) {

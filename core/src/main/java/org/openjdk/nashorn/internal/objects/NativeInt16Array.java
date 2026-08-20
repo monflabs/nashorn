@@ -178,7 +178,9 @@ public final class NativeInt16Array extends ArrayBufferView {
      *
      * @return new typed array
      */
-    @Constructor(arity = 1)
+    // ES2015 22.2.5: a typed array constructor's length is 3 - buffer,
+    // byteOffset and length - whichever of its four forms is being used
+    @Constructor(arity = 3)
     public static NativeInt16Array constructor(final boolean newObj, final Object self, final Object... args) {
         return (NativeInt16Array)constructorImpl(newObj, args, FACTORY);
     }
