@@ -34,9 +34,10 @@ import java.nio.ByteOrder;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Constructor;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
+import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
-import org.openjdk.nashorn.internal.objects.annotations.SpecializedFunction;
+import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -65,43 +66,26 @@ public class NativeDataView extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
-    // inherited ArrayBufferView properties
-
-    /**
-     * Underlying ArrayBuffer storage object
+    /*
+     * ES2015 24.2.4.1-3 put buffer, byteOffset and byteLength on
+     * DataView.prototype as accessors, not on the instance, so they are fields
+     * here and are read through the getters below.
      */
-    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public final Object buffer;
 
-    /**
-     * The offset in bytes from the start of the ArrayBuffer
-     */
-    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public final int byteOffset;
+    /** Underlying ArrayBuffer storage object */
+    private final Object buffer;
 
-    /**
-     * The number of bytes from the offset that this DataView will reference
-     */
-    @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public final int byteLength;
+    /** The offset in bytes from the start of the ArrayBuffer */
+    private final int byteOffset;
+
+    /** The number of bytes from the offset that this DataView will reference */
+    private final int byteLength;
 
     // underlying ByteBuffer
     private final ByteBuffer buf;
 
-    private NativeDataView(final NativeArrayBuffer arrBuf) {
-        this(arrBuf, arrBuf.getBuffer(), 0);
-    }
-
-    private NativeDataView(final NativeArrayBuffer arrBuf, final int offset) {
-        this(arrBuf, bufferFrom(arrBuf, offset), offset);
-    }
-
     private NativeDataView(final NativeArrayBuffer arrBuf, final int offset, final int length) {
         this(arrBuf, bufferFrom(arrBuf, offset, length), offset, length);
-    }
-
-    private NativeDataView(final NativeArrayBuffer arrBuf, final ByteBuffer buf, final int offset) {
-       this(arrBuf, buf, offset, buf.capacity() - offset);
     }
 
     private NativeDataView(final NativeArrayBuffer arrBuf, final ByteBuffer buf, final int offset, final int length) {
@@ -132,859 +116,378 @@ public class NativeDataView extends ScriptObject {
      */
     @Constructor(arity = 1)
     public static NativeDataView constructor(final boolean newObj, final Object self, final Object... args) {
-        if (args.length == 0 || !(args[0] instanceof NativeArrayBuffer)) {
+        if (!newObj) {
+            throw typeError("constructor.requires.new", "DataView");
+        }
+        if (args.length == 0 || !(args[0] instanceof NativeArrayBuffer arrayBuffer)) {
             throw typeError("not.an.arraybuffer.in.dataview");
         }
 
-        final NativeArrayBuffer arrBuf = (NativeArrayBuffer)args[0];
-        switch (args.length) {
-        case 1:
-            return new NativeDataView(arrBuf);
-        case 2:
-            return new NativeDataView(arrBuf, JSType.toInt32(args[1]));
-        default:
-            return new NativeDataView(arrBuf, JSType.toInt32(args[1]), JSType.toInt32(args[2]));
+        // ES2015 24.2.2.1: both arguments go through ToIndex, and both
+        // conversions happen before the buffer is asked anything - either of
+        // them can detach it
+        final int offset = ArrayBufferView.toIndex(args.length > 1 ? args[1] : UNDEFINED);
+        final Object requested = args.length > 2 ? args[2] : UNDEFINED;
+        final int requestedLength = requested == UNDEFINED ? 0 : ArrayBufferView.toIndex(requested);
+
+        if (arrayBuffer.isDetached()) {
+            throw typeError("detached.array.buffer");
         }
+        final int bufferLength = arrayBuffer.getByteLength();
+        if (offset > bufferLength) {
+            throw rangeError("dataview.constructor.offset");
+        }
+
+        final int length;
+        if (requested == UNDEFINED) {
+            length = bufferLength - offset;
+        } else {
+            length = requestedLength;
+            if (offset + length > bufferLength) {
+                throw rangeError("dataview.constructor.offset");
+            }
+        }
+        return new NativeDataView(arrayBuffer, offset, length);
     }
 
     /**
-     * Specialized version of DataView constructor
+     * ES2015 24.2.4.1 get DataView.prototype.buffer.
      *
-     * @param newObj if this constructor was invoked with 'new' or not
-     * @param self   constructor function object
-     * @param arrBuf underlying ArrayBuffer storage object
-     * @param offset offset in bytes from the start of the ArrayBuffer
-     * @return newly constructed DataView object
+     * @param self self reference
+     * @return the buffer the view is over
      */
-    @SpecializedFunction(isConstructor=true)
-    public static NativeDataView constructor(final boolean newObj, final Object self, final Object arrBuf, final int offset) {
-        if (!(arrBuf instanceof NativeArrayBuffer)) {
-            throw typeError("not.an.arraybuffer.in.dataview");
-        }
-        return new NativeDataView((NativeArrayBuffer) arrBuf, offset);
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object buffer(final Object self) {
+        return described(self).buffer;
     }
 
     /**
-     * Specialized version of DataView constructor
+     * ES2015 24.2.4.2 get DataView.prototype.byteLength.
      *
-     * @param newObj if this constructor was invoked with 'new' or not
-     * @param self   constructor function object
-     * @param arrBuf underlying ArrayBuffer storage object
-     * @param offset in bytes from the start of the ArrayBuffer
-     * @param length is the number of bytes from the offset that this DataView will reference
-     * @return newly constructed DataView object
+     * @param self self reference
+     * @return the view's length in bytes
      */
-    @SpecializedFunction(isConstructor=true)
-    public static NativeDataView constructor(final boolean newObj, final Object self, final Object arrBuf, final int offset, final int length) {
-        if (!(arrBuf instanceof NativeArrayBuffer)) {
-            throw typeError("not.an.arraybuffer.in.dataview");
-        }
-        return new NativeDataView((NativeArrayBuffer) arrBuf, offset, length);
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static int byteLength(final Object self) {
+        return checkSelf(self).byteLength;
     }
 
-    // Gets the value of the given type at the specified byte offset
-    // from the start of the view. There is no alignment constraint;
-    // multi-byte values may be fetched from any offset.
-    //
-    // For multi-byte values, the optional littleEndian argument
-    // indicates whether a big-endian or little-endian value should be
-    // read. If false or undefined, a big-endian value is read.
-    //
-    // These methods raise an exception if they would read
-    // beyond the end of the view.
+    /**
+     * ES2015 24.2.4.3 get DataView.prototype.byteOffset.
+     *
+     * @param self self reference
+     * @return where the view starts in its buffer
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static int byteOffset(final Object self) {
+        return checkSelf(self).byteOffset;
+    }
 
     /**
-     * Get 8-bit signed int from given byteOffset
+     * ES2015 24.2.4.21 DataView.prototype [ @@toStringTag ].
+     *
+     * Unlike %TypedArray%'s, which is an accessor that answers for the receiver,
+     * this one is a plain string on the prototype.
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "DataView";
+
+    // ES2015 24.2.1.1 GetViewValue and 24.2.1.2 SetViewValue: the receiver is
+    // checked first, then the index is converted, then - for a set - the value,
+    // then the endianness flag; only after all of that is the buffer asked
+    // whether it is still there, and the index whether it is in range. Every
+    // step of that is script-visible, and the suite checks the order of all of it.
+
+    /**
+     * ES2015 24.2.4 DataView.prototype.getInt8.
      *
      * @param self DataView object
      * @param byteOffset byte offset to read from
-     * @return 8-bit signed int value at the byteOffset
+     * @return the value at that offset
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static int getInt8(final Object self, final Object byteOffset) {
-        try {
-            return getBuffer(self).get(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final ByteBuffer buffer = viewed(view, index, 1);
+        return buffer.get(index);
     }
 
     /**
-     * Get 8-bit signed int from given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setInt8.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 8-bit signed int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getInt8(final Object self, final int byteOffset) {
-        try {
-            return getBuffer(self).get(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 8-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 8-bit unsigned int value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static int getUint8(final Object self, final Object byteOffset) {
-        try {
-            return 0xFF & getBuffer(self).get(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 8-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 8-bit unsigned int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getUint8(final Object self, final int byteOffset) {
-        try {
-            return 0xFF & getBuffer(self).get(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 16-bit signed int value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static int getInt16(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getShort(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 16-bit signed int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getInt16(final Object self, final int byteOffset) {
-        try {
-            return getBuffer(self, false).getShort(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 16-bit signed int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getInt16(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getShort(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 16-bit unsigned int value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static int getUint16(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return 0xFFFF & getBuffer(self, littleEndian).getShort(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 16-bit unsigned int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getUint16(final Object self, final int byteOffset) {
-        try {
-            return 0xFFFF & getBuffer(self, false).getShort(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 16-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 16-bit unsigned int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getUint16(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return 0xFFFF & getBuffer(self, littleEndian).getShort(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit signed int value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static int getInt32(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getInt(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 32-bit signed int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getInt32(final Object self, final int byteOffset) {
-        try {
-            return getBuffer(self, false).getInt(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit signed int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit signed int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static int getInt32(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getInt(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit unsigned int value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static double getUint32(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return 0xFFFFFFFFL & getBuffer(self, littleEndian).getInt(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 32-bit unsigned int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getUint32(final Object self, final int byteOffset) {
-        try {
-            return JSType.toUint32(getBuffer(self, false).getInt(JSType.toInt32(byteOffset)));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit unsigned int from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit unsigned int value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getUint32(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return JSType.toUint32(getBuffer(self, littleEndian).getInt(JSType.toInt32(byteOffset)));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit float value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static double getFloat32(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getFloat(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 32-bit float value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getFloat32(final Object self, final int byteOffset) {
-        try {
-            return getBuffer(self, false).getFloat(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 32-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 32-bit float value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getFloat32(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getFloat(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 64-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 64-bit float value at the byteOffset
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static double getFloat64(final Object self, final Object byteOffset, final Object littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getDouble(JSType.toInt32(byteOffset));
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 64-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @return 64-bit float value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getFloat64(final Object self, final int byteOffset) {
-        try {
-            return getBuffer(self, false).getDouble(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Get 64-bit float value from given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param littleEndian (optional) flag indicating whether to read in little endian order
-     * @return 64-bit float value at the byteOffset
-     */
-    @SpecializedFunction
-    public static double getFloat64(final Object self, final int byteOffset, final boolean littleEndian) {
-        try {
-            return getBuffer(self, littleEndian).getDouble(byteOffset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    // Stores a value of the given type at the specified byte offset
-    // from the start of the view. There is no alignment constraint;
-    // multi-byte values may be stored at any offset.
-    //
-    // For multi-byte values, the optional littleEndian argument
-    // indicates whether the value should be stored in big-endian or
-    // little-endian byte order. If false or undefined, the value is
-    // stored in big-endian byte order.
-    //
-    // These methods raise an exception if they would write
-    // beyond the end of the view.
-
-    /**
-     * Set 8-bit signed int at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to read from
-     * @param value byte value to set
+     * @param byteOffset byte offset to write at
+     * @param value the value to write
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setInt8(final Object self, final Object byteOffset, final Object value) {
-        try {
-            getBuffer(self).put(JSType.toInt32(byteOffset), (byte)JSType.toInt32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final int number = JSType.toInt32(value);
+        viewed(view, index, 1).put(index, (byte)(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 8-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getUint8.
      *
      * @param self DataView object
      * @param byteOffset byte offset to read from
-     * @param value byte value to set
-     * @return undefined
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setInt8(final Object self, final int byteOffset, final int value) {
-        try {
-            getBuffer(self).put(byteOffset, (byte)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static int getUint8(final Object self, final Object byteOffset) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final ByteBuffer buffer = viewed(view, index, 1);
+        return 0xFF & buffer.get(index);
     }
 
     /**
-     * Set 8-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setUint8.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value byte value to set
+     * @param value the value to write
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setUint8(final Object self, final Object byteOffset, final Object value) {
-        try {
-            getBuffer(self).put(JSType.toInt32(byteOffset), (byte)JSType.toInt32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final int number = JSType.toInt32(value);
+        viewed(view, index, 1).put(index, (byte)(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 8-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getInt16.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value byte value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setUint8(final Object self, final int byteOffset, final int value) {
-        try {
-            getBuffer(self).put(byteOffset, (byte)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static int getInt16(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 2).order(order(little));
+        return buffer.getShort(index);
     }
 
     /**
-     * Set 16-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setInt16.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setInt16(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putShort(JSType.toInt32(byteOffset), (short)JSType.toInt32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final int number = JSType.toInt32(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 2).order(order(little)).putShort(index, (short)(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 16-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getUint16.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setInt16(final Object self, final int byteOffset, final int value) {
-        try {
-            getBuffer(self, false).putShort(byteOffset, (short)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static int getUint16(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 2).order(order(little));
+        return 0xFFFF & buffer.getShort(index);
     }
 
     /**
-     * Set 16-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setUint16.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setInt16(final Object self, final int byteOffset, final int value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putShort(byteOffset, (short)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Set 16-bit unsigned int at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setUint16(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putShort(JSType.toInt32(byteOffset), (short)JSType.toInt32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final int number = JSType.toInt32(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 2).order(order(little)).putShort(index, (short)(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 16-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getInt32.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setUint16(final Object self, final int byteOffset, final int value) {
-        try {
-            getBuffer(self, false).putShort(byteOffset, (short)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static int getInt32(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 4).order(order(little));
+        return buffer.getInt(index);
     }
 
     /**
-     * Set 16-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setInt32.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value short value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setUint16(final Object self, final int byteOffset, final int value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putShort(byteOffset, (short)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Set 32-bit signed int at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setInt32(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putInt(JSType.toInt32(byteOffset), JSType.toInt32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final int number = JSType.toInt32(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 4).order(order(little)).putInt(index, number);
+        return UNDEFINED;
     }
 
     /**
-     * Set 32-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getUint32.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setInt32(final Object self, final int byteOffset, final int value) {
-        try {
-            getBuffer(self, false).putInt(byteOffset, value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static double getUint32(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 4).order(order(little));
+        return JSType.toUint32(buffer.getInt(index));
     }
 
     /**
-     * Set 32-bit signed int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setUint32.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setInt32(final Object self, final int byteOffset, final int value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putInt(byteOffset, value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Set 32-bit unsigned int at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setUint32(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putInt(JSType.toInt32(byteOffset), (int)JSType.toUint32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final double number = JSType.toNumber(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 4).order(order(little)).putInt(index, (int)JSType.toUint32(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 32-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getFloat32.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setUint32(final Object self, final int byteOffset, final double value) {
-        try {
-            getBuffer(self, false).putInt(byteOffset, (int) JSType.toUint32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static double getFloat32(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 4).order(order(little));
+        return buffer.getFloat(index);
     }
 
     /**
-     * Set 32-bit unsigned int at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setFloat32.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value int value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setUint32(final Object self, final int byteOffset, final double value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putInt(byteOffset, (int) JSType.toUint32(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Set 32-bit float at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value float value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setFloat32(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putFloat((int)JSType.toUint32(byteOffset), (float)JSType.toNumber(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final double number = JSType.toNumber(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 4).order(order(little)).putFloat(index, (float)(number));
+        return UNDEFINED;
     }
 
     /**
-     * Set 32-bit float at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.getFloat64.
      *
      * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value float value to set
-     * @return undefined
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the value at that offset
      */
-    @SpecializedFunction
-    public static Object setFloat32(final Object self, final int byteOffset, final double value) {
-        try {
-            getBuffer(self, false).putFloat(byteOffset, (float)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static double getFloat64(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 8).order(order(little));
+        return buffer.getDouble(index);
     }
 
     /**
-     * Set 32-bit float at the given byteOffset
+     * ES2015 24.2.4 DataView.prototype.setFloat64.
      *
      * @param self DataView object
      * @param byteOffset byte offset to write at
-     * @param value float value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setFloat32(final Object self, final int byteOffset, final double value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putFloat(byteOffset, (float)value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
-
-    /**
-     * Set 64-bit float at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value double value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
      * @return undefined
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object setFloat64(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putDouble((int)JSType.toUint32(byteOffset), JSType.toNumber(value));
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final double number = JSType.toNumber(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 8).order(order(little)).putDouble(index, number);
+        return UNDEFINED;
     }
 
-    /**
-     * Set 64-bit float at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value double value to set
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setFloat64(final Object self, final int byteOffset, final double value) {
-        try {
-            getBuffer(self, false).putDouble(byteOffset, value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
-    }
 
-    /**
-     * Set 64-bit float at the given byteOffset
-     *
-     * @param self DataView object
-     * @param byteOffset byte offset to write at
-     * @param value double value to set
-     * @param littleEndian (optional) flag indicating whether to write in little endian order
-     * @return undefined
-     */
-    @SpecializedFunction
-    public static Object setFloat64(final Object self, final int byteOffset, final double value, final boolean littleEndian) {
-        try {
-            getBuffer(self, littleEndian).putDouble(byteOffset, value);
-            return UNDEFINED;
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.offset");
-        }
+    @Override
+    public String getClassName() {
+        // which is what Object.prototype.toString reports, and agrees with the
+        // @@toStringTag above without putting every object's toString through a
+        // symbol lookup to find it out
+        return "DataView";
     }
 
     // internals only below this point
-    private static ByteBuffer bufferFrom(final NativeArrayBuffer nab, final int offset) {
-        try {
-            return nab.getBuffer(offset);
-        } catch (final IllegalArgumentException iae) {
-            throw rangeError(iae, "dataview.constructor.offset");
-        }
-    }
 
     private static ByteBuffer bufferFrom(final NativeArrayBuffer nab, final int offset, final int length) {
         try {
@@ -994,29 +497,50 @@ public class NativeDataView extends ScriptObject {
         }
     }
 
-    private static NativeDataView checkSelf(final Object self) {
-        if (!(self instanceof NativeDataView view)) {
-            throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
+    /** The receiver as a DataView, without asking whether its buffer is still there. */
+    private static NativeDataView described(final Object self) {
+        if (self instanceof NativeDataView view) {
+            return view;
         }
-        // ES2015 24.2.1.1 GetViewValue and 24.2.1.2 SetViewValue check for a
-        // detached buffer once the index has been converted; without it the read
-        // reached the storage the host had taken away and failed as a Java error
-        // the script could not catch
+        throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
+    }
+
+    /**
+     * The receiver as a usable DataView.
+     *
+     * ES2015 24.2.4.2 and 24.2.4.3 answer for a detached view by throwing,
+     * where a typed array's equivalents answer zero - the two disagree, and
+     * both are checked.
+     */
+    private static NativeDataView checkSelf(final Object self) {
+        final NativeDataView view = described(self);
         if (view.buffer instanceof NativeArrayBuffer arrayBuffer && arrayBuffer.isDetached()) {
             throw typeError("detached.array.buffer");
         }
         return view;
     }
 
-    private static ByteBuffer getBuffer(final Object self) {
-        return checkSelf(self).buf;
+    /**
+     * The storage to read or write, once the index is known to be in range.
+     *
+     * @param view  the view, already known to be one
+     * @param index where in it, already converted
+     * @param size  how many bytes the value takes
+     */
+    private static ByteBuffer viewed(final NativeDataView view, final int index, final int size) {
+        if (view.buffer instanceof NativeArrayBuffer arrayBuffer && arrayBuffer.isDetached()) {
+            // the index conversion, and for a set the value conversion, both run
+            // script and either can have detached the buffer since the receiver
+            // was checked
+            throw typeError("detached.array.buffer");
+        }
+        if (index + size > view.byteLength) {
+            throw rangeError("dataview.offset");
+        }
+        return view.buf;
     }
 
-    private static ByteBuffer getBuffer(final Object self, final Object littleEndian) {
-        return getBuffer(self, JSType.toBoolean(littleEndian));
-    }
-
-    private static ByteBuffer getBuffer(final Object self, final boolean littleEndian) {
-        return getBuffer(self).order(littleEndian? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN);
+    private static ByteOrder order(final boolean littleEndian) {
+        return littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
     }
 }
