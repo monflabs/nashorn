@@ -134,6 +134,9 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private boolean declaring;
 
+    /** Whether the bindings being produced have to be expressions. */
+    private boolean asExpression;
+
     /** Names the expression path has used, never reused. */
     private int expressionTemporaries;
 
@@ -345,11 +348,14 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Statement at = new ExpressionStatement(line, token, finish, assignment);
         final List<Statement> work = new ArrayList<>();
         final boolean wasDeclaring = declaring;
+        final boolean wasExpression = asExpression;
         declaring = false;
+        asExpression = true;
         try {
             destructure(at, assignment.lhs(), ref(at, value), work);
         } finally {
             declaring = wasDeclaring;
+            asExpression = wasExpression;
         }
 
         pendingDeclarations.add(declareTemporary(at, value));
@@ -1038,6 +1044,29 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final String iterator = newTemporary();
         statements.add(temporaryFor(at, iterator, runtime(at, RuntimeNode.Request.GET_ITERATOR, value)));
 
+        if (asExpression) {
+            // A comma chain has nowhere to put a try, so a pattern written where
+            // an expression is wanted does without the guard below.
+            destructureArrayElements(at, pattern, iterator, statements);
+            return;
+        }
+
+        final List<Statement> guarded = new ArrayList<>();
+        destructureArrayElements(at, pattern, iterator, guarded);
+
+        // ES2015 12.14.5.3: a pattern that gives up part way through tells its
+        // iterator so, and it gives up as readily by throwing - out of a target
+        // reference, a default, or a nested pattern - as by running out of
+        // elements to bind. Closing twice is closing once.
+        statements.add(new TryNode(at.getLineNumber(), at.getToken(), at.getFinish(),
+                new Block(at.getToken(), at.getFinish(), guarded), List.of(),
+                new Block(at.getToken(), at.getFinish(),
+                        new ExpressionStatement(at.getLineNumber(), at.getToken(), at.getFinish(),
+                                runtime(at, RuntimeNode.Request.ITERATOR_CLOSE_QUIET, ref(at, iterator))))));
+    }
+
+    private void destructureArrayElements(final Statement at, final ArrayLiteralNode pattern,
+            final String iterator, final List<Statement> statements) {
         for (final Expression element : pattern.getValue()) {
             if (element == null) {
                 // an elision still consumes an element

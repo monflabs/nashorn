@@ -470,8 +470,15 @@ public final class ScriptRuntime {
                         return nextInvoker.getInvoker().invokeExact(next, iterator, (Object) null);
                     }
                 } catch (final RuntimeException|Error r) {
+                    // ES2015 7.4.6 is only reached when the iteration is being
+                    // abandoned by whoever was driving it. An iterator that
+                    // threw of its own accord is done - 13.7.5.13 sets its
+                    // [[done]] before letting the throw out - and is not asked
+                    // to close on top of that.
+                    exhausted = true;
                     throw r;
                 } catch (final Throwable t) {
+                    exhausted = true;
                     throw new RuntimeException(t);
                 }
                 return null;
@@ -495,8 +502,10 @@ public final class ScriptRuntime {
                     }
                     return true;
                 } catch (final RuntimeException|Error r) {
+                    exhausted = true;
                     throw r;
                 } catch (final Throwable t) {
+                    exhausted = true;
                     throw new RuntimeException(t);
                 }
             }
@@ -561,8 +570,11 @@ public final class ScriptRuntime {
                 try {
                     return valueInvoker.invokeExact(nextResult);
                 } catch (final RuntimeException|Error r) {
+                    // IteratorValue, which 13.7.5.13 treats the same way
+                    exhausted = true;
                     throw r;
                 } catch (final Throwable t) {
+                    exhausted = true;
                     throw new RuntimeException(t);
                 }
             }
