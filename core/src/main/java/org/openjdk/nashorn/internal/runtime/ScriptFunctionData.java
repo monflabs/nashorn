@@ -483,8 +483,13 @@ public abstract class ScriptFunctionData implements Serializable {
         final CompiledFunction bindTarget = new CompiledFunction(getGenericInvoker(runtimeScope), getGenericConstructor(runtimeScope), null);
         boundList.add(bind(bindTarget, fn, self, allArgs));
 
-        // ES2015 19.2.3.2: a bound function is named after the one it binds
-        return new FinalScriptFunctionData("bound " + name, Math.max(0, getArity() - length), boundList, boundFlags);
+        // ES2015 19.2.3.2 steps 12 to 15: a bound function is named after the
+        // one it binds, by reading its "name" property rather than whatever it
+        // was defined as - the two differ once the property is redefined - and
+        // an unnamed target gives "bound " on its own.
+        final Object targetName = fn.get("name");
+        return new FinalScriptFunctionData("bound " + (targetName instanceof String string ? string : ""),
+                Math.max(0, getArity() - length), boundList, boundFlags);
     }
 
     /**

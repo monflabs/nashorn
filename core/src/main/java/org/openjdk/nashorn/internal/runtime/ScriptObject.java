@@ -613,6 +613,18 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             final boolean newValue = desc.has(VALUE);
             final Object value     = newValue ? desc.getValue() : currentDesc.getValue();
 
+            if (newValue && property != null && currentDesc.isConfigurable() && !property.hasNativeSetter()) {
+                // A built-in whose value is computed by a getter - a function's
+                // "name" or "length" - has nowhere to put one, so writing to it
+                // would silently do nothing. ES2015 19.2.4.1 and 19.2.4.2 make
+                // both configurable so that they can be redefined, which means
+                // replacing the property rather than writing through it.
+                deleteOwnProperty(property);
+                addOwnProperty(key, propFlags, value);
+                checkIntegerKey(key);
+                return true;
+            }
+
             if (newValue && property != null) {
                 // Temporarily clear flags.
                 modifyOwnProperty(property, 0);
