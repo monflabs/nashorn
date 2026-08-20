@@ -448,7 +448,7 @@ public abstract class ArrayBufferView extends ScriptObject {
      * ES2015 22.2.4.6 TypedArrayCreate: what a species constructor hands back
      * has to be a usable typed array, and one long enough for what was asked.
      */
-    private static ArrayBufferView typedArrayCreate(final Object created, final int length) {
+    static ArrayBufferView typedArrayCreate(final Object created, final int length) {
         if (!(created instanceof ArrayBufferView result)) {
             throw typeError("not.a.typed.array", ScriptRuntime.safeToString(created));
         }

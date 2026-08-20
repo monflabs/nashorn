@@ -2268,8 +2268,18 @@ public final class Global extends Scope {
         // The property is installed at run time rather than by nasgen, so it
         // does not carry the builtin flag the other guards ask about; what it
         // holds is compared against what it was given instead.
-        return ScriptFunction.getPrototype(instance.builtinArray).get(NativeSymbol.iterator)
-                == instance.builtinArrayIterator;
+        if (ScriptFunction.getPrototype(instance.builtinArray).get(NativeSymbol.iterator)
+                != instance.builtinArrayIterator) {
+            return false;
+        }
+        // An iterator is only as ordinary as its next: replacing that one method
+        // changes what iterating an array yields without touching @@iterator.
+        if (instance.builtinArrayIteratorPrototype == null) {
+            return true; // never asked for one, so nobody has changed it
+        }
+        final org.openjdk.nashorn.internal.runtime.Property next =
+                instance.builtinArrayIteratorPrototype.getMap().findProperty("next");
+        return next != null && next.isBuiltin();
     }
 
     private synchronized ScriptFunction getBuiltinJSAdapter() {

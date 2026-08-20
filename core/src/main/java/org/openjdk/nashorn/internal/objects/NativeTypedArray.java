@@ -112,7 +112,8 @@ public final class NativeTypedArray extends ScriptObject {
         final Object mapfn   = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object thisArg = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
 
-        return construct(self, NativeArray.from(ScriptRuntime.UNDEFINED, source, mapfn, thisArg));
+        final ScriptObject values = (ScriptObject)NativeArray.from(ScriptRuntime.UNDEFINED, source, mapfn, thisArg);
+        return fill(self, values, JSType.toInt32(values.getLength()));
     }
 
     /**
@@ -124,7 +125,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE, arity = 0)
     public static Object of(final Object self, final Object... args) {
-        return construct(self, Global.allocate(args.clone()));
+        return fill(self, Global.allocate(args.clone()), args.length);
     }
 
     /**
@@ -382,7 +383,24 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object fill(final Object self, final Object value, final Object start, final Object end) {
-        return NativeArray.fill(view(self), value, start, end);
+        final ArrayBufferView array = view(self);
+        final int length = array.getElementLength();
+
+        // ES2015 22.2.3.8 converts all three arguments before it writes
+        // anything, and each conversion is script-visible and can detach the
+        // buffer - which is why the check for that comes after all of them
+        final double filler = JSType.toNumber(value);
+        final int from = ArrayBufferView.relativeIndex(start, length, 0);
+        final int to   = ArrayBufferView.relativeIndex(end, length, length);
+
+        if (array.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+
+        for (int i = from; i < to; i++) {
+            array.set(i, filler, 0);
+        }
+        return array;
     }
 
     /**
@@ -396,7 +414,31 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object copyWithin(final Object self, final Object target, final Object start, final Object end) {
-        return NativeArray.copyWithin(view(self), target, start, end);
+        final ArrayBufferView array = view(self);
+        final int length = array.getElementLength();
+
+        final int to    = ArrayBufferView.relativeIndex(target, length, 0);
+        final int from  = ArrayBufferView.relativeIndex(start, length, 0);
+        final int last  = ArrayBufferView.relativeIndex(end, length, length);
+        final int count = Math.min(last - from, length - to);
+
+        if (count > 0) {
+            // 22.2.3.5 step 15.a, after the three conversions and only if there
+            // is anything to move
+            if (array.isDetached()) {
+                throw typeError("detached.array.buffer");
+            }
+            // the ranges may overlap, so the source is read out before the
+            // first element of the target is written
+            final Object[] values = new Object[count];
+            for (int i = 0; i < count; i++) {
+                values[i] = array.get(from + i);
+            }
+            for (int i = 0; i < count; i++) {
+                array.set(to + i, values[i], 0);
+            }
+        }
+        return array;
     }
 
     /**
@@ -605,17 +647,24 @@ public final class NativeTypedArray extends ScriptObject {
     }
 
     /**
-     * Builds a typed array of the type {@code constructor} makes.
+     * Builds a typed array of the type {@code constructor} makes, and fills it.
      *
      * from and of are inherited by the nine concrete constructors, so the this
-     * they are called on says which one to build; ES2015 22.2.2.1 requires it to
-     * be a constructor and nothing more.
+     * they are called on says which one to build. ES2015 22.2.2.1 and 22.2.2.2
+     * both go through TypedArrayCreate, so a constructor that hands back
+     * something other than a typed array, or one too short to hold what was
+     * asked for, is a TypeError rather than a mystery later on.
      */
-    private static Object construct(final Object constructor, final Object elements) {
+    private static Object fill(final Object constructor, final ScriptObject values, final int length) {
         if (!(constructor instanceof ScriptFunction function) || !function.isConstructor()) {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
         }
-        return ScriptRuntime.construct(function, elements);
+        final ArrayBufferView target = ArrayBufferView.typedArrayCreate(
+                ScriptRuntime.construct(function, (double)length), length);
+        for (int i = 0; i < length; i++) {
+            target.set(i, values.get(i), 0);
+        }
+        return target;
     }
 
 }
