@@ -569,9 +569,9 @@ public abstract class ArrayBufferView extends ScriptObject {
             throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
         }
         for (int i = 0; i < length; i++) {
-            final double value = JSType.toNumber(source.get(i));
+            // ToNumber first, because reading the source can detach the target
+            final Object value = JSType.toNumber(source.get(i));
             if (dest.isDetached()) {
-                // reading the source can detach the target under us
                 throw typeError("detached.array.buffer");
             }
             dest.set((int)offset + i, value, 0);
@@ -736,6 +736,27 @@ public abstract class ArrayBufferView extends ScriptObject {
     @Override
     public void set(final double key, final double value, final int callSiteFlags) {
         if (!dropWrite(key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final Object value, final int callSiteFlags) {
+        if (!dropWrite((double)key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final int value, final int callSiteFlags) {
+        if (!dropWrite((double)key)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final double value, final int callSiteFlags) {
+        if (!dropWrite((double)key)) {
             super.set(key, value, callSiteFlags);
         }
     }

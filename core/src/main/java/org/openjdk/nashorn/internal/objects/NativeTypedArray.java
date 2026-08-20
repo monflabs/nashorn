@@ -112,8 +112,25 @@ public final class NativeTypedArray extends ScriptObject {
         final Object mapfn   = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object thisArg = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
 
-        final ScriptObject values = (ScriptObject)NativeArray.from(ScriptRuntime.UNDEFINED, source, mapfn, thisArg);
-        return fill(self, values, JSType.toInt32(values.getLength()));
+        if (mapfn != ScriptRuntime.UNDEFINED) {
+            callable(mapfn);
+        }
+
+        // ES2015 22.2.2.1 reads the source, then makes the target, and only then
+        // maps: the mapping function runs with the target already in existence,
+        // and can do things to it - detach its buffer, for one - that the writes
+        // that follow have to live with. Array.from would run it during the
+        // read, which is a step too early.
+        final ScriptObject values = (ScriptObject)NativeArray.from(ScriptRuntime.UNDEFINED, source,
+                ScriptRuntime.UNDEFINED, ScriptRuntime.UNDEFINED);
+        final int length = JSType.toInt32(values.getLength());
+        final ArrayBufferView target = allocate(self, length);
+        for (int i = 0; i < length; i++) {
+            final Object value = values.get(i);
+            target.set(i, mapfn == ScriptRuntime.UNDEFINED ? value
+                    : ScriptRuntime.call(mapfn, thisArg, new Object[] { value, (double)i }), 0);
+        }
+        return target;
     }
 
     /**
@@ -125,7 +142,11 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE, arity = 0)
     public static Object of(final Object self, final Object... args) {
-        return fill(self, Global.allocate(args.clone()), args.length);
+        final ArrayBufferView target = allocate(self, args.length);
+        for (int i = 0; i < args.length; i++) {
+            target.set(i, args[i], 0);
+        }
+        return target;
     }
 
     /**
@@ -389,7 +410,9 @@ public final class NativeTypedArray extends ScriptObject {
         // ES2015 22.2.3.8 converts all three arguments before it writes
         // anything, and each conversion is script-visible and can detach the
         // buffer - which is why the check for that comes after all of them
-        final double filler = JSType.toNumber(value);
+        // Boxed, because a typed array's storage truncates a primitive double
+        // towards the element type's limits where ES2015 7.1.5 ToInt32 wraps
+        final Object filler = JSType.toNumber(value);
         final int from = ArrayBufferView.relativeIndex(start, length, 0);
         final int to   = ArrayBufferView.relativeIndex(end, length, length);
 
@@ -647,7 +670,7 @@ public final class NativeTypedArray extends ScriptObject {
     }
 
     /**
-     * Builds a typed array of the type {@code constructor} makes, and fills it.
+     * Builds the typed array {@code constructor} makes, empty and long enough.
      *
      * from and of are inherited by the nine concrete constructors, so the this
      * they are called on says which one to build. ES2015 22.2.2.1 and 22.2.2.2
@@ -655,16 +678,12 @@ public final class NativeTypedArray extends ScriptObject {
      * something other than a typed array, or one too short to hold what was
      * asked for, is a TypeError rather than a mystery later on.
      */
-    private static Object fill(final Object constructor, final ScriptObject values, final int length) {
+    private static ArrayBufferView allocate(final Object constructor, final int length) {
         if (!(constructor instanceof ScriptFunction function) || !function.isConstructor()) {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
         }
-        final ArrayBufferView target = ArrayBufferView.typedArrayCreate(
+        return ArrayBufferView.typedArrayCreate(
                 ScriptRuntime.construct(function, (double)length), length);
-        for (int i = 0; i < length; i++) {
-            target.set(i, values.get(i), 0);
-        }
-        return target;
     }
 
 }
