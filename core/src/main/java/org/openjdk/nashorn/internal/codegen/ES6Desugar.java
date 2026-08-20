@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
+import org.openjdk.nashorn.internal.ir.BlockStatement;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.ClassNode;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -569,7 +570,16 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final int line = functionNode.getLineNumber();
         final String created = ":generator";
 
-        final Block body = functionNode.getBody();
+        // ES2015 25.2.1.1: a generator's parameters are bound when it is called,
+        // by the ordinary function machinery, and only then is the generator
+        // object made - so a default that throws or a pattern that does not
+        // match fails at the call rather than at the first next(). The parser
+        // desugars a parameter list into statements at the head of a parameter
+        // block, with the real body nested inside it, so the prologue goes into
+        // the nested one and everything the parameter list needs stays in front
+        // of it.
+        final Block outer = functionNode.getBody();
+        final Block body = parameterisedBody(outer);
         final List<Statement> statements = new ArrayList<>();
 
         // var :generator = GENERATOR_ENTER();
@@ -591,9 +601,31 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // parameter reads safe: a bare varargs function indexes the array without
         // a bounds check, so a generator called with fewer arguments than it
         // declares would fail with ArrayIndexOutOfBoundsException.
+        final Block rebuilt = body.setStatements(lc, statements);
         return functionNode
                 .setFlag(lc, FunctionNode.USES_ARGUMENTS)
-                .setBody(lc, body.setStatements(lc, statements));
+                .setBody(lc, body == outer ? rebuilt : withNestedBody(outer, rebuilt));
+    }
+
+    /**
+     * The block a function's own statements live in, which is the function body
+     * unless a parameter list desugared into statements of its own - then it is
+     * the block nested at the end of the parameter block.
+     */
+    private static Block parameterisedBody(final Block body) {
+        if (!body.isParameterBlock() || body.getStatements().isEmpty()) {
+            return body;
+        }
+        return body.getLastStatement() instanceof BlockStatement nested ? nested.getBlock() : body;
+    }
+
+    /** Puts a rebuilt inner body back inside its parameter block. */
+    private Block withNestedBody(final Block outer, final Block body) {
+        final List<Statement> statements = new ArrayList<>(outer.getStatements());
+        final Statement last = statements.get(statements.size() - 1);
+        statements.set(statements.size() - 1,
+                new BlockStatement(last.getLineNumber(), body));
+        return outer.setStatements(lc, statements);
     }
 
     /**
