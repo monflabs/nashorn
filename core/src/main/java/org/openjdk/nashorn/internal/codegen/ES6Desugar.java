@@ -253,6 +253,35 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
     }
 
+    /** Declares, as lets, every name a binding pattern binds. */
+    private void declareBoundNames(final Statement at, final Expression pattern, final List<Statement> statements) {
+        if (pattern instanceof ArrayLiteralNode array) {
+            for (final Expression element : array.getValue()) {
+                declareBoundName(at, element, statements);
+            }
+        } else if (pattern instanceof ObjectNode object) {
+            for (final PropertyNode property : object.getElements()) {
+                declareBoundName(at, property.getValue(), statements);
+            }
+        }
+    }
+
+    private void declareBoundName(final Statement at, final Expression target, final List<Statement> statements) {
+        if (target == null) {
+            return;
+        }
+        if (target instanceof UnaryNode rest && rest.isTokenType(TokenType.SPREAD_ARRAY)) {
+            declareBoundName(at, rest.getExpression(), statements);
+        } else if (target instanceof BinaryNode withDefault && withDefault.isTokenType(TokenType.ASSIGN)) {
+            declareBoundName(at, withDefault.lhs(), statements);
+        } else if (target instanceof IdentNode name) {
+            statements.add(new VarNode(at.getLineNumber(), Token.recast(at.getToken(), TokenType.LET),
+                    at.getFinish(), new IdentNode(name).setIsDeclaredHere(), null, VarNode.IS_LET));
+        } else {
+            declareBoundNames(at, target, statements);
+        }
+    }
+
     private void markTarget(final Expression target) {
         if (target == null) {
             return;
@@ -862,11 +891,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         temporaries = 0;
-        declaring = false;
+        // ES2015 13.15.7: the names a catch parameter's pattern binds are the
+        // catch clause's own bindings. Nobody has declared them - the parser
+        // declares a plain "catch (e)" through the catch node itself, and has no
+        // single identifier to declare when the parameter is a pattern - so the
+        // declarations are emitted here, in front of the bindings, exactly as
+        // the parser emits them for "let [a] = xs".
+        declaring = true;
         final String caught = newTemporary();
 
         final Block body = catchNode.getBody();
         final List<Statement> statements = new ArrayList<>();
+        declareBoundNames(catchNode, exception, statements);
         destructure(catchNode, exception, ref(catchNode, caught), statements);
         statements.addAll(body.getStatements());
 
