@@ -27,7 +27,9 @@ package org.openjdk.nashorn.internal.codegen;
 
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.BlockStatement;
@@ -87,6 +89,16 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     private static final String TEMP_PREFIX = ":destructuring";
 
     /**
+     * Temporaries for a destructuring assignment written where an expression is
+     * wanted rather than as a statement of its own.
+     *
+     * They have a prefix and a counter of their own because the statement path
+     * restarts its counter at every statement, and the two would otherwise pick
+     * the same names for temporaries that are live at the same time.
+     */
+    private static final String EXPRESSION_TEMP_PREFIX = ":dstr";
+
+    /**
      * Where a function keeps the {@code this} its arrow functions see.
      *
      * ES2015 8.1.1.3: an arrow function has no this binding of its own and takes
@@ -122,6 +134,27 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     private boolean declaring;
 
+    /** Names the expression path has used, never reused. */
+    private int expressionTemporaries;
+
+    /**
+     * Declarations for those names, waiting for the enclosing block. They are
+     * vars, so the top of the block is as good a place as any.
+     */
+    private final List<Statement> pendingDeclarations = new ArrayList<>();
+
+    /**
+     * The assignments the expression path must keep its hands off: the ones a
+     * statement rewrite is going to take whole, and the ones that are not
+     * assignments at all but defaults inside a pattern.
+     *
+     * They are held by token rather than by identity because a node is rebuilt
+     * whenever anything below it changes - the visitor hands {@code leave} a
+     * copy, not the node {@code enter} saw - while its token, which is its
+     * position in the source, stays with it.
+     */
+    private final Set<Long> handledElsewhere = new HashSet<>();
+
     /**
      * Whether this is an on-demand compilation, in which every nested function
      * but the one being compiled has a body the parser did not read.
@@ -156,6 +189,166 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     /**
+     * A destructuring assignment that is the whole of a statement, or the whole
+     * initialiser of one, is rewritten by {@link #expand} into a sequence of
+     * statements, which reads better than the expression form and is what the
+     * declaration cases need - so the expression path is told to leave it.
+     */
+    @Override
+    public boolean enterExpressionStatement(final ExpressionStatement expressionStatement) {
+        claim(expressionStatement.getExpression());
+        return super.enterExpressionStatement(expressionStatement);
+    }
+
+    @Override
+    public boolean enterVarNode(final VarNode varNode) {
+        claim(varNode.getInit());
+        return super.enterVarNode(varNode);
+    }
+
+    @Override
+    public boolean enterForNode(final ForNode forNode) {
+        claim(forNode.getInit());
+        if (forNode.isForInOrOf() && forNode.getInit() != null && isPattern(forNode.getInit())) {
+            markPatternInterior(forNode.getInit());
+        }
+        return super.enterForNode(forNode);
+    }
+
+    @Override
+    public boolean enterCatchNode(final CatchNode catchNode) {
+        if (catchNode.getException() != null && isPattern(catchNode.getException())) {
+            markPatternInterior(catchNode.getException());
+        }
+        return super.enterCatchNode(catchNode);
+    }
+
+    @Override
+    public boolean enterBinaryNode(final BinaryNode binaryNode) {
+        if (binaryNode.isTokenType(TokenType.ASSIGN) && isPattern(binaryNode.lhs())) {
+            markPatternInterior(binaryNode.lhs());
+        }
+        return super.enterBinaryNode(binaryNode);
+    }
+
+    /**
+     * Records the defaults of a pattern, so that the expression path does not
+     * mistake them for assignments.
+     *
+     * Inside a pattern, {@code [x, y] = [4, 5]} is the default for a nested
+     * pattern rather than an assignment - it is only evaluated when the value
+     * matched against it is undefined, and {@link #destructure} emits it. It
+     * parses as the same node as a real assignment, so the two are told apart
+     * here, on the way down, before the expression path can see either.
+     */
+    private void markPatternInterior(final Expression pattern) {
+        if (pattern instanceof ArrayLiteralNode array) {
+            for (final Expression element : array.getValue()) {
+                markTarget(element);
+            }
+        } else if (pattern instanceof ObjectNode object) {
+            for (final PropertyNode property : object.getElements()) {
+                markTarget(property.getValue());
+            }
+        }
+    }
+
+    private void markTarget(final Expression target) {
+        if (target == null) {
+            return;
+        }
+        if (target instanceof UnaryNode rest && rest.isTokenType(TokenType.SPREAD_ARRAY)) {
+            markTarget(rest.getExpression());
+        } else if (target instanceof BinaryNode withDefault && withDefault.isTokenType(TokenType.ASSIGN)) {
+            // the default's own right hand side is an ordinary expression, and
+            // an assignment there is a real one
+            handledElsewhere.add(withDefault.getToken());
+            markTarget(withDefault.lhs());
+        } else {
+            markPatternInterior(target);
+        }
+    }
+
+    private void claim(final Expression expression) {
+        if (expression instanceof BinaryNode assignment && assignment.isTokenType(TokenType.ASSIGN)) {
+            if (isPattern(assignment.lhs())) {
+                handledElsewhere.add(assignment.getToken());
+            } else if (assignment.rhs() instanceof BinaryNode inner
+                    && inner.isTokenType(TokenType.ASSIGN) && isPattern(inner.lhs())) {
+                // "x = [a] = xs", which expandChainedDestructuring takes whole
+                handledElsewhere.add(inner.getToken());
+            }
+        }
+    }
+
+    /**
+     * {@code f([a] = xs)} - a destructuring assignment written where a value is
+     * wanted.
+     *
+     * ES2015 12.14.5 says one evaluates to the object it took apart, and it can
+     * appear anywhere an expression can: in a call, a condition, a comma, a
+     * return. Taking a pattern apart is a sequence of steps, so the expression
+     * form is that sequence joined by the comma operator, ending with the
+     * temporary the object was read into.
+     *
+     * A binary node may be replaced by a node of any kind, which is what makes
+     * this possible here and not for the super() call.
+     */
+    @Override
+    public Node leaveBinaryNode(final BinaryNode binaryNode) {
+        if (!binaryNode.isTokenType(TokenType.ASSIGN)
+                || !isPattern(binaryNode.lhs())
+                || handledElsewhere.contains(binaryNode.getToken())) {
+            return super.leaveBinaryNode(binaryNode);
+        }
+        return destructuringExpression(binaryNode);
+    }
+
+    private Expression destructuringExpression(final BinaryNode assignment) {
+        final long token = assignment.getToken();
+        final int finish = assignment.getFinish();
+        final int line = lc.getCurrentFunction().getLineNumber();
+        final String value = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+
+        // destructure() works in statements, so it is given a carrier to hang
+        // line and token information on, and its output is turned back into
+        // expressions afterwards
+        final Statement at = new ExpressionStatement(line, token, finish, assignment);
+        final List<Statement> work = new ArrayList<>();
+        final boolean wasDeclaring = declaring;
+        declaring = false;
+        try {
+            destructure(at, assignment.lhs(), ref(at, value), work);
+        } finally {
+            declaring = wasDeclaring;
+        }
+
+        pendingDeclarations.add(declareTemporary(at, value));
+        Expression chain = new BinaryNode(Token.recast(token, TokenType.ASSIGN),
+                ref(at, value), assignment.rhs());
+        for (final Statement statement : work) {
+            chain = comma(token, chain, asExpression(statement));
+        }
+        return comma(token, chain, ref(at, value));
+    }
+
+    /** One step of the sequence, as an expression rather than a statement. */
+    private Expression asExpression(final Statement statement) {
+        if (statement instanceof ExpressionStatement expressionStatement) {
+            return expressionStatement.getExpression();
+        }
+        final VarNode declaration = (VarNode)statement;
+        // the name is declared at the top of the block; here it is only assigned
+        pendingDeclarations.add(declaration.setInit(null));
+        return new BinaryNode(Token.recast(declaration.getToken(), TokenType.ASSIGN),
+                declaration.getName(), declaration.getInit());
+    }
+
+    private static Expression comma(final long token, final Expression left, final Expression right) {
+        return new BinaryNode(Token.recast(token, TokenType.COMMARIGHT), left, right);
+    }
+
+    /**
      * Expands the destructuring statements of a block in place.
      *
      * The expansion has to become part of <em>this</em> block rather than being
@@ -183,6 +376,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             expanded.addAll(replacement);
         }
 
+        if (!pendingDeclarations.isEmpty()) {
+            // the temporaries an expression-position destructuring needed. They
+            // are vars, so the top of this block is as good a place as any.
+            final List<Statement> declared = new ArrayList<>(pendingDeclarations);
+            pendingDeclarations.clear();
+            declared.addAll(expanded == null ? statements : expanded);
+            expanded = declared;
+        }
+        // A block that did not change has to be handed back as it stands: a
+        // rebuilt one is a different node, and its parent then rebuilds too,
+        // which loses whatever an ExpressionStatement was carrying beside its
+        // expression - a destructuring declaration's let or const, for one.
         return super.leaveBlock(expanded == null ? block : block.setStatements(lc, expanded));
     }
 
@@ -571,21 +776,31 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final String created = ":generator";
 
         // ES2015 25.2.1.1: a generator's parameters are bound when it is called,
-        // by the ordinary function machinery, and only then is the generator
-        // object made - so a default that throws or a pattern that does not
-        // match fails at the call rather than at the first next(). The parser
-        // desugars a parameter list into statements at the head of a parameter
-        // block, with the real body nested inside it, so the prologue goes into
-        // the nested one and everything the parameter list needs stays in front
-        // of it.
+        // and only then is the generator object made, so a default that throws
+        // or a pattern that does not match fails at the call rather than at the
+        // first next().
+        //
+        // The body is run by re-entering the whole function on the generator's
+        // own thread, which means the parameter list is not somewhere the caller
+        // can simply run first: whatever runs it, runs it on one thread only,
+        // and its bindings are locals of that invocation. So for a function that
+        // has a parameter list worth speaking of - the parser gives one a
+        // parameter block, with the real body nested inside it - the thread is
+        // started by the call rather than by the first next(), and the call
+        // waits at the head of the nested body, by which point the parameters
+        // are bound. Everything a parameter list can do therefore happens once,
+        // in the right order, and before the call returns.
         final Block outer = functionNode.getBody();
         final Block body = parameterisedBody(outer);
+        final boolean parameterised = body != outer;
         final List<Statement> statements = new ArrayList<>();
 
         // var :generator = GENERATOR_ENTER();
         statements.add(new VarNode(line, Token.recast(token, TokenType.VAR), finish,
                 new IdentNode(token, finish, created),
-                new RuntimeNode(token, finish, RuntimeNode.Request.GENERATOR_ENTER)));
+                new RuntimeNode(token, finish, parameterised
+                        ? RuntimeNode.Request.GENERATOR_ENTER_PARAMETERS
+                        : RuntimeNode.Request.GENERATOR_ENTER)));
 
         // if (:generator !== undefined) { return :generator; }
         final Expression isNotUndefined = new RuntimeNode(token, finish, RuntimeNode.Request.IS_NOT_UNDEFINED,
@@ -594,17 +809,29 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 new ReturnNode(line, token, finish, new IdentNode(token, finish, created)));
         statements.add(new IfNode(line, token, finish, isNotUndefined, returnBlock, null));
 
-        statements.addAll(body.getStatements());
+        statements.addAll(outer.getStatements());
+
+        if (parameterised) {
+            // The head of the nested body is where the call gets its generator
+            // object back and the body waits for its first next(): the parameter
+            // statements are in front of it, and nothing of the body proper is.
+            final List<Statement> nested = new ArrayList<>();
+            nested.add(new ExpressionStatement(line, token, finish,
+                    new RuntimeNode(token, finish, RuntimeNode.Request.GENERATOR_PARAMETERS_BOUND)));
+            nested.addAll(body.getStatements());
+            statements.set(statements.size() - 1,
+                    new BlockStatement(line, body.setStatements(lc, nested)));
+        }
+
         // A generator is compiled with an arguments object. It needs the argument
         // array to replay the call on the generator's thread, and going through
         // arguments rather than merely forcing variable arity is what makes the
         // parameter reads safe: a bare varargs function indexes the array without
         // a bounds check, so a generator called with fewer arguments than it
         // declares would fail with ArrayIndexOutOfBoundsException.
-        final Block rebuilt = body.setStatements(lc, statements);
         return functionNode
                 .setFlag(lc, FunctionNode.USES_ARGUMENTS)
-                .setBody(lc, body == outer ? rebuilt : withNestedBody(outer, rebuilt));
+                .setBody(lc, outer.setStatements(lc, statements));
     }
 
     /**
@@ -619,14 +846,6 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         return body.getLastStatement() instanceof BlockStatement nested ? nested.getBlock() : body;
     }
 
-    /** Puts a rebuilt inner body back inside its parameter block. */
-    private Block withNestedBody(final Block outer, final Block body) {
-        final List<Statement> statements = new ArrayList<>(outer.getStatements());
-        final Statement last = statements.get(statements.size() - 1);
-        statements.set(statements.size() - 1,
-                new BlockStatement(last.getLineNumber(), body));
-        return outer.setStatements(lc, statements);
-    }
 
     /**
      * {@code catch ([e]) body}.
