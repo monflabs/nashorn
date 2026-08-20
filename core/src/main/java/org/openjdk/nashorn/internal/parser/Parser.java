@@ -2965,6 +2965,18 @@ public class Parser extends AbstractParser implements Loggable {
         // LBRACKET tested in caller.
         next();
 
+        // An element is not the whole of what a binding is being given, so
+        // "var a = [function () {}]" leaves the function anonymous.
+        hideDefaultName();
+        try {
+            return arrayLiteral(arrayToken);
+        } finally {
+            defaultNames.pop();
+        }
+    }
+
+    private LiteralNode<Expression[]> arrayLiteral(final long arrayToken) {
+
         // Prepare to accumulate elements.
         final List<Expression> elements = new ArrayList<>();
         // Track elisions.
@@ -3786,6 +3798,16 @@ public class Parser extends AbstractParser implements Loggable {
      * @return Argument list.
      */
     private ArrayList<Expression> argumentList() {
+        // an argument is not the whole of what a binding is being given
+        hideDefaultName();
+        try {
+            return argumentListBody();
+        } finally {
+            defaultNames.pop();
+        }
+    }
+
+    private ArrayList<Expression> argumentListBody() {
         // Prepare to accumulate list of arguments.
         final ArrayList<Expression> nodeList = new ArrayList<>();
         // LPAREN tested in caller.
@@ -4721,7 +4743,17 @@ public class Parser extends AbstractParser implements Loggable {
                 }
             }
 
-            Expression rhs = assignmentExpression(false);
+            // ES2015 12.1.2 NamedEvaluation gives "x = function () {}" the name
+            // x, and does so only when the function is the whole of what x is
+            // assigned. An operand of the comma operator is not, which is what
+            // "x = (0, function () {})" relies on to stay anonymous.
+            hideDefaultName();
+            Expression rhs;
+            try {
+                rhs = assignmentExpression(false);
+            } finally {
+                defaultNames.pop();
+            }
 
             if (rhsRestParameter) {
                 rhs = ((IdentNode)rhs).setIsRestParameter();
@@ -4760,12 +4792,21 @@ public class Parser extends AbstractParser implements Loggable {
 
                 // Pass expression. Middle expression of a conditional expression can be a "in"
                 // expression - even in the contexts where "in" is not permitted.
-                final Expression trueExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), false);
+                // neither branch is the whole of what is being assigned, so
+                // neither takes the name a binding would otherwise lend it
+                hideDefaultName();
+                final Expression trueExpr;
+                final Expression falseExpr;
+                try {
+                    trueExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), false);
 
-                expect(COLON);
+                    expect(COLON);
 
-                // Fail expression.
-                final Expression falseExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), noIn);
+                    // Fail expression.
+                    falseExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), noIn);
+                } finally {
+                    defaultNames.pop();
+                }
 
                 // Build up node.
                 lhs = new TernaryNode(op, lhs, new JoinPredecessorExpression(trueExpr), new JoinPredecessorExpression(falseExpr));
@@ -4776,8 +4817,12 @@ public class Parser extends AbstractParser implements Loggable {
                  // Get the next primary expression.
                 Expression rhs;
                 final boolean isAssign = Token.descType(op) == ASSIGN;
-                if(isAssign) {
+                if (isAssign) {
                     defaultNames.push(lhs);
+                } else {
+                    // an operand of "||", "+" or the like is not the whole of
+                    // what is being assigned, so it takes no name from it
+                    hideDefaultName();
                 }
                 try {
                     rhs = unaryExpression();
@@ -4792,9 +4837,7 @@ public class Parser extends AbstractParser implements Loggable {
                         nextPrecedence = type.getPrecedence();
                     }
                 } finally {
-                    if(isAssign) {
-                        defaultNames.pop();
-                    }
+                    defaultNames.pop();
                 }
                 lhs = verifyAssignment(op, lhs, rhs);
             }
