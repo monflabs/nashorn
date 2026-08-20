@@ -1887,11 +1887,12 @@ public class Parser extends AbstractParser implements Loggable {
         pattern.accept(new VerifyDestructuringPatternNodeVisitor(new LexicalContext()) {
             @Override
             protected void verifySpreadElement(final Expression lvalue) {
-                if (lvalue instanceof IdentNode) {
-                    // checked in identifierCallback
-                } else if (isDestructuringLhs(lvalue)) {
-                    verifyDestructuringBindingPattern(lvalue, identifierCallback);
-                } else {
+                // Only the shape is checked here. The names are reported by the
+                // traversal this returns to, which descends into the rest
+                // element like any other - walking it here as well reported
+                // every name a rest element binds twice, and "[...{ length }]"
+                // was rejected as a duplicate binding of itself.
+                if (!(lvalue instanceof IdentNode) && !isDestructuringLhs(lvalue)) {
                     throw error("Expected a valid binding identifier", lvalue.getToken());
                 }
             }
