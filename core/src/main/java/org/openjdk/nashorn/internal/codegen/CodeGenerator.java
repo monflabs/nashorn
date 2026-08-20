@@ -3106,7 +3106,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         // A generator's prologue needs the whole frame: the function to re-enter
         // on the generator's thread, its receiver, and the arguments to replay.
-        final boolean pushesFrame = request == Request.GENERATOR_ENTER;
+        final boolean pushesFrame = request == Request.GENERATOR_ENTER
+                || request == Request.GENERATOR_ENTER_PARAMETERS;
         if (pushesFrame) {
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);

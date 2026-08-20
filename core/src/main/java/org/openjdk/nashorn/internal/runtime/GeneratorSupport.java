@@ -67,6 +67,8 @@ public final class GeneratorSupport {
 
     /** What the body sends back: a yielded value, a return, or a failure. */
     private sealed interface Step {
+        /** The parameters are bound and the body is waiting to be advanced. */
+        record Started() implements Step { }
         record Yielded(Object value) implements Step { }
         record Returned(Object value) implements Step { }
         record Failed(RuntimeException error) implements Step { }
@@ -154,6 +156,43 @@ public final class GeneratorSupport {
      */
     public Object yield(final Object value) {
         deliver(new Step.Yielded(value));
+        return awaitResume();
+    }
+
+    /**
+     * Runs the body as far as its parameter bindings and no further.
+     *
+     * ES2015 25.2.1.1 binds a generator's parameters at the call, before the
+     * generator object exists, so a default that throws throws there. The body
+     * is a whole function re-entered on this thread, so the parameter list can
+     * only be run here - and the call waits for it, which is what keeps its
+     * effects in front of everything the caller does next.
+     */
+    public void bindParameters() {
+        start();
+        final Step step = take(toCaller);
+        if (step instanceof Step.Started) {
+            return;
+        }
+        // the body cannot reach its first statement without passing the barrier,
+        // so anything else is a parameter list that threw
+        done = true;
+        if (step instanceof Step.Failed failed) {
+            throw failed.error();
+        }
+        throw new IllegalStateException("generator body ran before its parameters were bound");
+    }
+
+    /**
+     * Where a body whose parameters were bound at the call waits for its first
+     * next(), which is where an ordinary generator's body starts.
+     */
+    public void parametersBound() {
+        deliver(new Step.Started());
+        awaitResume();
+    }
+
+    private Object awaitResume() {
         final Resume resume = take(toBody);
         if (resume instanceof Resume.Return ret) {
             // return() unwinds the body so that its finally blocks run

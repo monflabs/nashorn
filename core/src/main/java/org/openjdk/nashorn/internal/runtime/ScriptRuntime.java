@@ -1824,6 +1824,41 @@ public final class ScriptRuntime {
     }
 
     /**
+     * The same, for a generator whose parameter list has to be bound at the call.
+     *
+     * @param callee the generator function
+     * @param self   its this value
+     * @param args   its arguments
+     * @return the generator object, or undefined on the generator's own thread
+     */
+    public static Object GENERATOR_ENTER_PARAMETERS(final Object callee, final Object self, final Object args) {
+        final Object entered = GENERATOR_ENTER(callee, self, args);
+        if (entered instanceof NativeGenerator generator) {
+            // ES2015 25.2.1.1 binds the parameters and only then makes the
+            // generator object; the object is made first here, which nothing can
+            // observe because the call has not returned it yet. What is
+            // observable is that everything the parameter list does - a default
+            // that throws, an iterator it steps, a getter it reads - happens
+            // before the call returns, which is what this waits for.
+            generator.getSupport().bindParameters();
+        }
+        return entered;
+    }
+
+    /**
+     * Where such a generator's body waits, its parameters bound.
+     *
+     * @return undefined
+     */
+    public static Object GENERATOR_PARAMETERS_BOUND() {
+        final GeneratorSupport support = GeneratorSupport.running();
+        if (support != null) {
+            support.parametersBound();
+        }
+        return UNDEFINED;
+    }
+
+    /**
      * {@code yield value} - suspends the generator body until it is resumed.
      *
      * @param value the value to hand to whoever is advancing the generator

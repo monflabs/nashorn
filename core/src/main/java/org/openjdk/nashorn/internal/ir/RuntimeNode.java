@@ -110,6 +110,10 @@ public class RuntimeNode extends Expression {
         NEW_TARGET(TokenType.VOID, Type.OBJECT, 2),
         /** The prologue of a generator function; the code generator supplies the frame. */
         GENERATOR_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** The same, for a generator whose parameters have to be bound at the call. */
+        GENERATOR_ENTER_PARAMETERS(TokenType.VOID, Type.OBJECT, 0),
+        /** Where such a generator's body waits, once its parameters are bound. */
+        GENERATOR_PARAMETERS_BOUND(TokenType.VOID, Type.OBJECT, 0),
         /** The prologue of a class constructor, which may only be reached with new. */
         REQUIRE_NEW(TokenType.VOID, Type.OBJECT, 0),
         /** ES2015 15.2.1.17: a module hands over the scope that is its environment */

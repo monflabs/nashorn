@@ -59,6 +59,15 @@ public final class NativeGenerator extends ScriptObject {
         CLEANER.register(this, support::abandon);
     }
 
+    /**
+     * The body this generator advances.
+     *
+     * @return the support object running it
+     */
+    public GeneratorSupport getSupport() {
+        return support;
+    }
+
     @Override
     public String getClassName() {
         return "Generator";
