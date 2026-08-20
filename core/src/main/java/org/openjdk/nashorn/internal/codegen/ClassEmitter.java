@@ -58,6 +58,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.openjdk.nashorn.internal.codegen.types.Type;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.ir.debug.BytecodePrinter;
@@ -136,7 +137,11 @@ public class ClassEmitter {
         ClassHierarchyResolver.ofClassLoading(ClassEmitter.class.getClassLoader())
             .orElse(classDesc -> ClassHierarchyInfo.ofClass(
                 isScriptObject(internalName(classDesc)) ? SCRIPT_OBJECT : ConstantDescs.CD_Object))
-            .cached();
+            // The cache has to be given, not taken: the default one is a plain
+            // HashMap, and this resolver is shared by every compilation there
+            // is - two engines, a generator's thread and the one that started
+            // it all write to it at once.
+            .cached(ConcurrentHashMap::new);
 
     /** The context every class Nashorn generates goes through. */
     private static final ClassFile CLASS_FILE =
