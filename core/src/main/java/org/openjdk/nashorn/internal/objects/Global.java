@@ -1026,6 +1026,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinFunction;
     private ScriptFunction builtinObject;
     private ScriptFunction builtinArray;
+    private Object builtinArrayIterator;
     private ScriptFunction builtinBoolean;
     private ScriptFunction builtinDate;
     private ScriptObject   builtinJSON;
@@ -2247,6 +2248,30 @@ public final class Global extends Scope {
         return isBuiltinFunctionProperty("call");
     }
 
+    /**
+     * Whether an ordinary array still iterates the way an ordinary array does.
+     *
+     * Somewhere that has to iterate an array but would rather read it - the
+     * result is the same either way - can ask this first, and take the ordinary
+     * route only while nobody has replaced the array iterator.
+     *
+     * @return true if Array.prototype[Symbol.iterator] is the one built in
+     */
+    public static boolean isBuiltinArrayPrototypeIterator() {
+        final Global instance = Global.instance();
+        if (instance.builtinArray == null) {
+            return false; // conservative for compile-only mode
+        }
+        if (instance.array != instance.builtinArray) {
+            return false;
+        }
+        // The property is installed at run time rather than by nasgen, so it
+        // does not carry the builtin flag the other guards ask about; what it
+        // holds is compared against what it was given instead.
+        return ScriptFunction.getPrototype(instance.builtinArray).get(NativeSymbol.iterator)
+                == instance.builtinArrayIterator;
+    }
+
     private synchronized ScriptFunction getBuiltinJSAdapter() {
         if (this.builtinJSAdapter == null) {
             this.builtinJSAdapter = initConstructorAndSwitchPoint("JSAdapter", ScriptFunction.class);
@@ -2778,8 +2803,9 @@ public final class Global extends Scope {
         arrayPrototype.addOwnProperty(NativeSymbol.unscopables, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
                 arrayUnscopables());
         // ES2015 22.1.3.30: [ @@iterator ] is the same function object as values
+        this.builtinArrayIterator = arrayPrototype.get("values");
         arrayPrototype.addOwnProperty(NativeSymbol.iterator, Attribute.NOT_ENUMERABLE,
-                arrayPrototype.get("values"));
+                this.builtinArrayIterator);
 
         this.symbol   = LAZY_SENTINEL;
         this.map      = LAZY_SENTINEL;

@@ -30,9 +30,13 @@ import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 import static org.openjdk.nashorn.internal.runtime.UnwarrantedOptimismException.INVALID_PROGRAM_POINT;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.LinkRequest;
+import org.openjdk.nashorn.api.scripting.JSObject;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
@@ -231,48 +235,161 @@ public abstract class ArrayBufferView extends ScriptObject {
      * @return new ArrayBufferView
      */
     protected static ArrayBufferView constructorImpl(final boolean newObj, final Object[] args, final Factory factory) {
-        final Object          arg0 = args.length != 0 ? args[0] : 0;
-        final ArrayBufferView dest;
-        final int             length;
-
         if (!newObj) {
+            // ES2015 22.2.4: a typed array constructor is not callable
             throw typeError("constructor.requires.new", factory.getClassName());
         }
 
+        final Object arg0 = args.length != 0 ? args[0] : ScriptRuntime.UNDEFINED;
 
-        if (arg0 instanceof NativeArrayBuffer) {
-            // Constructor(ArrayBuffer buffer, optional unsigned long byteOffset, optional unsigned long length)
-            final NativeArrayBuffer buffer     = (NativeArrayBuffer)arg0;
-            final int               byteOffset = args.length > 1 ? JSType.toInt32(args[1]) : 0;
+        if (arg0 instanceof NativeArrayBuffer buffer) {
+            return fromBuffer(buffer, args, factory);
+        }
+        if (arg0 instanceof ArrayBufferView source) {
+            return fromTypedArray(source, factory);
+        }
+        if (arg0 instanceof ScriptObject || arg0 instanceof JSObject) {
+            return fromObject(arg0, factory);
+        }
+        // ES2015 22.2.4.2: anything else is a length, and ToIndex rejects a
+        // negative or fractional one rather than rounding it
+        return factory.construct(toIndex(arg0));
+    }
 
-            if (args.length > 2) {
-                length = JSType.toInt32(args[2]);
-            } else {
-                if ((buffer.getByteLength() - byteOffset) % factory.bytesPerElement != 0) {
-                    throw new RuntimeException("buffer.byteLength - byteOffset must be a multiple of the element size");
-                }
-                length = (buffer.getByteLength() - byteOffset) / factory.bytesPerElement;
-            }
+    /**
+     * ES2015 22.2.4.5, a view over a buffer somebody else owns.
+     *
+     * The order is the specification's, and is checked: both arguments are
+     * converted - which is script-visible, and can detach the buffer - before
+     * the buffer is asked whether it is still there.
+     */
+    private static ArrayBufferView fromBuffer(final NativeArrayBuffer buffer, final Object[] args, final Factory factory) {
+        final int elementSize = factory.bytesPerElement;
 
-            return factory.construct(buffer, byteOffset, length);
-        } else if (arg0 instanceof ArrayBufferView) {
-            // Constructor(TypedArray array)
-            length = ((ArrayBufferView)arg0).elementLength();
-            dest   = factory.construct(length);
-        } else if (arg0 instanceof NativeArray) {
-            // Constructor(type[] array)
-            length = lengthToInt(((NativeArray) arg0).getArray().length());
-            dest   = factory.construct(length);
-        } else {
-            // Constructor(unsigned long length). Treating infinity as 0 is a special case for ArrayBufferView.
-            final double dlen = JSType.toNumber(arg0);
-            length = lengthToInt(Double.isInfinite(dlen) ? 0L : JSType.toLong(dlen));
-            return factory.construct(length);
+        final long offset = toIndex(args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED);
+        if (offset % elementSize != 0) {
+            throw rangeError("byteoffset.not.multiple.of.element.size",
+                    JSType.toString((double)offset), JSType.toString(elementSize));
         }
 
-        copyElements(dest, length, (ScriptObject)arg0, 0);
+        final Object requested = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
+        final long length = requested == ScriptRuntime.UNDEFINED ? 0 : toIndex(requested);
 
+        if (buffer.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+
+        final long byteLength = buffer.getByteLength();
+        final long newByteLength;
+        if (requested == ScriptRuntime.UNDEFINED) {
+            if (byteLength % elementSize != 0) {
+                throw rangeError("bytelength.not.multiple.of.element.size",
+                        JSType.toString((double)byteLength), JSType.toString(elementSize));
+            }
+            newByteLength = byteLength - offset;
+            if (newByteLength < 0) {
+                throw rangeError("typed.array.out.of.range", JSType.toString((double)offset));
+            }
+        } else {
+            newByteLength = length * elementSize;
+            if (offset + newByteLength > byteLength) {
+                throw rangeError("typed.array.out.of.range", JSType.toString((double)offset));
+            }
+        }
+
+        return factory.construct(buffer, (int)offset, (int)(newByteLength / elementSize));
+    }
+
+    /** ES2015 22.2.4.3, a copy of another typed array, converted element by element. */
+    private static ArrayBufferView fromTypedArray(final ArrayBufferView source, final Factory factory) {
+        if (source.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+        final int length = source.elementLength();
+        final ArrayBufferView dest = factory.construct(length);
+        for (int i = 0; i < length; i++) {
+            dest.set(i, source.get(i), 0);
+        }
         return dest;
+    }
+
+    /**
+     * ES2015 22.2.4.4, from anything else that is an object.
+     *
+     * One that is iterable is drained through its iterator; one that is not is
+     * read as an array-like - its length, and then its elements, by ordinary
+     * property reads - which is what makes a plain {length: 2, 0: x, 1: y} work.
+     */
+    private static ArrayBufferView fromObject(final Object object, final Factory factory) {
+        if (isIterable(object)) {
+            final List<Object> values = new ArrayList<>();
+            final Iterator<?> iterator = (Iterator<?>)ScriptRuntime.GET_ITERATOR(object);
+            while (iterator.hasNext()) {
+                values.add(iterator.next());
+            }
+            final ArrayBufferView dest = factory.construct(values.size());
+            for (int i = 0; i < values.size(); i++) {
+                dest.set(i, values.get(i), 0);
+            }
+            return dest;
+        }
+
+        final ScriptObject source = (ScriptObject)object;
+        final long length = JSType.toUint32(source.get("length"));
+        if (length > Integer.MAX_VALUE) {
+            throw rangeError("inappropriate.array.buffer.length", JSType.toString((double)length));
+        }
+        final ArrayBufferView dest = factory.construct((int)length);
+        for (int i = 0; i < length; i++) {
+            dest.set(i, source.get(i), 0);
+        }
+        return dest;
+    }
+
+    /**
+     * Whether 22.2.4.4 step 4 finds an iterator worth using.
+     *
+     * An ordinary array is read as an array-like even though it is iterable:
+     * iterating one and reading it are the same sequence of property reads, and
+     * reading is the cheaper of the two by a wide margin. That holds only while
+     * nobody has replaced the array iterator, which is what the guard asks.
+     */
+    private static boolean isIterable(final Object object) {
+        if (object instanceof NativeArray && Global.isBuiltinArrayPrototypeIterator()) {
+            return false;
+        }
+        if (!(object instanceof ScriptObject source)) {
+            // a foreign object: let the iterator protocol decide
+            return true;
+        }
+        final Object iterator = source.get(NativeSymbol.iterator);
+        return iterator != ScriptRuntime.UNDEFINED && iterator != null;
+    }
+
+    /**
+     * ES2015 7.1.17 ToIndex: a length or an offset, which is a non-negative
+     * integer and nothing else. Undefined is zero; anything that is not an
+     * integer in range is a RangeError rather than something rounded.
+     *
+     * @param value the argument as written
+     * @return the index it denotes
+     */
+    static int toIndex(final Object value) {
+        if (value == ScriptRuntime.UNDEFINED) {
+            return 0;
+        }
+        // JSType.toInteger answers an int, which is exactly the clamping this
+        // has to catch rather than perform, so ToInteger is done in double
+        final double number = JSType.toNumber(value);
+        final double integer = Double.isNaN(number) ? 0
+                : number < 0 ? Math.ceil(number) : Math.floor(number);
+        if (integer < 0 || integer > Integer.MAX_VALUE) {
+            // Beyond an int nothing can be allocated anyway, so the two reasons
+            // a value is out of range - negative, and too large to be a length -
+            // are the same answer here.
+            throw rangeError("not.an.index", JSType.toString(value));
+        }
+        return (int)integer;
     }
 
     /**
@@ -286,25 +403,59 @@ public abstract class ArrayBufferView extends ScriptObject {
      */
     protected static Object setImpl(final Object self, final Object array, final Object offset0) {
         final ArrayBufferView dest = (ArrayBufferView)self;
-        final int length;
-        if (array instanceof ArrayBufferView) {
-            // void set(TypedArray array, optional unsigned long offset)
-            length = ((ArrayBufferView)array).elementLength();
-        } else if (array instanceof NativeArray) {
-            // void set(type[] array, optional unsigned long offset)
-            length = (int) (((NativeArray) array).getArray().length() & 0x7fff_ffff);
-        } else {
-            throw new RuntimeException("argument is not of array type");
+
+        // ES2015 22.2.3.22.1 and .2 agree on their opening: the offset is
+        // converted first, and only then is the target buffer asked whether it
+        // is still there
+        final double asNumber = JSType.toNumber(offset0);
+        final double offset = Double.isNaN(asNumber) ? 0
+                : asNumber < 0 ? Math.ceil(asNumber) : Math.floor(asNumber);
+        if (offset < 0) {
+            throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
+        }
+        if (dest.isDetached()) {
+            throw typeError("detached.array.buffer");
         }
 
-        final ScriptObject source = (ScriptObject)array;
-        final int offset = JSType.toInt32(offset0); // default=0
+        final int targetLength = dest.elementLength();
 
-        if (dest.elementLength() < length + offset || offset < 0) {
-            throw new RuntimeException("offset or array length out of bounds");
+        if (array instanceof ArrayBufferView source) {
+            if (source.isDetached()) {
+                throw typeError("detached.array.buffer");
+            }
+            final int length = source.elementLength();
+            if (length + offset > targetLength) {
+                throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
+            }
+            // The two views can be over the same buffer, and the ranges can
+            // overlap, so the source is read out before any of it is written
+            final Object[] values = new Object[length];
+            for (int i = 0; i < length; i++) {
+                values[i] = source.get(i);
+            }
+            for (int i = 0; i < length; i++) {
+                dest.set((int)offset + i, values[i], 0);
+            }
+            return ScriptRuntime.UNDEFINED;
         }
 
-        copyElements(dest, length, source, offset);
+        // 22.2.3.22.1: anything else is read as an array-like, whatever it is -
+        // its length, and then its elements, by ordinary property reads
+        if (!(JSType.toScriptObject(array) instanceof ScriptObject source)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(array));
+        }
+        final long length = JSType.toUint32(source.get("length"));
+        if (length + offset > targetLength) {
+            throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
+        }
+        for (int i = 0; i < length; i++) {
+            final double value = JSType.toNumber(source.get(i));
+            if (dest.isDetached()) {
+                // reading the source can detach the target under us
+                throw typeError("detached.array.buffer");
+            }
+            dest.set((int)offset + i, value, 0);
+        }
 
         return ScriptRuntime.UNDEFINED;
     }
