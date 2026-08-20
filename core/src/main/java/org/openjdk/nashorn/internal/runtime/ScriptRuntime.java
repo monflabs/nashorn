@@ -502,23 +502,50 @@ public final class ScriptRuntime {
             }
 
             @Override
-            public void close() {
+            public void close(final boolean report) {
                 if (exhausted) {
                     return;
                 }
                 exhausted = true;
                 // ES2015 7.4.6 IteratorClose: tell an unfinished iterator that
                 // nobody will ask it for more, so a generator can run its finally
-                // blocks. A failure here is not worth reporting over whatever the
-                // caller was doing.
-                if (iterator instanceof ScriptObject sobj) {
-                    try {
-                        if (sobj.get("return") instanceof ScriptFunction close) {
-                            apply(close, iterator);
-                        }
-                    } catch (final RuntimeException ignored) {
-                        // best effort
+                // blocks.
+                if (!(iterator instanceof ScriptObject sobj)) {
+                    return;
+                }
+                final Object close;
+                try {
+                    // step 4 GetMethod, which can throw all by itself when
+                    // "return" is an accessor
+                    close = sobj.get("return");
+                } catch (final RuntimeException e) {
+                    if (report) {
+                        throw e;
                     }
+                    return;
+                }
+                if (close == null || close == UNDEFINED) {
+                    // step 5.b: an iterator that does not say goodbye
+                    return;
+                }
+                if (!Bootstrap.isCallable(close)) {
+                    if (report) {
+                        throw typeError("not.a.function", safeToString(close));
+                    }
+                    return;
+                }
+                final Object result;
+                try {
+                    result = call(close, iterator, EMPTY_ARRAY);
+                } catch (final RuntimeException e) {
+                    if (report) {
+                        throw e;
+                    }
+                    return;
+                }
+                // step 8: return() answers with a result object, like next()
+                if (report && JSType.isPrimitive(result)) {
+                    throw typeError("not.an.object", safeToString(result));
                 }
             }
 
@@ -1277,8 +1304,15 @@ public final class ScriptRuntime {
      * say that, so the adapter carries it here.
      */
     public interface CloseableIterator extends Iterator<Object> {
-        /** ES2015 7.4.6 IteratorClose, if the iteration has not already finished. */
-        void close();
+        /**
+         * ES2015 7.4.6 IteratorClose, if the iteration has not already finished.
+         *
+         * @param report whether what return() does is the caller's business.
+         *               It is not when the iteration is being abandoned because
+         *               something threw: 7.4.6 step 6 hands the original throw
+         *               back rather than whatever the close made of it.
+         */
+        void close(boolean report);
     }
 
     /**
@@ -1290,7 +1324,25 @@ public final class ScriptRuntime {
      */
     public static Object ITERATOR_CLOSE(final Object iterator) {
         if (iterator instanceof CloseableIterator closeable) {
-            closeable.close();
+            closeable.close(true);
+        }
+        return UNDEFINED;
+    }
+
+    /**
+     * The same, where the iteration is being abandoned rather than finished.
+     *
+     * A for-of loop closes its iterator from a finally block, which runs while
+     * an exception is on its way out as readily as it does on the way to the
+     * next statement. ES2015 7.4.6 step 6 keeps the original throw in that case,
+     * so nothing the close does is reported.
+     *
+     * @param iterator from {@link #GET_ITERATOR}
+     * @return undefined
+     */
+    public static Object ITERATOR_CLOSE_QUIET(final Object iterator) {
+        if (iterator instanceof CloseableIterator closeable) {
+            closeable.close(false);
         }
         return UNDEFINED;
     }
@@ -1325,7 +1377,7 @@ public final class ScriptRuntime {
             }
 
             @Override
-            public void close() {
+            public void close(final boolean report) {
                 // nothing to tell a Java iterator
             }
         };
@@ -1456,7 +1508,18 @@ public final class ScriptRuntime {
      * @return the call's result
      */
     public static Object SPREAD_CALL(final Object function, final Object thiz, final Object argsArray) {
-        final Object[] args = SPREAD_TO_ARGUMENTS(argsArray);
+        return call(function, thiz, SPREAD_TO_ARGUMENTS(argsArray));
+    }
+
+    /**
+     * Calls anything callable, whatever kind of callable it is.
+     *
+     * @param function the callable
+     * @param thiz     its this value
+     * @param args     its arguments
+     * @return what it returned
+     */
+    public static Object call(final Object function, final Object thiz, final Object[] args) {
         if (function instanceof ScriptFunction scriptFunction) {
             return apply(scriptFunction, thiz, args);
         }

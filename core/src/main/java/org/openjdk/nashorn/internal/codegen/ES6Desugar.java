@@ -984,7 +984,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Block body = new Block(forNode.getToken(), forNode.getFinish(), loop);
         final Block close = new Block(forNode.getToken(), forNode.getFinish(),
                 new ExpressionStatement(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
-                        runtime(forNode, RuntimeNode.Request.ITERATOR_CLOSE, ref(forNode, iterator))));
+                        runtime(forNode, RuntimeNode.Request.ITERATOR_CLOSE_QUIET, ref(forNode, iterator))));
 
         return List.of(declareTemporary(forNode, iterator),
                 new TryNode(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
