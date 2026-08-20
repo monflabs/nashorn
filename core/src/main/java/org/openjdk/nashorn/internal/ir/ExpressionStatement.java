@@ -73,7 +73,12 @@ public final class ExpressionStatement extends Statement {
     private ExpressionStatement(final ExpressionStatement expressionStatement, final Expression expression) {
         super(expressionStatement);
         this.expression = expression;
-        this.destructuringDecl = null;
+        // The declaration type belongs to the statement, not to the expression
+        // it currently holds: "const [a] = xs" is still a const declaration
+        // after a visitor has rewritten the pattern's default. Dropping it here
+        // left the desugaring unable to tell a declaration from an assignment,
+        // and "const [a = class {}] = []" threw on assigning to a constant.
+        this.destructuringDecl = expressionStatement.destructuringDecl;
     }
 
     @Override
