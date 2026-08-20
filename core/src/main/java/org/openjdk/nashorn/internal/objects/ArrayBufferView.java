@@ -42,6 +42,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayData;
@@ -393,6 +394,121 @@ public abstract class ArrayBufferView extends ScriptObject {
     }
 
     /**
+     * ES2015 22.2.3.5.1 TypedArraySpeciesCreate: what the operations deriving
+     * one typed array from another build.
+     *
+     * Unlike ArraySpeciesCreate there is no shortcut for the ordinary case. A
+     * typed array's constructor is reached through its prototype, and an
+     * instance may carry a constructor of its own, so the only way to know that
+     * the default applies is to look - and next to copying every element, two
+     * property reads are not what these methods cost.
+     *
+     * @param exemplar the array being derived from
+     * @param length   how long the new one is to be
+     * @return the array to fill in
+     */
+    static ArrayBufferView speciesCreate(final ArrayBufferView exemplar, final int length) {
+        final ScriptFunction species = speciesConstructor(exemplar);
+        if (species == null) {
+            return exemplar.factory().construct(length);
+        }
+        return typedArrayCreate(ScriptRuntime.construct(species, (double)length), length);
+    }
+
+    /**
+     * The species constructor to derive from, or null for the default one.
+     *
+     * ES2015 7.3.20 SpeciesConstructor: the constructor property, then its
+     * @@species; either being absent means the default, and anything present
+     * that is not a constructor is a TypeError.
+     */
+    private static ScriptFunction speciesConstructor(final ArrayBufferView exemplar) {
+        final Object constructor = exemplar.get("constructor");
+        if (constructor == ScriptRuntime.UNDEFINED) {
+            return null;
+        }
+        if (!(constructor instanceof ScriptObject ctor)) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
+        }
+        final Object species = ctor.get(NativeSymbol.species);
+        if (species == ScriptRuntime.UNDEFINED || species == null) {
+            return null;
+        }
+        if (!(species instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(species));
+        }
+        return function;
+    }
+
+    /**
+     * ES2015 22.2.4.6 TypedArrayCreate: what a species constructor hands back
+     * has to be a usable typed array, and one long enough for what was asked.
+     */
+    private static ArrayBufferView typedArrayCreate(final Object created, final int length) {
+        if (!(created instanceof ArrayBufferView result)) {
+            throw typeError("not.a.typed.array", ScriptRuntime.safeToString(created));
+        }
+        if (result.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+        if (length >= 0 && result.elementLength() < length) {
+            throw typeError("typed.array.too.short", JSType.toString(length));
+        }
+        return result;
+    }
+
+    /**
+     * ES2015 22.2.3.26 %TypedArray%.prototype.subarray - another view over the
+     * same buffer, so a species constructor is given the buffer rather than a
+     * length.
+     *
+     * There is no detachment check: subarray is one of the few methods that does
+     * not begin with ValidateTypedArray.
+     */
+    protected static ScriptObject subarrayImpl(final Object self, final Object begin0, final Object end0) {
+        final ArrayBufferView source = (ArrayBufferView)self;
+        final int bytesPerElement = source.bytesPerElement();
+        final int elementLength = source.getElementLength();
+
+        final int begin = relativeIndex(begin0, elementLength, 0);
+        final int end = relativeIndex(end0, elementLength, elementLength);
+        final int length = Math.max(end - begin, 0);
+        final int byteOffset = begin * bytesPerElement + source.byteOffset;
+
+        assert source.byteOffset % bytesPerElement == 0;
+
+        final ScriptFunction species = speciesConstructor(source);
+        if (species == null) {
+            return source.factory().construct(source.buffer, byteOffset, length);
+        }
+        return typedArrayCreate(
+                ScriptRuntime.construct(species, source.buffer, (double)byteOffset, (double)length), -1);
+    }
+
+    /**
+     * An argument that indexes from either end, as slice, subarray, fill and
+     * copyWithin all take: ToInteger, negative counting back from the length,
+     * clamped to it.
+     *
+     * @param value      the argument as written
+     * @param length     what it is relative to
+     * @param ifUndefined what an absent argument means
+     * @return an index in 0..length
+     */
+    static int relativeIndex(final Object value, final int length, final int ifUndefined) {
+        if (value == ScriptRuntime.UNDEFINED) {
+            return ifUndefined;
+        }
+        final double number = JSType.toNumber(value);
+        final double integer = Double.isNaN(number) ? 0
+                : number < 0 ? Math.ceil(number) : Math.floor(number);
+        if (integer < 0) {
+            return (int)Math.max(length + integer, 0);
+        }
+        return (int)Math.min(integer, length);
+    }
+
+    /**
      * Inheritable implementation of set, if no efficient implementation is available
      *
      * @param self     ArrayBufferView instance
@@ -488,20 +604,6 @@ public abstract class ArrayBufferView extends ScriptObject {
      *
      * @return sub array
      */
-    protected static ScriptObject subarrayImpl(final Object self, final Object begin0, final Object end0) {
-        final ArrayBufferView arrayView       = (ArrayBufferView)self;
-        final int             byteOffset      = arrayView.byteOffset;
-        final int             bytesPerElement = arrayView.bytesPerElement();
-        final int             elementLength   = arrayView.elementLength();
-        final int             begin           = NativeArrayBuffer.adjustIndex(JSType.toInt32(begin0), elementLength);
-        final int             end             = NativeArrayBuffer.adjustIndex(end0 != ScriptRuntime.UNDEFINED ? JSType.toInt32(end0) : elementLength, elementLength);
-        final int             length          = Math.max(end - begin, 0);
-
-        assert byteOffset % bytesPerElement == 0;
-
-        //second is byteoffset
-        return arrayView.factory().construct(arrayView.buffer, begin * bytesPerElement + byteOffset, length);
-    }
 
     @Override
     protected GuardedInvocation findGetIndexMethod(final CallSiteDescriptor desc, final LinkRequest request) {

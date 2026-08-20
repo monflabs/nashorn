@@ -27,7 +27,9 @@ package org.openjdk.nashorn.internal.objects;
 
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Constructor;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
@@ -219,13 +221,20 @@ public final class NativeTypedArray extends ScriptObject {
     public static Object slice(final Object self, final Object start, final Object end) {
         final ArrayBufferView source = view(self);
         final int length = source.getElementLength();
-        final int from   = NativeArrayBuffer.adjustIndex(JSType.toInt32(start), length);
-        final int to     = NativeArrayBuffer.adjustIndex(
-                end != ScriptRuntime.UNDEFINED ? JSType.toInt32(end) : length, length);
+        final int from = ArrayBufferView.relativeIndex(start, length, 0);
+        final int to   = ArrayBufferView.relativeIndex(end, length, length);
+        final int count = Math.max(to - from, 0);
 
-        final ArrayBufferView result = source.factory().construct(Math.max(to - from, 0));
-        for (int i = from, j = 0; i < to; i++, j++) {
-            result.set(j, source.get(i), 0);
+        final ArrayBufferView result = ArrayBufferView.speciesCreate(source, count);
+        if (count > 0) {
+            // ES2015 22.2.3.23 step 14.a: converting the arguments, and the
+            // species constructor itself, can have detached the source
+            if (source.isDetached()) {
+                throw typeError("detached.array.buffer");
+            }
+            for (int i = from, j = 0; i < to; i++, j++) {
+                result.set(j, source.get(i), 0);
+            }
         }
         return result;
     }
@@ -236,12 +245,21 @@ public final class NativeTypedArray extends ScriptObject {
      * @param self       self reference
      * @param callbackfn what to apply to each element
      * @param thisArg    its this
-     * @return a new typed array of the same type holding the results
+     * @return a new typed array holding the results
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object map(final Object self, final Object callbackfn, final Object thisArg) {
         final ArrayBufferView source = view(self);
-        return copyInto(source, NativeArray.map(source, callbackfn, thisArg));
+        final int length = source.getElementLength();
+        callable(callbackfn);
+
+        // 22.2.3.19 step 6: the result is made before the callback runs even
+        // once, which is observable through a species constructor
+        final ArrayBufferView result = ArrayBufferView.speciesCreate(source, length);
+        for (int i = 0; i < length; i++) {
+            result.set(i, call(callbackfn, thisArg, source.get(i), i, source), 0);
+        }
+        return result;
     }
 
     /**
@@ -250,12 +268,42 @@ public final class NativeTypedArray extends ScriptObject {
      * @param self       self reference
      * @param callbackfn what decides whether an element is kept
      * @param thisArg    its this
-     * @return a new typed array of the same type holding the elements it kept
+     * @return a new typed array holding the elements it kept
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object filter(final Object self, final Object callbackfn, final Object thisArg) {
         final ArrayBufferView source = view(self);
-        return copyInto(source, NativeArray.filter(source, callbackfn, thisArg));
+        final int length = source.getElementLength();
+        callable(callbackfn);
+
+        final List<Object> kept = new ArrayList<>();
+        for (int i = 0; i < length; i++) {
+            final Object value = source.get(i);
+            if (JSType.toBoolean(call(callbackfn, thisArg, value, i, source))) {
+                kept.add(value);
+            }
+        }
+
+        // 22.2.3.9 step 11: how many were kept is only known now, which is why
+        // filter builds its result at the end where map builds it at the start
+        final ArrayBufferView result = ArrayBufferView.speciesCreate(source, kept.size());
+        for (int i = 0; i < kept.size(); i++) {
+            result.set(i, kept.get(i), 0);
+        }
+        return result;
+    }
+
+    /** The callback these methods take, which has to be one before anything else happens. */
+    private static void callable(final Object callbackfn) {
+        if (!Bootstrap.isCallable(callbackfn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(callbackfn));
+        }
+    }
+
+    /** One call of such a callback, with the arguments ES2015 22.2.3 gives it. */
+    private static Object call(final Object callbackfn, final Object thisArg,
+            final Object value, final int index, final ArrayBufferView self) {
+        return ScriptRuntime.call(callbackfn, thisArg, new Object[] { value, (double)index, self });
     }
 
     /**
@@ -299,15 +347,6 @@ public final class NativeTypedArray extends ScriptObject {
         return array;
     }
 
-    /** A new typed array of {@code source}'s type, holding what an Array method produced. */
-    private static ArrayBufferView copyInto(final ArrayBufferView source, final ScriptObject elements) {
-        final int length = (int)JSType.toUint32(elements.getLength());
-        final ArrayBufferView result = source.factory().construct(length);
-        for (int i = 0; i < length; i++) {
-            result.set(i, elements.get(i), 0);
-        }
-        return result;
-    }
 
     /**
      * ES2015 22.2.3.14 %TypedArray%.prototype.join.
@@ -371,6 +410,19 @@ public final class NativeTypedArray extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static double indexOf(final Object self, final Object searchElement, final Object fromIndex) {
         return NativeArray.indexOf(view(self), searchElement, fromIndex);
+    }
+
+    /**
+     * ECMAScript 2016 22.2.3.13.1 %TypedArray%.prototype.includes.
+     *
+     * @param self          self reference
+     * @param searchElement what to look for
+     * @param fromIndex     where to start
+     * @return whether it is there
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static boolean includes(final Object self, final Object searchElement, final Object fromIndex) {
+        return NativeArray.includes(view(self), searchElement, fromIndex);
     }
 
     /**
