@@ -695,7 +695,18 @@ public abstract class ArrayBufferView extends ScriptObject {
     }
 
     private boolean dropWrite(final double key) {
+        // An index that arrives as a number is already canonical, so the string
+        // it would make of itself does not have to be made: only the range
+        // matters. This is every element write an internal loop performs.
+        if (key >= 0 && key < getElementLength() && key == Math.floor(key)
+                && Double.doubleToRawLongBits(key) != Double.doubleToRawLongBits(-0.0)) {
+            return false;
+        }
         return dropWrite(JSType.toString(key));
+    }
+
+    private boolean dropWrite(final int key) {
+        return key < 0 || key >= getElementLength();
     }
 
     @Override
@@ -742,21 +753,21 @@ public abstract class ArrayBufferView extends ScriptObject {
 
     @Override
     public void set(final int key, final Object value, final int callSiteFlags) {
-        if (!dropWrite((double)key)) {
+        if (!dropWrite(key)) {
             super.set(key, value, callSiteFlags);
         }
     }
 
     @Override
     public void set(final int key, final int value, final int callSiteFlags) {
-        if (!dropWrite((double)key)) {
+        if (!dropWrite(key)) {
             super.set(key, value, callSiteFlags);
         }
     }
 
     @Override
     public void set(final int key, final double value, final int callSiteFlags) {
-        if (!dropWrite((double)key)) {
+        if (!dropWrite(key)) {
             super.set(key, value, callSiteFlags);
         }
     }
