@@ -124,8 +124,15 @@ public final class Global extends Scope {
      * problems with guard speed.
      */
 
-    /** Nashorn extension: arguments array */
-    @Property(attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_CONFIGURABLE)
+    /**
+     * Nashorn extension: the command line arguments, exposed as a global.
+     *
+     * It is not declared as a property here because it is only one when there
+     * is something to put in it - the global object of a program nobody passed
+     * arguments to has no "arguments" in it, which is what ES2015 says of every
+     * global object and what the conformance suite checks before it does
+     * anything else.
+     */
     public Object arguments;
 
     /** ECMA 15.1.2.2 parseInt (string , radix) */
@@ -2886,8 +2893,11 @@ public final class Global extends Scope {
 
         // expose script (command line) arguments as "arguments" property of global
         arguments = wrapAsObject(env.getArguments().toArray());
+        if (!env.getArguments().isEmpty()) {
+            addOwnProperty("arguments", Attribute.NOT_ENUMERABLE | Attribute.NOT_CONFIGURABLE, arguments);
+        }
         if (env._scripting) {
-            // synonym for "arguments" in scripting mode
+            // synonym for "arguments" in scripting mode, which is there either way
             addOwnProperty("$ARG", Attribute.NOT_ENUMERABLE, arguments);
         }
 

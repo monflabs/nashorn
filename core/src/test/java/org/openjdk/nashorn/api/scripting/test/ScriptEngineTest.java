@@ -112,8 +112,12 @@ public class ScriptEngineTest {
         final ScriptEngine e = m.getEngineByName("nashorn");
 
         try {
-            assertEquals(e.eval("arguments instanceof Array"), true);
-            assertEquals(e.eval("arguments.length == 0"), true);
+            // The "arguments" global is a Nashorn extension carrying what was
+            // passed on the command line, and it is only there when something
+            // was: ES2015 gives a global object no "arguments" of its own, and
+            // an empty array said nothing a script could not learn from the
+            // property being absent.
+            assertEquals(e.eval("typeof arguments === 'undefined'"), true);
         } catch (final Exception exp) {
             exp.printStackTrace();
             fail(exp.getMessage());

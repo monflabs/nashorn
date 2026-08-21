@@ -31,9 +31,11 @@
  * @option -Dnashorn.options.allowEagerCompilationSilentOverride
  * @option -scripting
  * @option --lazy-compilation=false
+ * @argument earley-boyer
  */
 
 var fn  = __DIR__ + 'compile-octane.js';
-arguments.push("earley-boyer"); // run only earley-boyer
+// which one to run comes in as a command line argument, since the global
+// "arguments" is only there when something was passed
 var url = new java.io.File(fn).toURL();
 load(url);
