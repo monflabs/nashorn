@@ -131,12 +131,10 @@ public class ScriptFunction extends ScriptObject {
     private static final Object LAZY_PROTOTYPE = new Object();
 
     private static PropertyMap createStrictModeMap(final PropertyMap map) {
-        final int flags = Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE;
-        PropertyMap newMap = map;
-        // Need to add properties directly to map since slots are assigned speculatively by newUserAccessors.
-        newMap = newMap.addPropertyNoHistory(newMap.newUserAccessors("arguments", flags));
-        newMap = newMap.addPropertyNoHistory(newMap.newUserAccessors("caller", flags));
-        return newMap;
+        // ES2015 16.2 forbids what ES5.1 required: a strict function does not
+        // get its own poisoned "arguments" and "caller". The one pair lives on
+        // Function.prototype, where every function inherits it.
+        return map;
     }
 
     private static PropertyMap createBoundFunctionMap(final PropertyMap strictModeMap) {
@@ -233,14 +231,7 @@ public class ScriptFunction extends ScriptObject {
         this.setInitialProto(global.getFunctionPrototype());
         this.prototype = LAZY_PROTOTYPE;
 
-        // We have to fill user accessor functions late as these are stored
-        // in this object rather than in the PropertyMap of this object.
         assert objectSpill == null;
-        if (isStrict() || isBoundFunction()) {
-            final ScriptFunction typeErrorThrower = global.getTypeErrorThrower();
-            initUserAccessors("arguments", typeErrorThrower, typeErrorThrower);
-            initUserAccessors("caller", typeErrorThrower, typeErrorThrower);
-        }
     }
 
     /**
@@ -904,7 +895,7 @@ public class ScriptFunction extends ScriptObject {
      */
     public static int G$length(final Object self) {
         if (self instanceof ScriptFunction) {
-            return ((ScriptFunction) self).data.getArity();
+            return ((ScriptFunction) self).data.getLength();
         }
 
         return 0;

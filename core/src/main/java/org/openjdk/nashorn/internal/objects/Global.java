@@ -3148,6 +3148,7 @@ public final class Global extends Scope {
         // whose length stays non-configurable now that every other function's is.
         typeErrorThrower.freeze();
 
+
         // now initialize Object
         this.builtinObject = initConstructor("Object", ScriptFunction.class);
         final ScriptObject ObjectPrototype = getObjectPrototype();
@@ -3159,6 +3160,17 @@ public final class Global extends Scope {
         final ScriptFunction getProto = ScriptFunction.createBuiltin("getProto", NativeObject.GET__PROTO__);
         final ScriptFunction setProto = ScriptFunction.createBuiltin("setProto", NativeObject.SET__PROTO__);
         ObjectPrototype.addOwnProperty("__proto__", Attribute.NOT_ENUMERABLE, getProto, setProto);
+
+        // ES2015 9.2.7: %FunctionPrototype% holds the one "caller" and
+        // "arguments" pair, as accessors that throw, and every function reaches
+        // them through it - ES5.1 put a pair on each strict function instead.
+        // It goes on after the walk below, which reads every key it finds here.
+        final Runnable restrictedProperties = () -> {
+            anon.addOwnProperty("caller", Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR,
+                    typeErrorThrower, typeErrorThrower);
+            anon.addOwnProperty("arguments", Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR,
+                    typeErrorThrower, typeErrorThrower);
+        };
 
         // Function valued properties of Function.prototype were not properly
         // initialized. Because, these were created before global.function and
@@ -3210,6 +3222,8 @@ public final class Global extends Scope {
                 }
             }
         }
+
+        restrictedProperties.run();
 
         tagBuiltinProperties("Object", builtinObject);
         tagBuiltinProperties("Function", builtinFunction);

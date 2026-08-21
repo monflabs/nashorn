@@ -5058,8 +5058,11 @@ public class Parser extends AbstractParser implements Loggable {
             final long paramToken = lhs.getToken();
             final Expression initializer = ((BinaryNode) param).rhs();
             if (lhs instanceof IdentNode) {
-                // default parameter
-                final IdentNode ident = (IdentNode) lhs;
+                // default parameter. The mark is what SetFunctionLength counts
+                // up to, so an arrow's parameters have to carry it as a
+                // function's do - the cover grammar this comes from does not
+                // put it there.
+                final IdentNode ident = ((IdentNode) lhs).setIsDefaultParameter();
 
                 final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
                 if (currentFunction != null) {

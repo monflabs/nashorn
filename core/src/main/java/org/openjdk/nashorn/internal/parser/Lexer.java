@@ -734,6 +734,25 @@ public class Lexer extends Scanner {
         return value;
     }
 
+    /**
+     * The code point a {@code \\u} escape in an identifier names.
+     *
+     * ES2015 11.6.1 lets an identifier be written with either form of the
+     * escape, so {@code \\u{61}bc} and {@code \\u0061bc} are both abc, and the
+     * braced one can name a code point outside the basic plane.
+     *
+     * The two leading characters are already consumed.
+     *
+     * @return the code point, or -1 if the escape was malformed
+     */
+    private int identifierEscape() {
+        if (ch0 == '{') {
+            skip(1);
+            return bracedCodePoint();
+        }
+        return hexSequence(4, TokenType.IDENT);
+    }
+
     private int hexSequence(final int length, final TokenType type) {
         int value = 0;
 
@@ -798,10 +817,10 @@ public class Lexer extends Scanner {
             // If escape character.
             if (ch0 == '\\' && ch1 == 'u') {
                 skip(2);
-                final int ch = hexSequence(4, TokenType.IDENT);
+                final int ch = identifierEscape();
                 assert ! isWhitespace((char)ch);
                 assert ch >= 0;
-                sb.append((char)ch);
+                sb.appendCodePoint(ch);
             } else {
                 // Add regular character.
                 sb.append(ch0);
@@ -1326,7 +1345,7 @@ public class Lexer extends Scanner {
         // Make sure first character is valid start character.
         if (ch0 == '\\' && ch1 == 'u') {
             skip(2);
-            final int ch = hexSequence(4, TokenType.IDENT);
+            final int ch = identifierEscape();
 
             if (!Character.isJavaIdentifierStart(ch)) {
                 error(Lexer.message("illegal.identifier.character"), TokenType.IDENT, start, position);
@@ -1340,7 +1359,7 @@ public class Lexer extends Scanner {
         while (!atEOF()) {
             if (ch0 == '\\' && ch1 == 'u') {
                 skip(2);
-                final int ch = hexSequence(4, TokenType.IDENT);
+                final int ch = identifierEscape();
 
                 if (!Character.isJavaIdentifierPart(ch)) {
                     error(Lexer.message("illegal.identifier.character"), TokenType.IDENT, start, position);

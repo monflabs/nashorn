@@ -28,7 +28,10 @@
  * @run
  */
 
-var callerPropDesc = Object.getOwnPropertyDescriptor(function(){"use strict"},"caller");
+// ES2015 16.2 forbids the own "caller" and "arguments" a strict function used
+// to carry; the one pair the [[ThrowTypeError]] function backs lives on
+// Function.prototype, and that is where its shape is checked from now.
+var callerPropDesc = Object.getOwnPropertyDescriptor(Function.prototype, "caller");
 
 var getterLen = callerPropDesc.get.length;
 if (getterLen != 0) {
@@ -40,7 +43,7 @@ if (setterLen != 0) {
     fail("caller's set.length != 1");
 }
 
-var argumentsPropDesc = Object.getOwnPropertyDescriptor(function(){"use strict"},"arguments");
+var argumentsPropDesc = Object.getOwnPropertyDescriptor(Function.prototype, "arguments");
 
 getterLen = argumentsPropDesc.get.length;
 if (getterLen != 0) {

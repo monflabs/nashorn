@@ -28,10 +28,10 @@
  * @run
  */
 
-var strictFunc = (function() { 'use strict' });
-var desc = Object.getOwnPropertyDescriptor(strictFunc, "caller");
+// ES2015 16.2 moved the pair off strict functions and onto Function.prototype
+var desc = Object.getOwnPropertyDescriptor(Function.prototype, "caller");
 if (desc.get.hasOwnProperty("prototype")) {
-   fail("strict function's caller getter has 'prototype' property");
+   fail("caller getter has 'prototype' property");
 }
 
 // try few built-ins

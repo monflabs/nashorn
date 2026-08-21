@@ -57,6 +57,7 @@ import org.openjdk.nashorn.internal.codegen.types.Type;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.ForNode;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
+import java.util.List;
 import org.openjdk.nashorn.internal.ir.IdentNode;
 import org.openjdk.nashorn.internal.ir.LexicalContext;
 import org.openjdk.nashorn.internal.ir.Node;
@@ -167,6 +168,8 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         super(functionName(functionNode),
               Math.min(functionNode.getParameters().size(), MAX_ARITY),
               getDataFlags(functionNode));
+
+        setLength(specifiedLength(functionNode));
 
         this.functionName        = functionNode.getName();
         this.lineNumber          = functionNode.getLineNumber();
@@ -332,6 +335,25 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
     @Override
     public boolean inDynamicContext() {
         return getFunctionFlag(FunctionNode.IN_DYNAMIC_CONTEXT);
+    }
+
+    /**
+     * ES2015 9.2.4 SetFunctionLength: the parameters before the first one that
+     * has a default or gathers the rest.
+     *
+     * The arity this was built with is how many parameters the compiled method
+     * takes, which is a different number as soon as one has a default, and is
+     * what every call site is shaped from - so the two are kept apart.
+     */
+    private static int specifiedLength(final FunctionNode functionNode) {
+        final List<IdentNode> parameters = functionNode.getParameters();
+        for (int i = 0; i < parameters.size(); i++) {
+            final IdentNode parameter = parameters.get(i);
+            if (parameter.isDefaultParameter() || parameter.isRestParameter()) {
+                return i;
+            }
+        }
+        return Math.min(parameters.size(), MAX_ARITY);
     }
 
     private static String functionName(final FunctionNode fn) {

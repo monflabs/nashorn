@@ -78,6 +78,9 @@ public abstract class ScriptFunctionData implements Serializable {
     // value, the function might still be capable of receiving variable number of arguments, see isVariableArity.
     private int arity;
 
+    /** The ES2015 length, or -1 when it is just the arity. */
+    private int length = -1;
+
     /**
      * A pair of method handles used for generic invoker and constructor. Field is volatile as it can be initialized by
      * multiple threads concurrently, but we still tolerate a race condition in it as all values stored into it are
@@ -139,6 +142,27 @@ public abstract class ScriptFunctionData implements Serializable {
 
     final int getArity() {
         return arity;
+    }
+
+    /**
+     * What the function reports as its length.
+     *
+     * ES2015 9.2.4 counts the parameters before the first one with a default
+     * or the rest parameter, where the arity above is how many the compiled
+     * method takes - the two part company as soon as a parameter has a default,
+     * and the arity is what the call site is built from.
+     *
+     * @return the length, which is the arity unless something set it apart
+     */
+    int getLength() {
+        return length < 0 ? getArity() : length;
+    }
+
+    /**
+     * @param length the ES2015 length, when it differs from the arity
+     */
+    final void setLength(final int length) {
+        this.length = length;
     }
 
     String getDocumentation() {

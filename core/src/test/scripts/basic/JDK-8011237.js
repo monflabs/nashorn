@@ -31,9 +31,9 @@
 // ECMA Section 13.2.3 The [[ThrowTypeError]] Function Object
 // 11. Set the [[Extensible]] internal property of F to false
 
-var strictFunc = (function() { 'use strict' });
-var strictFuncCallerDesc = Object.getOwnPropertyDescriptor(strictFunc, "caller")
-var isExtensible = Object.isExtensible(strictFuncCallerDesc.get);
+// ES2015 16.2 moved the pair off strict functions and onto Function.prototype
+var callerDesc = Object.getOwnPropertyDescriptor(Function.prototype, "caller")
+var isExtensible = Object.isExtensible(callerDesc.get);
 if (isExtensible) {
-    fail("strict function caller's getter is extensible!");
+    fail("caller's getter is extensible!");
 }

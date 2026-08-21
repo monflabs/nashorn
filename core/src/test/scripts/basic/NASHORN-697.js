@@ -40,20 +40,25 @@ if (toString.call(null) !== "[object Null]") {
 }
 
 
-// make sure builtin functions are not strict! For example,
-// trying to access arguments and caller should not result in TypeError
+// ES2015 16.2 gives every function the same restricted "arguments" and
+// "caller", inherited from Function.prototype and throwing when read, so
+// reading them from a built-in is a TypeError like anywhere else. What this
+// once checked - that a built-in is not treated as strict - no longer has
+// these two to tell it by.
 try {
-    if (toString.arguments) {
-        fail("toString.arguments is defined!");
-    }
+    toString.arguments;
+    fail("reading toString.arguments did not throw");
 } catch (e) {
-    fail("got " + e, e);
+    if (!(e instanceof TypeError)) {
+        fail("got " + e, e);
+    }
 }
 
 try {
-    if (toString.caller) {
-        fail("toString.caller is defined!");
-    }
+    toString.caller;
+    fail("reading toString.caller did not throw");
 } catch (e) {
-    fail("got " + e, e);
+    if (!(e instanceof TypeError)) {
+        fail("got " + e, e);
+    }
 }

@@ -33,6 +33,12 @@ function checkGetterSetter(obj, expectError) {
         var properties = Object.getOwnPropertyNames(obj);
         for (var i in properties) {
             var prop = properties[i];
+            // ES2015 16.2: Function.prototype's "caller" and "arguments" are
+            // accessors that throw whatever you do with them, which every
+            // function reaches through it. Reading one is not a getter failing.
+            if (obj === Function.prototype && (prop === "caller" || prop === "arguments")) {
+                continue;
+            }
             try {
                 if (!/\d.*/.test(prop)) {
                     eval("obj." + prop + " = " + "obj." + prop + ";");
