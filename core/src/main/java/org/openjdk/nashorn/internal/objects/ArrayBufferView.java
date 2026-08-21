@@ -579,6 +579,24 @@ public abstract class ArrayBufferView extends ScriptObject {
             if (length + offset > targetLength) {
                 throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
             }
+            final int at = (int)offset;
+
+            if (source.getClass() == dest.getClass() && source.buffer != dest.buffer) {
+                // Same element type and separate storage: nothing to convert and
+                // nothing to overlap, so the elements go across as themselves
+                // rather than as boxed numbers. This is the common copy.
+                if (dest.isFloatArray()) {
+                    for (int i = 0; i < length; i++) {
+                        dest.set(at + i, source.getDouble(i, INVALID_PROGRAM_POINT), 0);
+                    }
+                } else {
+                    for (int i = 0; i < length; i++) {
+                        dest.set(at + i, source.getInt(i, INVALID_PROGRAM_POINT), 0);
+                    }
+                }
+                return ScriptRuntime.UNDEFINED;
+            }
+
             // The two views can be over the same buffer, and the ranges can
             // overlap, so the source is read out before any of it is written
             final Object[] values = new Object[length];
@@ -586,7 +604,7 @@ public abstract class ArrayBufferView extends ScriptObject {
                 values[i] = source.get(i);
             }
             for (int i = 0; i < length; i++) {
-                dest.set((int)offset + i, values[i], 0);
+                dest.set(at + i, values[i], 0);
             }
             return ScriptRuntime.UNDEFINED;
         }
