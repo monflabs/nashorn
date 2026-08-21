@@ -732,7 +732,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return resulting NativeArray
      */
     @SpecializedFunction(linkLogic=ConcatLinkLogic.class, convertsNumericArgs = false)
-    public static NativeArray concat(final Object self, final int arg) {
+    public static Object concat(final Object self, final int arg) {
+        if (!hasDefaultSpecies(self, Global.instance())) {
+            // a species of its own means the derived array is not this one's to
+            // make, and none of what follows applies
+            return concat(self, new Object[] { arg });
+        }
         final ContinuousArrayData newData = getContinuousArrayDataCCE(self, Integer.class).copy(); //get at least an integer data copy of this data
         newData.fastPush(arg); //add an integer to its end
         return new NativeArray(newData);
@@ -746,7 +751,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return resulting NativeArray
      */
     @SpecializedFunction(linkLogic=ConcatLinkLogic.class, convertsNumericArgs = false)
-    public static NativeArray concat(final Object self, final double arg) {
+    public static Object concat(final Object self, final double arg) {
+        if (!hasDefaultSpecies(self, Global.instance())) {
+            // a species of its own means the derived array is not this one's to
+            // make, and none of what follows applies
+            return concat(self, new Object[] { arg });
+        }
         final ContinuousArrayData newData = getContinuousArrayDataCCE(self, Double.class).copy(); //get at least a number array data copy of this data
         newData.fastPush(arg); //add a double at the end
         return new NativeArray(newData);
@@ -760,7 +770,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return resulting NativeArray
      */
     @SpecializedFunction(linkLogic=ConcatLinkLogic.class)
-    public static NativeArray concat(final Object self, final Object arg) {
+    public static Object concat(final Object self, final Object arg) {
+        if (!hasDefaultSpecies(self, Global.instance())) {
+            // a species of its own means the derived array is not this one's to
+            // make, and none of what follows applies
+            return concat(self, new Object[] { arg });
+        }
         //arg is [NativeArray] of same type.
         final ContinuousArrayData selfData = getContinuousArrayDataCCE(self);
         final ContinuousArrayData newData;
@@ -791,7 +806,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return resulting NativeArray
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
-    public static NativeArray concat(final Object self, final Object... args) {
+    public static Object concat(final Object self, final Object... args) {
         final ArrayList<Object> list = new ArrayList<>();
 
         concatToList(list, Global.toObject(self));
@@ -800,7 +815,37 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             concatToList(list, obj);
         }
 
-        return new NativeArray(list.toArray());
+        // ES2015 22.1.3.1 step 2: the result is made before anything is put in
+        // it, by the species, and an element goes in with CreateDataProperty -
+        // which a species that refuses to take one turns into a TypeError
+        final Global global = Global.instance();
+        if (!(self instanceof ScriptObject sobj) || !isArray(sobj) || hasDefaultSpecies(sobj, global)) {
+            return new NativeArray(list.toArray());
+        }
+
+        final ScriptObject result = speciesCreate(self, 0);
+        long index = 0;
+        for (final Object value : list) {
+            if (value != ScriptRuntime.EMPTY) {
+                createDataProperty(result, index, value);
+            }
+            index++;
+        }
+        result.set("length", index, CALLSITE_STRICT);
+        return result;
+    }
+
+    /**
+     * CreateDataPropertyOrThrow (ES2015 7.3.6) against an array being built.
+     *
+     * The operations deriving one array from another put their elements in this
+     * way rather than by assignment, so a result that will not take a property -
+     * one that is not extensible, or that already has a non-configurable one
+     * there - is an error rather than something quietly dropped.
+     */
+    private static void createDataProperty(final ScriptObject target, final long index, final Object value) {
+        final PropertyDescriptor desc = Global.instance().newDataDescriptor(value, true, true, true);
+        target.defineOwnProperty(JSType.toString(index), desc, true);
     }
 
     private static void concatToList(final ArrayList<Object> list, final Object obj) {
@@ -1168,23 +1213,35 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         long k = relativeStart < 0 ? Math.max(len + relativeStart, 0) : Math.min(relativeStart, len);
         final long finale = relativeEnd < 0 ? Math.max(len + relativeEnd, 0) : Math.min(relativeEnd, len);
 
-        if (k >= finale) {
-            return new NativeArray(0);
+        final long count = Math.max(finale - k, 0);
+        final boolean ordinary = hasDefaultSpecies(sobj, Global.instance());
+
+        if (ordinary) {
+            if (count == 0) {
+                return new NativeArray(0);
+            }
+            if (bulkable(sobj)) {
+                return new NativeArray(sobj.getArray().slice(k, finale));
+            }
+            // Construct array with proper length to have a deleted filter on undefined elements
+            final NativeArray copy = new NativeArray(count);
+            for (long n = 0; k < finale; n++, k++) {
+                if (sobj.has(k)) {
+                    copy.defineOwnProperty(ArrayIndex.getArrayIndex(n), sobj.get(k));
+                }
+            }
+            return copy;
         }
 
-        if (bulkable(sobj)) {
-            return new NativeArray(sobj.getArray().slice(k, finale));
-        }
-
-        // Construct array with proper length to have a deleted filter on undefined elements
-        final NativeArray copy = new NativeArray(finale - k);
+        // ES2015 22.1.3.22 step 9: a species is given the count up front
+        final ScriptObject result = speciesCreate(self, count);
         for (long n = 0; k < finale; n++, k++) {
             if (sobj.has(k)) {
-                copy.defineOwnProperty(ArrayIndex.getArrayIndex(n), sobj.get(k));
+                createDataProperty(result, n, sobj.get(k));
             }
         }
-
-        return copy;
+        result.set("length", count, CALLSITE_STRICT);
+        return result;
     }
 
     private static Object compareFunction(final Object comparefn) {
@@ -1370,6 +1427,21 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
                 items = new Object[args.length - 2];
                 System.arraycopy(args, 2, items, 0, items.length);
             }
+        }
+
+        if (!hasDefaultSpecies(sobj, Global.instance())) {
+            // ES2015 22.1.3.25 step 12: what is removed goes into an array the
+            // species makes, and only the removed part does - the splicing
+            // itself still happens to this array
+            final ScriptObject removed = speciesCreate(self, actualDeleteCount);
+            for (long k = 0; k < actualDeleteCount; k++) {
+                if (sobj.has(actualStart + k)) {
+                    createDataProperty(removed, k, sobj.get(actualStart + k));
+                }
+            }
+            removed.set("length", actualDeleteCount, CALLSITE_STRICT);
+            slowSplice(sobj, actualStart, actualDeleteCount, items, len);
+            return removed;
         }
 
         NativeArray returnValue;
@@ -1681,7 +1753,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             @Override
             protected boolean forEach(final Object val, final double i) throws Throwable {
                 final Object r = mapInvoker.invokeExact(callbackfn, thisArg, val, i, self);
-                result.defineOwnProperty(ArrayIndex.getArrayIndex(index), r);
+                // CreateDataPropertyOrThrow, not an assignment: what is already
+                // at that index in a species-provided array is replaced,
+                // attributes and all
+                createDataProperty(result, index, r);
                 return true;
             }
 
@@ -1711,7 +1786,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             @Override
             protected boolean forEach(final Object val, final double i) throws Throwable {
                 if ((boolean)filterInvoker.invokeExact(callbackfn, thisArg, val, i, self)) {
-                    result.defineOwnProperty(ArrayIndex.getArrayIndex(to++), val);
+                    createDataProperty(result, to++, val);
                 }
                 return true;
             }
@@ -1733,12 +1808,27 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @param length   the length to create with
      * @return the object to fill in
      */
+    /**
+     * Whether an array is one whose derived arrays are ordinary arrays.
+     *
+     * An array whose prototype is the realm's own Array.prototype, and which
+     * does not shadow constructor with one of its own, has the realm's
+     * constructor and so the default species. That is two reference
+     * comparisons where the full answer is two property reads and a call, on a
+     * path that map, filter, slice and concat all sit on.
+     */
+    private static boolean hasDefaultSpecies(final Object array, final Global global) {
+        return array instanceof ScriptObject sobj
+                && sobj.getProto() == global.getArrayPrototype()
+                && sobj.getMap().findProperty("constructor") == null;
+    }
+
     private static ScriptObject speciesCreate(final Object original, final long length) {
         final Global global = Global.instance();
-        if (!(original instanceof ScriptObject sobj) || sobj.getProto() == global.getArrayPrototype()) {
+        if (!(original instanceof ScriptObject sobj) || !isArray(sobj)) {
             return new NativeArray(length);
         }
-        if (!isArray(sobj)) {
+        if (hasDefaultSpecies(sobj, global)) {
             return new NativeArray(length);
         }
 
