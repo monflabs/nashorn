@@ -612,19 +612,32 @@ public class ScriptFunction extends ScriptObject {
             return ScriptRuntime.apply(this, newTarget, args);
         }
 
-        if (!data.isBuiltin() && newTarget.getPrototype() instanceof ScriptObject prototype
-                && inherits(prototype, getPrototype())) {
-            final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
-            if (allocated != null) {
-                allocated.setInitialProto(prototype);
-                final Object result = ScriptRuntime.apply(this, allocated, args);
-                return result instanceof ScriptObject ? result : allocated;
+        // ES2015 9.1.13 OrdinaryCreateFromConstructor reads new.target's
+        // "prototype" as an ordinary property, so an accessor there runs - and
+        // runs once. getPrototype() would read the internal field past it.
+        if (!data.isBuiltin()) {
+            final Object newProto = newTarget.get("prototype");
+            if (newProto instanceof ScriptObject prototype && inherits(prototype, getPrototype())) {
+                final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
+                if (allocated != null) {
+                    allocated.setInitialProto(prototype);
+                    final Object result = ScriptRuntime.apply(this, allocated, args);
+                    return result instanceof ScriptObject ? result : allocated;
+                }
             }
+            return withProto(construct(args), newProto);
         }
 
+        // A built-in checks its arguments before it allocates anything, and the
+        // prototype is read as part of allocating - so a constructor that is
+        // going to reject what it was given rejects it before the read, which
+        // several tests pin down by making the read throw.
         final Object built = construct(args);
-        if (built instanceof ScriptObject object
-                && newTarget.getPrototype() instanceof ScriptObject prototype
+        return withProto(built, newTarget.get("prototype"));
+    }
+
+    private static Object withProto(final Object built, final Object newProto) {
+        if (built instanceof ScriptObject object && newProto instanceof ScriptObject prototype
                 && object.getProto() != prototype) {
             object.setProto(prototype);
         }

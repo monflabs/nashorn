@@ -332,23 +332,55 @@ public abstract class ArrayBufferView extends ScriptObject {
             while (iterator.hasNext()) {
                 values.add(iterator.next());
             }
-            final ArrayBufferView dest = factory.construct(values.size());
-            for (int i = 0; i < values.size(); i++) {
-                dest.set(i, values.get(i), 0);
-            }
-            return dest;
+            return filled(factory, values);
         }
 
         final ScriptObject source = (ScriptObject)object;
-        final long length = JSType.toUint32(source.get("length"));
+        final double length = toLength(source.get("length"));
         if (length > Integer.MAX_VALUE) {
-            throw rangeError("inappropriate.array.buffer.length", JSType.toString((double)length));
+            throw rangeError("inappropriate.array.buffer.length", JSType.toString(length));
         }
+
+        if (source instanceof NativeArray) {
+            // The array is standing in for its own iterator, and draining an
+            // iterator collects every value before any of them is converted -
+            // which a conversion that empties the array can tell apart from
+            // reading each element just before converting it.
+            final List<Object> values = new ArrayList<>((int)length);
+            for (int i = 0; i < length; i++) {
+                values.add(source.get(i));
+            }
+            return filled(factory, values);
+        }
+
+        // 22.2.4.4 step 8: a plain array-like is read one element at a time,
+        // and each is stored before the next is read
         final ArrayBufferView dest = factory.construct((int)length);
         for (int i = 0; i < length; i++) {
             dest.set(i, source.get(i), 0);
         }
         return dest;
+    }
+
+    private static ArrayBufferView filled(final Factory factory, final List<Object> values) {
+        final ArrayBufferView dest = factory.construct(values.size());
+        for (int i = 0; i < values.size(); i++) {
+            dest.set(i, values.get(i), 0);
+        }
+        return dest;
+    }
+
+    /**
+     * ES2015 7.1.15 ToLength, in double so that a length beyond an int is seen
+     * for what it is rather than wrapped.
+     */
+    private static double toLength(final Object value) {
+        final double number = JSType.toNumber(value);
+        if (Double.isNaN(number) || number <= 0) {
+            return 0;
+        }
+        final double integer = Math.floor(number);
+        return Math.min(integer, 9007199254740991d);
     }
 
     /**
