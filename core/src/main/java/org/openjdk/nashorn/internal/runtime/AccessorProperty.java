@@ -505,15 +505,27 @@ public class AccessorProperty extends Property {
     @Override
     public ScriptFunction getGetterFunction(final ScriptObject obj) {
         return isAccessorProperty() && objectGetter != null
-                ? ScriptFunction.createBuiltin("get " + getKey(), objectGetter)
+                ? ScriptFunction.createBuiltin(accessorName("get "), objectGetter)
                 : null;
     }
 
     @Override
     public ScriptFunction getSetterFunction(final ScriptObject obj) {
         return isAccessorProperty() && objectSetter != null
-                ? ScriptFunction.createBuiltin("set " + getKey(), objectSetter)
+                ? ScriptFunction.createBuiltin(accessorName("set "), objectSetter)
                 : null;
+    }
+
+    /**
+     * ES2015 9.2.11 SetFunctionName: an accessor is named after its key with
+     * "get " or "set " in front, and a symbol key is written in brackets -
+     * "get [Symbol.species]", not the symbol's own toString.
+     */
+    private String accessorName(final String prefix) {
+        final Object key = getKey();
+        return key instanceof Symbol symbol
+                ? prefix + "[" + symbol.getName() + "]"
+                : prefix + key;
     }
 
     @Override
