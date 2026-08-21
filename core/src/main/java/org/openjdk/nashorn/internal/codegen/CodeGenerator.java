@@ -1589,6 +1589,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         method.loadCompilerConstant(THIS);
                         method.load(callNode.getEvalArgs().getLocation());
                         method.load(CodeGenerator.this.lc.getCurrentFunction().isStrict());
+                        method.load(inParameterExpression());
                         // direct call to Global.directEval
                         globalDirectEval();
                         convertOptimisticReturnValue();
@@ -4983,7 +4984,31 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private void globalDirectEval() {
         method.invokestatic(GLOBAL_OBJECT, "directEval",
-                methodDescriptor(Object.class, Object.class, Object.class, Object.class, Object.class, boolean.class));
+                methodDescriptor(Object.class, Object.class, Object.class, Object.class, Object.class,
+                        boolean.class, boolean.class));
+    }
+
+    /**
+     * Whether the code being generated sits in a parameter expression rather
+     * than in the function's body.
+     *
+     * ES2015 gives a parameter list with expressions in it an environment of
+     * its own, and a direct eval there declares into that one - which is not
+     * the body's, and which already has "arguments" spoken for. The blocks run
+     * innermost first, and a function's body is inside its parameter block, so
+     * whichever of the two comes first says where this is.
+     */
+    private boolean inParameterExpression() {
+        for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext(); ) {
+            final Block block = blocks.next();
+            if (block.isParameterBlock()) {
+                return true;
+            }
+            if (block.isFunctionBody()) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private abstract class OptimisticOperation {

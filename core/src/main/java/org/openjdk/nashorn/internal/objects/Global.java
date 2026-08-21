@@ -1674,13 +1674,29 @@ public final class Global extends Scope {
      * This is directly invoked from generated when eval(code) is called in user code
      */
     public static Object directEval(final Object self, final Object str, final Object callThis, final Object location, final boolean strict) {
+        return directEval(self, str, callThis, location, strict, false);
+    }
+
+    /**
+     * Direct eval, from a call site that knows whether it is in a parameter list.
+     *
+     * @param self       The scope of eval passed as 'self'
+     * @param str        Evaluated code
+     * @param callThis   "this" to be passed to the evaluated code
+     * @param location   location of the eval call
+     * @param strict     is eval called from a strict mode code?
+     * @param inParameters is the call in a parameter expression?
+     * @return the result
+     */
+    public static Object directEval(final Object self, final Object str, final Object callThis,
+            final Object location, final boolean strict, final boolean inParameters) {
         if (!isString(str)) {
             return str;
         }
         final Global global = Global.instanceFrom(self);
         final ScriptObject scope = self instanceof ScriptObject && ((ScriptObject)self).isScope() ? (ScriptObject)self : global;
 
-        return global.getContext().eval(scope, str.toString(), callThis, location, strict, true);
+        return global.getContext().eval(scope, str.toString(), callThis, location, strict, true, inParameters);
     }
 
     /**

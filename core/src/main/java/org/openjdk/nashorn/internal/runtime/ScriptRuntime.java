@@ -130,6 +130,9 @@ public final class ScriptRuntime {
      */
     public static final Call THROW_REFERENCE_ERROR = staticCall(MethodHandles.lookup(), ScriptRuntime.class, "throwReferenceError", void.class, String.class);
 
+    /** Reads one declared parameter out of a variable-arity function's arguments. */
+    public static final Call GET_VARARG = staticCall(MethodHandles.lookup(), ScriptRuntime.class, "getVararg", Object.class, Object[].class, int.class);
+
     /**
      * Throws a reference error for an undefined variable.
      */
@@ -897,6 +900,38 @@ public final class ScriptRuntime {
      */
     public static Object REFERENCE_ERROR(final Object lhs, final Object rhs, final Object msg) {
         throw referenceError("cant.be.used.as.lhs", Objects.toString(msg));
+    }
+
+    /**
+     * One declared parameter of a variable-arity function.
+     *
+     * A function is compiled variable arity when it has a rest parameter, or an
+     * arguments object, or more parameters than a call site can carry, and its
+     * declared parameters are then read out of the array it was called with.
+     * There may be fewer arguments than parameters - which is a missing
+     * parameter, not an error.
+     *
+     * @param arguments what the function was called with
+     * @param index     which parameter to read
+     * @return the argument, or undefined if it was not passed
+     */
+    public static Object getVararg(final Object[] arguments, final int index) {
+        return arguments != null && index < arguments.length ? arguments[index] : UNDEFINED;
+    }
+
+    /**
+     * A read of a binding that has not been initialised yet.
+     *
+     * ES2015 9.2.12: in a function whose parameter list has expressions in it,
+     * every parameter binding is created before any initialiser runs and is
+     * initialised in order, so "function (a = a)" and "function (a = b, b)"
+     * both read a binding that is not there yet.
+     *
+     * @param name the binding being read
+     * @return never returns
+     */
+    public static Object UNINITIALIZED_BINDING(final Object name) {
+        throw referenceError("not.defined", JSType.toString(name));
     }
 
     /**

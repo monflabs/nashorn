@@ -84,8 +84,11 @@ import org.openjdk.nashorn.internal.codegen.Compiler;
 import org.openjdk.nashorn.internal.codegen.Compiler.CompilationPhases;
 import org.openjdk.nashorn.internal.codegen.ObjectClassGenerator;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
+import org.openjdk.nashorn.internal.ir.LexicalContext;
+import org.openjdk.nashorn.internal.ir.VarNode;
 import org.openjdk.nashorn.internal.ir.debug.ASTWriter;
 import org.openjdk.nashorn.internal.ir.debug.PrintVisitor;
+import org.openjdk.nashorn.internal.ir.visitor.NodeVisitor;
 import org.openjdk.nashorn.internal.lookup.MethodHandleFactory;
 import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.parser.Parser;
@@ -789,6 +792,69 @@ public final class Context {
      */
     public Object eval(final ScriptObject initialScope, final String string,
             final Object callThis, final Object location, final boolean strict, final boolean evalCall) {
+        return eval(initialScope, string, callThis, location, strict, evalCall, false);
+    }
+
+    /**
+     * Whether a piece of eval code declares a var called "arguments".
+     *
+     * Only asked of a direct eval in a parameter expression, which is rare
+     * enough that parsing the code twice - once here and once to compile it -
+     * costs nothing anybody will see. A let or const of that name is a
+     * different thing and is allowed.
+     */
+    private boolean declaresArguments(final String code) {
+        final FunctionNode program;
+        try {
+            program = new Parser(env, sourceFor("<eval>", code), new ThrowErrorManager(),
+                    false, getLogger(Parser.class)).parse();
+        } catch (final ParserException e) {
+            // it will not compile either, and says so with its own message
+            return false;
+        }
+        final boolean[] found = new boolean[1];
+        program.getBody().accept(new NodeVisitor<LexicalContext>(new LexicalContext()) {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode nested) {
+                // a nested function declares into its own environment, except
+                // for its own name, which the var check below already covers
+                return false;
+            }
+
+            @Override
+            public boolean enterVarNode(final VarNode varNode) {
+                if (!varNode.isBlockScoped() && "arguments".equals(varNode.getName().getName())) {
+                    found[0] = true;
+                }
+                return false;
+            }
+        });
+        return found[0];
+    }
+
+    /**
+     * Entry point for {@code eval}, from a call site that knows whether it sits
+     * in a parameter list.
+     *
+     * @param initialScope The scope of this eval call
+     * @param string       Evaluated code as a String
+     * @param callThis     "this" to be passed to the evaluated code
+     * @param location     location of the eval call
+     * @param strict       is this {@code eval} call from a strict mode code?
+     * @param evalCall     is this called from "eval" builtin?
+     * @param inParameters is the call in a parameter expression?
+     *
+     * @return the return value of the {@code eval}
+     */
+    public Object eval(final ScriptObject initialScope, final String string,
+            final Object callThis, final Object location, final boolean strict, final boolean evalCall,
+            final boolean inParameters) {
+        if (inParameters && declaresArguments(string)) {
+            // ES2017 18.2.1.1: a direct eval in a parameter expression declares
+            // into the parameter environment, where "arguments" is already
+            // spoken for, so declaring it there is an early error
+            throw ECMAErrors.syntaxError("redeclare.variable", "arguments");
+        }
         final String  file       = location == UNDEFINED || location == null ? "<eval>" : location.toString();
         final Source  source     = sourceFor(file, string, evalCall);
         // is this direct 'eval' builtin call?

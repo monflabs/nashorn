@@ -928,11 +928,14 @@ public class MethodEmitter {
                 load(index);
                 ScriptObject.GET_ARGUMENT.invoke(this);
             } else {
-                // array load from __varargs__
+                // Read from __varargs__, which may be shorter than the parameter
+                // list: a function can be called with fewer arguments than it
+                // declares, and a bare array load made that an
+                // ArrayIndexOutOfBoundsException rather than undefined.
                 debug("load symbol", symbol.getName(), " array index=", index);
                 loadCompilerConstant(VARARGS);
                 load(symbol.getFieldIndex());
-                arrayload();
+                ScriptRuntime.GET_VARARG.invoke(this);
             }
         }
         return this;

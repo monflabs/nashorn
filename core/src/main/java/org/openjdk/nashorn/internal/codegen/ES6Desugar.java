@@ -595,7 +595,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(moduleEnvironment(functionNode)))));
+                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(
+                        moduleEnvironment(rejectEarlyParameterReads(functionNode))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -798,6 +799,152 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.addAll(body.getStatements());
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
+    /**
+     * ES2015 9.2.12: a parameter is not there until its turn comes.
+     *
+     * In a function whose parameter list has expressions in it, every binding
+     * the list makes is created before any initialiser runs and initialised in
+     * order, so an initialiser that reads its own parameter, or a later one,
+     * reads a binding that has not been initialised - which is a ReferenceError,
+     * where Nashorn read the slot and found undefined.
+     *
+     * Which reads those are is decided here rather than at run time: at the
+     * point an initialiser is written, the parameters that are still to come
+     * are exactly the ones the source lists after it. A function written inside
+     * an initialiser is left alone - it may well be called after the whole list
+     * has run, and then the binding is there.
+     */
+    private FunctionNode rejectEarlyParameterReads(final FunctionNode functionNode) {
+        final Block outer = functionNode.getBody();
+        if (!outer.isParameterBlock()) {
+            return functionNode;
+        }
+
+        // The parser appends one statement per parameter that has something to
+        // do - a default, or a pattern to take apart - in parameter order, and
+        // the body follows them as the last statement.
+        final List<Statement> statements = outer.getStatements();
+        final List<IdentNode> parameters = functionNode.getParameters();
+
+        final Set<String> pending = new HashSet<>();
+        for (final IdentNode parameter : parameters) {
+            if (hasParameterStatement(parameter)) {
+                continue;
+            }
+            pending.add(parameter.getName());
+        }
+        for (final Statement statement : statements) {
+            if (!(statement instanceof BlockStatement)) {
+                boundNames(statement, pending);
+            }
+        }
+
+        final List<Statement> rewritten = new ArrayList<>(statements);
+        boolean changed = false;
+        int cursor = 0;
+        for (final IdentNode parameter : parameters) {
+            if (!hasParameterStatement(parameter)) {
+                // initialised from the argument at its own position, with
+                // nothing written that could read anything
+                pending.remove(parameter.getName());
+                continue;
+            }
+            while (cursor < statements.size() && statements.get(cursor) instanceof BlockStatement) {
+                cursor++;
+            }
+            if (cursor >= statements.size()) {
+                break;
+            }
+            final Statement statement = statements.get(cursor);
+            final Statement checked = rejectEarlyReads(statement, pending);
+            if (checked != statement) {
+                rewritten.set(cursor, checked);
+                changed = true;
+            }
+            boundNames(statement, new HashSet<>()).forEach(pending::remove);
+            cursor++;
+        }
+        return changed ? functionNode.setBody(lc, outer.setStatements(lc, rewritten)) : functionNode;
+    }
+
+    /** Whether the parser wrote a statement for this parameter. */
+    private static boolean hasParameterStatement(final IdentNode parameter) {
+        return parameter.isDefaultParameter() || parameter.isDestructuredParameter();
+    }
+
+
+    /** The names one parameter statement binds, added to {@code into} and returned. */
+    private static Set<String> boundNames(final Statement statement, final Set<String> into) {
+        if (statement instanceof ExpressionStatement expression
+                && expression.getExpression() instanceof BinaryNode assignment
+                && assignment.isTokenType(TokenType.ASSIGN)) {
+            collectNames(assignment.lhs(), into);
+        } else if (statement instanceof VarNode declaration) {
+            into.add(declaration.getName().getName());
+        }
+        return into;
+    }
+
+    private static void collectNames(final Expression target, final Set<String> into) {
+        if (target instanceof IdentNode name) {
+            into.add(name.getName());
+        } else if (target instanceof ArrayLiteralNode array) {
+            for (final Expression element : array.getValue()) {
+                if (element != null) {
+                    collectNames(element, into);
+                }
+            }
+        } else if (target instanceof ObjectNode object) {
+            for (final PropertyNode property : object.getElements()) {
+                collectNames(property.getValue(), into);
+            }
+        } else if (target instanceof UnaryNode rest && rest.isTokenType(TokenType.SPREAD_ARRAY)) {
+            collectNames(rest.getExpression(), into);
+        } else if (target instanceof BinaryNode withDefault && withDefault.isTokenType(TokenType.ASSIGN)) {
+            collectNames(withDefault.lhs(), into);
+        }
+    }
+
+    /**
+     * Rewrites the reads of not-yet-initialised parameters in one statement.
+     *
+     * Only the initialiser is rewritten. The parser desugars a default into
+     * "p = (p === undefined) ? initialiser : p", and the two reads of p it puts
+     * around the initialiser are the compiler's own - they are how the incoming
+     * argument is reached, not the binding.
+     */
+    private Statement rejectEarlyReads(final Statement statement, final Set<String> pending) {
+        if (!(statement instanceof ExpressionStatement expression)
+                || !(expression.getExpression() instanceof BinaryNode assignment)
+                || !assignment.isTokenType(TokenType.ASSIGN)
+                || !(assignment.rhs() instanceof TernaryNode withDefault)) {
+            return statement;
+        }
+        final Expression initialiser = withDefault.getTrueExpression().getExpression();
+        final Expression checked = (Expression)initialiser.accept(new NodeVisitor<LexicalContext>(new LexicalContext()) {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode nested) {
+                return false;
+            }
+
+            @Override
+            public Node leaveIdentNode(final IdentNode identNode) {
+                if (!identNode.isPropertyName() && pending.contains(identNode.getName())) {
+                    return new RuntimeNode(identNode.getToken(), identNode.getFinish(),
+                            RuntimeNode.Request.UNINITIALIZED_BINDING,
+                            LiteralNode.newInstance(identNode.getToken(), identNode.getFinish(),
+                                    identNode.getName()));
+                }
+                return identNode;
+            }
+        });
+        if (checked == initialiser) {
+            return statement;
+        }
+        return expression.setExpression(assignment.setRHS(
+                withDefault.setTrueExpression(new JoinPredecessorExpression(checked))));
     }
 
     private FunctionNode addGeneratorPrologue(final FunctionNode functionNode) {
