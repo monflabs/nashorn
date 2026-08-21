@@ -70,6 +70,7 @@ import org.openjdk.nashorn.internal.runtime.arrays.ArrayLikeIterator;
 import org.openjdk.nashorn.internal.runtime.arrays.ContinuousArrayData;
 import org.openjdk.nashorn.internal.runtime.arrays.IteratorAction;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
+import org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import org.openjdk.nashorn.internal.runtime.linker.InvokeByName;
 
 /**
@@ -1198,6 +1199,28 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         return comparefn;
     }
 
+    /**
+     * How far sort is willing to count.
+     *
+     * ES2015 22.1.3.24 reads every index from zero to the length, which is how
+     * it comes to see an inherited element or one behind an accessor. A length
+     * is a claim rather than a count, though, and one array-like in the wild
+     * claims 4294967295 while holding a single element.
+     */
+    private static final long SORT_SCAN_LIMIT = 1L << 20;
+
+    /**
+     * ES2015 7.1.15 ToLength, which an array-like's length goes through: up to
+     * 2^53-1, where ToUint32 would wrap at 2^32.
+     */
+    private static long toLength(final Object value) {
+        final double number = JSType.toNumber(value);
+        if (Double.isNaN(number) || number <= 0) {
+            return 0;
+        }
+        return (long)Math.min(Math.floor(number), 9007199254740991d);
+    }
+
     private static Object[] sort(final Object[] array, final Object comparefn) {
         final Object cmp = compareFunction(comparefn);
 
@@ -1250,44 +1273,68 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @param comparefn  element comparison function
      * @return sorted array
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static ScriptObject sort(final Object self, final Object comparefn) {
-        try {
-            final ScriptObject sobj    = (ScriptObject) self;
-            final long         len     = JSType.toUint32(sobj.getLength());
-            ArrayData          array   = sobj.getArray();
+        // ES2015 22.1.3.24 step 1: the comparison function is checked before
+        // anything else, including reading the length
+        if (comparefn != ScriptRuntime.UNDEFINED && !Bootstrap.isCallable(comparefn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(comparefn));
+        }
 
-            if (len > 1) {
-                // Get only non-missing elements. Missing elements go at the end
-                // of the sorted array. So, just don't copy these to sort input.
-                final ArrayList<Object> src = new ArrayList<>();
-
-                for (final Iterator<Long> iter = array.indexIterator(); iter.hasNext(); ) {
-                    final long index = iter.next();
-                    if (index >= len) {
-                        break;
-                    }
-                    src.add(array.getObject((int)index));
-                }
-
-                final Object[] sorted = sort(src.toArray(), comparefn);
-
-                for (int i = 0; i < sorted.length; i++) {
-                    array = array.set(i, sorted[i], true);
-                }
-
-                // delete missing elements - which are at the end of sorted array
-                if (sorted.length != len) {
-                    array = array.delete(sorted.length, len - 1);
-                }
-
-                sobj.setArray(array);
-            }
-
-            return sobj;
-        } catch (final ClassCastException | NullPointerException e) {
+        if (!(Global.toObject(self) instanceof ScriptObject sobj)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
+        final long len = toLength(sobj.getLength());
+        if (len < 2) {
+            return sobj;
+        }
+        // SortIndexedProperties: a hole is left out and reappears at the end as
+        // a hole, where an element whose value is undefined is sorted - to the
+        // end, but it is still there afterwards. Reading is by Get, so an
+        // inherited element or an accessor is seen, which is the whole
+        // difference between this and walking the array's storage.
+        final List<Object> items = new ArrayList<>();
+        final List<Long> occupied = len > SORT_SCAN_LIMIT ? new ArrayList<>() : null;
+
+        if (occupied == null) {
+            for (long i = 0; i < len; i++) {
+                if (sobj.has(i)) {
+                    items.add(sobj.get(i));
+                }
+            }
+        } else {
+            // A length nothing could fill is not one to count through: the
+            // elements the object actually holds are the ones that can sort,
+            // and asking about the 4294967294 absent ones would take longer
+            // than any program has. What is given up is an inherited element
+            // among them, which is the only thing the count would find.
+            for (final Iterator<Long> iter = sobj.getArray().indexIterator(); iter.hasNext(); ) {
+                final long index = iter.next();
+                if (index >= len) {
+                    break;
+                }
+                occupied.add(index);
+                items.add(sobj.get(index));
+            }
+        }
+
+        final Object[] sorted = sort(items.toArray(), comparefn);
+
+        for (int i = 0; i < sorted.length; i++) {
+            sobj.set(i, sorted[i], NashornCallSiteDescriptor.CALLSITE_STRICT);
+        }
+        if (occupied == null) {
+            for (long i = sorted.length; i < len; i++) {
+                sobj.delete(i, true);
+            }
+        } else {
+            for (final long index : occupied) {
+                if (index >= sorted.length) {
+                    sobj.delete(index, true);
+                }
+            }
+        }
+        return sobj;
     }
 
     /**

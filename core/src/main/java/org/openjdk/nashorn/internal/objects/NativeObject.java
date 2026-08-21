@@ -332,11 +332,14 @@ public final class NativeObject {
         final ScriptObject sobj     = Global.checkObject(obj);
         final Object       propsObj = Global.toObject(props);
 
-        if (propsObj instanceof ScriptObject) {
-            final Object[] keys = ((ScriptObject)propsObj).getOwnKeys(false);
-            for (final Object key : keys) {
-                final String prop = JSType.toString(key);
-                sobj.defineOwnProperty(prop, ((ScriptObject)propsObj).get(prop), true);
+        if (propsObj instanceof ScriptObject properties) {
+            // ES2015 19.1.2.3 walks OwnPropertyKeys, which is the string keys
+            // and then the symbol ones - a descriptor can be filed under either
+            for (final Object key : properties.getOwnKeys(false)) {
+                sobj.defineOwnProperty(JSType.toPropertyKey(key), properties.get(key), true);
+            }
+            for (final Object key : properties.getOwnSymbols(false)) {
+                sobj.defineOwnProperty(key, properties.get(key), true);
             }
         }
         return sobj;
@@ -691,12 +694,14 @@ public final class NativeObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean propertyIsEnumerable(final Object self, final Object v) {
-        final String str = JSType.toString(v);
+        // ES2015 19.1.3.4 takes a property key, and a symbol is one: converting
+        // it to a string is the one thing a symbol refuses to do
+        final Object key = JSType.toPropertyKey(v);
         final Object obj = Global.toObject(self);
 
         if (obj instanceof ScriptObject) {
             final ScriptObject sobj = (ScriptObject) obj;
-            final Property property = sobj.getProperty(str);
+            final Property property = sobj.getMap().findProperty(key);
             if (property != null) {
                 return property.isEnumerable();
             } else {
