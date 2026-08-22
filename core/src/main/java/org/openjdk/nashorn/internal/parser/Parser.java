@@ -925,6 +925,18 @@ public class Parser extends AbstractParser implements Loggable {
                             if ("use strict".equals(directive)) {
                                 isStrictMode = true;
                                 final ParserContextFunctionNode function = lc.getCurrentFunction();
+
+                                // ES2015 14.1.2: a function whose parameter list
+                                // is not simple may not say "use strict" in its
+                                // body. The parameter list would have to be
+                                // parsed under a strictness its own text
+                                // declares, which is why it is an early error
+                                // rather than a matter of ordering.
+                                if (function != null && !function.isSimpleParameterList()) {
+                                    throw error(AbstractParser.message("strict.use.strict.non.simple.parameters"),
+                                            lastStatement.getToken());
+                                }
+
                                 function.setFlag(FunctionNode.IS_STRICT);
 
                                 // We don't need to check these, if lexical environment is already strict
@@ -3372,33 +3384,33 @@ public class Parser extends AbstractParser implements Loggable {
         final Expression propertyName = propertyName();
         final String setterName = propertyName instanceof PropertyKey ? ((PropertyKey) propertyName).getPropertyName() : getDefaultValidFunctionName(functionLine, false);
         final IdentNode setNameNode = createIdentNode((propertyName).getToken(), finish, NameCodec.encode("set " + setterName));
-        expect(LPAREN);
-        // be sloppy and allow missing setter parameter even though
-        // spec does not permit it!
-        final IdentNode argIdent;
-        if (isBindingIdentifier()) {
-            argIdent = getIdent();
-            verifyIdent(argIdent, "setter argument");
-        } else {
-            argIdent = null;
-        }
-        expect(RPAREN);
-        final List<IdentNode> parameters = new ArrayList<>();
-        if (argIdent != null) {
-            parameters.add(argIdent);
-        }
 
-
-        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(setNameNode, getSetToken, FunctionNode.Kind.SETTER, functionLine, parameters);
+        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(setNameNode, getSetToken, FunctionNode.Kind.SETTER, functionLine, null);
         functionNode.setFlag(flags);
         if (computed) {
             functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
         }
         lc.push(functionNode);
 
+        final List<IdentNode> parameters;
         Block functionBody;
         try {
-            functionBody = functionBody(functionNode);
+            // ES2015 14.3: a setter's parameter is a FormalParameter, so it may
+            // carry a default or be a pattern, and it gets the parameter block
+            // that comes with either. Nashorn read a bare identifier, so
+            // "set a(_ = 1)" did not parse at all. Missing one is still
+            // tolerated, which the specification does not allow.
+            final ParserContextBlockNode parameterBlock = newBlock();
+            try {
+                expect(LPAREN);
+                parameters = formalParameterList(RPAREN, false);
+                functionNode.setParameters(parameters);
+                expect(RPAREN);
+            } finally {
+                restoreBlock(parameterBlock);
+            }
+
+            functionBody = maybeWrapBodyInParameterBlock(functionBody(functionNode), parameterBlock);
         } finally {
             lc.pop(functionNode);
         }
@@ -4160,6 +4172,14 @@ public class Parser extends AbstractParser implements Loggable {
                     ident = ident.setIsRestParameter();
                     // rest parameter must be last
                     expectDontAdvance(endType);
+                    final ParserContextFunctionNode restFunction = lc.getCurrentFunction();
+                    if (restFunction != null) {
+                        restFunction.addParameterBinding(ident);
+                        // gathering the rest is what makes a parameter list not
+                        // simple, as much as a default or a pattern does; the
+                        // loop ends here and never reached where the others say so
+                        restFunction.setSimpleParameterList(false);
+                    }
                     parameters.add(ident);
                     break;
                 } else if (type == ASSIGN) {
