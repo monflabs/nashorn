@@ -2891,6 +2891,12 @@ public final class Global extends Scope {
 
         copyBuiltins();
 
+        // ECMAScript 2020 19.1.1: the global object under a name of its own.
+        // It is past this engine's target, and is here because it costs one
+        // property and the conformance suite reaches for it in tests that are
+        // about something else entirely.
+        addOwnProperty("globalThis", Attribute.NOT_ENUMERABLE, this);
+
         // expose script (command line) arguments as "arguments" property of global
         arguments = wrapAsObject(env.getArguments().toArray());
         if (!env.getArguments().isEmpty()) {

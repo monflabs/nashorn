@@ -1005,14 +1005,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                     new BlockStatement(line, body.setStatements(lc, nested)));
         }
 
-        // A generator is compiled with an arguments object. It needs the argument
-        // array to replay the call on the generator's thread, and going through
-        // arguments rather than merely forcing variable arity is what makes the
-        // parameter reads safe: a bare varargs function indexes the array without
-        // a bounds check, so a generator called with fewer arguments than it
-        // declares would fail with ArrayIndexOutOfBoundsException.
+        // A generator hands the argument array to the thread that runs its
+        // body, so it is compiled to take one - which an arguments object would
+        // also have arranged, and used to, except that a parameter named
+        // "arguments" is precisely the case where a function has no arguments
+        // object to arrange it with.
         return functionNode
-                .setFlag(lc, FunctionNode.USES_ARGUMENTS)
+                .setFlag(lc, FunctionNode.NEEDS_VARARGS)
                 .setBody(lc, outer.setStatements(lc, statements));
     }
 

@@ -291,6 +291,13 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public static final int ES6_HAS_INFERRED_NAME       = 1 << 30;
 
+    /**
+     * Compiled to take its arguments as an array whatever its parameter list
+     * says, because something other than the parameter list needs them: a
+     * generator hands the array to the thread that runs its body.
+     */
+    public static final int NEEDS_VARARGS               = 1 << 31;
+
     /** Does this function or any nested functions contain an eval? */
     private static final int HAS_DEEP_EVAL = HAS_EVAL | HAS_NESTED_EVAL;
 
@@ -862,7 +869,8 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      * @see LinkerCallSite#ARGLIMIT
      */
     public boolean isVarArg() {
-        return needsArguments() || hasRestParameter() || parameters.size() > LinkerCallSite.ARGLIMIT;
+        return getFlag(NEEDS_VARARGS) || needsArguments() || hasRestParameter()
+                || parameters.size() > LinkerCallSite.ARGLIMIT;
     }
 
     /**
