@@ -61,6 +61,7 @@ import java.util.Set;
 import org.openjdk.nashorn.internal.ir.AccessNode;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
+import org.openjdk.nashorn.internal.ir.BlockStatement;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.Expression;
 import org.openjdk.nashorn.internal.ir.ForNode;
@@ -182,6 +183,15 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
      * @param body the body of the FunctionNode we are entering
      */
     private void acceptDeclarations(final Block body) {
+        // ES2015 9.2.12: a function whose parameter list has expressions in it
+        // has two environments - the parameter list's, and the body's inside it
+        // - and a var belongs to the body's, where the parameter list cannot
+        // see it. The parser nests the body inside the parameter block and
+        // leaves the flag that says which is which; the shape is read rather
+        // than the context stack, because a function's declarations are
+        // gathered on the way in, before its body has been entered.
+        final Block variables = nestedBody(body);
+
         // This visitor will assign symbol to all declared variables.
         body.accept(new SimpleNodeVisitor() {
             @Override
@@ -199,13 +209,40 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
                     throwUnprotectedSwitchError(varNode);
                 }
                 final Block block = blockScoped ? lc.getCurrentBlock() : body;
-                final Symbol symbol = defineSymbol(block, ident.getName(), ident, varNode.getSymbolFlags());
+                // A var written in the parameter list - the temporaries a
+                // pattern is taken apart with - belongs to the parameter
+                // list's environment, not the body's.
+                final Block target = blockScoped || !inNestedBody() ? null : variables;
+                final Symbol symbol = defineSymbol(block, ident.getName(), ident, varNode.getSymbolFlags(), target);
                 if (varNode.isFunctionDeclaration()) {
                     symbol.setIsFunctionDeclaration();
                 }
                 return varNode.setName(ident.setSymbol(symbol));
             }
+
+            /** Whether this is inside the body rather than in the parameter list. */
+            private boolean inNestedBody() {
+                if (variables == body) {
+                    return true;
+                }
+                for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext(); ) {
+                    if (blocks.next() == variables) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         });
+    }
+
+    /** The body a parameter block wraps, or the block itself if it wraps none. */
+    private static Block nestedBody(final Block body) {
+        if (!body.isParameterBlock() || body.getStatements().isEmpty()) {
+            return body;
+        }
+        return body.getLastStatement() instanceof BlockStatement nested && nested.getBlock().isFunctionBody()
+                ? nested.getBlock()
+                : body;
     }
 
     private IdentNode compilerConstantIdentifier(final CompilerConstants cc) {
@@ -305,7 +342,17 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
      *
      * @return Symbol for given name or null for redefinition.
      */
+
     private Symbol defineSymbol(final Block block, final String name, final Node origin, final int symbolFlags) {
+        return defineSymbol(block, name, origin, symbolFlags, null);
+    }
+
+    /**
+     * @param varTarget where to create a plain var, when the caller knows which
+     *                  of a function's two environments it belongs to
+     */
+    private Symbol defineSymbol(final Block block, final String name, final Node origin, final int symbolFlags,
+            final Block varTarget) {
         int    flags  = symbolFlags;
         final boolean isBlockScope = (flags & IS_LET) != 0 || (flags & IS_CONST) != 0;
         final boolean isGlobal     = (flags & KINDMASK) == IS_GLOBAL;
@@ -381,7 +428,7 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
             } else if (isGlobal) {
                 symbolBlock = lc.getOutermostFunction().getBody();
             } else {
-                symbolBlock = lc.getFunctionBody(function);
+                symbolBlock = varTarget != null ? varTarget : lc.getFunctionBody(function);
             }
 
             // Create and add to appropriate block.
