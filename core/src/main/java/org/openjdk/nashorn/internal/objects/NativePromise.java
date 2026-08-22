@@ -41,6 +41,7 @@ import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
+import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
 
 /**
  * ECMAScript 2015 25.4, Promise.
@@ -164,12 +165,17 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object resolve(final Object self, final Object x) {
-        if (x instanceof NativePromise promise) {
-            return promise;
+        if (!(self instanceof ScriptObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final NativePromise promise = allocate(Global.instance());
-        promise.resolveWith(x);
-        return promise;
+        // 25.4.4.5 step 3: a promise whose constructor is already the one being
+        // asked is handed straight back
+        if (x instanceof ScriptObject promise && promise.get("constructor") == self) {
+            return x;
+        }
+        final Capability capability = newPromiseCapability(self);
+        capability.resolve(x);
+        return capability.promise();
     }
 
     /**
@@ -181,9 +187,9 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object reject(final Object self, final Object r) {
-        final NativePromise promise = allocate(Global.instance());
-        promise.settle(State.REJECTED, r);
-        return promise;
+        final Capability capability = newPromiseCapability(self);
+        capability.reject(r);
+        return capability.promise();
     }
 
     /**
@@ -196,8 +202,7 @@ public final class NativePromise extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object all(final Object self, final Object iterable) {
         requireConstructor(self);
-        final Global global = Global.instance();
-        final NativePromise result = allocate(global);
+        final Capability result = newPromiseCapability(self);
         final List<Object> values = new ArrayList<>();
         final int[] remaining = { 1 };
 
@@ -216,21 +221,23 @@ public final class NativePromise extends ScriptObject {
                         alreadyCalled[0] = true;
                         values.set(slot, v);
                         if (--remaining[0] == 0) {
-                            result.resolveWith(new NativeArray(values.toArray()));
+                            result.resolve(new NativeArray(values.toArray()));
                         }
                     },
-                    r -> result.settle(State.REJECTED, r));
+                    r -> result.reject(r));
             });
+            // 25.4.4.1 step 8 covers the whole of PerformPromiseAll, and
+            // resolving the capability is part of it: a resolve function that
+            // throws rejects the promise like anything else here, rather than
+            // throwing out of Promise.all
+            if (--remaining[0] == 0) {
+                result.resolve(new NativeArray(values.toArray()));
+            }
         } catch (final ECMAException e) {
             // IfAbruptRejectPromise: the returned promise rejects, nothing escapes
-            result.settle(State.REJECTED, e.getThrown());
-            return result;
+            result.reject(e.getThrown());
         }
-
-        if (--remaining[0] == 0) {
-            result.resolveWith(new NativeArray(values.toArray()));
-        }
-        return result;
+        return result.promise();
     }
 
     /**
@@ -243,14 +250,88 @@ public final class NativePromise extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object race(final Object self, final Object iterable) {
         requireConstructor(self);
-        final NativePromise result = allocate(Global.instance());
+        final Capability result = newPromiseCapability(self);
         try {
             combine(self, iterable,
-                    promised -> subscribe(promised, result::resolveWith, r -> result.settle(State.REJECTED, r)));
+                    promised -> subscribe(promised, result::resolve, result::reject));
         } catch (final ECMAException e) {
-            result.settle(State.REJECTED, e.getThrown());
+            result.reject(e.getThrown());
         }
-        return result;
+        return result.promise();
+    }
+
+    /**
+     * ES2015 25.4.1.5 NewPromiseCapability: the promise a combinator returns,
+     * and the pair of functions that settle it.
+     *
+     * The constructor is the one the combinator was called on rather than the
+     * built-in Promise, so a subclass - or anything else that takes an executor
+     * and hands back a thenable - gets to make the result and to see the
+     * executor call. Only when it is this realm's own Promise is the whole
+     * dance skipped, which is the common case and observably the same thing.
+     */
+    private record Capability(Object promise, Object resolve, Object reject) {
+        void resolve(final Object value) {
+            if (promise instanceof NativePromise own && resolve == null) {
+                own.resolveWith(value);
+            } else {
+                ScriptRuntime.call(resolve, ScriptRuntime.UNDEFINED, new Object[] { value });
+            }
+        }
+
+        void reject(final Object reason) {
+            if (promise instanceof NativePromise own && reject == null) {
+                own.settle(State.REJECTED, reason);
+            } else {
+                ScriptRuntime.call(reject, ScriptRuntime.UNDEFINED, new Object[] { reason });
+            }
+        }
+    }
+
+    private static Capability newPromiseCapability(final Object constructor) {
+        if (!(constructor instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
+        }
+        final Global global = Global.instance();
+        if (constructor == global.get("Promise") && constructor instanceof ScriptFunction builtin
+                && ScriptFunction.getPrototype(builtin) == global.getPromisePrototype()) {
+            return new Capability(allocate(global), null, null);
+        }
+
+        final Object[] captured = new Object[2];
+        final ScriptFunction executor = ScriptFunction.createBuiltin("",
+                java.lang.invoke.MethodHandles.insertArguments(CAPTURE, 0, (Object)captured));
+        final Object promise = ScriptRuntime.construct(function, executor);
+
+        // 25.4.1.5.1 steps 3 and 4: the executor is called once, with two
+        // functions, and a constructor that does otherwise cannot be used
+        if (!Bootstrap.isCallable(captured[0]) || !Bootstrap.isCallable(captured[1])) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(captured[0]));
+        }
+        return new Capability(promise, captured[0], captured[1]);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object capture(final Object[] captured, final Object self,
+            final Object resolve, final Object reject) {
+        if (captured[0] != null || captured[1] != null) {
+            throw typeError("promise.capability.already.settled");
+        }
+        captured[0] = resolve;
+        captured[1] = reject;
+        return ScriptRuntime.UNDEFINED;
+    }
+
+    private static final java.lang.invoke.MethodHandle CAPTURE = findCapture();
+
+    private static java.lang.invoke.MethodHandle findCapture() {
+        try {
+            return java.lang.invoke.MethodHandles.lookup().findStatic(NativePromise.class, "capture",
+                    java.lang.invoke.MethodType.methodType(Object.class, Object[].class, Object.class,
+                            Object.class, Object.class));
+        } catch (final ReflectiveOperationException e) {
+            throw new InternalError(e);
+        }
     }
 
     /** ES2015 25.4.4.1/25.4.4.3 step 2: the combinators are methods of a constructor. */
