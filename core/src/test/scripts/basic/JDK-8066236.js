@@ -32,15 +32,18 @@
 // we don't trigger parser API validation in JDK-8008448 tests. The test code
 // encapsulated in functions below can't be correctly handled by the parser API
 // currently, as it contains parser-generated REFERENCE_ERROR runtime nodes.
+// ES2015 12.4.4 and 12.15.1: 'this' is not a simple assignment target, so
+// these two are rejected when the Function constructor parses them rather than
+// reaching the runtime node they used to make.
 try {
     Function("L: {this = x;break L}")();
 } catch (e) {
-   print("threw ReferenceError: " + (e instanceof ReferenceError));
+   print("threw SyntaxError: " + (e instanceof SyntaxError));
 }
 try {
     Function("L:with(this--)break L;")();
 } catch (e) {
-   print("threw ReferenceError: " + (e instanceof ReferenceError));
+   print("threw SyntaxError: " + (e instanceof SyntaxError));
 }
 Function("L:with(Object in Object)break L;")();
 print("SUCCESS");

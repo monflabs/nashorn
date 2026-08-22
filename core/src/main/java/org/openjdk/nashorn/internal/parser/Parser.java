@@ -717,6 +717,9 @@ public class Parser extends AbstractParser implements Loggable {
         case ASSIGN_SHR:
         case ASSIGN_SUB:
             if (lhs instanceof IdentNode) {
+                if (isReservedTarget(lhs)) {
+                    return referenceError(lhs, rhs, env._early_lvalue_error);
+                }
                 if (!checkIdentLValue((IdentNode)lhs)) {
                     return referenceError(lhs, rhs, false);
                 }
@@ -4629,12 +4632,31 @@ public class Parser extends AbstractParser implements Loggable {
         return expression;
     }
 
+    /**
+     * Whether an expression is one of the two that read as an identifier here
+     * but can never be assigned to.
+     *
+     * "this" and "new.target" are parsed as identifiers, which is what lets
+     * them through the check that everything else has to pass: ES2015 12.4.4
+     * and 12.5.7 ask whether the operand's AssignmentTargetType is simple, and
+     * for these two it is not, so "++this" is an early error rather than
+     * something that fails when it runs.
+     */
+    private static boolean isReservedTarget(final Expression expression) {
+        if (!(expression instanceof IdentNode ident)) {
+            return false;
+        }
+        final String name = ident.getName();
+        return "this".equals(name) || "new.target".equals(name);
+    }
+
     private Expression verifyIncDecExpression(final long unaryToken, final TokenType opType, final Expression lhs, final boolean isPostfix) {
         assert lhs != null;
 
         if (!(lhs instanceof AccessNode ||
               lhs instanceof IndexNode ||
-              lhs instanceof IdentNode)) {
+              lhs instanceof IdentNode)
+                || isReservedTarget(lhs)) {
             return referenceError(lhs, null, env._early_lvalue_error);
         }
 

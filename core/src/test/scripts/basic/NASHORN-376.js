@@ -24,6 +24,10 @@
 /**
  * NASHORN-376 : using 'this' keyword as operand for ++ or -- or as L-value of assignment operator should result in error
  *
+ * ES2015 12.4.4 and 12.15.1 ask whether the operand's AssignmentTargetType is
+ * simple, and for 'this' it is not, so this is an early error where ES5.1 made
+ * it a ReferenceError when the code ran.
+ *
  * @test
  * @run
  */
@@ -33,8 +37,8 @@ function check(code) {
         eval(code);
         fail("should have result in error " + code);
     } catch (e) {
-        if (! (e instanceof ReferenceError)) {
-            fail("ReferenceError expected for '" + code + "' , got " + e);
+        if (! (e instanceof SyntaxError)) {
+            fail("SyntaxError expected for '" + code + "' , got " + e);
         }
     }
 }
