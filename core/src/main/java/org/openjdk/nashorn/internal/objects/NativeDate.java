@@ -1328,15 +1328,16 @@ public final class NativeDate extends ScriptObject {
             start = HOUR;
             length = 4;
         }
+        // ES2015 20.3.4.20 and its neighbours read the time first and convert
+        // the arguments after, so what the date holds now is not what decides
+        // the answer: a valueOf that invalidates the date does not make the
+        // result NaN, and one that gives an invalid date a time does not stop
+        // it being NaN. Only the value read on the way in counts.
         final double time = local ? nd.getLocalTime() : nd.getTime();
         final double[] d = convertArgs(args, time, fieldId, start, length);
 
-        if (! nd.isValidDate()) {
-            return;
-        }
-
         double newTime;
-        if (d == null) {
+        if (d == null || Double.isNaN(time)) {
             newTime = NaN;
         } else {
             if (start == YEAR) {

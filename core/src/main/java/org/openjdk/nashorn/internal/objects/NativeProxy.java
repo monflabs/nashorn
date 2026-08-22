@@ -32,7 +32,9 @@ import org.openjdk.nashorn.internal.objects.annotations.Constructor;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -201,11 +203,57 @@ public final class NativeProxy extends ScriptObject {
 
     @Override
     public boolean hasOwnProperty(final Object key) {
+        return getOwnPropertyDescriptor(key) != ScriptRuntime.UNDEFINED;
+    }
+
+    /**
+     * ES2015 9.5.5 [[GetOwnProperty]].
+     *
+     * The trap may describe the property however it likes, within what the
+     * target will vouch for: it may not deny a property the target holds and
+     * will not give up, nor call a property its own that a target with no such
+     * property cannot be given one, nor say that something is fixed which the
+     * target would still let change.
+     */
+    @Override
+    public Object getOwnPropertyDescriptor(final Object key) {
         final ScriptFunction trap = trap("getOwnPropertyDescriptor");
+        final ScriptObject target = target();
         if (trap == null) {
-            return target().hasOwnProperty(key);
+            return target.getOwnPropertyDescriptor(key);
         }
-        return call(trap, target(), propertyKey(key)) != ScriptRuntime.UNDEFINED;
+
+        final Object answered = call(trap, target, propertyKey(key));
+        if (answered != ScriptRuntime.UNDEFINED && !(answered instanceof ScriptObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(answered));
+        }
+
+        final Object targetDescriptor = target.getOwnPropertyDescriptor(key);
+        final PropertyDescriptor onTarget = targetDescriptor instanceof PropertyDescriptor descriptor
+                ? descriptor : null;
+
+        if (answered == ScriptRuntime.UNDEFINED) {
+            if (onTarget == null) {
+                return ScriptRuntime.UNDEFINED;
+            }
+            if (!onTarget.isConfigurable()) {
+                throw typeError("proxy.descriptor.hidden", ScriptRuntime.safeToString(key));
+            }
+            if (!target.isExtensible()) {
+                throw typeError("proxy.descriptor.hidden", ScriptRuntime.safeToString(key));
+            }
+            return ScriptRuntime.UNDEFINED;
+        }
+
+        final PropertyDescriptor result = toPropertyDescriptor(Global.instance(), answered);
+        if (!result.has(PropertyDescriptor.CONFIGURABLE) || !result.isConfigurable()) {
+            // 9.5.5 step 16: only a property the target itself will not let go
+            // of may be reported as one that cannot be reconfigured
+            if (onTarget == null || onTarget.isConfigurable()) {
+                throw typeError("proxy.descriptor.not.configurable", ScriptRuntime.safeToString(key));
+            }
+        }
+        return result;
     }
 
     @Override
@@ -304,21 +352,83 @@ public final class NativeProxy extends ScriptObject {
                     (Class<? extends T[]>)java.lang.reflect.Array.newInstance(type, 0).getClass());
         }
 
-        final Object keys = call(trap, target());
+        final ScriptObject target = target();
+        final Object keys = call(trap, target);
         if (!(keys instanceof ScriptObject list)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(keys));
         }
+
+        // ES2015 9.5.11 step 8: what comes back is a list of property keys and
+        // nothing else, and no key twice.
         final long length = JSType.toUint32(list.getLength());
-        final java.util.List<T> wanted = new java.util.ArrayList<>();
+        final java.util.List<Object> answered = new java.util.ArrayList<>();
+        final java.util.Set<Object> seen = new java.util.HashSet<>();
         for (int i = 0; i < length; i++) {
             final Object key = list.get(i);
+            final Object propertyKey;
+            if (key instanceof Symbol) {
+                propertyKey = key;
+            } else if (key instanceof String || key instanceof ConsString) {
+                propertyKey = key.toString();
+            } else {
+                throw typeError("proxy.keys.not.a.property.key", ScriptRuntime.safeToString(key));
+            }
+            if (!seen.add(propertyKey)) {
+                throw typeError("proxy.keys.duplicate", ScriptRuntime.safeToString(key));
+            }
+            answered.add(propertyKey);
+        }
+
+        checkOwnKeysAgainstTarget(target, seen);
+
+        final java.util.List<T> wanted = new java.util.ArrayList<>();
+        for (final Object key : answered) {
             if (type.isInstance(key)) {
                 wanted.add((T)key);
-            } else if (type == String.class && !(key instanceof Symbol)) {
-                wanted.add((T)JSType.toString(key));
             }
         }
         return wanted.toArray((T[])java.lang.reflect.Array.newInstance(type, wanted.size()));
+    }
+
+    /**
+     * ES2015 9.5.11 steps 9 to 21: what the target will not let the trap hide.
+     *
+     * A key the target has and will not let go of - one that is not
+     * configurable - has to be in the answer. If the target is not extensible
+     * then every key it has must be in the answer and nothing else may be,
+     * because the set of keys can no longer change.
+     */
+    private static void checkOwnKeysAgainstTarget(final ScriptObject target, final java.util.Set<Object> answered) {
+        final boolean extensible = target.isExtensible();
+        final java.util.Set<Object> own = new java.util.HashSet<>();
+
+        for (final Object key : target.getOwnKeys(true)) {
+            own.add(key.toString());
+        }
+        for (final Object key : target.getOwnSymbols(true)) {
+            own.add(key);
+        }
+
+        for (final Object key : own) {
+            if (answered.contains(key)) {
+                continue;
+            }
+            if (!extensible) {
+                throw typeError("proxy.keys.missing", ScriptRuntime.safeToString(key));
+            }
+            final Object descriptor = target.getOwnPropertyDescriptor(key);
+            if (descriptor instanceof PropertyDescriptor property && !property.isConfigurable()) {
+                throw typeError("proxy.keys.missing", ScriptRuntime.safeToString(key));
+            }
+        }
+
+        if (!extensible) {
+            for (final Object key : answered) {
+                if (!own.contains(key)) {
+                    throw typeError("proxy.keys.extra", ScriptRuntime.safeToString(key));
+                }
+            }
+        }
     }
 
     /**
