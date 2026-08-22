@@ -273,8 +273,11 @@ public enum JSType {
             return JSType.NULL;
         }
 
-        if (obj instanceof ScriptObject) {
-            return obj instanceof ScriptFunction ? JSType.FUNCTION : JSType.OBJECT;
+        if (obj instanceof ScriptObject sobj) {
+            // ES2015 9.5.12: typeof a proxy is typeof what it proxies, so a
+            // proxy over a function is a function
+            return sobj instanceof ScriptFunction || sobj.isProxyOverCallable()
+                    ? JSType.FUNCTION : JSType.OBJECT;
         }
 
         if (obj instanceof Boolean) {

@@ -129,7 +129,8 @@ public final class NativeFunction {
                     ScriptObjectMirror.wrapArray(args, global));
             return ScriptObjectMirror.unwrap(result, global);
         }
-        throw new AssertionError("Should not reach here");
+        // a callable proxy, which is a ScriptObject and not a ScriptFunction
+        return ScriptRuntime.call(self, thiz, args);
     }
 
     /**
@@ -218,7 +219,8 @@ public final class NativeFunction {
             return ((JSObject)self).call(thiz, arguments);
         }
 
-        throw new AssertionError("should not reach here");
+        // a callable proxy, which is a ScriptObject and not a ScriptFunction
+        return ScriptRuntime.call(self, thiz, arguments);
     }
 
     /**

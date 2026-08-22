@@ -1954,6 +1954,29 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         return notAFunction(desc);
     }
 
+    /**
+     * Whether this object is a proxy over something that can be called.
+     *
+     * Only a proxy is, and only when its target is: everything that decides
+     * whether a value is callable asks this so that a proxy over a function
+     * answers the way the function would, without that code knowing what a
+     * proxy is.
+     *
+     * @return false, for everything that is not one
+     */
+    public boolean isProxyOverCallable() {
+        return false;
+    }
+
+    /**
+     * Whether this object is a proxy over something that can be used with new.
+     *
+     * @return false, for everything that is not one
+     */
+    public boolean isProxyOverConstructor() {
+        return false;
+    }
+
     private GuardedInvocation notAFunction(final CallSiteDescriptor desc) {
         throw typeError("not.a.function", NashornCallSiteDescriptor.getFunctionErrorMessage(desc, this));
     }

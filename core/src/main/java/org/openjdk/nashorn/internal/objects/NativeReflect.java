@@ -67,10 +67,14 @@ public final class NativeReflect extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 3)
     public static Object apply(final Object self, final Object target, final Object thisArg, final Object args) {
-        if (!(target instanceof ScriptFunction function)) {
-            throw typeError("not.a.function", ScriptRuntime.safeToString(target));
+        if (target instanceof ScriptFunction function) {
+            return ScriptRuntime.apply(function, thisArg, toArguments(args));
         }
-        return ScriptRuntime.apply(function, thisArg, toArguments(args));
+        // a callable proxy is callable without being a ScriptFunction
+        if (target instanceof ScriptObject sobj && sobj.isProxyOverCallable()) {
+            return ScriptRuntime.call(target, thisArg, toArguments(args));
+        }
+        throw typeError("not.a.function", ScriptRuntime.safeToString(target));
     }
 
     /**
@@ -97,8 +101,12 @@ public final class NativeReflect extends ScriptObject {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(args[2]));
         }
         final Object list = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
-        final ScriptFunction constructor = (ScriptFunction)target;
-        final ScriptFunction newTarget = args.length > 2 ? (ScriptFunction)args[2] : constructor;
+        if (!(target instanceof ScriptFunction constructor)) {
+            // a proxy, whose construct trap is reached by calling it with new
+            return ScriptRuntime.newInstance(target, toArguments(list));
+        }
+        final Object given = args.length > 2 ? args[2] : constructor;
+        final ScriptFunction newTarget = given instanceof ScriptFunction function ? function : constructor;
 
         // ES2015 26.1.2 builds the object for newTarget, which is what decides
         // its prototype and what new.target reads as inside it
@@ -282,7 +290,12 @@ public final class NativeReflect extends ScriptObject {
 
     /** Whether a value can be used with new, which a builtin function cannot. */
     private static boolean isConstructor(final Object value) {
-        return value instanceof ScriptFunction function && function.isConstructor();
+        if (value instanceof ScriptFunction function) {
+            return function.isConstructor();
+        }
+        // a proxy over a constructor is one, and is not a ScriptFunction
+        return value instanceof ScriptObject sobj && sobj.isProxyOverCallable()
+                && sobj.isProxyOverConstructor();
     }
 
     /** Every Reflect function rejects a non-object target outright. */

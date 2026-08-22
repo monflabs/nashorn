@@ -56,6 +56,7 @@ import org.openjdk.nashorn.internal.runtime.ECMAException;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.OptimisticReturnFilters;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
+import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 
 /**
@@ -148,12 +149,19 @@ public final class Bootstrap {
      * @param obj object to be checked for callability
      * @return true if the obj is callable
      */
+    /** Whether this is a proxy over something callable, without naming the class. */
+    private static boolean isCallableProxy(final Object obj) {
+        return obj instanceof ScriptObject sobj && sobj.isProxyOverCallable();
+    }
+
     public static boolean isCallable(final Object obj) {
         if (obj == ScriptRuntime.UNDEFINED || obj == null) {
             return false;
         }
 
         return obj instanceof ScriptFunction ||
+            // ES2015 9.5.12: a proxy is callable when the thing it proxies is
+            isCallableProxy(obj) ||
             isJSObjectFunction(obj) ||
             BeansLinker.isDynamicMethod(obj) ||
             obj instanceof BoundCallable ||

@@ -32,6 +32,13 @@ import org.openjdk.nashorn.internal.objects.annotations.Constructor;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import jdk.dynalink.CallSiteDescriptor;
+import jdk.dynalink.linker.GuardedInvocation;
+import jdk.dynalink.linker.LinkRequest;
+import jdk.dynalink.linker.support.Guards;
 import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
@@ -168,7 +175,28 @@ public final class NativeProxy extends ScriptObject {
     public Object get(final Object key) {
         final ScriptFunction trap = trap("get");
         final ScriptObject rx = target();
-        return trap == null ? rx.get(key) : call(trap, rx, propertyKey(key), this);
+        if (trap == null) {
+            return rx.get(key);
+        }
+        final Object answered = call(trap, rx, propertyKey(key), this);
+
+        // ES2015 9.5.8 steps 10 and 11: a property the target has fixed - one
+        // that can be neither reconfigured nor written - reads as what the
+        // target holds, whatever the trap says, and an accessor with no getter
+        // reads as undefined.
+        if (rx.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor onTarget
+                && !onTarget.isConfigurable()) {
+            if (onTarget.type() == PropertyDescriptor.DATA && !onTarget.isWritable()
+                    && !ScriptRuntime.sameValue(answered, onTarget.getValue())) {
+                throw typeError("proxy.get.not.same.value", ScriptRuntime.safeToString(key));
+            }
+            if (onTarget.type() == PropertyDescriptor.ACCESSOR
+                    && onTarget.getGetter() == null
+                    && answered != ScriptRuntime.UNDEFINED) {
+                throw typeError("proxy.get.not.same.value", ScriptRuntime.safeToString(key));
+            }
+        }
+        return answered;
     }
 
     @Override
@@ -188,9 +216,27 @@ public final class NativeProxy extends ScriptObject {
             target().set(key, value, flags);
             return;
         }
-        if (!JSType.toBoolean(call(trap, target(), propertyKey(key), value, this))
-                && NashornCallSiteDescriptorStrictness.isStrict(flags)) {
-            throw typeError("cant.set.proto.to.non.object", ScriptRuntime.safeToString(key));
+        final ScriptObject rx = target();
+        if (!JSType.toBoolean(call(trap, rx, propertyKey(key), value, this))) {
+            if (NashornCallSiteDescriptorStrictness.isStrict(flags)) {
+                throw typeError("property.not.writable", ScriptRuntime.safeToString(key),
+                        ScriptRuntime.safeToString(this));
+            }
+            return;
+        }
+
+        // ES2015 9.5.9 step 13: a write the target would not have allowed
+        // cannot be reported as having happened
+        if (rx.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor onTarget
+                && !onTarget.isConfigurable()) {
+            if (onTarget.type() == PropertyDescriptor.DATA && !onTarget.isWritable()
+                    && !ScriptRuntime.sameValue(value, onTarget.getValue())) {
+                throw typeError("proxy.set.not.same.value", ScriptRuntime.safeToString(key));
+            }
+            if (onTarget.type() == PropertyDescriptor.ACCESSOR
+                    && onTarget.getSetter() == null) {
+                throw typeError("proxy.set.not.same.value", ScriptRuntime.safeToString(key));
+            }
         }
     }
 
@@ -198,7 +244,19 @@ public final class NativeProxy extends ScriptObject {
     public boolean has(final Object key) {
         final ScriptFunction trap = trap("has");
         final ScriptObject rx = target();
-        return trap == null ? rx.has(key) : JSType.toBoolean(call(trap, rx, propertyKey(key)));
+        if (trap == null) {
+            return rx.has(key);
+        }
+        final boolean answered = JSType.toBoolean(call(trap, rx, propertyKey(key)));
+
+        // ES2015 9.5.7 step 9: a property the target will not give up cannot be
+        // denied, and neither can any of them once the target can take no more
+        if (!answered && rx.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor onTarget) {
+            if (!onTarget.isConfigurable() || !rx.isExtensible()) {
+                throw typeError("proxy.descriptor.hidden", ScriptRuntime.safeToString(key));
+            }
+        }
+        return answered;
     }
 
     @Override
@@ -388,6 +446,103 @@ public final class NativeProxy extends ScriptObject {
             }
         }
         return wanted.toArray((T[])java.lang.reflect.Array.newInstance(type, wanted.size()));
+    }
+
+    /*
+     * ES2015 9.5.12 [[Call]] and 9.5.13 [[Construct]]: a proxy is callable when
+     * its target is, and constructible when its target is, so a proxy over a
+     * function has to link as one. Nothing else about a proxy is a function -
+     * it is not a ScriptFunction and has no function prototype - so the two
+     * hooks the linker asks are answered here rather than by inheriting them.
+     */
+
+    @Override
+    public boolean isProxyOverCallable() {
+        // asked of a proxy whose target may since have been revoked, which is
+        // not an error - a revoked proxy is simply not callable
+        return target instanceof ScriptFunction || (target != null && target.isProxyOverCallable());
+    }
+
+    @Override
+    public boolean isProxyOverConstructor() {
+        if (target instanceof ScriptFunction function) {
+            return function.isConstructor();
+        }
+        return target instanceof NativeProxy proxy && proxy.isProxyOverConstructor();
+    }
+
+    @Override
+    protected GuardedInvocation findCallMethod(final CallSiteDescriptor desc, final LinkRequest request) {
+        if (!isProxyOverCallable()) {
+            return super.findCallMethod(desc, request);
+        }
+        return invocation(APPLY, desc, 2);
+    }
+
+    @Override
+    protected GuardedInvocation findNewMethod(final CallSiteDescriptor desc, final LinkRequest request) {
+        if (!isProxyOverConstructor()) {
+            return super.findNewMethod(desc, request);
+        }
+        return invocation(CONSTRUCT, desc, 1);
+    }
+
+    /** The call site, with everything past the fixed arguments gathered into an array. */
+    private static GuardedInvocation invocation(final MethodHandle handle, final CallSiteDescriptor desc,
+            final int fixed) {
+        final MethodType type = desc.getMethodType();
+        final int count = type.parameterCount();
+        // The apply-to-call machinery asks with the arguments already gathered
+        // into an array, where an ordinary call site names them one by one.
+        final boolean gathered = count == fixed + 1 && type.parameterType(count - 1) == Object[].class;
+        final MethodHandle bound = gathered
+                ? handle.asType(type)
+                : handle.asCollector(Object[].class, Math.max(count - fixed, 0)).asType(type);
+        return new GuardedInvocation(bound, Guards.isInstance(NativeProxy.class, type));
+    }
+
+    @SuppressWarnings("unused")
+    private static Object apply(final Object self, final Object thisArg, final Object[] args) {
+        final NativeProxy proxy = (NativeProxy)self;
+        final ScriptFunction trap = proxy.trap("apply");
+        final ScriptObject target = proxy.target();
+        if (trap == null) {
+            return target instanceof ScriptFunction
+                    ? ScriptRuntime.call(target, thisArg, args)
+                    : apply(target, thisArg, args);
+        }
+        return proxy.call(trap, target, thisArg, new NativeArray(args.clone()));
+    }
+
+    @SuppressWarnings("unused")
+    private static Object construct(final Object self, final Object[] args) {
+        final NativeProxy proxy = (NativeProxy)self;
+        final ScriptFunction trap = proxy.trap("construct");
+        final ScriptObject target = proxy.target();
+        if (trap == null) {
+            return target instanceof ScriptFunction function
+                    ? ScriptRuntime.construct(function, args)
+                    : construct(target, args);
+        }
+        // 9.5.13 step 9: what a construct trap answers with has to be an object
+        final Object created = proxy.call(trap, target, new NativeArray(args.clone()), proxy);
+        if (!(created instanceof ScriptObject)) {
+            throw typeError("proxy.construct.not.an.object", ScriptRuntime.safeToString(created));
+        }
+        return created;
+    }
+
+    private static final MethodHandle APPLY = find("apply",
+            MethodType.methodType(Object.class, Object.class, Object.class, Object[].class));
+    private static final MethodHandle CONSTRUCT = find("construct",
+            MethodType.methodType(Object.class, Object.class, Object[].class));
+
+    private static MethodHandle find(final String name, final MethodType type) {
+        try {
+            return MethodHandles.lookup().findStatic(NativeProxy.class, name, type);
+        } catch (final ReflectiveOperationException e) {
+            throw new InternalError(e);
+        }
     }
 
     /**

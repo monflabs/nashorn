@@ -651,6 +651,32 @@ public final class ScriptRuntime {
      * @param args   Call arguments.
      * @return Constructor call result.
      */
+    /**
+     * Constructs with anything that can be used with new, whatever it is.
+     *
+     * @param constructor the constructor
+     * @param args        its arguments
+     * @return the object it made
+     */
+    public static Object newInstance(final Object constructor, final Object[] args) {
+        if (constructor instanceof ScriptFunction function) {
+            return construct(function, args);
+        }
+        try {
+            final Object[] callArgs = new Object[args.length + 1];
+            callArgs[0] = constructor;
+            System.arraycopy(args, 0, callArgs, 1, args.length);
+            final Class<?>[] types = new Class<?>[callArgs.length];
+            java.util.Arrays.fill(types, Object.class);
+            return Bootstrap.createDynamicInvoker("", NashornCallSiteDescriptor.NEW, Object.class, types)
+                    .invokeWithArguments(callArgs);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     public static Object construct(final ScriptFunction target, final Object... args) {
         try {
             return target.construct(args);
