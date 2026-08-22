@@ -40,7 +40,7 @@ class ScriptObjectIterator extends ArrayLikeIterator<Object> {
     ScriptObjectIterator(final ScriptObject obj, final boolean includeUndefined) {
         super(includeUndefined);
         this.obj    = obj;
-        this.length = JSType.toUint32(obj.getLength());
+        this.length = toLength(obj.getLength());
         this.index  = 0;
     }
 

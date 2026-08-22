@@ -35,7 +35,7 @@ final class ReverseScriptObjectIterator extends ScriptObjectIterator {
 
     ReverseScriptObjectIterator(final ScriptObject obj, final boolean includeUndefined) {
         super(obj, includeUndefined);
-        this.index = JSType.toUint32(obj.getLength()) - 1;
+        this.index = toLength(obj.getLength()) - 1;
     }
 
     @Override

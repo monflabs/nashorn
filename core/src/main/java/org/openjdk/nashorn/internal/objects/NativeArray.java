@@ -858,7 +858,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             final Object spreadable = sobj.get(NativeSymbol.isConcatSpreadable);
             if (spreadable != ScriptRuntime.UNDEFINED) {
                 if (JSType.toBoolean(spreadable)) {
-                    final long length = JSType.toUint32(sobj.getLength());
+                    final long length = toLength(sobj.getLength());
                     for (long i = 0; i < length; i++) {
                         list.add(sobj.get(i));
                     }
@@ -986,7 +986,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             return sobj.getArray().pop();
         }
 
-        final long len = JSType.toUint32(sobj.getLength());
+        final long len = toLength(sobj.getLength());
 
         if (len == 0) {
             sobj.set("length", 0, CALLSITE_STRICT);
@@ -1066,7 +1066,13 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
                 return JSType.toNarrowestNumber(newData.length());
             }
 
-            long len = JSType.toUint32(sobj.getLength());
+            long len = toLength(sobj.getLength());
+            // ES2015 22.1.3.17 step 5: there is no index past 2^53-1 to put
+            // anything at, and the length is not raised to somewhere nothing
+            // can be read from
+            if (len + args.length > MAX_SAFE_INTEGER) {
+                throw typeError("array.length.exceeded", JSType.toString((double)len));
+            }
             for (final Object element : args) {
                 sobj.set(len++, element, CALLSITE_STRICT);
             }
@@ -1099,7 +1105,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             return length + 1;
         }
 
-        long len = JSType.toUint32(sobj.getLength());
+        long len = toLength(sobj.getLength());
+        if (len >= MAX_SAFE_INTEGER) {
+            // 22.1.3.17 step 5: no index past 2^53-1 to put it at
+            throw typeError("array.length.exceeded", JSType.toString((double)len));
+        }
         sobj.set(len++, arg, CALLSITE_STRICT);
         sobj.set("length", len, CALLSITE_STRICT);
         return len;
@@ -1119,7 +1129,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
 
         final ScriptObject sobj   = (ScriptObject)obj;
-        final long         len    = JSType.toUint32(sobj.getLength());
+        final long         len    = toLength(sobj.getLength());
         final long         middle = len / 2;
 
         for (long lower = 0; lower != middle; lower++) {
@@ -1161,7 +1171,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
         final ScriptObject sobj   = (ScriptObject) obj;
 
-        long len = JSType.toUint32(sobj.getLength());
+        long len = toLength(sobj.getLength());
 
         if (len > 0) {
             first = sobj.get(0);
@@ -1206,7 +1216,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
 
         final ScriptObject sobj                = (ScriptObject)obj;
-        final long         len                 = JSType.toUint32(sobj.getLength());
+        final long         len                 = toLength(sobj.getLength());
         final long         relativeStart       = JSType.toLong(start);
         final long         relativeEnd         = end == ScriptRuntime.UNDEFINED ? len : JSType.toLong(end);
 
@@ -1265,6 +1275,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * claims 4294967295 while holding a single element.
      */
     private static final long SORT_SCAN_LIMIT = 1L << 20;
+
+    /** The largest integer a double holds exactly, which bounds any length. */
+    private static final long MAX_SAFE_INTEGER = 9007199254740991L;
+
+    /** The longest an array can be: a length is an unsigned 32 bit number. */
+    private static final long MAX_ARRAY_LENGTH = 4294967295L;
 
     /**
      * ES2015 7.1.15 ToLength, which an array-like's length goes through: up to
@@ -1410,7 +1426,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
 
         final ScriptObject sobj          = (ScriptObject)obj;
-        final long         len           = JSType.toUint32(sobj.getLength());
+        final long         len           = toLength(sobj.getLength());
         final long         relativeStart = JSType.toLong(args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED);
 
         final long actualStart = relativeStart < 0 ? Math.max(len + relativeStart, 0) : Math.min(relativeStart, len);
@@ -1533,7 +1549,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
 
         final ScriptObject sobj   = (ScriptObject)obj;
-        final long         len    = JSType.toUint32(sobj.getLength());
+        final long         len    = toLength(sobj.getLength());
 
         if (items == null) {
             return ScriptRuntime.UNDEFINED;
@@ -1581,7 +1597,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     public static double indexOf(final Object self, final Object searchElement, final Object fromIndex) {
         try {
             final ScriptObject sobj = (ScriptObject)Global.toObject(self);
-            final long         len  = JSType.toUint32(sobj.getLength());
+            final long         len  = toLength(sobj.getLength());
             if (len == 0) {
                 return -1;
             }
@@ -1624,7 +1640,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (sobj == null) {
             return false;
         }
-        final long length = JSType.toUint32(sobj.getLength());
+        final long length = toLength(sobj.getLength());
         if (length == 0) {
             return false;
         }
@@ -1649,7 +1665,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     public static double lastIndexOf(final Object self, final Object... args) {
         try {
             final ScriptObject sobj = (ScriptObject)Global.toObject(self);
-            final long         len  = JSType.toUint32(sobj.getLength());
+            final long         len  = toLength(sobj.getLength());
 
             if (len == 0) {
                 return -1;
@@ -1841,6 +1857,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     private static ScriptObject speciesCreate(final Object original, final long length) {
+        // ES2015 9.4.2.3 step 5 makes an ordinary array of that length, and an
+        // array cannot be 2^32 long or longer - a length an array-like is free
+        // to claim and a derived array is not.
+        if (length > MAX_ARRAY_LENGTH) {
+            throw rangeError("inappropriate.array.length", JSType.toString((double)length));
+        }
         final Global global = Global.instance();
         if (!(original instanceof ScriptObject sobj) || !isArray(sobj)) {
             return new NativeArray(length);
@@ -2181,7 +2203,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
         final ScriptFunction callback = asFunction(predicate);
-        final long length = JSType.toUint32(sobj.getLength());
+        final long length = toLength(sobj.getLength());
 
         for (long i = 0; i < length; i++) {
             final Object value = sobj.get(i);
@@ -2207,7 +2229,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (sobj == null) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final long length = JSType.toUint32(sobj.getLength());
+        final long length = toLength(sobj.getLength());
         final long from = relativeIndex(start, length, 0);
         final long to = relativeIndex(end, length, length);
 
@@ -2232,7 +2254,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (sobj == null) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final long length = JSType.toUint32(sobj.getLength());
+        final long length = toLength(sobj.getLength());
         final long to = relativeIndex(target, length, 0);
         final long from = relativeIndex(start, length, 0);
         final long last = relativeIndex(end, length, length);
@@ -2319,7 +2341,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
         // array-like: read by index up to length
         final Object source = JSType.toScriptObject(Global.instance(), items);
-        final long length = source instanceof ScriptObject sobj ? JSType.toUint32(sobj.getLength()) : 0;
+        final long length = source instanceof ScriptObject sobj ? toLength(sobj.getLength()) : 0;
         final ScriptObject target = create(self, (double)length);
         if (source instanceof ScriptObject sobj) {
             for (long i = 0; i < length; i++) {

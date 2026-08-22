@@ -44,7 +44,11 @@ function phlug() {
     length: 5 - Math.pow(2, 32)
     };
 
-    return Array.prototype.lastIndexOf.call(obj, -Infinity) === 4;
+    // ES2015 7.1.15 ToLength reads a negative length as zero, where ToUint32
+    // wrapped 5 - 2^32 round to 5 and searched five indices. Either way the
+    // point below stands: the length is a double, and reading it as an int
+    // would set this looping four billion times.
+    return Array.prototype.lastIndexOf.call(obj, -Infinity) === -1;
 }
 
 var d = new Date;

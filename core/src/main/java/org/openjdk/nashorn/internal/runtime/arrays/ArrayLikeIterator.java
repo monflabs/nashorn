@@ -86,6 +86,20 @@ abstract public class ArrayLikeIterator<T> implements Iterator<T> {
     public abstract long getLength();
 
     /**
+     * ES2015 7.1.15 ToLength: an array-like's length is up to 2^53-1, where
+     * ToUint32 wraps at 2^32 - so a length of 2^32 read as zero, and the
+     * iteration that should have raised the array limit did nothing at all.
+     */
+    static long toLength(final Object value) {
+        final double number = JSType.toNumber(value);
+        if (Double.isNaN(number) || number <= 0) {
+            return 0;
+        }
+        return (long)Math.min(Math.floor(number), 9007199254740991d);
+    }
+
+
+    /**
      * ArrayLikeIterator factory
      *
      * @param object object over which to do element iteration
