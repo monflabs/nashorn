@@ -1747,16 +1747,22 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static ScriptObject map(final Object self, final Object callbackfn, final Object thisArg) {
+        final boolean ordinary = hasDefaultSpecies(self, Global.instance());
         return new IteratorAction<ScriptObject>(Global.toObject(self), callbackfn, thisArg, null) {
             private final MethodHandle mapInvoker = getMAP_CALLBACK_INVOKER();
 
             @Override
             protected boolean forEach(final Object val, final double i) throws Throwable {
                 final Object r = mapInvoker.invokeExact(callbackfn, thisArg, val, i, self);
-                // CreateDataPropertyOrThrow, not an assignment: what is already
-                // at that index in a species-provided array is replaced,
-                // attributes and all
-                createDataProperty(result, index, r);
+                if (ordinary) {
+                    result.defineOwnProperty(ArrayIndex.getArrayIndex(index), r);
+                } else {
+                    // CreateDataPropertyOrThrow, which replaces what a
+                    // species-provided array already has at that index,
+                    // attributes and all - and costs a descriptor to say so,
+                    // which is why an ordinary array does not go through it
+                    createDataProperty(result, index, r);
+                }
                 return true;
             }
 
@@ -1779,6 +1785,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static ScriptObject filter(final Object self, final Object callbackfn, final Object thisArg) {
+        final boolean ordinary = hasDefaultSpecies(self, Global.instance());
         return new IteratorAction<ScriptObject>(Global.toObject(self), callbackfn, thisArg, speciesCreate(self, 0)) {
             private long to = 0;
             private final MethodHandle filterInvoker = getFILTER_CALLBACK_INVOKER();
@@ -1786,7 +1793,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             @Override
             protected boolean forEach(final Object val, final double i) throws Throwable {
                 if ((boolean)filterInvoker.invokeExact(callbackfn, thisArg, val, i, self)) {
-                    createDataProperty(result, to++, val);
+                    if (ordinary) {
+                        result.defineOwnProperty(ArrayIndex.getArrayIndex(to++), val);
+                    } else {
+                        createDataProperty(result, to++, val);
+                    }
                 }
                 return true;
             }
@@ -1818,9 +1829,15 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * path that map, filter, slice and concat all sit on.
      */
     private static boolean hasDefaultSpecies(final Object array, final Global global) {
-        return array instanceof ScriptObject sobj
-                && sobj.getProto() == global.getArrayPrototype()
-                && sobj.getMap().findProperty("constructor") == null;
+        if (!(array instanceof ScriptObject sobj) || sobj.getProto() != global.getArrayPrototype()) {
+            return false;
+        }
+        // An array that has been given no property of its own beyond the length
+        // it is born with cannot be shadowing constructor, and asking the map
+        // how many it has is a field read where asking it for one by name is a
+        // hash lookup - on a path map and concat take once per call.
+        final PropertyMap map = sobj.getMap();
+        return map.size() <= 1 || map.findProperty("constructor") == null;
     }
 
     private static ScriptObject speciesCreate(final Object original, final long length) {
