@@ -4998,7 +4998,26 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * innermost first, and a function's body is inside its parameter block, so
      * whichever of the two comes first says where this is.
      */
+    /** Whether a parameter of this function is itself called "arguments". */
+    private static boolean bindsArguments(final FunctionNode function) {
+        for (final IdentNode parameter : function.getParameters()) {
+            if ("arguments".equals(parameter.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean inParameterExpression() {
+        final FunctionNode function = lc.getCurrentFunction();
+        if (function.getKind() == FunctionNode.Kind.ARROW && !bindsArguments(function)) {
+            // An arrow has no arguments object of its own for a declaration to
+            // collide with - it reads the enclosing function's - so declaring
+            // one in its parameter list is allowed, and its body then sees it.
+            // Unless it has a parameter of that name, which is a binding like
+            // any other and cannot be declared twice.
+            return false;
+        }
         for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext(); ) {
             final Block block = blocks.next();
             if (block.isParameterBlock()) {
