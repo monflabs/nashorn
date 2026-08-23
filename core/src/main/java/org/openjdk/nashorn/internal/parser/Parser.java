@@ -3706,7 +3706,12 @@ public class Parser extends AbstractParser implements Loggable {
 
         case SUPER: {
             final ParserContextFunctionNode currentFunction = getCurrentNonArrowFunction();
-            if (currentFunction.isMethod()) {
+            // On an on-demand re-parse the enclosing method is not on the stack -
+            // whatever is being compiled sits at the top - so there is nothing
+            // here to ask. The eager parse read the same text with the whole
+            // chain in place and would have rejected an illegal super then.
+            final boolean inMethod = currentFunction.isMethod() || reparsedFunction != null;
+            if (inMethod) {
                 final long identToken = Token.recast(token, IDENT);
                 next();
                 lhs = createIdentNode(identToken, finish, SUPER.getName());
@@ -3714,11 +3719,14 @@ public class Parser extends AbstractParser implements Loggable {
                 switch (type) {
                     case LBRACKET:
                     case PERIOD:
-                        getCurrentNonArrowFunction().setFlag(FunctionNode.ES6_USES_SUPER);
+                        markSuper(lc);
                         isSuper = true;
                         break;
                     case LPAREN:
-                        if (currentFunction.isSubclassConstructor()) {
+                        if (currentFunction.isSubclassConstructor() || reparsedFunction != null) {
+                            // an arrow calling super() needs the constructor's
+                            // home object and this, exactly as a property access does
+                            markSuper(lc);
                             lhs = ((IdentNode)lhs).setIsDirectSuper();
                             break;
                         } else {
@@ -5856,6 +5864,24 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             }
             throughArrow = true;
+        }
+    }
+
+    /**
+     * ES2015 8.1.1.3: an arrow resolves super where it was written, so every
+     * arrow between the super and the method that encloses it has to know, in
+     * order to carry the method's home object along.
+     */
+    private static void markSuper(final ParserContext lc) {
+        // a super property reference is called on this, so it reads it too
+        markThis(lc);
+        final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        while (iter.hasNext()) {
+            final ParserContextFunctionNode fn = iter.next();
+            fn.setFlag(FunctionNode.ES6_USES_SUPER);
+            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+                break;
+            }
         }
     }
 

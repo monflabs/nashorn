@@ -196,6 +196,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private static final Call CREATE_FUNCTION_OBJECT = CompilerConstants.staticCallNoLookup(ScriptFunction.class,
             "create", ScriptFunction.class, Object[].class, int.class, ScriptObject.class);
+    private static final Call INHERIT_HOME_OBJECT = CompilerConstants.staticCallNoLookup(ScriptFunction.class,
+            "inheritHomeObject", ScriptFunction.class, ScriptFunction.class, Object.class);
+
     private static final Call CREATE_FUNCTION_OBJECT_NO_SCOPE = CompilerConstants.staticCallNoLookup(ScriptFunction.class,
             "create", ScriptFunction.class, Object[].class, int.class);
 
@@ -4967,6 +4970,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.invoke(CREATE_FUNCTION_OBJECT);
         } else {
             method.invoke(CREATE_FUNCTION_OBJECT_NO_SCOPE);
+        }
+
+        if (functionNode.getKind() == FunctionNode.Kind.ARROW && functionNode.usesSuper()) {
+            // an arrow carries the home object of whatever created it
+            method.loadCompilerConstant(CALLEE);
+            method.invoke(INHERIT_HOME_OBJECT);
         }
     }
 

@@ -732,6 +732,23 @@ public class ScriptFunction extends ScriptObject {
      *
      * @param homeObject the defining object
      */
+    /**
+     * ES2015 8.1.1.3: an arrow has no home object of its own and resolves super
+     * where it was written, so it takes the one from the function that created
+     * it - which for an arrow inside an arrow is the outer arrow, which took it
+     * from the method in turn.
+     *
+     * @param arrow   the arrow just created
+     * @param creator the function whose body created it
+     * @return the arrow
+     */
+    public static ScriptFunction inheritHomeObject(final ScriptFunction arrow, final Object creator) {
+        if (creator instanceof ScriptFunction outer) {
+            arrow.homeObject = outer.homeObject;
+        }
+        return arrow;
+    }
+
     public final void setHomeObject(final ScriptObject homeObject) {
         this.homeObject = homeObject;
     }

@@ -595,8 +595,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(
-                        moduleEnvironment(rejectEarlyParameterReads(functionNode))))));
+                bindArrowThis(publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(
+                        moduleEnvironment(rejectEarlyParameterReads(functionNode)))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -777,6 +777,34 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
         return functionNode.setFlag(lc, FunctionNode.HAS_ALL_VARS_IN_SCOPE)
                 .setBody(lc, body.setStatements(lc, statements));
+    }
+
+    /**
+     * Puts the enclosing function's {@code this} into an arrow's own this slot,
+     * for an arrow that uses super.
+     *
+     * A {@code this} written in an arrow is rewritten to read the captured
+     * variable, but {@code super.m()} is a call the code generator builds
+     * itself, and what it pushes as the receiver is the slot. Filling the slot
+     * on the way in is what makes the two agree.
+     */
+    private FunctionNode bindArrowThis(final FunctionNode functionNode) {
+        if (functionNode.getKind() != FunctionNode.Kind.ARROW || !functionNode.usesSuper()) {
+            return functionNode;
+        }
+
+        final long token = Token.recast(functionNode.getToken(), TokenType.ASSIGN);
+        final int finish = functionNode.getFinish();
+        final Block body = functionNode.getBody();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
+                new BinaryNode(token,
+                        new IdentNode(token, finish, CompilerConstants.THIS.symbolName()),
+                        new IdentNode(token, finish, ARROW_THIS))));
+        statements.addAll(body.getStatements());
+
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
     }
 
     /**
