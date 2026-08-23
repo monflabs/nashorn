@@ -2856,6 +2856,28 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 method.invoke(ScriptObject.SET_USER_ACCESSORS);
             }
         }
+
+        if (definesSuperMethod(objectNode)) {
+            // ES2015 9.1.15: a method written in an object literal remembers the
+            // literal as its home object, which is what super resolves against.
+            // Only a literal that has such a method pays for the walk.
+            method.invoke(ScriptRuntime.SET_METHOD_HOMES);
+        }
+    }
+
+    /** Whether any of a literal's methods needs a home object to resolve super against. */
+    private static boolean definesSuperMethod(final ObjectNode objectNode) {
+        for (final PropertyNode propertyNode : objectNode.getElements()) {
+            if (usesSuper(propertyNode.getValue()) || usesSuper(propertyNode.getGetter())
+                    || usesSuper(propertyNode.getSetter())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean usesSuper(final Expression value) {
+        return value instanceof FunctionNode function && function.isMethod() && function.usesSuper();
     }
 
     @Override

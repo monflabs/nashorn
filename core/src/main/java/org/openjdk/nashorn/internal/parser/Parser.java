@@ -3316,7 +3316,7 @@ public class Parser extends AbstractParser implements Loggable {
                 // ES2015 12.14.5.2: "{ p = function () {} }" names the function
                 // after the name it is defaulting
                 final Expression rhs;
-                defaultNames.push(propertyName);
+                defaultNames.push(computed ? "" : propertyName);
                 try {
                     rhs = assignmentExpression(false);
                 } finally {
@@ -3327,7 +3327,9 @@ public class Parser extends AbstractParser implements Loggable {
         } else {
             expect(COLON);
 
-            defaultNames.push(propertyName);
+            // a computed key is only known once it has been evaluated, so the
+            // function is left nameless here and named at run time from the key
+            defaultNames.push(computed ? "" : propertyName);
             try {
                 propertyValue = assignmentExpression(false);
             } finally {

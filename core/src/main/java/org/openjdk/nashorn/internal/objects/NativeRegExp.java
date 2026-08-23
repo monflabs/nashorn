@@ -142,14 +142,58 @@ public final class NativeRegExp extends ScriptObject {
      * @return new NativeRegExp
      */
     @Constructor(arity = 2)
-    public static NativeRegExp constructor(final boolean isNew, final Object self, final Object... args) {
-        if (args.length > 1) {
-            return newRegExp(args[0], args[1]);
-        } else if (args.length > 0) {
-            return newRegExp(args[0], UNDEFINED);
+    public static Object constructor(final boolean isNew, final Object self, final Object... args) {
+        return construct(isNew,
+                args.length > 0 ? args[0] : UNDEFINED,
+                args.length > 1 ? args[1] : UNDEFINED);
+    }
+
+    /**
+     * ES2015 7.2.8 IsRegExp: an object counts as a regular expression if it says
+     * so with {@code Symbol.match}, whatever it actually is, and only falls back
+     * to being one when it stays silent.
+     */
+    private static boolean isRegExp(final Object value) {
+        if (!(value instanceof ScriptObject sobj)) {
+            return false;
+        }
+        final Object matcher = sobj.get(NativeSymbol.match);
+        return matcher == UNDEFINED ? value instanceof NativeRegExp : JSType.toBoolean(matcher);
+    }
+
+    /**
+     * ES2015 21.2.3.1 RegExp(pattern, flags).
+     *
+     * Three things changed here from ES5.1. Called as a function on a regular
+     * expression whose constructor is this one, with no flags, it hands the same
+     * object back rather than copying - but called with new it always copies.
+     * A pattern that is not a regular expression but claims to be one, through
+     * a truthy {@code Symbol.match}, is taken apart with its own "source" and
+     * "flags". And a regular expression pattern may be given flags, which
+     * replaces the ones it had; ES5.1 made that a TypeError.
+     */
+    private static Object construct(final boolean isNew, final Object pattern, final Object flags) {
+        final boolean patternIsRegExp = isRegExp(pattern);
+
+        if (!isNew && patternIsRegExp && flags == UNDEFINED
+                && ((ScriptObject)pattern).get("constructor") == Global.instance().get("RegExp")) {
+            return pattern;
         }
 
-        return newRegExp(UNDEFINED, UNDEFINED);
+        final String source;
+        final String flagString;
+        if (pattern instanceof NativeRegExp re) {
+            source = re.getRegExp().getSource();
+            flagString = flags == UNDEFINED ? JSType.toString(flags(re)) : JSType.toString(flags);
+        } else if (patternIsRegExp) {
+            final ScriptObject sobj = (ScriptObject)pattern;
+            source = JSType.toString(sobj.get("source"));
+            flagString = flags == UNDEFINED ? JSType.toString(sobj.get("flags")) : JSType.toString(flags);
+        } else {
+            source = pattern == UNDEFINED ? "" : JSType.toString(pattern);
+            flagString = flags == UNDEFINED ? "" : JSType.toString(flags);
+        }
+        return new NativeRegExp(source, flagString);
     }
 
     /**
@@ -177,8 +221,8 @@ public final class NativeRegExp extends ScriptObject {
      * @return new NativeRegExp
      */
     @SpecializedFunction(isConstructor=true)
-    public static NativeRegExp constructor(final boolean isNew, final Object self, final Object pattern) {
-        return newRegExp(pattern, UNDEFINED);
+    public static Object constructor(final boolean isNew, final Object self, final Object pattern) {
+        return construct(isNew, pattern, UNDEFINED);
     }
 
     /**
@@ -193,8 +237,8 @@ public final class NativeRegExp extends ScriptObject {
      * @return new NativeRegExp
      */
     @SpecializedFunction(isConstructor=true)
-    public static NativeRegExp constructor(final boolean isNew, final Object self, final Object pattern, final Object flags) {
-        return newRegExp(pattern, flags);
+    public static Object constructor(final boolean isNew, final Object self, final Object pattern, final Object flags) {
+        return construct(isNew, pattern, flags);
     }
 
     /**
@@ -702,7 +746,17 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object source(final Object self) {
-        return checkRegExp(self).getRegExp().getSource();
+        // ES2015 21.2.5.10: the prototype is an ordinary object now, and describes
+        // the pattern that matches nothing rather than pretending to be one
+        return isRegExpPrototype(self) ? "(?:)" : checkRegExp(self).getRegExp().getSource();
+    }
+
+    /**
+     * Whether this is %RegExpPrototype%, which ES2015 21.2.5 stopped making a
+     * regular expression: every flag accessor answers undefined for it.
+     */
+    private static boolean isRegExpPrototype(final Object self) {
+        return self == Global.instance().getRegExpPrototype();
     }
 
     /**
@@ -747,7 +801,7 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object sticky(final Object self) {
-        return checkRegExp(self).getRegExp().isSticky();
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isSticky();
     }
 
     /**
@@ -758,7 +812,7 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object unicode(final Object self) {
-        return checkRegExp(self).getRegExp().isUnicode();
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isUnicode();
     }
 
     /**
@@ -769,7 +823,7 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object global(final Object self) {
-        return checkRegExp(self).getRegExp().isGlobal();
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isGlobal();
     }
 
     /**
@@ -780,7 +834,7 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object ignoreCase(final Object self) {
-        return checkRegExp(self).getRegExp().isIgnoreCase();
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isIgnoreCase();
     }
 
     /**
@@ -791,7 +845,7 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object multiline(final Object self) {
-        return checkRegExp(self).getRegExp().isMultiline();
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isMultiline();
     }
 
     /**

@@ -22,7 +22,11 @@
  */
 
 /**
- * NASHORN-366 : RegExp.prototype is a RegExp object and should support properties like source, global etc.
+ * NASHORN-366 : RegExp.prototype answers the flag accessors.
+ *
+ * ES2015 21.2.5 stopped making RegExp.prototype a regular expression, so the
+ * flags answer undefined for it and source describes the pattern that matches
+ * nothing. The accessors are still there, which is what this test is about.
  *
  * @test
  * @run

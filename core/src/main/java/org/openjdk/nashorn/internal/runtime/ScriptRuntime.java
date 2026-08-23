@@ -1802,6 +1802,39 @@ public final class ScriptRuntime {
         target.defineOwnProperty(propertyKey, descriptor, true);
     }
 
+    /** Gives every method of a just-built object literal the literal as its home object. */
+    public static final Call SET_METHOD_HOMES = staticCallNoLookup(ScriptRuntime.class, "setMethodHomes",
+            ScriptObject.class, ScriptObject.class);
+
+    /**
+     * ES2015 9.1.15 MakeMethod, for an object literal: each method it defines
+     * remembers the literal, so that super resolves above it.
+     *
+     * A function that is not a method cannot mention super - the parser refuses
+     * it - so handing one a home object it will never read costs nothing, and
+     * saves knowing at this point which of the values were written as methods.
+     *
+     * @param literal the object just built
+     * @return the same object
+     */
+    public static ScriptObject setMethodHomes(final ScriptObject literal) {
+        for (final Property property : literal.getMap().getProperties()) {
+            if (property instanceof UserAccessorProperty accessor) {
+                makeMethod(accessor.getGetterFunction(literal), literal);
+                makeMethod(accessor.getSetterFunction(literal), literal);
+            } else {
+                makeMethod(literal.get(property.getKey()), literal);
+            }
+        }
+        return literal;
+    }
+
+    private static void makeMethod(final Object value, final ScriptObject literal) {
+        if (value instanceof ScriptFunction function && function.getHomeObject() == null) {
+            function.setHomeObject(literal);
+        }
+    }
+
     /**
      * The object {@code super} resolves against: the prototype of the object the
      * running method was defined on.
@@ -1818,7 +1851,13 @@ public final class ScriptRuntime {
         if (home == null) {
             throw typeError("no.super");
         }
-        return home.getProto();
+        final ScriptObject base = home.getProto();
+        if (base == null) {
+            // 8.1.1.3.5 hands back null, and reading a property of it is the
+            // ordinary TypeError that reading one of null always is
+            throw typeError("cant.get.property", "super", "null");
+        }
+        return base;
     }
 
     /**

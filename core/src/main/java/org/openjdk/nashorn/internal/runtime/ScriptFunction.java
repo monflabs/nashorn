@@ -834,8 +834,11 @@ public class ScriptFunction extends ScriptObject {
      */
     public static Object setFunctionName(final Object key, final Object value) {
         if (value instanceof ScriptFunction function && function.data.getName().isEmpty()) {
+            // ES2015 9.2.11: a symbol key names the function after its
+            // description, in brackets - and one with no description names it
+            // nothing at all
             function.data.setName(key instanceof Symbol symbol
-                    ? "[" + symbol.getName() + "]"
+                    ? (symbol.getName().isEmpty() ? "" : "[" + symbol.getName() + "]")
                     : JSType.toString(key));
         }
         return value;
