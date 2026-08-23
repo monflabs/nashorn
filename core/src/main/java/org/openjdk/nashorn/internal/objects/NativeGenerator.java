@@ -117,6 +117,10 @@ public final class NativeGenerator extends ScriptObject {
     }
 
     private ScriptObject result(final Object[] step) {
+        if (step.length > 2 && step[0] instanceof ScriptObject delegated) {
+            // yield* hands the inner iterator's own result object through
+            return delegated;
+        }
         return new IteratorResult(step[0], (Boolean)step[1], global);
     }
 

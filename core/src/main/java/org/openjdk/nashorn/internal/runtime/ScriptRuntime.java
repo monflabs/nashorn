@@ -2186,22 +2186,113 @@ public final class ScriptRuntime {
     }
 
     /**
-     * {@code yield* iterable} - yields everything the iterable produces.
+     * {@code yield* iterable} - hands the generator over to another iterator
+     * until it is finished (ES2015 14.4.14).
      *
-     * On a thread this is just a loop; there is no state machine to thread the
-     * delegation through. Values sent in with next() are not forwarded to the
-     * inner iterator, and the delegated iterator's own return value is not
-     * propagated - both are documented gaps.
+     * Delegation is not a loop of yields. Everything the caller does to the
+     * outer generator has to reach the inner iterator: a value sent with next()
+     * is passed on, a throw() is offered to the inner iterator's own throw, and
+     * a return() to its return - and any of the three may answer with a value
+     * and carry on. What the outer generator yields is the result object the
+     * inner one produced, not a fresh one, so a "value" the inner iterator
+     * computes lazily is not read until somebody asks for it.
      *
      * @param iterable what to delegate to
-     * @return undefined
+     * @return the value the inner iterator finished with
      */
     public static Object YIELD_STAR(final Object iterable) {
-        final Iterator<?> iterator = toES6Iterator(iterable);
-        while (iterator.hasNext()) {
-            YIELD(iterator.next());
+        final GeneratorSupport generator = GeneratorSupport.running();
+        if (generator == null) {
+            throw typeError("yield.outside.generator");
         }
-        return UNDEFINED;
+
+        final Object delegate = iteratorOf(iterable);
+        if (!(delegate instanceof ScriptObject iterator)) {
+            // a Java array, list or map, which has no protocol to delegate to
+            final Iterator<?> plain = toES6Iterator(iterable);
+            while (plain.hasNext()) {
+                YIELD(plain.next());
+            }
+            return UNDEFINED;
+        }
+
+        // 7.4.1 reads next once, at the start, so replacing it later is not seen
+        final Object next = iterator.get("next");
+        Object received = UNDEFINED;
+        String how = "next";
+
+        while (true) {
+            final ScriptObject result;
+            switch (how) {
+            case "next" -> result = iterationResult(call(next, iterator, new Object[] { received }));
+            case "throw" -> {
+                final Object thrower = iterator.get("throw");
+                if (thrower == UNDEFINED || thrower == null) {
+                    // 14.4.14 step 6.b.iii: nothing to hand the throw to, and the
+                    // iterator is told the delegation is over before it is reported
+                    closeDelegate(iterator);
+                    throw typeError("not.a.function", "throw");
+                }
+                result = iterationResult(call(thrower, iterator, new Object[] { received }));
+            }
+            default -> {
+                final Object returner = iterator.get("return");
+                if (returner == UNDEFINED || returner == null) {
+                    // nothing to tell: the outer generator just returns
+                    throw GeneratorSupport.returning(received);
+                }
+                result = iterationResult(call(returner, iterator, new Object[] { received }));
+                if (JSType.toBoolean(result.get("done"))) {
+                    throw GeneratorSupport.returning(result.get("value"));
+                }
+            }
+            }
+
+            if (!"return".equals(how) && JSType.toBoolean(result.get("done"))) {
+                return result.get("value");
+            }
+
+            final Object[] resumed = generator.yieldDelegating(result);
+            how = (String)resumed[0];
+            received = resumed[1];
+        }
+    }
+
+    /** The iterator to delegate to, or null for something with no iterator protocol. */
+    private static Object iteratorOf(final Object iterable) {
+        final Object coerced = Global.toObject(iterable);
+        if (!(coerced instanceof ScriptObject sobj)) {
+            return null;
+        }
+        final Object method = sobj.get(NativeSymbol.iterator);
+        if (!Bootstrap.isCallable(method)) {
+            return null;
+        }
+        final Object iterator = call(method, sobj, new Object[0]);
+        if (!(iterator instanceof ScriptObject)) {
+            throw typeError("not.an.object", safeToString(iterator));
+        }
+        return iterator;
+    }
+
+    /** Tells an iterator the delegation is over, without letting that be reported. */
+    private static void closeDelegate(final ScriptObject iterator) {
+        try {
+            final Object close = iterator.get("return");
+            if (Bootstrap.isCallable(close)) {
+                call(close, iterator, new Object[0]);
+            }
+        } catch (final RuntimeException ignored) {
+            // the error on its way out is the one worth reporting
+        }
+    }
+
+    /** What next, throw and return each have to answer with (7.4.1 and its neighbours). */
+    private static ScriptObject iterationResult(final Object result) {
+        if (result instanceof ScriptObject sobj) {
+            return sobj;
+        }
+        throw typeError("not.an.object", safeToString(result));
     }
 
     public static Object YIELD(final Object value) {

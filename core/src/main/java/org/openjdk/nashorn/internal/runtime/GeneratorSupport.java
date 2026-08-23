@@ -70,6 +70,8 @@ public final class GeneratorSupport {
         /** The parameters are bound and the body is waiting to be advanced. */
         record Started() implements Step { }
         record Yielded(Object value) implements Step { }
+        /** A yield* passing the inner iterator's own result object through. */
+        record Delegated(Object result) implements Step { }
         record Returned(Object value) implements Step { }
         record Failed(RuntimeException error) implements Step { }
     }
@@ -176,6 +178,42 @@ public final class GeneratorSupport {
     public Object yield(final Object value) {
         deliver(new Step.Yielded(value));
         return awaitResume();
+    }
+
+    /**
+     * Yields a value and reports how the generator was resumed instead of acting
+     * on it.
+     *
+     * This is what {@code yield*} needs. An ordinary yield turns a throw() into
+     * a throw and a return() into an unwinding, both at the point of the yield;
+     * a delegating one has to hand either to the iterator it is delegating to,
+     * which may well answer with a value and carry on.
+     *
+     * @param value what to yield
+     * @return two elements: how it was resumed - "next", "throw" or "return" -
+     *         and the value that came with it
+     */
+    public Object[] yieldDelegating(final Object value) {
+        deliver(new Step.Delegated(value));
+        final Resume resume = take(toBody);
+        if (resume instanceof Resume.Return ret) {
+            return new Object[] { "return", ret.value() };
+        }
+        if (resume instanceof Resume.Throw thrown) {
+            return new Object[] { "throw", thrown.error() };
+        }
+        return new Object[] { "next", ((Resume.Next)resume).value() };
+    }
+
+    /**
+     * The unwinding a generator body performs when it is to return a value,
+     * which is how {@code yield*} passes on a return it could not delegate.
+     *
+     * @param value what the generator returns
+     * @return the exception to throw
+     */
+    public static RuntimeException returning(final Object value) {
+        return new Abort(value);
     }
 
     /**
@@ -287,6 +325,11 @@ public final class GeneratorSupport {
 
         if (step instanceof Step.Yielded yielded) {
             return new Object[] { yielded.value(), Boolean.FALSE };
+        }
+        if (step instanceof Step.Delegated delegated) {
+            // 14.4.14 yields the result object the inner iterator made, rather
+            // than taking it apart and building another
+            return new Object[] { delegated.result(), Boolean.FALSE, Boolean.TRUE };
         }
         done = true;
         if (step instanceof Step.Failed failed) {
