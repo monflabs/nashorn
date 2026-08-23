@@ -1058,6 +1058,7 @@ public final class Global extends Scope {
             Collections.synchronizedList(new ArrayList<>());
 
     private ScriptObject   builtinGeneratorPrototype;
+    private ScriptObject   builtinGeneratorFunctionPrototype;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
     private ScriptFunction builtinString;
@@ -2026,6 +2027,37 @@ public final class Global extends Scope {
             builtinGeneratorPrototype = initPrototype("NativeGenerator", getIteratorPrototype());
         }
         return builtinGeneratorPrototype;
+    }
+
+    /**
+     * The object every generator function inherits from, %GeneratorFunction.prototype%
+     * (ES2015 25.2.3).
+     *
+     * It sits between a generator function and Function.prototype, and holds the
+     * "prototype" property that names %GeneratorPrototype% - which is how a
+     * program reaches next, return and throw without having a generator to hand.
+     * Nashorn has no %GeneratorFunction% constructor to be the constructor of it,
+     * so the two properties the specification gives it that do not depend on one
+     * are what is here.
+     *
+     * @return the %GeneratorFunction.prototype% intrinsic
+     */
+    public ScriptObject getGeneratorFunctionPrototype() {
+        if (builtinGeneratorFunctionPrototype == null) {
+            final ScriptObject proto = newEmptyInstance();
+            proto.setInitialProto(getFunctionPrototype());
+            proto.addOwnProperty("prototype", Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                    getGeneratorPrototype());
+            proto.addOwnProperty(NativeSymbol.toStringTag, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                    "GeneratorFunction");
+            proto.setIsBuiltin();
+            builtinGeneratorFunctionPrototype = proto;
+            // 25.2.3.1: the generator prototype names this object as its
+            // constructor, not the function that makes generators
+            getGeneratorPrototype().addOwnProperty("constructor",
+                    Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, proto);
+        }
+        return builtinGeneratorFunctionPrototype;
     }
 
     ScriptObject getStringIteratorPrototype() {

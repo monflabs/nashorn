@@ -196,6 +196,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private static final Call CREATE_FUNCTION_OBJECT = CompilerConstants.staticCallNoLookup(ScriptFunction.class,
             "create", ScriptFunction.class, Object[].class, int.class, ScriptObject.class);
+    private static final Call RETHROW_IF_ABORT = CompilerConstants.staticCallNoLookup(
+            org.openjdk.nashorn.internal.runtime.GeneratorSupport.class,
+            "rethrowIfAbort", void.class, Throwable.class);
+
     private static final Call INHERIT_HOME_OBJECT = CompilerConstants.staticCallNoLookup(ScriptFunction.class,
             "inheritHomeObject", ScriptFunction.class, ScriptFunction.class, Object.class);
 
@@ -3532,6 +3536,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         method._catch(recovery);
         method.store(vmException, EXCEPTION_TYPE);
+
+        if (catchBlocks.stream().anyMatch(block ->
+                !((CatchNode)block.getStatements().get(0)).isSyntheticRethrow())) {
+            // a generator being unwound by return() passes through here, and a
+            // script catch block must not be able to hold on to it
+            method.load(vmException, EXCEPTION_TYPE);
+            method.invoke(RETHROW_IF_ABORT);
+        }
 
         final Label afterCatch = new Label("after_catch");
         for (Block catchBlock : catchBlocks) {

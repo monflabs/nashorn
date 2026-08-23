@@ -74,6 +74,22 @@ public final class GeneratorSupport {
         record Failed(RuntimeException error) implements Step { }
     }
 
+    /**
+     * Rethrows the unwinding of a generator body, which a script catch block
+     * must not be able to hold on to.
+     *
+     * A generator asked to return() is unwound with an exception so that its
+     * finally blocks run, and a catch block on the way out would otherwise
+     * catch it and turn a return into an ordinary resumption.
+     *
+     * @param thrown whatever the catch block caught
+     */
+    public static void rethrowIfAbort(final Throwable thrown) {
+        if (thrown instanceof Abort abort) {
+            throw abort;
+        }
+    }
+
     /** Thrown inside the body to unwind it when the caller calls return(). */
     private static final class Abort extends RuntimeException {
         private static final long serialVersionUID = 1L;
@@ -95,6 +111,9 @@ public final class GeneratorSupport {
 
     private Thread thread;
     private boolean done;
+
+    /** Whether the body is between a resume and the step it answers with. */
+    private boolean executing;
 
     /**
      * Set when nobody can advance this generator any more.
@@ -244,16 +263,28 @@ public final class GeneratorSupport {
 
     /** Runs the body until it yields, returns or throws. Result is {value, done}. */
     private Object[] advance(final Resume resume) {
+        if (executing) {
+            // ES2015 25.3.3.2 step 5: a body that asks its own generator for the
+            // next value would wait for itself, so it is told no instead
+            throw ECMAErrors.typeError("generator.already.running");
+        }
         if (done) {
             return new Object[] { ScriptRuntime.UNDEFINED, Boolean.TRUE };
         }
-        if (thread == null) {
-            start();
-        } else {
-            put(toBody, resume);
+
+        executing = true;
+        final Step step;
+        try {
+            if (thread == null) {
+                start();
+            } else {
+                put(toBody, resume);
+            }
+            step = take(toCaller);
+        } finally {
+            executing = false;
         }
 
-        final Step step = take(toCaller);
         if (step instanceof Step.Yielded yielded) {
             return new Object[] { yielded.value(), Boolean.FALSE };
         }

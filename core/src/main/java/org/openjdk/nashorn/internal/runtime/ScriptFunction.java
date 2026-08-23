@@ -228,7 +228,11 @@ public class ScriptFunction extends ScriptObject {
 
         this.data = data;
         this.scope = scope;
-        this.setInitialProto(global.getFunctionPrototype());
+        // ES2015 25.2.4: a generator function inherits from
+        // %GeneratorFunction.prototype%, not from Function.prototype directly
+        this.setInitialProto(data.isGenerator()
+                ? global.getGeneratorFunctionPrototype()
+                : global.getFunctionPrototype());
         this.prototype = LAZY_PROTOTYPE;
 
         assert objectSpill == null;
@@ -755,7 +759,14 @@ public class ScriptFunction extends ScriptObject {
 
     public final Object getPrototype() {
         if (prototype == LAZY_PROTOTYPE) {
-            prototype = new PrototypeObject(this);
+            final PrototypeObject made = new PrototypeObject(this);
+            if (data.isGenerator()) {
+                // ES2015 25.2.4.2: what a generator function's generators
+                // inherit from sits below %GeneratorPrototype%, where next,
+                // return and throw are
+                made.setProto(Global.instance().getGeneratorPrototype());
+            }
+            prototype = made;
         }
         return prototype;
     }
