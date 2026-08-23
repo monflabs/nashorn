@@ -154,7 +154,17 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "catch")
     public static Object _catch(final Object self, final Object onRejected) {
-        return then(self, ScriptRuntime.UNDEFINED, onRejected);
+        // ES2015 25.4.5.1 is written as Invoke(promise, "then", ...), which asks
+        // nothing about what it was called on: anything with a then answers, and
+        // anything without one fails the way calling undefined fails.
+        if (!(self instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final Object then = sobj.get("then");
+        if (!Bootstrap.isCallable(then)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(then));
+        }
+        return ScriptRuntime.apply((ScriptFunction)then, sobj, ScriptRuntime.UNDEFINED, onRejected);
     }
 
     /**

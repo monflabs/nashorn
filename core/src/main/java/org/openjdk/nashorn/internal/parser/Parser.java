@@ -2126,6 +2126,7 @@ public class Parser extends AbstractParser implements Loggable {
                         throw error(AbstractParser.message("for.in.loop.initializer", isForOf ? "of" : "in"), varDeclList.declarationWithInitializerToken);
                     }
                     init = varDeclList.firstBinding;
+                    flags |= ForNode.DECLARES_HEAD;
                     assert init instanceof IdentNode || isDestructuringLhs(init);
                 } else {
                     // for (expr in obj)

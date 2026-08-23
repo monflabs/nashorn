@@ -57,6 +57,15 @@ public final class ForNode extends LoopNode {
     /** Does this loop need a per-iteration scope because its init contain a LET declaration? */
     public static final int PER_ITERATION_SCOPE = 1 << 3;
 
+    /**
+     * Is the head of this for-in/of a var, let or const declaration rather than
+     * an assignment target? A pattern reads the same either way, and what it
+     * decides is whether the names it binds are being declared or written to -
+     * "for ({ c } of xs)" with c a constant is a TypeError, "for (const { c } of
+     * xs)" is not.
+     */
+    public static final int DECLARES_HEAD = 1 << 4;
+
     private final int flags;
 
     /**
@@ -204,6 +213,11 @@ public final class ForNode extends LoopNode {
      * Is this a for-in or for-of statement?
      * @return true if this is a for-in or for-of loop
      */
+    /** Whether the head is a declaration rather than an assignment target. */
+    public boolean declaresHead() {
+        return (flags & DECLARES_HEAD) != 0;
+    }
+
     public boolean isForInOrOf() {
         return isForIn() || isForOf();
     }

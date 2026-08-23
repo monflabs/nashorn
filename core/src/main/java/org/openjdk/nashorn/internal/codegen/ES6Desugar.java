@@ -1106,11 +1106,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         temporaries = 0;
-        // A for-in/of pattern binds afresh on every iteration, so its names are
-        // being initialised rather than reassigned. The parser marks the plain
-        // "for (const x of xs)" case itself but has no identifier to mark when
-        // the binding is a pattern.
-        declaring = true;
+        // A pattern in the head of a declaring for-in/of binds afresh on every
+        // iteration, so its names are being initialised rather than reassigned.
+        // The parser marks the plain "for (const x of xs)" case itself but has
+        // no identifier to mark when the binding is a pattern. An assignment
+        // target - "for ({ c } of xs)" - is a write like any other, and writing
+        // to a constant is a TypeError.
+        declaring = forNode.declaresHead();
 
         ForNode loop = forNode;
         final List<Statement> hoisted = new ArrayList<>();
