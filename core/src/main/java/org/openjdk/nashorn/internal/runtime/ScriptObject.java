@@ -1097,8 +1097,15 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
         final Object realKey = JSType.toPropertyKey(key);
         final Property oldProperty = getMap().findProperty(realKey);
-        if (oldProperty instanceof UserAccessorProperty) {
-            modifyOwnProperty(oldProperty, oldProperty.getFlags(), getter, setter);
+        if (oldProperty instanceof UserAccessorProperty accessor) {
+            // A literal defines one half at a time, and the halves it does not
+            // mention are left as they are - which is what lets a getter and a
+            // setter written with the same computed key end up on one property.
+            // A non-computed pair has already been merged by the parser, so this
+            // only matters for computed ones.
+            modifyOwnProperty(oldProperty, oldProperty.getFlags(),
+                    getter != null ? getter : accessor.getGetterFunction(this),
+                    setter != null ? setter : accessor.getSetterFunction(this));
         } else {
             addOwnProperty(newUserAccessors(realKey, oldProperty != null ? oldProperty.getFlags() : 0, getter, setter));
         }
@@ -1636,6 +1643,48 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      */
     public boolean isExtensible() {
         return getMap().isExtensible();
+    }
+
+    /**
+     * ES2015 9.1.2 [[SetPrototypeOf]], which answers whether the reparenting
+     * happened rather than insisting on it. An ordinary object always manages;
+     * a proxy answers with what its handler said.
+     *
+     * @param newProto the new prototype, an object or null
+     * @return whether the prototype is now what was asked for
+     */
+    public boolean trySetPrototypeOf(final Object newProto) {
+        if (newProto != null && !(newProto instanceof ScriptObject)) {
+            throw typeError("cant.set.proto.to.non.object", ScriptRuntime.safeToString(this),
+                    ScriptRuntime.safeToString(newProto));
+        }
+        if (newProto == getProto()) {
+            // 9.1.2 step 4: setting the prototype it already has always works,
+            // extensible or not
+            return true;
+        }
+        if (!isExtensible()) {
+            return false;
+        }
+        for (ScriptObject p = (ScriptObject)newProto; p != null; p = p.getProto()) {
+            if (p == this) {
+                // 9.1.2 step 8: a cycle is refused, not an error
+                return false;
+            }
+        }
+        setProto((ScriptObject)newProto);
+        return true;
+    }
+
+    /**
+     * ES2015 9.1.4 [[PreventExtensions]], in the same answering form as
+     * {@link #trySetPrototypeOf}.
+     *
+     * @return whether the object is now inextensible
+     */
+    public boolean tryPreventExtensions() {
+        preventExtensions();
+        return true;
     }
 
     /**

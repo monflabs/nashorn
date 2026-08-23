@@ -33,6 +33,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.Getter;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
@@ -297,5 +298,12 @@ public class NativeMap extends ScriptObject {
             throw typeError("not.a.map", ScriptRuntime.safeToString(self));
         }
     }
+
+
+    /**
+     * ES2015 23.1.3.13 Map.prototype [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Map";
 
 }

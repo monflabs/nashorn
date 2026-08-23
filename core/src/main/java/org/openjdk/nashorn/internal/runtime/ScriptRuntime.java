@@ -56,8 +56,10 @@ import org.openjdk.nashorn.internal.codegen.CompilerConstants;
 import org.openjdk.nashorn.internal.codegen.CompilerConstants.Call;
 import org.openjdk.nashorn.internal.ir.debug.JSONWriter;
 import org.openjdk.nashorn.internal.objects.AbstractIterator;
+import org.openjdk.nashorn.internal.objects.ArrayBufferView;
 import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.objects.NativeGenerator;
+import org.openjdk.nashorn.internal.objects.NativeProxy;
 import org.openjdk.nashorn.internal.objects.NativeSymbol;
 import org.openjdk.nashorn.internal.objects.NativeArray;
 import org.openjdk.nashorn.internal.objects.NativeObject;
@@ -205,59 +207,76 @@ public final class ScriptRuntime {
 
     /**
      * This is the builtin implementation of {@code Object.prototype.toString}
+     *
+     * ES2015 19.1.3.6 replaced the ES5.1 [[Class]] lookup with a two-part rule:
+     * a short list of built-in kinds still names itself, everything else is
+     * "Object", and a string-valued {@code Symbol.toStringTag} on the object
+     * overrides whichever of the two applies. The list is closed - a Map or a
+     * Promise is an "Object" as far as this operation can tell, and reads as
+     * "[object Map]" only because its prototype carries the symbol.
+     *
+     * <p>Which kind it is has to be decided before the symbol is read, because
+     * reading it can run script: a proxy for an array that its own
+     * {@code @@toStringTag} getter revokes is still an array here.
+     *
      * @param self reference
      * @return string representation as object
      */
     public static String builtinObjectToString(final Object self) {
-        // ES2015 19.1.3.6: a string-valued Symbol.toStringTag names the object
-        // instead of its class.
-        if (WellKnownSymbols.toStringTagInstalled() && self instanceof ScriptObject sobj) {
-            final Object tag = sobj.get(NativeSymbol.toStringTag);
-            if (JSType.isString(tag)) {
-                return "[object " + tag + ']';
-            }
+        if (self == UNDEFINED) {
+            return "[object Undefined]";
+        }
+        if (self == null) {
+            return "[object Null]";
         }
 
-        String className;
-        // Spec tells us to convert primitives by ToObject..
-        // But we don't need to -- all we need is the right class name
-        // of the corresponding primitive wrapper type.
-
-        final JSType type = JSType.ofNoFunction(self);
-
-        switch (type) {
-        case BOOLEAN:
-            className = "Boolean";
-            break;
-        case NUMBER:
-            className = "Number";
-            break;
-        case STRING:
-            className = "String";
-            break;
-        // special case of null and undefined
-        case NULL:
-            className = "Null";
-            break;
-        case UNDEFINED:
-            className = "Undefined";
-            break;
-        case OBJECT:
-            if (self instanceof ScriptObject) {
-                className = ((ScriptObject)self).getClassName();
-            } else if (self instanceof JSObject) {
-                className = ((JSObject)self).getClassName();
-            } else {
-                className = self.getClass().getName();
-            }
-            break;
-        default:
-            // Nashorn extension: use Java class name
-            className = self.getClass().getName();
-            break;
+        // ToObject, so that a primitive is named by its wrapper's prototype and
+        // can be given a tag through it
+        final Object obj = Global.toObject(self);
+        if (!(obj instanceof ScriptObject sobj)) {
+            return "[object " + foreignTag(obj) + ']';
         }
 
-        return "[object " + className + ']';
+        final String builtinTag = builtinTag(sobj);
+        final Object tag = sobj.get(NativeSymbol.toStringTag);
+        return "[object " + (isString(tag) ? tag : builtinTag) + ']';
+    }
+
+    /**
+     * The built-in kind {@code Object.prototype.toString} reports for an object
+     * that has no {@code Symbol.toStringTag}, per the list in ES2015 19.1.3.6.
+     *
+     * <p>The kinds named there are exactly the ones ES5.1 already had, less the
+     * ones ES2015 took the name away from: a Map or a Promise reads as
+     * "[object Map]" only because its prototype carries the symbol, and reads as
+     * "[object Object]" once that is deleted. Everything Nashorn adds of its own
+     * - the global, a Java package, a JSAdapter - keeps naming itself, since no
+     * specification has an opinion about those.
+     */
+    private static String builtinTag(final ScriptObject sobj) {
+        if (sobj instanceof NativeProxy proxy && proxy.isRevoked()) {
+            // IsArray, which 19.1.3.6 performs first, throws for one of these
+            throw typeError("proxy.revoked");
+        }
+        if (sobj instanceof ArrayBufferView) {
+            return "Object";
+        }
+        final String className = sobj.getClassName();
+        return switch (className) {
+            case "Math", "JSON", "Symbol", "Map", "Set", "WeakMap", "WeakSet", "Promise",
+                 "ArrayBuffer", "DataView", "Generator", "Iterator",
+                 "ArrayIterator", "StringIterator", "MapIterator", "SetIterator" -> "Object";
+            default -> className;
+        };
+    }
+
+    /** The name for something that is not a script object at all. */
+    private static String foreignTag(final Object obj) {
+        if (obj instanceof JSObject jsObj) {
+            return jsObj.isFunction() ? "Function" : jsObj.isArray() ? "Array" : jsObj.getClassName();
+        }
+        // Nashorn extension: a Java object is named by its class
+        return obj.getClass().getName();
     }
 
     /**

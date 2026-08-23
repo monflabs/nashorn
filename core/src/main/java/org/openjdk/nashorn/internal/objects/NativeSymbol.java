@@ -254,4 +254,11 @@ public final class NativeSymbol extends ScriptObject {
         return MH.findStatic(MethodHandles.lookup(), NativeSymbol.class, name, type);
     }
 
+
+    /**
+     * ES2015 19.4.3.5 Symbol.prototype [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTagValue = "Symbol";
+
 }

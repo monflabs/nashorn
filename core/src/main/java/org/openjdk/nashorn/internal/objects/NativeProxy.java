@@ -126,6 +126,11 @@ public final class NativeProxy extends ScriptObject {
         return target;
     }
 
+    /** Whether this proxy has been revoked, which leaves it with no target. */
+    public boolean isRevoked() {
+        return target == null;
+    }
+
     @Override
     public String getClassName() {
         return target == null ? "Object" : target.getClassName();
@@ -318,8 +323,18 @@ public final class NativeProxy extends ScriptObject {
     public boolean delete(final Object key, final boolean strict) {
         final ScriptFunction trap = trap("deleteProperty");
         final ScriptObject rx = target();
-        return trap == null ? rx.delete(key, strict)
-                : JSType.toBoolean(call(trap, rx, propertyKey(key)));
+        if (trap == null) {
+            return rx.delete(key, strict);
+        }
+        if (!JSType.toBoolean(call(trap, rx, propertyKey(key)))) {
+            return false;
+        }
+        // 9.5.10 step 11: a property the target will not let go of cannot be
+        // reported as deleted
+        if (describe(rx, key) instanceof PropertyDescriptor onTarget && !onTarget.isConfigurable()) {
+            throw typeError("proxy.delete.not.configurable", ScriptRuntime.safeToString(key));
+        }
+        return true;
     }
 
     @Override
@@ -328,12 +343,31 @@ public final class NativeProxy extends ScriptObject {
         if (trap == null) {
             return target().defineOwnProperty(key, descriptor, reject);
         }
-        final boolean defined = JSType.toBoolean(call(trap, target(), propertyKey(key), descriptor));
-        if (!defined && reject) {
-            throw typeError("cant.redefine.property", ScriptRuntime.safeToString(key),
-                    ScriptRuntime.safeToString(this));
+        final ScriptObject rx = target();
+        if (!JSType.toBoolean(call(trap, rx, propertyKey(key), descriptor))) {
+            if (reject) {
+                throw typeError("cant.redefine.property", ScriptRuntime.safeToString(key),
+                        ScriptRuntime.safeToString(this));
+            }
+            return false;
         }
-        return defined;
+
+        // 9.5.6 steps 15 to 19: whatever the handler says it did, the target
+        // must be able to agree with
+        final PropertyDescriptor asked = toPropertyDescriptor(Global.instance(), descriptor);
+        final boolean makingItFinal = asked.has(PropertyDescriptor.CONFIGURABLE) && !asked.isConfigurable();
+        final PropertyDescriptor onTarget = describe(rx, key);
+        if (onTarget == null) {
+            if (!rx.isExtensible() || makingItFinal) {
+                throw typeError("proxy.define.not.compatible", ScriptRuntime.safeToString(key));
+            }
+        } else {
+            if (!compatible(rx.isExtensible(), asked, onTarget)
+                    || makingItFinal && onTarget.isConfigurable()) {
+                throw typeError("proxy.define.not.compatible", ScriptRuntime.safeToString(key));
+            }
+        }
+        return true;
     }
 
     /**
@@ -349,23 +383,42 @@ public final class NativeProxy extends ScriptObject {
         if (trap == null) {
             return target().getPrototypeOf();
         }
-        final Object proto = call(trap, target());
-        if (proto == null || proto instanceof ScriptObject) {
-            return (ScriptObject)proto;
+        final ScriptObject rx = target();
+        final Object proto = call(trap, rx);
+        if (proto != null && !(proto instanceof ScriptObject)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(proto));
         }
-        throw typeError("not.an.object", ScriptRuntime.safeToString(proto));
+        // 9.5.1 step 9: a target that can no longer be reparented has the
+        // prototype it has, and the trap cannot say otherwise
+        if (!rx.isExtensible() && proto != rx.getPrototypeOf()) {
+            throw typeError("proxy.proto.mismatch", ScriptRuntime.safeToString(this));
+        }
+        return (ScriptObject)proto;
     }
 
     @Override
     public void setPrototypeOf(final Object newProto) {
-        final ScriptFunction trap = trap("setPrototypeOf");
-        if (trap == null) {
-            target().setPrototypeOf(newProto);
-            return;
-        }
-        if (!JSType.toBoolean(call(trap, target(), newProto))) {
+        if (!trySetPrototypeOf(newProto)) {
             throw typeError("cant.set.proto.to.non.object", ScriptRuntime.safeToString(this));
         }
+    }
+
+    @Override
+    public boolean trySetPrototypeOf(final Object newProto) {
+        final ScriptFunction trap = trap("setPrototypeOf");
+        final ScriptObject rx = target();
+        if (trap == null) {
+            return rx.trySetPrototypeOf(newProto);
+        }
+        if (!JSType.toBoolean(call(trap, rx, newProto))) {
+            return false;
+        }
+        // 9.5.2 step 11, as for the getter: a non-extensible target keeps the
+        // prototype it has
+        if (!rx.isExtensible() && newProto != rx.getPrototypeOf()) {
+            throw typeError("proxy.proto.mismatch", ScriptRuntime.safeToString(this));
+        }
+        return true;
     }
 
     /** Whether the object behind however many proxies is an array (ES2015 7.2.2). */
@@ -378,18 +431,80 @@ public final class NativeProxy extends ScriptObject {
     public boolean isExtensible() {
         final ScriptFunction trap = trap("isExtensible");
         final ScriptObject rx = target();
-        return trap == null ? rx.isExtensible() : JSType.toBoolean(call(trap, rx));
+        if (trap == null) {
+            return rx.isExtensible();
+        }
+        // 9.5.3 step 8: this is the one trap that may not lie at all
+        final boolean answered = JSType.toBoolean(call(trap, rx));
+        if (answered != rx.isExtensible()) {
+            throw typeError("proxy.extensible.mismatch", ScriptRuntime.safeToString(this));
+        }
+        return answered;
     }
 
     @Override
     public ScriptObject preventExtensions() {
-        final ScriptFunction trap = trap("preventExtensions");
-        if (trap == null) {
-            target().preventExtensions();
-        } else {
-            call(trap, target());
+        if (!tryPreventExtensions()) {
+            throw typeError("proxy.not.prevented", ScriptRuntime.safeToString(this));
         }
         return this;
+    }
+
+    @Override
+    public boolean tryPreventExtensions() {
+        final ScriptFunction trap = trap("preventExtensions");
+        final ScriptObject rx = target();
+        if (trap == null) {
+            return rx.tryPreventExtensions();
+        }
+        if (!JSType.toBoolean(call(trap, rx))) {
+            return false;
+        }
+        // 9.5.4 step 8: saying it happened when the target is still extensible
+        if (rx.isExtensible()) {
+            throw typeError("proxy.extensible.mismatch", ScriptRuntime.safeToString(this));
+        }
+        return true;
+    }
+
+    /** The target's own descriptor for a key, or null if it has none. */
+    private static PropertyDescriptor describe(final ScriptObject rx, final Object key) {
+        return rx.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor descriptor ? descriptor : null;
+    }
+
+    /**
+     * ES2015 9.1.6.2 IsCompatiblePropertyDescriptor, which is
+     * ValidateAndApplyPropertyDescriptor asked whether it would succeed rather
+     * than told to go ahead.
+     */
+    private static boolean compatible(final boolean extensible, final PropertyDescriptor asked,
+            final PropertyDescriptor current) {
+        if (current.isConfigurable()) {
+            return true;
+        }
+        if (asked.has(PropertyDescriptor.CONFIGURABLE) && asked.isConfigurable()) {
+            return false;
+        }
+        if (asked.has(PropertyDescriptor.ENUMERABLE) && asked.isEnumerable() != current.isEnumerable()) {
+            return false;
+        }
+        if (asked.type() == PropertyDescriptor.GENERIC) {
+            return true;
+        }
+        if (asked.type() != current.type()) {
+            // a non-configurable property cannot change between data and accessor
+            return false;
+        }
+        if (current.type() == PropertyDescriptor.ACCESSOR) {
+            return (!asked.has(PropertyDescriptor.GET) || asked.getGetter() == current.getGetter())
+                    && (!asked.has(PropertyDescriptor.SET) || asked.getSetter() == current.getSetter());
+        }
+        if (current.isWritable()) {
+            return true;
+        }
+        return (!asked.has(PropertyDescriptor.WRITABLE) || !asked.isWritable())
+                && (!asked.has(PropertyDescriptor.VALUE)
+                        || ScriptRuntime.sameValue(asked.getValue(), current.getValue()));
     }
 
     /**
@@ -455,6 +570,95 @@ public final class NativeProxy extends ScriptObject {
      * it is not a ScriptFunction and has no function prototype - so the two
      * hooks the linker asks are answered here rather than by inheriting them.
      */
+
+    /**
+     * ES2015 7.3.14 SetIntegrityLevel, for {@code Object.seal} and
+     * {@code Object.freeze}.
+     *
+     * A proxy has no property map to seal - the properties it appears to have
+     * belong to whatever its traps answer with - so the generic algorithm is
+     * the only one available: prevent extensions, then redefine every own key
+     * as non-configurable, one call through the traps each. A trap that refuses
+     * a redefinition makes the whole operation a TypeError, which is how a
+     * handler gets to veto being frozen.
+     */
+    private ScriptObject setIntegrityLevel(final boolean frozen) {
+        preventExtensions();
+        if (isExtensible()) {
+            throw typeError("proxy.not.prevented", ScriptRuntime.safeToString(this));
+        }
+        for (final Object key : ownPropertyKeys()) {
+            final ScriptObject attributes = Global.newEmptyInstance();
+            if (frozen) {
+                final Object existing = getOwnPropertyDescriptor(key);
+                if (existing == ScriptRuntime.UNDEFINED) {
+                    continue;
+                }
+                if (!((ScriptObject)existing).has("value")) {
+                    // an accessor keeps its functions, and only stops being configurable
+                    attributes.set("configurable", false, 0);
+                    defineOwnProperty(key, attributes, true);
+                    continue;
+                }
+                attributes.set("writable", false, 0);
+            }
+            attributes.set("configurable", false, 0);
+            defineOwnProperty(key, attributes, true);
+        }
+        return this;
+    }
+
+    /**
+     * ES2015 7.3.15 TestIntegrityLevel, for {@code Object.isSealed} and
+     * {@code Object.isFrozen}. Like the setter, it can only ask the traps.
+     */
+    private boolean testIntegrityLevel(final boolean frozen) {
+        if (isExtensible()) {
+            return false;
+        }
+        for (final Object key : ownPropertyKeys()) {
+            final Object described = getOwnPropertyDescriptor(key);
+            if (described == ScriptRuntime.UNDEFINED) {
+                continue;
+            }
+            final ScriptObject desc = (ScriptObject)described;
+            if (JSType.toBoolean(desc.get("configurable"))) {
+                return false;
+            }
+            if (frozen && desc.has("value") && JSType.toBoolean(desc.get("writable"))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Every own key the ownKeys trap reports, strings and symbols alike. */
+    private java.util.List<Object> ownPropertyKeys() {
+        final java.util.List<Object> keys = new java.util.ArrayList<>();
+        keys.addAll(java.util.Arrays.asList(getOwnKeys(true)));
+        keys.addAll(java.util.Arrays.asList(getOwnSymbols(true)));
+        return keys;
+    }
+
+    @Override
+    public ScriptObject seal() {
+        return setIntegrityLevel(false);
+    }
+
+    @Override
+    public ScriptObject freeze() {
+        return setIntegrityLevel(true);
+    }
+
+    @Override
+    public boolean isSealed() {
+        return testIntegrityLevel(false);
+    }
+
+    @Override
+    public boolean isFrozen() {
+        return testIntegrityLevel(true);
+    }
 
     @Override
     public boolean isProxyOverCallable() {

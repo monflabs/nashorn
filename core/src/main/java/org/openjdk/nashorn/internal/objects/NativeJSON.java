@@ -42,6 +42,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSONFunctions;
 import org.openjdk.nashorn.internal.runtime.JSType;
@@ -458,4 +459,11 @@ public final class NativeJSON extends ScriptObject {
             return new AssertionError("should not reach here");
         }
     }
+
+    /**
+     * ES2015 24.3.3 JSON [ @@toStringTag ].
+     */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "JSON";
+
 }

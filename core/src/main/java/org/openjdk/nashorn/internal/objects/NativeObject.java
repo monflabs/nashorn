@@ -176,16 +176,16 @@ public final class NativeObject {
             return ((ScriptObject)obj).getPrototypeOf();
         } else if (obj instanceof ScriptObjectMirror) {
             return ((ScriptObjectMirror)obj).getProto();
-        } else {
-            final JSType type = JSType.of(obj);
-            if (type == JSType.OBJECT) {
-                // host (Java) objects have null __proto__
-                return null;
-            }
-
-            // must be some JS primitive
-            throw notAnObject(obj);
         }
+
+        // ES2015 19.1.2.9 coerces rather than rejecting, so a primitive is
+        // answered with its wrapper's prototype
+        final Object coerced = JSType.toScriptObject(Global.instance(), obj);
+        if (coerced instanceof ScriptObject) {
+            return ((ScriptObject)coerced).getPrototypeOf();
+        }
+        // host (Java) objects have null __proto__
+        return null;
     }
 
     /**
@@ -233,9 +233,14 @@ public final class NativeObject {
             final ScriptObjectMirror sobjMirror = (ScriptObjectMirror)obj;
 
             return sobjMirror.getOwnPropertyDescriptor(key);
-        } else {
-            throw notAnObject(obj);
         }
+
+        // ES2015 19.1.2.6 coerces rather than rejecting
+        final Object coerced = JSType.toScriptObject(Global.instance(), obj);
+        if (coerced instanceof ScriptObject) {
+            return ((ScriptObject)coerced).getOwnPropertyDescriptor(JSType.toPropertyKey(prop));
+        }
+        return UNDEFINED;
     }
 
     /**
@@ -547,9 +552,14 @@ public final class NativeObject {
         } else if (obj instanceof ScriptObjectMirror) {
             final ScriptObjectMirror sobjMirror = (ScriptObjectMirror)obj;
             return new NativeArray(sobjMirror.getOwnKeys(false));
-        } else {
-            throw notAnObject(obj);
         }
+
+        // ES2015 19.1.2.16 coerces rather than rejecting
+        final Object coerced = JSType.toScriptObject(Global.instance(), obj);
+        if (coerced instanceof ScriptObject) {
+            return new NativeArray(((ScriptObject)coerced).getOwnKeys(false));
+        }
+        return new NativeArray();
     }
 
     /**

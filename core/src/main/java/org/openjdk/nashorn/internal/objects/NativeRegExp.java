@@ -357,11 +357,14 @@ public final class NativeRegExp extends ScriptObject {
         final ScriptObject rx = matcherObject(self);
         final String str = JSType.toString(string);
 
-        if (!JSType.toBoolean(rx.get("global"))) {
+        // the flags are read once, as a string, rather than as the individual
+        // accessors: a subclass that overrides "flags" decides all of them
+        final String flags = JSType.toString(rx.get("flags"));
+        if (flags.indexOf('g') < 0) {
             return regExpExec(rx, str);
         }
 
-        final boolean unicode = JSType.toBoolean(rx.get("unicode"));
+        final boolean unicode = flags.indexOf('u') >= 0;
         rx.set("lastIndex", 0, CALLSITE_STRICT);
 
         final List<Object> matches = new ArrayList<>();
@@ -417,8 +420,9 @@ public final class NativeRegExp extends ScriptObject {
         final boolean callable = Bootstrap.isCallable(replacement);
         final String replaceText = callable ? null : JSType.toString(replacement);
 
-        final boolean global = JSType.toBoolean(rx.get("global"));
-        final boolean unicode = global && JSType.toBoolean(rx.get("unicode"));
+        final String flags = JSType.toString(rx.get("flags"));
+        final boolean global = flags.indexOf('g') >= 0;
+        final boolean unicode = global && flags.indexOf('u') >= 0;
         if (global) {
             rx.set("lastIndex", 0, CALLSITE_STRICT);
         }
@@ -954,6 +958,21 @@ public final class NativeRegExp extends ScriptObject {
         return match == null ? "" : match.getGroup(9);
     }
 
+    /**
+     * ES2015 21.2.5.2.2 writes lastIndex with Set(R, "lastIndex", n, true), so a
+     * lastIndex that has been redefined non-writable makes matching a TypeError.
+     * The ordinary case still writes the field directly - going through the
+     * property would put a lookup and a handle invocation on every match.
+     */
+    private void writeLastIndex(final int value) {
+        final org.openjdk.nashorn.internal.runtime.Property property = getMap().findProperty("lastIndex");
+        if (property != null && property.isWritable()) {
+            setLastIndex(value);
+        } else {
+            set("lastIndex", value, CALLSITE_STRICT);
+        }
+    }
+
     private RegExpResult execInner(final String string) {
         // ES2015 21.2.5.2.2: a sticky regexp tracks lastIndex the way a global
         // one does, and both reset it on failure.
@@ -967,7 +986,7 @@ public final class NativeRegExp extends ScriptObject {
 
         if (start < 0 || start > string.length()) {
             if (tracksLastIndex) {
-                setLastIndex(0);
+                writeLastIndex(0);
             }
             return null;
         }
@@ -975,19 +994,19 @@ public final class NativeRegExp extends ScriptObject {
         final RegExpMatcher matcher = regexp.match(string);
         if (matcher == null || !matcher.search(start)) {
             if (tracksLastIndex) {
-                setLastIndex(0);
+                writeLastIndex(0);
             }
             return null;
         }
 
         if (isSticky && matcher.start() != start) {
             // sticky means anchored at lastIndex, not "found somewhere after it"
-            setLastIndex(0);
+            writeLastIndex(0);
             return null;
         }
 
         if (tracksLastIndex) {
-            setLastIndex(matcher.end());
+            writeLastIndex(matcher.end());
         }
 
         final RegExpResult match = new RegExpResult(string, matcher.start(), groups(matcher));

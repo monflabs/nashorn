@@ -1168,4 +1168,11 @@ public final class NativeMath extends ScriptObject {
     public static int imul(final Object self, final Object x, final Object y) {
         return JSType.toInt32(x) * JSType.toInt32(y);
     }
+
+    /**
+     * ES2015 20.2.1.9 Math [ @@toStringTag ].
+     */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Math";
+
 }

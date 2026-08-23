@@ -321,7 +321,9 @@ public class ClassGenerator {
 
     private static void loadFunctionName(final MethodGenerator mi, final String propertyName) {
         if (propertyName.startsWith(SYMBOL_PREFIX)) {
-            mi.loadLiteral("Symbol[" + propertyName.substring(2) + "]");
+            // ES2015 13.2.11: a method keyed by a well-known symbol is named
+            // for the symbol's description, in brackets
+            mi.loadLiteral("[Symbol." + propertyName.substring(2) + "]");
         } else {
             mi.loadLiteral(propertyName);
         }

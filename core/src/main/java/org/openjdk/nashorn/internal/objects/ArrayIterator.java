@@ -27,6 +27,9 @@ package org.openjdk.nashorn.internal.objects;
 
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
+import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -108,5 +111,12 @@ public class ArrayIterator extends AbstractIterator {
                 JSType.toNarrowestNumber(index) : iteratedObject.get((double) index);
         return makeResult(value, Boolean.FALSE, global);
     }
+
+
+    /**
+     * ES2015 22.1.5.2.2 %ArrayIteratorPrototype% [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Array Iterator";
 
 }

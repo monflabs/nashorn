@@ -181,7 +181,7 @@ public final class NativeFunction {
         // allocate a Java array of more than MAX_VALUE elements anyway, so at this point we have to throw an error.
         // People applying a function to more than 2^31 arguments will unfortunately be out of luck.
         if (ln > Integer.MAX_VALUE) {
-            throw rangeError("range.error.inappropriate.array.length", JSType.toString(len));
+            throw rangeError("inappropriate.array.length", JSType.toString(len));
         }
         return (int)ln;
     }

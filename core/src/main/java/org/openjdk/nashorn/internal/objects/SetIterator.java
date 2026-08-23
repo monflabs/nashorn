@@ -27,6 +27,9 @@ package org.openjdk.nashorn.internal.objects;
 
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
+import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Undefined;
@@ -96,4 +99,11 @@ public class SetIterator extends AbstractIterator {
 
         return makeResult(node.getKey(), Boolean.FALSE, global);
     }
+
+    /**
+     * ES2015 23.2.5.2.2 %SetIteratorPrototype% [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Set Iterator";
+
 }

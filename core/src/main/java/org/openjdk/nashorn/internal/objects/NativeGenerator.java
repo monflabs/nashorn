@@ -28,6 +28,8 @@ package org.openjdk.nashorn.internal.objects;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
+import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.GeneratorSupport;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -125,4 +127,11 @@ public final class NativeGenerator extends ScriptObject {
         throw org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError(
                 "not.a.generator", ScriptRuntime.safeToString(self));
     }
+
+    /**
+     * ES2015 25.3.1.5 %GeneratorPrototype% [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Generator";
+
 }

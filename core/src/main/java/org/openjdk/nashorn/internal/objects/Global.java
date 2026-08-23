@@ -2955,6 +2955,9 @@ public final class Global extends Scope {
         prototype.set(NativeError.NAME, name, 0);
         prototype.set(NativeError.MESSAGE, "", 0);
         prototype.setInitialProto(errorProto);
+        // ES2015 19.5.6.2: a NativeError constructor inherits from Error itself,
+        // not from Function.prototype
+        cons.setInitialProto(builtinError);
         tagBuiltinProperties(name, cons);
         return cons;
     }

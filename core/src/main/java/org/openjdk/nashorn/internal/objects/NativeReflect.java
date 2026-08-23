@@ -239,8 +239,7 @@ public final class NativeReflect extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static boolean preventExtensions(final Object self, final Object target) {
-        object(target, "preventExtensions").preventExtensions();
-        return true;
+        return object(target, "preventExtensions").tryPreventExtensions();
     }
 
     /**
@@ -280,12 +279,7 @@ public final class NativeReflect extends ScriptObject {
         if (proto != null && proto != ScriptRuntime.UNDEFINED && !(proto instanceof ScriptObject)) {
             throw typeError("proto.not.an.object", ScriptRuntime.safeToString(proto));
         }
-        try {
-            sobj.setPrototypeOf(proto == ScriptRuntime.UNDEFINED ? null : proto);
-            return true;
-        } catch (final RuntimeException e) {
-            return false;
-        }
+        return sobj.trySetPrototypeOf(proto == ScriptRuntime.UNDEFINED ? null : proto);
     }
 
     /** Whether a value can be used with new, which a builtin function cannot. */

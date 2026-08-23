@@ -35,7 +35,20 @@ if (proto !== null) {
     fail("Expected 'null' __proto__ for host objects");
 }
 
-// on primitive should result in TypeError
+// ES2015 19.1.2.9 coerces its argument, so a primitive is answered with its
+// wrapper's prototype. Only null and undefined, which ToObject rejects, throw.
+
+function check(obj, expected) {
+    var proto = Object.getPrototypeOf(obj);
+    if (proto !== expected) {
+        fail("Expected " + expected + " for Object.getPrototypeOf(" + obj + "), got " + proto);
+    }
+}
+
+check(3.1415, Number.prototype);
+check("hello", String.prototype);
+check(false, Boolean.prototype);
+check(true, Boolean.prototype);
 
 function checkTypeError(obj) {
     try {
@@ -50,7 +63,3 @@ function checkTypeError(obj) {
 
 checkTypeError(undefined);
 checkTypeError(null);
-checkTypeError(3.1415);
-checkTypeError("hello");
-checkTypeError(false);
-checkTypeError(true);

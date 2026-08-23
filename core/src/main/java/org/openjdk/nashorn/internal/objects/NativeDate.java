@@ -577,8 +577,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static double setMilliseconds(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, MILLISECOND, args, true);
-        return nd.getTime();
+        return setFields(nd, MILLISECOND, args, true);
     }
 
     /**
@@ -591,8 +590,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static double setUTCMilliseconds(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, MILLISECOND, args, false);
-        return nd.getTime();
+        return setFields(nd, MILLISECOND, args, false);
     }
 
     /**
@@ -605,8 +603,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static double setSeconds(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, SECOND, args, true);
-        return nd.getTime();
+        return setFields(nd, SECOND, args, true);
     }
 
     /**
@@ -619,8 +616,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static double setUTCSeconds(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, SECOND, args, false);
-        return nd.getTime();
+        return setFields(nd, SECOND, args, false);
     }
 
     /**
@@ -633,8 +629,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 3)
     public static double setMinutes(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, MINUTE, args, true);
-        return nd.getTime();
+        return setFields(nd, MINUTE, args, true);
     }
 
     /**
@@ -647,8 +642,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 3)
     public static double setUTCMinutes(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, MINUTE, args, false);
-        return nd.getTime();
+        return setFields(nd, MINUTE, args, false);
     }
 
     /**
@@ -661,8 +655,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 4)
     public static double setHours(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, HOUR, args, true);
-        return nd.getTime();
+        return setFields(nd, HOUR, args, true);
     }
 
     /**
@@ -675,8 +668,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 4)
     public static double setUTCHours(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, HOUR, args, false);
-        return nd.getTime();
+        return setFields(nd, HOUR, args, false);
     }
 
     /**
@@ -689,8 +681,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static double setDate(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, DAY, args, true);
-        return nd.getTime();
+        return setFields(nd, DAY, args, true);
     }
 
     /**
@@ -703,8 +694,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static double setUTCDate(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, DAY, args, false);
-        return nd.getTime();
+        return setFields(nd, DAY, args, false);
     }
 
     /**
@@ -717,8 +707,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static double setMonth(final Object self, final Object... args) {
         final NativeDate nd = getNativeDate(self);
-        setFields(nd, MONTH, args, true);
-        return nd.getTime();
+        return setFields(nd, MONTH, args, true);
     }
 
     /**
@@ -731,8 +720,7 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static double setUTCMonth(final Object self, final Object... args) {
         final NativeDate nd = ensureNativeDate(self);
-        setFields(nd, MONTH, args, false);
-        return nd.getTime();
+        return setFields(nd, MONTH, args, false);
     }
 
     /**
@@ -1319,7 +1307,7 @@ public final class NativeDate extends ScriptObject {
         return (nd != null && nd.isValidDate()) ? (double)valueFromTime(field, nd.getTime()) : Double.NaN;
     }
 
-    private static void setFields(final NativeDate nd, final int fieldId, final Object[] args, final boolean local) {
+    private static double setFields(final NativeDate nd, final int fieldId, final Object[] args, final boolean local) {
         int start, length;
         if (fieldId < HOUR) {
             start = YEAR;
@@ -1336,8 +1324,14 @@ public final class NativeDate extends ScriptObject {
         final double time = local ? nd.getLocalTime() : nd.getTime();
         final double[] d = convertArgs(args, time, fieldId, start, length);
 
+        if (Double.isNaN(time)) {
+            // 20.3.4.20 step 4 returns NaN without writing the date value, so a
+            // valueOf that gave this date a time on the way in keeps it
+            return NaN;
+        }
+
         double newTime;
-        if (d == null || Double.isNaN(time)) {
+        if (d == null) {
             newTime = NaN;
         } else {
             if (start == YEAR) {
@@ -1351,6 +1345,7 @@ public final class NativeDate extends ScriptObject {
             newTime = timeClip(newTime);
         }
         nd.setTime(newTime);
+        return newTime;
     }
 
     private boolean isValidDate() {
