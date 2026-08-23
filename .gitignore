@@ -1,6 +1,12 @@
 /.idea
 target/
 
+# Eclipse
+.project
+.classpath
+.settings/
+
+
 # External benchmark and conformance suites, fetched with -Pfetch-externals
 /core/src/test/scripts/external/
 
