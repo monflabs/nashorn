@@ -341,7 +341,11 @@ public class ScriptFunction extends ScriptObject {
      * @return anonymous function object
      */
     public static ScriptFunction createAnonymous() {
-        return new ScriptFunction("", GlobalFunctions.ANONYMOUS, anonmap$, null);
+        // ES2015 19.2.3: %FunctionPrototype% is callable and has no [[Construct]],
+        // which is what makes "class C extends null" refuse its own super() -
+        // that class inherits from here, and this is not a constructor
+        return new ScriptFunction("", GlobalFunctions.ANONYMOUS, anonmap$.addAll(map$), null, null,
+                ScriptFunctionData.IS_BUILTIN, Global.instance());
     }
 
     // builtin function create helper factory

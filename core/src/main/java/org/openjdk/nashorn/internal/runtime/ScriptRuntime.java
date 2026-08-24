@@ -1701,28 +1701,39 @@ public final class ScriptRuntime {
      * @param elements    key, flags and value for each element, flattened
      * @return the constructor
      */
+    /**
+     * ES2015 14.5.14 step 6.f: what a class may extend is a constructor and
+     * nothing else. An arrow function, a generator, a method and an accessor are
+     * all callable and none of them is one; a proxy is one exactly when what it
+     * proxies is.
+     */
+    private static boolean isClassHeritage(final Object heritage) {
+        if (heritage instanceof ScriptFunction function) {
+            return function.isConstructor();
+        }
+        return heritage instanceof ScriptObject sobj && sobj.isProxyOverConstructor();
+    }
+
     public static Object DEFINE_CLASS(final Object constructor, final Object heritage, final Object derived,
             final Object elements) {
         final ScriptFunction ctor = (ScriptFunction)constructor;
         final ScriptObject prototype = (ScriptObject)ctor.getPrototype();
 
         if (JSType.toBoolean(derived)) {
-            if (heritage == null || heritage == UNDEFINED) {
+            if (heritage == null) {
                 // "class C extends null" - the prototype chain simply ends
                 prototype.setProto(null);
-            } else if (heritage instanceof ScriptFunction parent) {
-                // ES2015 14.5.14 step 6.f: the superclass has to be a
-                // constructor. An arrow function, a generator, a method and an
-                // accessor are all callable and none of them is one.
-                if (!parent.isConstructor()) {
+            } else if (isClassHeritage(heritage)) {
+                final ScriptObject parent = (ScriptObject)heritage;
+                // ES2015 14.5.14 step 6.e reads "prototype" as an ordinary
+                // property, so an accessor there runs and a function that has
+                // none at all - a bound one - answers with undefined, which is
+                // neither an object nor null and so is an error
+                final Object parentPrototype = parent.get("prototype");
+                if (parentPrototype != null && !(parentPrototype instanceof ScriptObject)) {
                     throw typeError("cant.inherit.from", safeToString(heritage));
                 }
-                final Object parentPrototype = parent.getPrototype();
-                if (parentPrototype != null && parentPrototype != UNDEFINED
-                        && !(parentPrototype instanceof ScriptObject)) {
-                    throw typeError("cant.inherit.from", safeToString(heritage));
-                }
-                prototype.setProto(parentPrototype instanceof ScriptObject p ? p : null);
+                prototype.setProto((ScriptObject)parentPrototype);
                 ctor.setProto(parent);
             } else {
                 throw typeError("cant.inherit.from", safeToString(heritage));
@@ -1916,26 +1927,9 @@ public final class ScriptRuntime {
      */
     public static Object SUPER_GET(final Object callee, final Object key) {
         final ScriptObject base = superBase(callee);
-        return base == null ? UNDEFINED : base.get(key);
+        return base.get(key);
     }
 
-    /**
-     * {@code super.x = value} and {@code super[x] = value}, which per ES2015
-     * assigns on the receiver rather than on the super object.
-     *
-     * @param callee the running method
-     * @param thiz   the receiver
-     * @param key    the property
-     * @param value  the value
-     * @return the value
-     */
-    public static Object SUPER_SET(final Object callee, final Object thiz, final Object key, final Object value) {
-        superBase(callee);
-        if (thiz instanceof ScriptObject receiver) {
-            receiver.set(key, value, NashornCallSiteDescriptor.CALLSITE_STRICT);
-        }
-        return value;
-    }
 
     /**
      * {@code super.m(...)}, which runs the inherited method with the current
@@ -1950,7 +1944,7 @@ public final class ScriptRuntime {
     public static Object SUPER_CALL(final Object callee, final Object key, final Object thiz,
             final Object argsArray) {
         final ScriptObject base = superBase(callee);
-        final Object method = base == null ? UNDEFINED : base.get(key);
+        final Object method = base.get(key);
         return SPREAD_CALL(method, thiz, argsArray);
     }
 
@@ -1973,8 +1967,10 @@ public final class ScriptRuntime {
             throw typeError("no.super");
         }
         final ScriptObject parent = constructor.getProto();
-        if (!(parent instanceof ScriptFunction parentConstructor)) {
-            throw typeError("no.super");
+        if (!(parent instanceof ScriptFunction parentConstructor) || !parentConstructor.isConstructor()) {
+            // "class C extends null" leaves the constructor inheriting from
+            // Function.prototype, which is callable and is not a constructor
+            throw typeError("not.a.constructor", safeToString(parent));
         }
         // ES2015 12.3.5.1 step 5: the parent is constructed, not called, and it
         // is told what new.target is - which for a derived constructor is what
