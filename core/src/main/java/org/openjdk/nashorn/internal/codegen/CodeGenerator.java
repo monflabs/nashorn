@@ -2749,6 +2749,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }.get();
     }
 
+    /** Whether a literal writes any name more than once. */
+    private static boolean hasRepeatedKey(final List<PropertyNode> elements) {
+        final Set<String> seen = new HashSet<>();
+        for (final PropertyNode propertyNode : elements) {
+            if (!propertyNode.isComputed() && propertyNode.getValue() != null
+                    && !seen.add(propertyNode.getKeyName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void loadObjectNode(final ObjectNode objectNode) {
         final List<PropertyNode> elements = objectNode.getElements();
 
@@ -2760,6 +2772,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         Expression protoNode = null;
         boolean restOfProperty = false;
+        // A name written twice keeps the place it was first written and the
+        // value it was last given. Baking the properties into the map would
+        // move it to the second place, so such a literal is built by setting
+        // its properties in order instead.
+        boolean deferred = hasRepeatedKey(elements);
 
         for (final PropertyNode propertyNode : elements) {
             final Expression value = propertyNode.getValue();
@@ -2769,14 +2786,20 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // Just use a pseudo-symbol. We just need something non null; use the name and zero flags.
             final Symbol symbol = isComputedOrAccessor ? null : new Symbol(key, 0);
 
-            if (isComputedOrAccessor) {
-                // Properties with computed names or getter/setters need special handling.
-                specialProperties.add(propertyNode);
-            } else if (propertyNode.getKey() instanceof IdentNode &&
-                       ScriptObject.PROTO_PROPERTY_NAME.equals(key)) {
+            if (propertyNode.getKey() instanceof IdentNode && !isComputedOrAccessor
+                    && ScriptObject.PROTO_PROPERTY_NAME.equals(key)) {
                 // ES6 draft compliant __proto__ inside object literal
                 // Identifier key and name is __proto__
                 protoNode = value;
+                continue;
+            }
+
+            if (isComputedOrAccessor || deferred || !specialProperties.isEmpty()) {
+                // A computed name or a getter is set after the object is built,
+                // and so is everything written after one: a literal's properties
+                // are its own in the order they were written, and baking the
+                // ones that can be baked would put them in front.
+                specialProperties.add(propertyNode);
                 continue;
             }
 
@@ -4604,8 +4627,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * neither a program point nor the overflow machinery.
      */
     private void loadEXP(final BinaryNode binaryNode) {
-        loadExpressionAsType(binaryNode.lhs(), Type.NUMBER);
-        loadExpressionAsType(binaryNode.rhs(), Type.NUMBER);
+        // both operands are evaluated before either is converted, unless the
+        // conversion is provably harmless - loading and converting the left in
+        // one go would run its valueOf before the right was even evaluated
+        loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(),
+                new TypeBounds(Type.NUMBER, Type.NUMBER), false, false);
         method.invokestatic("java/lang/Math", "pow", "(DD)D");
     }
 
