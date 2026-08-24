@@ -1384,6 +1384,9 @@ public class Lexer extends Scanner {
      * to every such name.
      */
     private int codePointHere() {
+        if (ch0 < Character.MIN_HIGH_SURROGATE) {
+            return ch0;
+        }
         return Character.isHighSurrogate(ch0) && Character.isLowSurrogate(ch1)
                 ? Character.toCodePoint(ch0, ch1)
                 : ch0;
@@ -1397,7 +1400,13 @@ public class Lexer extends Scanner {
      * characters.
      */
     private static boolean isIdentifierStart(final int codePoint) {
-        return codePoint == '$' || codePoint == '_' || Character.isUnicodeIdentifierStart(codePoint);
+        if (codePoint < 128) {
+            // almost every identifier is spelled in this range, and the tables
+            // are consulted often enough for it to be worth saying so
+            return codePoint >= 'a' && codePoint <= 'z' || codePoint >= 'A' && codePoint <= 'Z'
+                    || codePoint == '$' || codePoint == '_';
+        }
+        return Character.isUnicodeIdentifierStart(codePoint);
     }
 
     /**
@@ -1405,8 +1414,11 @@ public class Lexer extends Scanner {
      * the two zero width joiners.
      */
     private static boolean isIdentifierPart(final int codePoint) {
-        return codePoint == '$' || codePoint == 0x200C || codePoint == 0x200D
-                || Character.isUnicodeIdentifierPart(codePoint);
+        if (codePoint < 128) {
+            return codePoint >= 'a' && codePoint <= 'z' || codePoint >= 'A' && codePoint <= 'Z'
+                    || codePoint >= '0' && codePoint <= '9' || codePoint == '$' || codePoint == '_';
+        }
+        return codePoint == 0x200C || codePoint == 0x200D || Character.isUnicodeIdentifierPart(codePoint);
     }
 
     /**
