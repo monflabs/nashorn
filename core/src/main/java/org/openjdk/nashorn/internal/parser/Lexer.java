@@ -1347,10 +1347,10 @@ public class Lexer extends Scanner {
             skip(2);
             final int ch = identifierEscape();
 
-            if (!Character.isJavaIdentifierStart(ch)) {
+            if (!isIdentifierStart(ch)) {
                 error(Lexer.message("illegal.identifier.character"), TokenType.IDENT, start, position);
             }
-        } else if (!Character.isJavaIdentifierStart(ch0)) {
+        } else if (!isIdentifierStart(codePointHere())) {
             // Not an identifier.
             return 0;
         }
@@ -1361,18 +1361,52 @@ public class Lexer extends Scanner {
                 skip(2);
                 final int ch = identifierEscape();
 
-                if (!Character.isJavaIdentifierPart(ch)) {
+                if (!isIdentifierPart(ch)) {
                     error(Lexer.message("illegal.identifier.character"), TokenType.IDENT, start, position);
                 }
-            } else if (Character.isJavaIdentifierPart(ch0)) {
-                skip(1);
             } else {
-                break;
+                final int codePoint = codePointHere();
+                if (!isIdentifierPart(codePoint)) {
+                    break;
+                }
+                skip(Character.charCount(codePoint));
             }
         }
 
         // Length of identifier sequence.
         return position - start;
+    }
+
+    /**
+     * The code point at the read position, which is two characters when it is
+     * written as a surrogate pair - an identifier may be spelled with characters
+     * outside the basic plane, and testing the halves of one separately says no
+     * to every such name.
+     */
+    private int codePointHere() {
+        return Character.isHighSurrogate(ch0) && Character.isLowSurrogate(ch1)
+                ? Character.toCodePoint(ch0, ch1)
+                : ch0;
+    }
+
+    /**
+     * ES2015 11.6.1 IdentifierStart: a code point with the Unicode ID_Start
+     * property, or one of the two JavaScript adds. Java's own idea of an
+     * identifier is close but not the same - it takes currency symbols, which
+     * ID_Start does not, and it is asked here about code points rather than
+     * characters.
+     */
+    private static boolean isIdentifierStart(final int codePoint) {
+        return codePoint == '$' || codePoint == '_' || Character.isUnicodeIdentifierStart(codePoint);
+    }
+
+    /**
+     * ES2015 11.6.1 IdentifierPart: ID_Continue, the two JavaScript adds, and
+     * the two zero width joiners.
+     */
+    private static boolean isIdentifierPart(final int codePoint) {
+        return codePoint == '$' || codePoint == 0x200C || codePoint == 0x200D
+                || Character.isUnicodeIdentifierPart(codePoint);
     }
 
     /**
@@ -1738,7 +1772,7 @@ public class Lexer extends Scanner {
                     pauseOnNextLeftBrace = false;
                     break;
                 }
-            } else if (Character.isJavaIdentifierStart(ch0) || ch0 == '\\' && ch1 == 'u') {
+            } else if (isIdentifierStart(codePointHere()) || ch0 == '\\' && ch1 == 'u') {
                 // Scan and add identifier or keyword.
                 scanIdentifierOrKeyword();
             } else if (isStringDelimiter(ch0)) {
