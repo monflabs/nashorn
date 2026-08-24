@@ -568,12 +568,20 @@ public final class NativeProxy extends ScriptObject {
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T[] getOwnKeys(final Class<T> type, final boolean all, final java.util.Set<T> nonEnumerable) {
+        final java.util.List<T> wanted = new java.util.ArrayList<>();
+        for (final Object key : getOwnKeysAndSymbols(all)) {
+            if (type.isInstance(key)) {
+                wanted.add((T)key);
+            }
+        }
+        return wanted.toArray((T[])java.lang.reflect.Array.newInstance(type, wanted.size()));
+    }
+
+    @Override
+    public Object[] getOwnKeysAndSymbols(final boolean all) {
         final ScriptFunction trap = trap("ownKeys");
         if (trap == null) {
-            // the protected three-argument form is not reachable across packages
-            final Object[] own = type == Symbol.class ? target().getOwnSymbols(all) : target().getOwnKeys(all);
-            return java.util.Arrays.copyOf(own, own.length,
-                    (Class<? extends T[]>)java.lang.reflect.Array.newInstance(type, 0).getClass());
+            return target().getOwnKeysAndSymbols(all);
         }
 
         final ScriptObject target = target();
@@ -604,14 +612,7 @@ public final class NativeProxy extends ScriptObject {
         }
 
         checkOwnKeysAgainstTarget(target, seen);
-
-        final java.util.List<T> wanted = new java.util.ArrayList<>();
-        for (final Object key : answered) {
-            if (type.isInstance(key)) {
-                wanted.add((T)key);
-            }
-        }
-        return wanted.toArray((T[])java.lang.reflect.Array.newInstance(type, wanted.size()));
+        return answered.toArray();
     }
 
     /*
@@ -685,10 +686,7 @@ public final class NativeProxy extends ScriptObject {
 
     /** Every own key the ownKeys trap reports, strings and symbols alike. */
     private java.util.List<Object> ownPropertyKeys() {
-        final java.util.List<Object> keys = new java.util.ArrayList<>();
-        keys.addAll(java.util.Arrays.asList(getOwnKeys(true)));
-        keys.addAll(java.util.Arrays.asList(getOwnSymbols(true)));
-        return keys;
+        return java.util.Arrays.asList(getOwnKeysAndSymbols(true));
     }
 
     @Override

@@ -1397,6 +1397,25 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param all True if to include non-enumerable keys.
      * @return Array of keys.
      */
+    /**
+     * Every own key, strings and symbols alike, in one enumeration.
+     *
+     * ES2015 9.1.11 [[OwnPropertyKeys]] answers once and the caller sorts out
+     * what it wanted; asking twice is observable on a proxy, whose ownKeys trap
+     * would run twice and could answer differently each time.
+     *
+     * @param all whether to include the non-enumerable ones
+     * @return the keys
+     */
+    public Object[] getOwnKeysAndSymbols(final boolean all) {
+        final String[] keys = getOwnKeys(all);
+        final Symbol[] symbols = getOwnSymbols(all);
+        final Object[] both = new Object[keys.length + symbols.length];
+        System.arraycopy(keys, 0, both, 0, keys.length);
+        System.arraycopy(symbols, 0, both, keys.length, symbols.length);
+        return both;
+    }
+
     public final String[] getOwnKeys(final boolean all) {
         return getOwnKeys(String.class, all, null);
     }

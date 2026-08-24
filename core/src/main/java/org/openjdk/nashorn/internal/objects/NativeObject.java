@@ -521,10 +521,7 @@ public final class NativeObject {
             throw notAnObject(obj);
         }
         final ScriptObject descriptors = Global.newEmptyInstance();
-        for (final Object key : sobj.getOwnKeys(true)) {
-            addDescriptor(descriptors, sobj, key);
-        }
-        for (final Object key : sobj.getOwnSymbols(true)) {
+        for (final Object key : sobj.getOwnKeysAndSymbols(true)) {
             addDescriptor(descriptors, sobj, key);
         }
         return descriptors;
