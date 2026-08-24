@@ -67,7 +67,7 @@ public class JoniRegExp extends RegExp {
             RegExpScanner parsed;
 
             try {
-                parsed = RegExpScanner.scan(pattern);
+                parsed = RegExpScanner.scan(pattern, isUnicode());
             } catch (final PatternSyntaxException e) {
                 // refine the exception with a better syntax error, if this
                 // passes, just rethrow what we have

@@ -69,6 +69,9 @@ final class RegExpScanner extends Scanner {
 
     private static final String NON_IDENT_ESCAPES = "$^*+(){}[]|\\.?-";
 
+    /** ES2015 21.2.1 SyntaxCharacter, the only things a unicode pattern may escape. */
+    private static final String SYNTAX_CHARACTERS = "^$\\.*+?()[]{}|";
+
     private static class Capture {
         /** Zero-width negative lookaheads enclosing the capture. */
         private final int negLookaheadLevel;
@@ -99,8 +102,17 @@ final class RegExpScanner extends Scanner {
      * Constructor
      * @param string the JavaScript regexp to parse
      */
-    private RegExpScanner(final String string) {
+    /**
+     * Whether the pattern was written with the unicode flag, which ES2015
+     * 21.2.1 gives a stricter grammar: what the ordinary grammar tolerates for
+     * the sake of the web - an escape before an arbitrary character, an octal
+     * escape, a brace that is not a quantifier - is an error here.
+     */
+    private final boolean unicode;
+
+    private RegExpScanner(final String string, final boolean unicode) {
         super(string);
+        this.unicode = unicode;
         sb = new StringBuilder(limit);
         reset(0);
         expected.put(']', 0);
@@ -133,7 +145,18 @@ final class RegExpScanner extends Scanner {
      * @return Java safe regex string.
      */
     public static RegExpScanner scan(final String string) {
-        final RegExpScanner scanner = new RegExpScanner(string);
+        return scan(string, false);
+    }
+
+    /**
+     * Scan a JavaScript regexp string returning a Java safe regex string.
+     *
+     * @param string  JavaScript regexp string.
+     * @param unicode whether it was written with the unicode flag
+     * @return Java safe regex string.
+     */
+    public static RegExpScanner scan(final String string, final boolean unicode) {
+        final RegExpScanner scanner = new RegExpScanner(string, unicode);
 
         try {
             scanner.disjunction();
@@ -388,6 +411,9 @@ final class RegExpScanner extends Scanner {
                 pop('}');
                 commit(1);
             } else {
+                if (unicode) {
+                    throw new RuntimeException("Incomplete quantifier in unicode pattern");
+                }
                 // Bad quantifier should be rejected but is accepted by all major engines
                 restart(startIn, startOut);
                 return false;
@@ -487,11 +513,18 @@ final class RegExpScanner extends Scanner {
             if (n != 0) {
                 return false;
             }
+            if (unicode) {
+                // ES2015 21.2.1 leaves these out of ExtendedPatternCharacter
+                throw new RuntimeException("Unmatched " + ch0 + " in unicode pattern");
+            }
 
        case '{':
            // if not a valid quantifier escape curly brace to match itself
            // this ensures compatibility with other JS implementations
            if (!quantifierPrefix()) {
+               if (unicode) {
+                   throw new RuntimeException("Incomplete quantifier in unicode pattern");
+               }
                sb.append('\\');
                return commit(1);
            }
@@ -601,7 +634,7 @@ final class RegExpScanner extends Scanner {
     private boolean controlLetter() {
         // To match other engines we also accept '0'..'9' and '_' as control letters inside a character class.
         if ((ch0 >= 'A' && ch0 <= 'Z') || (ch0 >= 'a' && ch0 <= 'z')
-                || (inCharClass && (isDecimalDigit(ch0) || ch0 == '_'))) {
+                || (!unicode && inCharClass && (isDecimalDigit(ch0) || ch0 == '_'))) {
             // for some reason java regexps don't like control characters on the
             // form "\\ca".match([string with ascii 1 at char0]). Translating
             // them to unicode does it though.
@@ -622,6 +655,12 @@ final class RegExpScanner extends Scanner {
     private boolean identityEscape() {
         if (atEOF()) {
             throw new RuntimeException("\\ at end of pattern"); // will be converted to PatternSyntaxException
+        }
+        if (unicode && SYNTAX_CHARACTERS.indexOf(ch0) == -1 && ch0 != '/'
+                && !(inCharClass && ch0 == '-')) {
+            // ES2015 21.2.1: in unicode mode only a syntax character, a slash,
+            // and a dash inside a class may be written with a backslash
+            throw new RuntimeException("Invalid escape in unicode pattern");
         }
         // ES 5.1 A.7 requires "not IdentifierPart" here but all major engines accept any character here.
         if (ch0 == 'c') {
