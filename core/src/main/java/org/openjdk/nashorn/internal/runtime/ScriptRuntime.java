@@ -1836,6 +1836,53 @@ public final class ScriptRuntime {
     }
 
     /**
+     * {@code super.x = v} and {@code super[x] = v} (ES2015 12.3.5.3).
+     *
+     * A super assignment is looked up above the method's home object but written
+     * to the receiver: a setter found up there runs on {@code this}, and
+     * anything else becomes an ordinary property of {@code this}. Which is the
+     * same thing an ordinary assignment does, in every case where the receiver's
+     * own prototype chain is the one the home object sits in - the two only part
+     * company when the receiver has an own property of that name shadowing a
+     * setter above, and this follows the specification there.
+     *
+     * @param callee the running method
+     * @param key    the property
+     * @param thiz   the receiver
+     * @param value  what to store
+     * @param strict whether the assignment was written in strict code
+     * @return the value, which is what an assignment evaluates to
+     */
+    public static Object SUPER_SET(final Object callee, final Object key, final Object thiz, final Object value,
+            final boolean strict) {
+        final ScriptObject base = superBase(callee);
+        final Object name = JSType.toPropertyKey(key);
+
+        final FindProperty found = base.findProperty(name, true);
+        if (found != null && found.getProperty() instanceof UserAccessorProperty accessor) {
+            final ScriptFunction setter = accessor.getSetterFunction(found.getOwner());
+            if (setter != null) {
+                apply(setter, thiz, value);
+            } else if (strict) {
+                throw typeError("property.has.no.setter", safeToString(name), safeToString(thiz));
+            }
+            return value;
+        }
+
+        if (thiz instanceof ScriptObject receiver) {
+            // 9.1.9.2 step 3 asks the receiver what it already has before
+            // writing, and on an exotic object that is observable - a module
+            // namespace answers by reading the export, which is a ReferenceError
+            // while the binding is still in its dead zone
+            receiver.getOwnPropertyDescriptor(name);
+            receiver.set(name, value, strict ? NashornCallSiteDescriptor.CALLSITE_STRICT : 0);
+        } else if (strict) {
+            throw typeError("cant.set.property", safeToString(name), safeToString(thiz));
+        }
+        return value;
+    }
+
+    /**
      * The object {@code super} resolves against: the prototype of the object the
      * running method was defined on.
      *

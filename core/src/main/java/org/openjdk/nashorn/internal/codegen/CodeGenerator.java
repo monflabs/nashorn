@@ -4831,12 +4831,34 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
                 @Override
                 public boolean enterAccessNode(final AccessNode node) {
+                    if (node.isSuper()) {
+                        enterSuperNode(node);
+                        return false;
+                    }
                     enterBaseNode();
                     return false;
                 }
 
+                /**
+                 * A super assignment keeps the method, the key and the receiver
+                 * on the stack rather than a base object. Nothing is duplicated
+                 * for a self modifying one: the read it performs builds its own
+                 * operands and leaves these alone.
+                 */
+                private void enterSuperNode(final BaseNode node) {
+                    requireThisInitialized();
+                    method.loadCompilerConstant(CALLEE);
+                    loadSuperKey(node);
+                    method.loadCompilerConstant(THIS);
+                    depth += 3 * Type.OBJECT.getSlots();
+                }
+
                 @Override
                 public boolean enterIndexNode(final IndexNode node) {
+                    if (node.isSuper()) {
+                        enterSuperNode(node);
+                        return false;
+                    }
                     enterBaseNode();
 
                     final Expression index = node.getIndex();
@@ -4934,14 +4956,32 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
                 @Override
                 public boolean enterAccessNode(final AccessNode node) {
+                    if (node.isSuper()) {
+                        storeSuper();
+                        return false;
+                    }
                     method.dynamicSet(node.getProperty(), getCallSiteFlags(), node.isIndex());
                     return false;
                 }
 
                 @Override
                 public boolean enterIndexNode(final IndexNode node) {
+                    if (node.isSuper()) {
+                        storeSuper();
+                        return false;
+                    }
                     method.dynamicSetIndex(getCallSiteFlags());
                     return false;
+                }
+
+                private void storeSuper() {
+                    // the value arrives in whatever type the expression produced
+                    method.convert(Type.OBJECT);
+                    method.load(org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.isStrictFlag(getCallSiteFlags()));
+                    method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_SET",
+                            "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Z)"
+                                    + "Ljava/lang/Object;");
+                    method.pop();
                 }
             });
 

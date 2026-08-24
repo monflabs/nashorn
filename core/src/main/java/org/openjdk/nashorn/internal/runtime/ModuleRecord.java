@@ -193,17 +193,10 @@ public final class ModuleRecord {
      * binds. Its properties read the exports as they stand.
      */
     public ScriptObject namespace() {
-        final ScriptObject ns = Global.newEmptyInstance();
         final List<String> sorted = new ArrayList<>(exportNames());
         // 9.4.6.11: a namespace object's keys are sorted
         sorted.sort(null);
-        for (final String exportName : sorted) {
-            ns.addOwnProperty(exportName, Property.NOT_WRITABLE,
-                    ScriptFunction.createBuiltin(exportName, ModuleBinding.reader(this, exportName)), null);
-        }
-        ns.setProto(null);
-        ns.preventExtensions();
-        return ns;
+        return new ModuleNamespace(this, sorted);
     }
 
     private Object local(final String localName) {
