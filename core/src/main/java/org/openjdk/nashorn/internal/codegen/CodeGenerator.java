@@ -2408,6 +2408,22 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         method.store(binding, Type.OBJECT);
     }
 
+    /**
+     * ES2015 12.3.5.3 makes a super property reference read this, so in a
+     * derived constructor one written before super() is a ReferenceError rather
+     * than a look at a property of nothing.
+     */
+    private void requireThisInitialized() {
+        final Symbol binding = thisBinding();
+        if (binding == null) {
+            return;
+        }
+        method.load(binding, Type.OBJECT);
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "REQUIRE_THIS_INITIALIZED",
+                new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+        method.pop();
+    }
+
     /** The variable holding a derived constructor's this binding, if it has one. */
     private Symbol thisBinding() {
         for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
@@ -2489,6 +2505,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * does not follow the receiver.
      */
     private void loadSuperGet(final BaseNode base) {
+        requireThisInitialized();
         method.loadCompilerConstant(CALLEE);
         loadSuperKey(base);
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_GET",
