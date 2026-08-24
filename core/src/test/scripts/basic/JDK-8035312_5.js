@@ -24,6 +24,9 @@
 /**
  * JDK-8035312_5 - pushes and pops for frozen array
  *
+ * ES2015 makes both a TypeError rather than something quietly dropped, which is
+ * what the catch blocks below were written for.
+ *
  * @test
  * @run
  */

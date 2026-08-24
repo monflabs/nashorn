@@ -2,6 +2,7 @@
 
 >>> Push test
 Pushing 0 to 1,2,3
+caught errorTypeError: Cannot add new property "3" to non-extensible [object Array]
 	array is now [1,2,3] length is = 3
 
 class org.openjdk.nashorn.internal.runtime.arrays.FrozenArrayFilter

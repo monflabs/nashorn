@@ -65,4 +65,10 @@ class SealedArrayFilter extends ArrayFilter {
     public PropertyDescriptor getDescriptor(final Global global, final int index) {
         return global.newDataDescriptor(getObject(index), false, true, true);
     }
+
+    @Override
+    public boolean isSealed() {
+        return true;
+    }
+
 }

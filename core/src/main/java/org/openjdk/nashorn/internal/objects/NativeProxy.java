@@ -226,6 +226,36 @@ public final class NativeProxy extends ScriptObject {
     }
 
     @Override
+    public boolean has(final double key) {
+        return has((Object)JSType.toObject(key));
+    }
+
+    @Override
+    public boolean has(final int key) {
+        return has((Object)Integer.valueOf(key));
+    }
+
+    @Override
+    public void set(final double key, final Object value, final int flags) {
+        set((Object)JSType.toObject(key), value, flags);
+    }
+
+    @Override
+    public void set(final int key, final Object value, final int flags) {
+        set((Object)Integer.valueOf(key), value, flags);
+    }
+
+    @Override
+    public boolean delete(final int key, final boolean strict) {
+        return delete((Object)Integer.valueOf(key), strict);
+    }
+
+    @Override
+    public boolean delete(final double key, final boolean strict) {
+        return delete((Object)JSType.toObject(key), strict);
+    }
+
+    @Override
     public void set(final Object key, final Object value, final int flags) {
         final ScriptFunction trap = trap("set");
         if (trap == null) {

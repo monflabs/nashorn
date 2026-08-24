@@ -819,7 +819,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         // it, by the species, and an element goes in with CreateDataProperty -
         // which a species that refuses to take one turns into a TypeError
         final Global global = Global.instance();
-        if (!(self instanceof ScriptObject sobj) || !isArray(sobj) || hasDefaultSpecies(sobj, global)) {
+        if (!(self instanceof ScriptObject sobj) || !isArrayThroughProxies(sobj) || hasDefaultSpecies(sobj, global)) {
             return new NativeArray(list.toArray());
         }
 
@@ -848,8 +848,19 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         target.defineOwnProperty(JSType.toString(index), desc, true);
     }
 
+    /** Spreads an object into a concat result by asking it for each element. */
+    private static void spreadThroughProperties(final ArrayList<Object> list, final ScriptObject sobj) {
+        final long length = toLength(sobj.get("length"));
+        for (long i = 0; i < length; i++) {
+            list.add(sobj.has(i) ? sobj.get(i) : ScriptRuntime.EMPTY);
+        }
+    }
+
     private static void concatToList(final ArrayList<Object> list, final Object obj) {
-        final boolean isScriptArray  = isArray(obj);
+        // IsArray looks through a proxy, and a revoked one has nothing to look
+        // through to - which is why this is asked of every argument
+        final boolean isScriptArray  = obj instanceof ScriptObject candidate
+                ? isArrayThroughProxies(candidate) : isArray(obj);
         final boolean isScriptObject = isScriptArray || obj instanceof ScriptObject;
 
         // ES2015 22.1.3.1.1: Symbol.isConcatSpreadable overrides the decision
@@ -858,15 +869,19 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             final Object spreadable = sobj.get(NativeSymbol.isConcatSpreadable);
             if (spreadable != ScriptRuntime.UNDEFINED) {
                 if (JSType.toBoolean(spreadable)) {
-                    final long length = toLength(sobj.getLength());
-                    for (long i = 0; i < length; i++) {
-                        list.add(sobj.get(i));
-                    }
+                    spreadThroughProperties(list, sobj);
                 } else {
                     list.add(obj);
                 }
                 return;
             }
+        }
+
+        if (obj instanceof NativeProxy proxy) {
+            // there is no array data behind a proxy to walk: every element has
+            // to be asked for, which is what its handler is there to answer
+            spreadThroughProperties(list, proxy);
+            return;
         }
 
         if (isScriptArray || obj instanceof Iterable || obj instanceof JSObject || (obj != null && obj.getClass().isArray())) {
@@ -1445,6 +1460,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             }
         }
 
+        // ES2015 22.1.3.25 step 11 asks before it starts moving anything, as
+        // unshift does: what is put back must still fit below 2^53-1
+        if (len + items.length - actualDeleteCount > MAX_SAFE_INTEGER) {
+            throw typeError("array.length.exceeded", JSType.toString((double)len));
+        }
+
         if (!hasDefaultSpecies(sobj, Global.instance())) {
             // ES2015 22.1.3.25 step 12: what is removed goes into an array the
             // species makes, and only the removed part does - the splicing
@@ -1553,6 +1574,12 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
         if (items == null) {
             return ScriptRuntime.UNDEFINED;
+        }
+
+        // ES2015 22.1.3.28 step 4.a asks before it starts moving anything: there
+        // is nowhere past 2^53-1 for the last element to go
+        if (items.length > 0 && len + items.length > MAX_SAFE_INTEGER) {
+            throw typeError("array.length.exceeded", JSType.toString((double)len));
         }
 
         if (bulkable(sobj)) {
@@ -1845,7 +1872,9 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * path that map, filter, slice and concat all sit on.
      */
     private static boolean hasDefaultSpecies(final Object array, final Global global) {
-        if (!(array instanceof ScriptObject sobj) || sobj.getProto() != global.getArrayPrototype()) {
+        // A proxy answers for its target and what it answers with is its
+        // handler's business, so there is no shape here to read without asking.
+        if (!(array instanceof NativeArray sobj) || sobj.getProto() != global.getArrayPrototype()) {
             return false;
         }
         // An array that has been given no property of its own beyond the length
@@ -1856,6 +1885,15 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         return map.size() <= 1 || map.findProperty("constructor") == null;
     }
 
+    /**
+     * ES2015 7.2.2 IsArray, which looks through however many proxies stand in
+     * the way - and throws for a revoked one, which has nothing to look through
+     * to.
+     */
+    private static boolean isArrayThroughProxies(final ScriptObject sobj) {
+        return isArray(sobj instanceof NativeProxy proxy ? proxy.unwrap() : sobj);
+    }
+
     private static ScriptObject speciesCreate(final Object original, final long length) {
         // ES2015 9.4.2.3 step 5 makes an ordinary array of that length, and an
         // array cannot be 2^32 long or longer - a length an array-like is free
@@ -1864,7 +1902,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             throw rangeError("inappropriate.array.length", JSType.toString((double)length));
         }
         final Global global = Global.instance();
-        if (!(original instanceof ScriptObject sobj) || !isArray(sobj)) {
+        if (!(original instanceof ScriptObject sobj) || !isArrayThroughProxies(sobj)) {
             return new NativeArray(length);
         }
         if (hasDefaultSpecies(sobj, global)) {
@@ -1990,7 +2028,8 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @return true if optimizable
      */
     private static boolean bulkable(final ScriptObject self) {
-        return self.isArray() && !hasInheritedArrayEntries(self) && !self.isLengthNotWritable();
+        return self.isArray() && !hasInheritedArrayEntries(self) && !self.isLengthNotWritable()
+                && !self.getArray().isSealed();
     }
 
     private static boolean hasInheritedArrayEntries(final ScriptObject self) {

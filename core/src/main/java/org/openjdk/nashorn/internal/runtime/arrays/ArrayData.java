@@ -340,6 +340,20 @@ public abstract class ArrayData {
     }
 
     /**
+     * Whether this data refuses to be grown or shrunk, as a sealed or a frozen
+     * array's does.
+     *
+     * The bulk paths in NativeArray add and remove elements without going
+     * through the property machinery, so they have no way to report a refusal;
+     * this is what keeps them off an array that would refuse.
+     *
+     * @return true if elements can neither be added nor removed
+     */
+    public boolean isSealed() {
+        return false;
+    }
+
+    /**
      * Apply a freeze filter to an ArrayData.
      *
      * @param underlying  the underlying ArrayData to wrap in the freeze filter

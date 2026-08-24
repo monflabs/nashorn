@@ -24,6 +24,10 @@
 /**
  * JDK-8035312 push to frozen array must not increase length property
  *
+ * ES2015 22.1.3.17 makes push write with Set(O, len, item, true), so pushing to
+ * a frozen array is a TypeError rather than something quietly dropped; the same
+ * goes for the length pop writes back.
+ *
  * @test
  * @run
  * @fork
