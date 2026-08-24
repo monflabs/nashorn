@@ -2338,6 +2338,41 @@ public final class ScriptRuntime {
         throw typeError("not.an.object", safeToString(result));
     }
 
+    /**
+     * The first thing an async function does.
+     *
+     * Like a generator, an async function is compiled as an ordinary function
+     * and serves two roles: called normally it runs its body as far as the first
+     * await and hands back a promise, and the call made from the body's own
+     * thread falls through into the body itself.
+     *
+     * @param callee the async function
+     * @param self   its this value
+     * @param args   its arguments
+     * @return the promise the call evaluates to, or undefined on the body's thread
+     */
+    public static Object ASYNC_ENTER(final Object callee, final Object self, final Object args) {
+        if (AsyncSupport.entering()) {
+            return UNDEFINED;
+        }
+        final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
+        return AsyncSupport.start((ScriptFunction)callee, self, arguments, Context.getGlobal());
+    }
+
+    /**
+     * {@code await x} - waits for a value to settle.
+     *
+     * @param value what to wait for
+     * @return what it fulfilled with
+     */
+    public static Object AWAIT(final Object value) {
+        final AsyncSupport async = AsyncSupport.running();
+        if (async == null) {
+            throw typeError("await.outside.async");
+        }
+        return async.await(value);
+    }
+
     public static Object YIELD(final Object value) {
         final GeneratorSupport generator = GeneratorSupport.running();
         if (generator == null) {

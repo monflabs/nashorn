@@ -395,16 +395,18 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
     private static final String CONSTRUCTOR_NAME = "constructor";
 
     private static int getDataFlags(final FunctionNode functionNode) {
-        // ES2015 makes four kinds of function non-constructible: a method
+        // ES2015 makes five kinds of function non-constructible: a method
         // (14.3.8 does not give one a prototype), an accessor, an arrow
-        // function (14.2.16) and a generator function, whose "new" is
-        // reserved. A class constructor is constructible but may only be
-        // reached that way, which is checked when it is called.
+        // function (14.2.16), a generator function, whose "new" is reserved,
+        // and an async function (ES2017 14.6.14), whose call makes a promise
+        // rather than an object. A class constructor is constructible but may
+        // only be reached that way, which is checked when it is called.
         final boolean constructible = !functionNode.isMethod()
                 && functionNode.getKind() != FunctionNode.Kind.GENERATOR
                 && functionNode.getKind() != FunctionNode.Kind.GETTER
                 && functionNode.getKind() != FunctionNode.Kind.SETTER
-                && functionNode.getKind() != FunctionNode.Kind.ARROW
+                && !functionNode.isArrow()
+                && !functionNode.isAsync()
                 || functionNode.isClassConstructor();
         int flags = constructible ? IS_CONSTRUCTOR : 0;
         if (functionNode.isStrict()) {
@@ -430,6 +432,9 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         }
         if (functionNode.getKind() == FunctionNode.Kind.GENERATOR) {
             flags |= IS_ES6_GENERATOR;
+        }
+        if (functionNode.isAsync()) {
+            flags |= IS_ES6_ASYNC;
         }
         return flags;
     }

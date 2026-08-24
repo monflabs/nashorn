@@ -89,6 +89,62 @@ public final class NativePromise extends ScriptObject {
         return new NativePromise(global.getPromisePrototype(), $nasgenmap$, global);
     }
 
+    /**
+     * The promise an async function call hands back, before its body has run.
+     *
+     * @param global the realm
+     * @return a pending promise
+     */
+    public static NativePromise newAsyncPromise(final Global global) {
+        return allocate(global);
+    }
+
+    /**
+     * Settles the promise an async function returned, with what its body
+     * returned - adopting it if that is itself a thenable.
+     *
+     * @param promise the promise to settle
+     * @param value   what the body returned
+     */
+    public static void resolveAsyncPromise(final NativePromise promise, final Object value) {
+        promise.resolveWith(value);
+    }
+
+    /**
+     * Settles the promise an async function returned, with what its body threw.
+     *
+     * @param promise the promise to settle
+     * @param reason  what the body threw
+     */
+    public static void rejectAsyncPromise(final NativePromise promise, final Object reason) {
+        promise.settle(State.REJECTED, reason);
+    }
+
+    /**
+     * ES2017 6.2.3.1 Await: reacts to a value once, as a job.
+     *
+     * A promise of this realm is subscribed to as it stands, which is what makes
+     * awaiting one cost a single turn of the queue; anything else is wrapped in
+     * a promise resolved with it first, which is a turn either way.
+     *
+     * @param global      the realm
+     * @param value       what is being awaited
+     * @param onFulfilled called with the value it fulfils with
+     * @param onRejected  called with the reason it rejects with
+     */
+    public static void await(final Global global, final Object value,
+            final java.util.function.Consumer<Object> onFulfilled,
+            final java.util.function.Consumer<Object> onRejected) {
+        if (value instanceof NativePromise already && already.global == global
+                && already.get("constructor") == global.get("Promise")) {
+            already.onSettled(onFulfilled, onRejected);
+            return;
+        }
+        final NativePromise wrapper = allocate(global);
+        wrapper.resolveWith(value);
+        wrapper.onSettled(onFulfilled, onRejected);
+    }
+
     @Override
     public String getClassName() {
         return "Promise";

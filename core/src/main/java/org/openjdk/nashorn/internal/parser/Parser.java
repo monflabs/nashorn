@@ -161,6 +161,11 @@ import org.openjdk.nashorn.internal.runtime.logging.Logger;
 public class Parser extends AbstractParser implements Loggable {
     private static final String ARGUMENTS_NAME = CompilerConstants.ARGUMENTS_VAR.symbolName();
     private static final String CONSTRUCTOR_NAME = "constructor";
+    /** Whether an async arrow's parameter list is being parsed, where await is a keyword. */
+    private boolean inAsyncParameters;
+
+    private static final String ASYNC_NAME = "async";
+    private static final String AWAIT_NAME = "await";
     private static final String GET_NAME = "get";
     private static final String SET_NAME = "set";
 
@@ -1117,6 +1122,15 @@ public class Parser extends AbstractParser implements Loggable {
             functionExpression(true, topLevel || labelledStatement);
             return;
         default:
+            if (lookaheadIsAsyncFunction()) {
+                if (singleStatement) {
+                    throw error(AbstractParser.message("expected.stmt", "async function declaration"), token);
+                }
+                final long asyncToken = token;
+                next();
+                functionExpression(true, topLevel, true, asyncToken);
+                return;
+            }
             if (type == LET && lookaheadIsLetDeclaration(false) || type == CONST) {
                 if (singleStatement) {
                     throw error(AbstractParser.message("expected.stmt", type.getName() + " declaration"), token);
@@ -1182,6 +1196,12 @@ public class Parser extends AbstractParser implements Loggable {
         if (type == MUL) {
             next();
         }
+        // An async method's recorded range starts at the name too, so the flag
+        // is the authority here as well; an "async" in front is merely consumed.
+        final boolean async = (reparseFlags & ScriptFunctionData.IS_ES6_ASYNC) != 0;
+        if (lookaheadIsAsyncMethod()) {
+            next();
+        }
         final Expression propertyKey = propertyName();
         final String ident = propertyKey instanceof PropertyKey key ? key.getPropertyName() : null;
 
@@ -1195,7 +1215,7 @@ public class Parser extends AbstractParser implements Loggable {
                 flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
             }
         }
-        addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, flags, false));
+        addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, async, flags, false));
     }
 
     private void addPropertyFunctionStatement(final PropertyFunction propertyFunction) {
@@ -1339,12 +1359,17 @@ public class Parser extends AbstractParser implements Loggable {
                     isStatic = true;
                     next();
                 }
+
+                boolean async = lookaheadIsAsyncMethod();
+                if (async) {
+                    next();
+                }
                 boolean generator = false;
                 if (type == MUL) {
                     generator = true;
                     next();
                 }
-                final PropertyNode classElement = methodDefinition(isStatic, classHeritage != null, generator);
+                final PropertyNode classElement = methodDefinition(isStatic, classHeritage != null, generator, async);
                 if (classElement.isComputed()) {
                     classElements.add(classElement);
                 } else if (!classElement.isStatic() && CONSTRUCTOR_NAME.equals(classElement.getKeyName())) {
@@ -1456,7 +1481,8 @@ public class Parser extends AbstractParser implements Loggable {
                         ), null, null, false, false);
     }
 
-    private PropertyNode methodDefinition(final boolean isStatic, final boolean subclass, final boolean generator) {
+    private PropertyNode methodDefinition(final boolean isStatic, final boolean subclass, final boolean generator,
+            final boolean async) {
         final long methodToken = token;
         final int methodLine = line;
         final boolean computed = type == LBRACKET;
@@ -1482,10 +1508,10 @@ public class Parser extends AbstractParser implements Loggable {
                         flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR;
                     }
                 }
-                verifyAllowedMethodName(propertyName, isStatic, false, generator, false);
+                verifyAllowedMethodName(propertyName, isStatic, false, generator, false, async);
             }
         }
-        final PropertyFunction methodDefinition = propertyMethodFunction(propertyName, methodToken, methodLine, generator, flags, computed);
+        final PropertyFunction methodDefinition = propertyMethodFunction(propertyName, methodToken, methodLine, generator, async, flags, computed);
         return new PropertyNode(methodToken, finish, methodDefinition.key, methodDefinition.functionNode, null, null, isStatic, computed);
     }
 
@@ -1493,6 +1519,14 @@ public class Parser extends AbstractParser implements Loggable {
      * ES6 14.5.1 Static Semantics: Early Errors.
      */
     private void verifyAllowedMethodName(final Expression key, final boolean isStatic, final boolean computed, final boolean generator, final boolean accessor) {
+        verifyAllowedMethodName(key, isStatic, computed, generator, accessor, false);
+    }
+
+    private void verifyAllowedMethodName(final Expression key, final boolean isStatic, final boolean computed, final boolean generator, final boolean accessor, final boolean async) {
+        if (!computed && !isStatic && async && ((PropertyKey) key).getPropertyName().equals(CONSTRUCTOR_NAME)) {
+            // ES2017 14.6: a class constructor is not an async function
+            throw error(AbstractParser.message("generator.constructor"), key.getToken());
+        }
         if (!computed) {
             if (!isStatic && generator && ((PropertyKey) key).getPropertyName().equals(CONSTRUCTOR_NAME)) {
                 throw error(AbstractParser.message("generator.constructor"), key.getToken());
@@ -1563,6 +1597,11 @@ public class Parser extends AbstractParser implements Loggable {
     private void verifyIdent(final IdentNode ident, final String contextString) {
         verifyStrictIdent(ident, contextString);
         checkEscapedKeyword(ident);
+        // ES2017 14.6: await is a keyword inside an async function, so it names
+        // nothing there - not a binding, not a label, not a parameter
+        if (inAsyncFunction() && AWAIT_NAME.equals(ident.getName())) {
+            throw error(AbstractParser.message("strict.name", ident.getName(), contextString), ident.getToken());
+        }
     }
 
     /**
@@ -2668,6 +2707,7 @@ public class Parser extends AbstractParser implements Loggable {
         final long labelToken = token;
         // Get label ident.
         final IdentNode ident = getIdent();
+        verifyIdent(ident, "label");
 
         expect(COLON);
 
@@ -3285,6 +3325,11 @@ public class Parser extends AbstractParser implements Loggable {
         final long propertyToken = token;
         final int  functionLine  = line;
 
+        final boolean async = lookaheadIsAsyncMethod();
+        if (async) {
+            next();
+        }
+
         final Expression propertyName;
         final boolean isIdentifier;
 
@@ -3297,18 +3342,21 @@ public class Parser extends AbstractParser implements Loggable {
         final boolean computed = type == LBRACKET;
         if (type == IDENT) {
             // Get IDENT.
+            final long identToken = token;
             final String ident = (String)expectValue(IDENT);
 
-            if (type != COLON && type != LPAREN) {
+            // "async get x() {}" is not an accessor: after async comes a
+            // property name and nothing else
+            if (!async && type != COLON && type != LPAREN) {
 
                 switch (ident) {
                 case GET_NAME:
-                    checkEscapedAccessor(propertyToken, ident);
+                    checkEscapedAccessor(identToken, ident);
                     final PropertyFunction getter = propertyGetterFunction(propertyToken, functionLine);
                     return new PropertyNode(propertyToken, finish, getter.key, null, getter.functionNode, null, false, getter.computed);
 
                 case SET_NAME:
-                    checkEscapedAccessor(propertyToken, ident);
+                    checkEscapedAccessor(identToken, ident);
                     final PropertyFunction setter = propertySetterFunction(propertyToken, functionLine);
                     return new PropertyNode(propertyToken, finish, setter.key, null, null, setter.functionNode, false, setter.computed);
                 default:
@@ -3333,8 +3381,15 @@ public class Parser extends AbstractParser implements Loggable {
             expectDontAdvance(LPAREN);
         }
 
+        if (async && type != LPAREN) {
+            // "async" in front of a name promises a method, so a property that
+            // is not one has an identifier where it should have a parameter list
+            throw error(AbstractParser.message("expected", "(", type.getNameOrType()));
+        }
+
         if (type == LPAREN) {
-            propertyValue = propertyMethodFunction(propertyName, propertyToken, functionLine, generator, FunctionNode.ES6_IS_METHOD, computed).functionNode;
+            propertyValue = propertyMethodFunction(propertyName, propertyToken, functionLine, generator, async,
+                    FunctionNode.ES6_IS_METHOD, computed).functionNode;
         } else if (isIdentifier && (type == COMMARIGHT || type == RBRACE || type == ASSIGN)) {
             propertyValue = createIdentNode(propertyToken, finish, ((IdentNode) propertyName).getPropertyName());
             if (type == ASSIGN) {
@@ -3476,11 +3531,16 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private PropertyFunction propertyMethodFunction(final Expression key, final long propertyToken, final int methodLine, final boolean generator, final int flags, final boolean computed) {
+        return propertyMethodFunction(key, propertyToken, methodLine, generator, false, flags, computed);
+    }
+
+    private PropertyFunction propertyMethodFunction(final Expression key, final long propertyToken, final int methodLine, final boolean generator, final boolean async, final int flags, final boolean computed) {
         final long methodToken = includeOpeningQuote(propertyToken);
         final String methodName = key instanceof PropertyKey ? ((PropertyKey) key).getPropertyName() : getDefaultValidFunctionName(methodLine, false);
         final IdentNode methodNameNode = createIdentNode(key.getToken(), finish, methodName);
 
-        final FunctionNode.Kind functionKind = generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
+        final FunctionNode.Kind functionKind = async ? FunctionNode.Kind.ASYNC
+                : generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
         final ParserContextFunctionNode functionNode = createParserContextFunctionNode(methodNameNode, methodToken, functionKind, methodLine, null);
         functionNode.setFlag(flags);
         if (computed) {
@@ -3732,6 +3792,17 @@ public class Parser extends AbstractParser implements Loggable {
             lhs = classExpression(false);
             break;
 
+        case IDENT:
+            if (lookaheadIsAsyncFunction()) {
+                final long asyncToken = token;
+                next();
+                lhs = functionExpression(false, false, true, asyncToken);
+                break;
+            }
+            // fall through to the ordinary primary expression
+            lhs = primaryExpression();
+            break;
+
         case SUPER: {
             final ParserContextFunctionNode currentFunction = getCurrentNonArrowFunction();
             // On an on-demand re-parse the enclosing method is not on the stack -
@@ -3920,7 +3991,18 @@ public class Parser extends AbstractParser implements Loggable {
      * @return Expression node.
      */
     private Expression functionExpression(final boolean isStatement, final boolean topLevel) {
-        final long functionToken = token;
+        return functionExpression(isStatement, topLevel, false, 0L);
+    }
+
+    /**
+     * @param async      whether "async" was written in front of it
+     * @param asyncToken that "async", which is where the function's source
+     *                   begins - an on-demand recompilation re-reads it from
+     *                   there, and starting at "function" would lose it
+     */
+    private Expression functionExpression(final boolean isStatement, final boolean topLevel, final boolean async,
+            final long asyncToken) {
+        final long functionToken = async ? asyncToken : token;
         final int  functionLine  = line;
         // FUNCTION is tested in caller.
         assert type == FUNCTION;
@@ -3943,6 +4025,10 @@ public class Parser extends AbstractParser implements Loggable {
             }
             name = getIdent();
             verifyIdent(name, "function name");
+            // ES2017 14.6.1: an async function is not called await either
+            if (async && AWAIT_NAME.equals(name.getName())) {
+                throw error(AbstractParser.message("strict.name", name.getName(), "function name"), name.getToken());
+            }
         } else if (isStatement) {
             // Nashorn extension: anonymous function statements.
             // Do not allow anonymous function statement if extensions
@@ -3964,7 +4050,8 @@ public class Parser extends AbstractParser implements Loggable {
             hasInferredName = defaultNameIsBinding && !isStatement;
         }
 
-        final FunctionNode.Kind functionKind = generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
+        final FunctionNode.Kind functionKind = async ? FunctionNode.Kind.ASYNC
+                : generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
         List<IdentNode> parameters = Collections.emptyList();
         final ParserContextFunctionNode functionNode = createParserContextFunctionNode(name, functionToken, functionKind, functionLine, parameters);
         lc.push(functionNode);
@@ -4040,7 +4127,7 @@ public class Parser extends AbstractParser implements Loggable {
     private void verifyParameterList(final List<IdentNode> parameters, final ParserContextFunctionNode functionNode) {
         final IdentNode duplicateParameter = functionNode.getDuplicateParameterBinding();
         if (duplicateParameter != null) {
-            if (functionNode.isStrict() || functionNode.getKind() == FunctionNode.Kind.ARROW || !functionNode.isSimpleParameterList()) {
+            if (functionNode.isStrict() || FunctionNode.isArrow(functionNode.getKind()) || !functionNode.isSimpleParameterList()) {
                 throw error(AbstractParser.message("strict.param.redefinition", duplicateParameter.getName()), duplicateParameter.getToken());
             }
 
@@ -4358,7 +4445,7 @@ public class Parser extends AbstractParser implements Loggable {
             final int functionId = functionNode.getId();
             parseBody = reparsedFunction == null || functionId <= reparsedFunction.getFunctionNodeId();
             // Nashorn extension: expression closures
-            if ((!env._no_syntax_extensions || functionNode.getKind() == FunctionNode.Kind.ARROW) && type != LBRACE) {
+            if ((!env._no_syntax_extensions || FunctionNode.isArrow(functionNode.getKind())) && type != LBRACE) {
                 /*
                  * Example:
                  *
@@ -4606,6 +4693,10 @@ public class Parser extends AbstractParser implements Loggable {
 
     private Expression unaryExpression() {
         final long unaryToken = token;
+
+        if (isAwaitExpression()) {
+            return awaitExpression();
+        }
 
         switch (type) {
         case ADD:
@@ -4950,6 +5041,27 @@ public class Parser extends AbstractParser implements Loggable {
             return yieldExpression(noIn);
         }
 
+        if (lookaheadIsAsyncArrow()) {
+            final long asyncToken = token;
+            final int asyncLine = line;
+            next();
+            // an async arrow's parameters are read with await already a keyword,
+            // which is why they are parsed before there is an arrow to be inside
+            final boolean wasAsyncParameters = inAsyncParameters;
+            inAsyncParameters = true;
+            final Expression paramListExpr;
+            try {
+                paramListExpr = conditionalExpression(noIn);
+            } finally {
+                inAsyncParameters = wasAsyncParameters;
+            }
+            return arrowFunction(asyncToken, asyncLine,
+                    paramListExpr instanceof ExpressionList list
+                            ? (list.getExpressions().isEmpty() ? null : list.getExpressions().get(0))
+                            : paramListExpr,
+                    true);
+        }
+
         final long startToken = token;
         final int startLine = line;
         final Expression exprLhs = conditionalExpression(noIn);
@@ -5025,6 +5137,11 @@ public class Parser extends AbstractParser implements Loggable {
      * @param paramListExpr ArrowParameters expression or {@code null} for {@code ()} (empty list)
      */
     private Expression arrowFunction(final long startToken, final int functionLine, final Expression paramListExpr) {
+        return arrowFunction(startToken, functionLine, paramListExpr, false);
+    }
+
+    private Expression arrowFunction(final long startToken, final int functionLine, final Expression paramListExpr,
+            final boolean async) {
         // caller needs to check that there's no LineTerminator between parameter list and arrow
         assert type != ARROW || checkNoLineTerminator();
         expect(ARROW);
@@ -5037,7 +5154,8 @@ public class Parser extends AbstractParser implements Loggable {
         final boolean hasInferredName = defaultNameIsBinding;
         final IdentNode name = new IdentNode(functionToken, Token.descPosition(functionToken),
                 hasInferredName ? inferred : NameCodec.encode("=>:") + functionLine);
-        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(name, functionToken, FunctionNode.Kind.ARROW, functionLine, null);
+        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(name, functionToken,
+                async ? FunctionNode.Kind.ASYNC_ARROW : FunctionNode.Kind.ARROW, functionLine, null);
         functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
         if (hasInferredName) {
             functionNode.setFlag(FunctionNode.ES6_HAS_INFERRED_NAME);
@@ -5068,7 +5186,7 @@ public class Parser extends AbstractParser implements Loggable {
                             functionToken,
                             name,
                             parameters,
-                            FunctionNode.Kind.ARROW,
+                            async ? FunctionNode.Kind.ASYNC_ARROW : FunctionNode.Kind.ARROW,
                             functionLine,
                             functionBody);
         } finally {
@@ -5828,7 +5946,7 @@ public class Parser extends AbstractParser implements Loggable {
             if (!flaggedCurrentFn) {
                 fn.setFlag(FunctionNode.HAS_EVAL);
                 flaggedCurrentFn = true;
-                if (fn.getKind() == FunctionNode.Kind.ARROW) {
+                if (FunctionNode.isArrow(fn.getKind())) {
                     // possible use of this in an eval that's nested in an arrow function, e.g.:
                     // function fun(){ return (() => eval("this"))(); };
                     markThis(lc);
@@ -5858,7 +5976,7 @@ public class Parser extends AbstractParser implements Loggable {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
-            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+            if (!FunctionNode.isArrow(fn.getKind())) {
                 // on a re-parse the constructor is not on the stack, so there is
                 // nothing here that could know it was one
                 assert fn.isSubclassConstructor() || reparsedFunction != null;
@@ -5872,7 +5990,7 @@ public class Parser extends AbstractParser implements Loggable {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
-            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+            if (!FunctionNode.isArrow(fn.getKind())) {
                 return fn;
             }
         }
@@ -5885,7 +6003,7 @@ public class Parser extends AbstractParser implements Loggable {
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             fn.setFlag(FunctionNode.USES_THIS);
-            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+            if (!FunctionNode.isArrow(fn.getKind())) {
                 if (throughArrow) {
                     // an arrow inside this function reads its this, so it has to
                     // be published where the arrow can capture it
@@ -5909,7 +6027,7 @@ public class Parser extends AbstractParser implements Loggable {
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             fn.setFlag(FunctionNode.ES6_USES_SUPER);
-            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+            if (!FunctionNode.isArrow(fn.getKind())) {
                 break;
             }
         }
@@ -5919,7 +6037,7 @@ public class Parser extends AbstractParser implements Loggable {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
-            if (fn.getKind() != FunctionNode.Kind.ARROW) {
+            if (!FunctionNode.isArrow(fn.getKind())) {
                 if (!fn.isProgram()) {
                     fn.setFlag(FunctionNode.ES6_USES_NEW_TARGET);
                 }
@@ -5930,5 +6048,142 @@ public class Parser extends AbstractParser implements Loggable {
 
     private boolean inGeneratorFunction() {
         return lc.getCurrentFunction().getKind() == FunctionNode.Kind.GENERATOR;
+    }
+
+    /**
+     * Whether the function being parsed is an async one.
+     *
+     * await belongs to the function it is written in and nothing else: an
+     * ordinary arrow inside an async function is not itself async, and cannot
+     * await.
+     */
+    private boolean inAsyncFunction() {
+        if (inAsyncParameters) {
+            return true;
+        }
+        final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        while (iter.hasNext()) {
+            final FunctionNode.Kind kind = iter.next().getKind();
+            if (kind == FunctionNode.Kind.ASYNC || kind == FunctionNode.Kind.ASYNC_ARROW) {
+                return true;
+            }
+            if (kind != FunctionNode.Kind.ARROW) {
+                // an ordinary function written inside an async one is not async,
+                // and await is an ordinary name again in it
+                return false;
+            }
+        }
+        // the parameter list of a Function built from strings is parsed before
+        // there is any function to be inside
+        return false;
+    }
+
+    /**
+     * Whether what follows is "async function" on one line.
+     *
+     * "async" is not a keyword: it names an async function only when it is
+     * written immediately before one, with no line break in between, and is an
+     * ordinary identifier everywhere else.
+     */
+    private boolean lookaheadIsAsyncFunction() {
+        if (!isUnescapedAsync()) {
+            return false;
+        }
+        for (int i = 1;; i++) {
+            final TokenType t = T(k + i);
+            switch (t) {
+            case COMMENT:
+                continue;
+            case FUNCTION:
+                return true;
+            default:
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Whether the current token is a contextual "async" opening a method
+     * definition - "async" written in front of a property name, rather than
+     * naming a property or a method itself.
+     */
+    private boolean lookaheadIsAsyncMethod() {
+        if (!isUnescapedAsync()) {
+            return false;
+        }
+        switch (T(k + 1)) {
+        case COLON:      // { async: 1 }
+        case LPAREN:     // { async() {} }
+        case COMMARIGHT: // { async, }
+        case RBRACE:     // { async }
+        case ASSIGN:     // { async = 1 }
+        case EOL:        // a line break makes it an ordinary name
+        case SEMICOLON:
+            return false;
+        default:
+            return true;
+        }
+    }
+
+    /**
+     * Whether what follows is an async arrow function - "async" written in
+     * front of an arrow's parameter list, on the same line.
+     */
+    private boolean lookaheadIsAsyncArrow() {
+        if (!isUnescapedAsync()) {
+            return false;
+        }
+        // async x => ...
+        if (T(k + 1) == IDENT && T(k + 2) == ARROW) {
+            return true;
+        }
+        if (T(k + 1) != LPAREN) {
+            return false;
+        }
+        // async ( ... ) => ..., which needs the matching parenthesis found first
+        int depth = 0;
+        for (int i = 1;; i++) {
+            final TokenType t = T(k + i);
+            switch (t) {
+            case LPAREN:
+                depth++;
+                break;
+            case RPAREN:
+                if (--depth == 0) {
+                    return T(k + i + 1) == ARROW;
+                }
+                break;
+            case EOF:
+                return false;
+            default:
+                break;
+            }
+        }
+    }
+
+    /**
+     * Whether the current token is the word "async" written as itself.
+     *
+     * ES2017 11.6.2 applies to a contextual keyword as much as to a reserved
+     * one: spelled with an escape it is an ordinary identifier, and an ordinary
+     * identifier does not make the function after it async.
+     */
+    private boolean isUnescapedAsync() {
+        return type == IDENT && ASYNC_NAME.equals(getValue())
+                && Token.descLength(token) == ASYNC_NAME.length();
+    }
+
+    /** Whether the current token is a contextual "await" that opens an AwaitExpression. */
+    private boolean isAwaitExpression() {
+        return type == IDENT && AWAIT_NAME.equals(getValue()) && inAsyncFunction();
+    }
+
+    /**
+     * AwaitExpression : await UnaryExpression (ES2017 14.6).
+     */
+    private Expression awaitExpression() {
+        final long awaitToken = Token.recast(token, TokenType.AWAIT);
+        next();
+        return new UnaryNode(awaitToken, unaryExpression());
     }
 }

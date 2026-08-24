@@ -86,7 +86,7 @@ final class FunctionExpressionTreeImpl extends ExpressionTreeImpl
 
     @Override
     public boolean isArrow() {
-        return funcNode.getKind() == FunctionNode.Kind.ARROW;
+        return funcNode.isArrow();
     }
 
     @Override

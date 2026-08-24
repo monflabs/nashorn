@@ -230,8 +230,8 @@ public class ScriptFunction extends ScriptObject {
         this.scope = scope;
         // ES2015 25.2.4: a generator function inherits from
         // %GeneratorFunction.prototype%, not from Function.prototype directly
-        this.setInitialProto(data.isGenerator()
-                ? global.getGeneratorFunctionPrototype()
+        this.setInitialProto(data.isGenerator() ? global.getGeneratorFunctionPrototype()
+                : data.isAsync() ? global.getAsyncFunctionPrototype()
                 : global.getFunctionPrototype());
         this.prototype = LAZY_PROTOTYPE;
 

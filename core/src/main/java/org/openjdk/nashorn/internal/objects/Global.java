@@ -1059,6 +1059,7 @@ public final class Global extends Scope {
 
     private ScriptObject   builtinGeneratorPrototype;
     private ScriptObject   builtinGeneratorFunctionPrototype;
+    private ScriptObject   builtinAsyncFunctionPrototype;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
     private ScriptFunction builtinString;
@@ -2042,6 +2043,30 @@ public final class Global extends Scope {
      *
      * @return the %GeneratorFunction.prototype% intrinsic
      */
+    /**
+     * The object every async function inherits from, %AsyncFunction.prototype%
+     * (ES2017 25.5.3).
+     *
+     * It sits between an async function and Function.prototype and carries the
+     * toStringTag that makes one read as "[object AsyncFunction]". Unlike a
+     * generator function it has no "prototype" property to hand on, because an
+     * async function is not a constructor and its calls make promises rather
+     * than objects.
+     *
+     * @return the %AsyncFunction.prototype% intrinsic
+     */
+    public ScriptObject getAsyncFunctionPrototype() {
+        if (builtinAsyncFunctionPrototype == null) {
+            final ScriptObject proto = newEmptyInstance();
+            proto.setInitialProto(getFunctionPrototype());
+            proto.addOwnProperty(NativeSymbol.toStringTag, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                    "AsyncFunction");
+            proto.setIsBuiltin();
+            builtinAsyncFunctionPrototype = proto;
+        }
+        return builtinAsyncFunctionPrototype;
+    }
+
     public ScriptObject getGeneratorFunctionPrototype() {
         if (builtinGeneratorFunctionPrototype == null) {
             final ScriptObject proto = newEmptyInstance();

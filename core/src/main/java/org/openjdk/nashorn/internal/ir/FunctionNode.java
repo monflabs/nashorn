@@ -76,6 +76,14 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         ARROW,
         /** a generator function */
         GENERATOR,
+        /** an async function */
+        ASYNC,
+        /**
+         * an async arrow function, which is an arrow as much as it is async: it
+         * takes its this from where it was written, exactly as an ordinary one
+         * does. The two are one enum because every flag bit is spoken for.
+         */
+        ASYNC_ARROW,
         /** a module function */
         MODULE
     }
@@ -223,6 +231,7 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     /**
      * Does this function contain a super call? (cf. ES6 14.3.5 Static Semantics: HasDirectSuper)
      */
+
     public static final int ES6_HAS_DIRECT_SUPER        = 1 << 19;
 
     /**
@@ -1263,6 +1272,26 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
      */
     public boolean isMethod() {
         return getFlag(ES6_IS_METHOD);
+    }
+
+    /** @return true if this is an async function, in either of its shapes */
+    public boolean isAsync() {
+        return kind == Kind.ASYNC || kind == Kind.ASYNC_ARROW;
+    }
+
+    /**
+     * Whether a kind takes its this, and its super, from where it was written.
+     *
+     * @param kind the kind to ask about
+     * @return true for an arrow, async or not
+     */
+    public static boolean isArrow(final Kind kind) {
+        return kind == Kind.ARROW || kind == Kind.ASYNC_ARROW;
+    }
+
+    /** @return true if this function takes its this from where it was written */
+    public boolean isArrow() {
+        return isArrow(kind);
     }
 
     /**

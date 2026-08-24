@@ -133,7 +133,11 @@ public class RuntimeNode extends Expression {
         /** yield - suspends the generator body. */
         YIELD(TokenType.VOID, Type.OBJECT, 1),
         /** yield* - delegates to another iterable. */
-        YIELD_STAR(TokenType.VOID, Type.OBJECT, 1);
+        YIELD_STAR(TokenType.VOID, Type.OBJECT, 1),
+        /** The first thing an async function does: start its body, hand back its promise. */
+        ASYNC_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** await - suspends the async function body until a value settles. */
+        AWAIT(TokenType.VOID, Type.OBJECT, 1);
 
         /** token type */
         private final TokenType tokenType;

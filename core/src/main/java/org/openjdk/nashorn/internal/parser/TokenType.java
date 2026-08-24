@@ -175,6 +175,7 @@ public enum TokenType {
     WHILE          (KEYWORD,  "while"),
     WITH           (KEYWORD,  "with"),
     YIELD          (FUTURESTRICT,  "yield"),
+    AWAIT          (IR,       null),
 
     DECIMAL        (LITERAL,  null),
     HEXADECIMAL    (LITERAL,  null),

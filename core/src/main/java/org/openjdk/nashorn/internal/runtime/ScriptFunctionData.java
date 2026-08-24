@@ -120,6 +120,9 @@ public abstract class ScriptFunctionData implements Serializable {
      */
     public static final int IS_ES6_GENERATOR = 1 << 9;
 
+    /** Is this an async function? */
+    public static final int IS_ES6_ASYNC = 1 << 10;
+
     /** Flag for strict or built-in functions */
     public static final int IS_STRICT_OR_BUILTIN = IS_STRICT | IS_BUILTIN;
     /** Flag for built-in constructors */
@@ -240,6 +243,10 @@ public abstract class ScriptFunctionData implements Serializable {
 
     boolean isGenerator() {
         return (flags & IS_ES6_GENERATOR) != 0;
+    }
+
+    boolean isAsync() {
+        return (flags & IS_ES6_ASYNC) != 0;
     }
 
     boolean isConstructor() {

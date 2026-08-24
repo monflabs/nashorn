@@ -3177,7 +3177,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         // A generator's prologue needs the whole frame: the function to re-enter
         // on the generator's thread, its receiver, and the arguments to replay.
         final boolean pushesFrame = request == Request.GENERATOR_ENTER
-                || request == Request.GENERATOR_ENTER_PARAMETERS;
+                || request == Request.GENERATOR_ENTER_PARAMETERS
+                || request == Request.ASYNC_ENTER;
         if (pushesFrame) {
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);
@@ -5067,7 +5068,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.invoke(CREATE_FUNCTION_OBJECT_NO_SCOPE);
         }
 
-        if (functionNode.getKind() == FunctionNode.Kind.ARROW && functionNode.usesSuper()) {
+        if (functionNode.isArrow() && functionNode.usesSuper()) {
             // an arrow carries the home object of whatever created it
             method.loadCompilerConstant(CALLEE);
             method.invoke(INHERIT_HOME_OBJECT);
@@ -5136,7 +5137,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private boolean inParameterExpression() {
         final FunctionNode function = lc.getCurrentFunction();
-        if (function.getKind() == FunctionNode.Kind.ARROW && !bindsArguments(function)) {
+        if (function.isArrow() && !bindsArguments(function)) {
             // An arrow has no arguments object of its own for a declaration to
             // collide with - it reads the enclosing function's - so declaring
             // one in its parameter list is allowed, and its body then sees it.

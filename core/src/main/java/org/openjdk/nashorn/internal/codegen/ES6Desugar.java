@@ -518,6 +518,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveUnaryNode(final UnaryNode unaryNode) {
+        if (unaryNode.isTokenType(TokenType.AWAIT)) {
+            return new RuntimeNode(unaryNode.getToken(), unaryNode.getFinish(),
+                    RuntimeNode.Request.AWAIT, unaryNode.getExpression());
+        }
         if (unaryNode.isTokenType(TokenType.YIELD) || unaryNode.isTokenType(TokenType.YIELD_STAR)) {
             final RuntimeNode.Request request = unaryNode.isTokenType(TokenType.YIELD_STAR)
                     ? RuntimeNode.Request.YIELD_STAR
@@ -579,7 +583,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode function = lc.getCurrentFunction();
-        if (function.getKind() == FunctionNode.Kind.ARROW) {
+        if (function.isArrow()) {
             return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
         }
         if (function.isSubclassConstructor()) {
@@ -595,8 +599,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                bindArrowThis(publishThis(bindThis(addGeneratorPrologue(addClassConstructorGuard(
-                        moduleEnvironment(rejectEarlyParameterReads(functionNode)))))));
+                bindArrowThis(publishThis(bindThis(addAsyncPrologue(addGeneratorPrologue(addClassConstructorGuard(
+                        moduleEnvironment(rejectEarlyParameterReads(functionNode))))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -789,7 +793,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * on the way in is what makes the two agree.
      */
     private FunctionNode bindArrowThis(final FunctionNode functionNode) {
-        if (functionNode.getKind() != FunctionNode.Kind.ARROW || !functionNode.usesSuper()) {
+        if (!functionNode.isArrow() || !functionNode.usesSuper()) {
             return functionNode;
         }
 
@@ -973,6 +977,44 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
         return expression.setExpression(assignment.setRHS(
                 withDefault.setTrueExpression(new JoinPredecessorExpression(checked))));
+    }
+
+    /**
+     * The prologue that turns an async function's body into a coroutine.
+     *
+     * It reads exactly as a generator's does and for the same reason: the call
+     * hands back a promise and returns, and the body is run by re-entering the
+     * function on a thread of its own, where the same prologue answers undefined
+     * and lets it through.
+     */
+    private FunctionNode addAsyncPrologue(final FunctionNode functionNode) {
+        if (!functionNode.isAsync()) {
+            return functionNode;
+        }
+
+        final long token = functionNode.getToken();
+        final int finish = functionNode.getFinish();
+        final int line = functionNode.getLineNumber();
+        final String created = ":async";
+        final Block body = functionNode.getBody();
+        final List<Statement> statements = new ArrayList<>();
+
+        statements.add(new VarNode(line, Token.recast(token, TokenType.VAR), finish,
+                new IdentNode(token, finish, created),
+                new RuntimeNode(token, finish, RuntimeNode.Request.ASYNC_ENTER)));
+
+        final Expression isNotUndefined = new RuntimeNode(token, finish, RuntimeNode.Request.IS_NOT_UNDEFINED,
+                new IdentNode(token, finish, created), new IdentNode(token, finish, UNDEFINED_NAME));
+        statements.add(new IfNode(line, token, finish, isNotUndefined,
+                new Block(token, finish, new ReturnNode(line, token, finish,
+                        new IdentNode(token, finish, created))), null));
+
+        statements.addAll(body.getStatements());
+
+        // the body's thread is handed the argument array, as a generator's is
+        return functionNode
+                .setFlag(lc, FunctionNode.NEEDS_VARARGS)
+                .setBody(lc, body.setStatements(lc, statements));
     }
 
     private FunctionNode addGeneratorPrologue(final FunctionNode functionNode) {
