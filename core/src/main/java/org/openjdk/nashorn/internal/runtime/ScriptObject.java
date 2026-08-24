@@ -846,7 +846,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param deep Whether the search should look up proto chain.
      * @return true if the property was found.
      */
-    boolean hasProperty(final Object key, final boolean deep) {
+    protected boolean hasProperty(final Object key, final boolean deep) {
         if (getMap().findProperty(key) != null) {
             return true;
         }

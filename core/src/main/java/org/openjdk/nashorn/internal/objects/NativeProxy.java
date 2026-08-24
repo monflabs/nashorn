@@ -71,10 +71,21 @@ public final class NativeProxy extends ScriptObject {
     private ScriptObject target;
     private ScriptObject handler;
 
+    /** Whether this proxy has a [[Call]] and a [[Construct]], decided when it was made. */
+    private final boolean callable;
+    private final boolean constructor;
+
     private NativeProxy(final ScriptObject target, final ScriptObject handler, final Global global) {
         super(global.getObjectPrototype(), $nasgenmap$);
         this.target = target;
         this.handler = handler;
+        // ES2015 9.5.12 and 9.5.13 decide once, when the proxy is made, whether
+        // it has a [[Call]] and a [[Construct]]. Revoking one takes its target
+        // away but does not turn a function into an object.
+        this.callable = target instanceof ScriptFunction || target.isProxyOverCallable();
+        this.constructor = target instanceof ScriptFunction function
+                ? function.isConstructor()
+                : target.isProxyOverConstructor();
     }
 
     /**
@@ -262,6 +273,16 @@ public final class NativeProxy extends ScriptObject {
             }
         }
         return answered;
+    }
+
+    /**
+     * A proxy reached as somebody else's prototype is asked the same way it
+     * would be asked directly: 9.5.7 is the whole answer, and walks whatever
+     * chain its target has itself.
+     */
+    @Override
+    protected boolean hasProperty(final Object key, final boolean deep) {
+        return has(key);
     }
 
     @Override
@@ -662,17 +683,12 @@ public final class NativeProxy extends ScriptObject {
 
     @Override
     public boolean isProxyOverCallable() {
-        // asked of a proxy whose target may since have been revoked, which is
-        // not an error - a revoked proxy is simply not callable
-        return target instanceof ScriptFunction || (target != null && target.isProxyOverCallable());
+        return callable;
     }
 
     @Override
     public boolean isProxyOverConstructor() {
-        if (target instanceof ScriptFunction function) {
-            return function.isConstructor();
-        }
-        return target instanceof NativeProxy proxy && proxy.isProxyOverConstructor();
+        return constructor;
     }
 
     @Override
