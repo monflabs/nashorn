@@ -1466,10 +1466,12 @@ public class Parser extends AbstractParser implements Loggable {
         if (!computed) {
             final String name = ((PropertyKey)propertyName).getPropertyName();
             if (!generator && isIdent && type != LPAREN && name.equals(GET_NAME)) {
+                checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertyGetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
                 return new PropertyNode(methodToken, finish, methodDefinition.key, null, methodDefinition.functionNode, null, isStatic, methodDefinition.computed);
             } else if (!generator && isIdent && type != LPAREN && name.equals(SET_NAME)) {
+                checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertySetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
                 return new PropertyNode(methodToken, finish, methodDefinition.key, null, null, methodDefinition.functionNode, isStatic, methodDefinition.computed);
@@ -1592,11 +1594,34 @@ public class Parser extends AbstractParser implements Loggable {
      * ES6 11.6.2: A code point in a ReservedWord cannot be expressed by a | UnicodeEscapeSequence.
      */
     private void checkEscapedKeyword(final IdentNode ident) {
-        if (ident.containsEscapes()) {
-            final TokenType tokenType = TokenLookup.lookupKeyword(ident.getName().toCharArray(), 0, ident.getName().length());
-            if (tokenType != IDENT && !(tokenType.getKind() == TokenKind.FUTURESTRICT && !isStrictMode)) {
-                throw error(AbstractParser.message("keyword.escaped.character"), ident.getToken());
-            }
+        if (!ident.containsEscapes()) {
+            return;
+        }
+        final TokenType tokenType = TokenLookup.lookupKeyword(ident.getName().toCharArray(), 0, ident.getName().length());
+        if (tokenType != IDENT && !(tokenType.getKind() == TokenKind.FUTURESTRICT && !isStrictMode)) {
+            throw error(AbstractParser.message("keyword.escaped.character"), ident.getToken());
+        }
+        // yield is a keyword only inside a generator, where the escape hides it
+        // from the lexer and so from the check above
+        if ("yield".equals(ident.getName()) && insideGenerator()) {
+            throw error(AbstractParser.message("keyword.escaped.character"), ident.getToken());
+        }
+    }
+
+    /** Whether the function being parsed is a generator, arrows being transparent. */
+    private boolean insideGenerator() {
+        final ParserContextFunctionNode function = getCurrentNonArrowFunction();
+        return function != null && function.getKind() == FunctionNode.Kind.GENERATOR;
+    }
+
+    /**
+     * ES2015 11.6.2: get and set name an accessor only when they are written as
+     * themselves; spelled with an escape they are ordinary identifiers, and an
+     * ordinary identifier cannot stand where one of those two does.
+     */
+    private void checkEscapedAccessor(final long propertyToken, final String ident) {
+        if (Token.descLength(propertyToken) != ident.length()) {
+            throw error(AbstractParser.message("keyword.escaped.character"), propertyToken);
         }
     }
 
@@ -3278,10 +3303,12 @@ public class Parser extends AbstractParser implements Loggable {
 
                 switch (ident) {
                 case GET_NAME:
+                    checkEscapedAccessor(propertyToken, ident);
                     final PropertyFunction getter = propertyGetterFunction(propertyToken, functionLine);
                     return new PropertyNode(propertyToken, finish, getter.key, null, getter.functionNode, null, false, getter.computed);
 
                 case SET_NAME:
+                    checkEscapedAccessor(propertyToken, ident);
                     final PropertyFunction setter = propertySetterFunction(propertyToken, functionLine);
                     return new PropertyNode(propertyToken, finish, setter.key, null, null, setter.functionNode, false, setter.computed);
                 default:
@@ -5827,12 +5854,14 @@ public class Parser extends AbstractParser implements Loggable {
         lc.appendStatementToCurrentNode(statement);
     }
 
-    private static void markSuperCall(final ParserContext lc) {
+    private void markSuperCall(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             if (fn.getKind() != FunctionNode.Kind.ARROW) {
-                assert fn.isSubclassConstructor();
+                // on a re-parse the constructor is not on the stack, so there is
+                // nothing here that could know it was one
+                assert fn.isSubclassConstructor() || reparsedFunction != null;
                 fn.setFlag(FunctionNode.ES6_HAS_DIRECT_SUPER);
                 break;
             }
