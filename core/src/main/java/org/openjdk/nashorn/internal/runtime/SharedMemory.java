@@ -25,7 +25,6 @@
 
 package org.openjdk.nashorn.internal.runtime;
 
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntSupplier;
@@ -41,15 +40,43 @@ import java.util.function.IntSupplier;
  * waits there and forgotten when the last waiter leaves, so an untouched address
  * costs nothing.
  *
- * The map is keyed on the buffer by identity: two views over the same storage
- * hand over buffers that are equal in content and must be treated as the same
- * address, which is what an identity key on the storage itself gives.
+ * An address is the buffer object itself and a byte offset into it. It has to be
+ * the buffer rather than the window a view has on it: two views over one
+ * SharedArrayBuffer are different ByteBuffer objects over the same memory, and
+ * asking one of those for an identity gives something that changes as the bytes
+ * do.
  */
 public final class SharedMemory {
     /** One address's waiters, and the monitor they wait on. */
     private static final Map<Address, Object> QUEUES = new HashMap<>();
 
-    private record Address(Object storage, int offset) { }
+    /**
+     * One address: a piece of storage and a byte offset into it.
+     *
+     * The storage is compared by reference and nothing else. Every realm that
+     * shares a buffer wraps it in an object of its own, and a ByteBuffer
+     * compares by content - so both of the obvious identities either split one
+     * address into several or move as the bytes change.
+     */
+    private static final class Address {
+        private final Object storage;
+        private final int offset;
+
+        Address(final Object storage, final int offset) {
+            this.storage = storage;
+            this.offset = offset;
+        }
+
+        @Override
+        public boolean equals(final Object other) {
+            return other instanceof Address address && address.storage == storage && address.offset == offset;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(storage) * 31 + offset;
+        }
+    }
 
     private SharedMemory() {
     }
@@ -58,17 +85,17 @@ public final class SharedMemory {
      * Waits for the element to be notified, or for the value to have changed, or
      * for the time to run out.
      *
-     * @param bytes   the storage
-     * @param offset  where in it
+     * @param storage the buffer the address belongs to
+     * @param offset  the byte offset into it
      * @param expected what the element must still hold for the wait to happen
      * @param millis   how long to wait, or infinity
      * @param current  reads the element, for the check the specification makes
      *                 while holding the queue
      * @return "not-equal", "timed-out" or "ok"
      */
-    public static String wait(final ByteBuffer bytes, final int offset, final int expected, final double millis,
+    public static String wait(final Object storage, final int offset, final int expected, final double millis,
             final IntSupplier current) {
-        final Address address = new Address(storageOf(bytes), offset);
+        final Address address = new Address(storage, offset);
         final Object monitor = queueFor(address);
 
         synchronized (monitor) {
@@ -104,13 +131,13 @@ public final class SharedMemory {
     /**
      * Wakes waiters at an address.
      *
-     * @param bytes  the storage
-     * @param offset where in it
+     * @param storage the buffer the address belongs to
+     * @param offset  the byte offset into it
      * @param count  how many to wake, or infinity for all of them
      * @return how many were woken
      */
-    public static int notify(final ByteBuffer bytes, final int offset, final double count) {
-        final Address address = new Address(storageOf(bytes), offset);
+    public static int notify(final Object storage, final int offset, final double count) {
+        final Address address = new Address(storage, offset);
         final Object monitor;
         final int waiting;
         synchronized (QUEUES) {
@@ -152,19 +179,4 @@ public final class SharedMemory {
         }
     }
 
-    /**
-     * The identity a buffer's storage is known by.
-     *
-     * Two views over one SharedArrayBuffer produce different ByteBuffer objects
-     * over the same memory, so what identifies the address is the memory rather
-     * than the object holding a window on it.
-     */
-    private static Object storageOf(final ByteBuffer bytes) {
-        return bytes.isDirect() ? Long.valueOf(directAddress(bytes)) : bytes;
-    }
-
-    private static long directAddress(final ByteBuffer bytes) {
-        // two windows on one allocation compare equal here, which is the point
-        return bytes.hashCode();
-    }
 }

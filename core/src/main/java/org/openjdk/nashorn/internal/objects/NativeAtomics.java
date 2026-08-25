@@ -195,9 +195,17 @@ public final class NativeAtomics extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 3)
     public static Object store(final Object self, final Object array, final Object index, final Object value) {
         final Access at = access(array, index);
+        // 24.4.9 step 5 converts with ToInteger and answers with that, so a
+        // fractional argument is answered as the whole number it was truncated
+        // to and a negative zero as a positive one
         final double asNumber = JSType.toNumber(value);
-        at.set(at.narrow(JSType.toInt32(asNumber)));
-        return asNumber;
+        // truncated here rather than by JSType.toInteger, which clamps to the
+        // range of an int - a store of 2^32-1 into a Uint32Array is answered
+        // with 2^32-1, and only what is written to the element is narrowed
+        final double asInteger = Double.isNaN(asNumber) ? 0.0
+                : Math.copySign(Math.floor(Math.abs(asNumber)), asNumber) + 0.0;
+        at.set(at.narrow(JSType.toInt32(asInteger)));
+        return asInteger;
     }
 
     /**
@@ -242,14 +250,11 @@ public final class NativeAtomics extends ScriptObject {
         final Object value = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
         final Object timeout = args.length > 3 ? args[3] : ScriptRuntime.UNDEFINED;
 
-        final Access at = access(array, index, true);
-        if (at.width != 4) {
-            throw typeError("atomics.not.shared.int32", ScriptRuntime.safeToString(array));
-        }
+        final Access at = access(array, index, true, true);
         final int want = JSType.toInt32(value);
         final double millis = timeout == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
                 : Math.max(JSType.toNumber(timeout), 0);
-        return SharedMemory.wait(at.bytes, at.offset, want, millis, () -> (int)INTS.getVolatile(at.bytes, at.offset));
+        return SharedMemory.wait(at.storage, at.absoluteOffset, want, millis, at::get);
     }
 
     /**
@@ -266,13 +271,14 @@ public final class NativeAtomics extends ScriptObject {
         final Object index = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object count = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
 
-        final Access at = access(array, index, true);
-        if (at.width != 4) {
-            throw typeError("atomics.not.shared.int32", ScriptRuntime.safeToString(array));
-        }
+        final Access at = access(array, index, false, true);
         final double howMany = count == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
                 : Math.max(JSType.toInteger(count), 0);
-        return SharedMemory.notify(at.bytes, at.offset, howMany);
+        if (!at.shared) {
+            // memory nobody else can see has nobody waiting on it
+            return 0;
+        }
+        return SharedMemory.notify(at.storage, at.absoluteOffset, howMany);
     }
 
     /** The read-modify-write operations, which differ only in what they compute. */
@@ -305,7 +311,8 @@ public final class NativeAtomics extends ScriptObject {
      * One element of one integer typed array, resolved once so that the
      * operation itself is a single access.
      */
-    private record Access(ByteBuffer bytes, int offset, int width, boolean signed) {
+    private record Access(ByteBuffer bytes, int offset, int width, boolean signed, Object storage,
+            int absoluteOffset, boolean shared) {
         /** The element as its own array reads it, which for an unsigned one is not the raw byte. */
         int get() {
             return switch (width) {
@@ -375,14 +382,15 @@ public final class NativeAtomics extends ScriptObject {
     }
 
     private static Access access(final Object array, final Object index) {
-        return access(array, index, false);
+        return access(array, index, false, false);
     }
 
     /**
      * ES2017 24.4.1.1 ValidateSharedIntegerTypedArray followed by
      * ValidateAtomicAccess: what the operations may be given, and where in it.
      */
-    private static Access access(final Object array, final Object index, final boolean mustBeShared) {
+    private static Access access(final Object array, final Object index, final boolean mustBeShared,
+            final boolean mustBeInt32) {
         if (!(array instanceof ArrayBufferView view)) {
             throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
         }
@@ -397,6 +405,11 @@ public final class NativeAtomics extends ScriptObject {
             case "Uint32Array" -> { width = 4; signed = false; }
             default -> throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
         }
+        // asked before the index is converted, because 24.4.11 and 24.4.12
+        // validate the array first and a converting index can run script
+        if (mustBeInt32 && (width != 4 || !signed)) {
+            throw typeError("atomics.not.shared.int32", ScriptRuntime.safeToString(array));
+        }
         if (mustBeShared && !view.getArrayBuffer().isShared()) {
             throw typeError("atomics.not.shared.int32", ScriptRuntime.safeToString(array));
         }
@@ -408,6 +421,11 @@ public final class NativeAtomics extends ScriptObject {
         if (asIndex < 0 || asIndex >= view.getElementLength()) {
             throw rangeError("inappropriate.array.index", ScriptRuntime.safeToString(index));
         }
-        return new Access(view.viewedBytes(), (int)asIndex * width, width, signed);
+        return new Access(view.viewedBytes(), (int)asIndex * width, width, signed,
+                // the storage rather than the wrapper: every realm sharing a
+                // buffer has a wrapper of its own over the same bytes
+                NativeSharedArrayBuffer.storageOf(view.getArrayBuffer()),
+                view.getViewByteOffset() + (int)asIndex * width,
+                view.getArrayBuffer().isShared());
     }
 }
