@@ -2110,6 +2110,16 @@ public final class Global extends Scope {
      *
      * @return the %AsyncFunction.prototype% intrinsic
      */
+    /**
+     * The function an arguments object is iterated with, which ES2015 9.4.4.1
+     * makes the same one Array.prototype.values is.
+     *
+     * @return %ArrayProto_values%
+     */
+    public Object getArrayIteratorFunction() {
+        return builtinArrayIterator;
+    }
+
     public ScriptObject getAsyncFunctionPrototype() {
         if (builtinAsyncFunctionPrototype == null) {
             final ScriptObject proto = newEmptyInstance();

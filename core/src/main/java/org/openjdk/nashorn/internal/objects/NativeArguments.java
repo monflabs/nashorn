@@ -260,10 +260,13 @@ public final class NativeArguments extends ScriptObject {
         final boolean isStrict = callee == null || callee.isStrict();
         final Global global = Global.instance();
         final ScriptObject proto = global.getObjectPrototype();
-        if (isStrict) {
-            return new NativeStrictArguments(arguments, numParams, proto, NativeStrictArguments.getInitialMap());
-        }
-        return new NativeArguments(arguments, callee, numParams, proto, NativeArguments.getInitialMap());
+        final ScriptObject created = isStrict
+                ? new NativeStrictArguments(arguments, numParams, proto, NativeStrictArguments.getInitialMap())
+                : new NativeArguments(arguments, callee, numParams, proto, NativeArguments.getInitialMap());
+        // ES2015 9.4.4.1: an arguments object is iterable, with the very
+        // function Array.prototype.values is
+        created.addOwnProperty(NativeSymbol.iterator, Property.NOT_ENUMERABLE, global.getArrayIteratorFunction());
+        return created;
     }
 
     /**
