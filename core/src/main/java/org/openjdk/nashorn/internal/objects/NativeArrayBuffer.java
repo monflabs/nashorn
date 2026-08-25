@@ -49,7 +49,7 @@ import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
  * array spec
  */
 @ScriptClass("ArrayBuffer")
-public final class NativeArrayBuffer extends ScriptObject {
+public class NativeArrayBuffer extends ScriptObject {
     private final ByteBuffer nb;
 
     /**
@@ -88,6 +88,27 @@ public final class NativeArrayBuffer extends ScriptObject {
     protected NativeArrayBuffer(final ByteBuffer nb, final Global global) {
         super(global.getArrayBufferPrototype(), $nasgenmap$);
         this.nb = nb;
+    }
+
+    /**
+     * Constructor for a subclass with a prototype and a map of its own.
+     *
+     * @param nb        native byte buffer to wrap
+     * @param prototype what the buffer inherits from
+     * @param map       its property map
+     */
+    protected NativeArrayBuffer(final ByteBuffer nb, final ScriptObject prototype, final PropertyMap map) {
+        super(prototype, map);
+        this.nb = nb;
+    }
+
+    /**
+     * Whether this buffer's storage may be reached from more than one agent.
+     *
+     * @return true for a SharedArrayBuffer
+     */
+    public boolean isShared() {
+        return false;
     }
 
     /**
@@ -154,7 +175,7 @@ public final class NativeArrayBuffer extends ScriptObject {
         return clone.slice();
     }
 
-    ByteBuffer getNioBuffer() {
+    protected ByteBuffer getNioBuffer() {
         return nb;
     }
 
@@ -325,7 +346,7 @@ public final class NativeArrayBuffer extends ScriptObject {
         return index;
     }
 
-    int getByteLength() {
+    protected int getByteLength() {
         return detached ? 0 : nb.limit();
     }
 

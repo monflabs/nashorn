@@ -490,6 +490,60 @@ public final class Global extends Scope {
     private volatile Object arrayBuffer;
 
     /**
+     * Getter for the SharedArrayBuffer property.
+     * @param self self reference
+     * @return the value of the SharedArrayBuffer property
+     */
+    @Getter(name = "SharedArrayBuffer", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getSharedArrayBuffer(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.sharedArrayBuffer == LAZY_SENTINEL) {
+            global.sharedArrayBuffer = global.getBuiltinSharedArrayBuffer();
+        }
+        return global.sharedArrayBuffer;
+    }
+
+    /**
+     * Setter for the SharedArrayBuffer property.
+     * @param self self reference
+     * @param value value of the SharedArrayBuffer property
+     */
+    @Setter(name = "SharedArrayBuffer", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setSharedArrayBuffer(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.sharedArrayBuffer = value;
+    }
+
+    private volatile Object sharedArrayBuffer;
+
+    /**
+     * Getter for the Atomics property.
+     * @param self self reference
+     * @return the value of the Atomics property
+     */
+    @Getter(name = "Atomics", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getAtomics(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.atomics == LAZY_SENTINEL) {
+            global.atomics = global.initConstructorAndSwitchPoint("Atomics", ScriptObject.class);
+        }
+        return global.atomics;
+    }
+
+    /**
+     * Setter for the Atomics property.
+     * @param self self reference
+     * @param value value of the Atomics property
+     */
+    @Setter(name = "Atomics", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setAtomics(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.atomics = value;
+    }
+
+    private volatile Object atomics;
+
+    /**
      * Getter for the DataView property.
      * @param self self reference
      * @return the value of the DataView property
@@ -1081,6 +1135,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinJavaImporter;
     private ScriptObject   builtinJavaApi;
     private ScriptFunction builtinArrayBuffer;
+    private ScriptFunction builtinSharedArrayBuffer;
     private ScriptFunction builtinDataView;
     private ScriptFunction builtinTypedArray;
     private ScriptFunction builtinInt8Array;
@@ -2092,6 +2147,17 @@ public final class Global extends Scope {
         return builtinStringIteratorPrototype;
     }
 
+    private synchronized ScriptFunction getBuiltinSharedArrayBuffer() {
+        if (this.builtinSharedArrayBuffer == null) {
+            this.builtinSharedArrayBuffer = initConstructorAndSwitchPoint("SharedArrayBuffer", ScriptFunction.class);
+        }
+        return this.builtinSharedArrayBuffer;
+    }
+
+    ScriptObject getSharedArrayBufferPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinSharedArrayBuffer());
+    }
+
     private synchronized ScriptFunction getBuiltinArrayBuffer() {
         if (this.builtinArrayBuffer == null) {
             this.builtinArrayBuffer = initConstructorAndSwitchPoint("ArrayBuffer", ScriptFunction.class);
@@ -2926,6 +2992,8 @@ public final class Global extends Scope {
 
         if (! env._no_typed_arrays) {
             this.arrayBuffer       = LAZY_SENTINEL;
+            this.sharedArrayBuffer = LAZY_SENTINEL;
+            this.atomics           = LAZY_SENTINEL;
             this.dataView          = LAZY_SENTINEL;
             this.int8Array         = LAZY_SENTINEL;
             this.uint8Array        = LAZY_SENTINEL;

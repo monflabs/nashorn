@@ -1,0 +1,150 @@
+/*
+ * Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+package org.openjdk.nashorn.internal.objects;
+
+import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
+
+import java.nio.ByteBuffer;
+import org.openjdk.nashorn.internal.objects.annotations.Attribute;
+import org.openjdk.nashorn.internal.objects.annotations.Constructor;
+import org.openjdk.nashorn.internal.objects.annotations.Function;
+import org.openjdk.nashorn.internal.objects.annotations.Getter;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
+import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
+import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
+
+/**
+ * A SharedArrayBuffer (ECMAScript 2017 24.2), which is an ArrayBuffer whose
+ * storage may be reached from more than one agent at once.
+ *
+ * It is the same storage class as an ordinary buffer - a direct
+ * {@link ByteBuffer}, which is what lets a view be built over either without
+ * knowing which it has - and differs in what may be done to it. It cannot be
+ * detached, so a view over one never becomes empty; its slice makes another
+ * shared buffer rather than an ordinary one; and it is what the Atomics
+ * operations insist on being given.
+ */
+@ScriptClass("SharedArrayBuffer")
+public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
+    // initialized by nasgen
+    private static PropertyMap $nasgenmap$;
+
+    private NativeSharedArrayBuffer(final ByteBuffer nb, final Global global) {
+        super(nb, global.getSharedArrayBufferPrototype(), $nasgenmap$);
+    }
+
+    /**
+     * ES2017 24.2.2.1 SharedArrayBuffer(length).
+     *
+     * @param newObj is this invoked with new
+     * @param self   self reference
+     * @param args   the byte length
+     * @return the buffer
+     */
+    @Constructor(arity = 1)
+    public static NativeSharedArrayBuffer constructor(final boolean newObj, final Object self, final Object... args) {
+        if (!newObj) {
+            throw typeError("constructor.requires.new", "SharedArrayBuffer");
+        }
+        final int byteLength = args.length == 0 ? 0 : ArrayBufferView.toIndex(args[0]);
+        return new NativeSharedArrayBuffer(ByteBuffer.allocateDirect(byteLength), Global.instance());
+    }
+
+    /**
+     * ES2017 24.2.3.2 get SharedArrayBuffer [ @@species ].
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
+    /**
+     * ES2017 24.2.4.1 get SharedArrayBuffer.prototype.byteLength.
+     *
+     * @param self the buffer
+     * @return how many bytes it holds
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static int byteLength(final Object self) {
+        return check(self).getByteLength();
+    }
+
+    /**
+     * ES2017 24.2.4.3 SharedArrayBuffer.prototype.slice.
+     *
+     * @param self  the buffer
+     * @param begin where to start
+     * @param end   where to stop
+     * @return another shared buffer holding the copy
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object slice(final Object self, final Object begin, final Object end) {
+        final NativeSharedArrayBuffer buffer = check(self);
+        final int byteLength = buffer.getByteLength();
+        final int from = relative(JSType.toInteger(begin), byteLength);
+        final int to = end == ScriptRuntime.UNDEFINED ? byteLength : relative(JSType.toInteger(end), byteLength);
+
+        final int length = Math.max(to - from, 0);
+        final ByteBuffer copy = ByteBuffer.allocateDirect(length);
+        final ByteBuffer source = buffer.getNioBuffer().duplicate();
+        source.position(from).limit(from + length);
+        copy.put(source);
+        copy.rewind();
+        return new NativeSharedArrayBuffer(copy, Global.instance());
+    }
+
+    /** ES2017 24.2.4.4 SharedArrayBuffer.prototype [ @@toStringTag ]. */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "SharedArrayBuffer";
+
+    @Override
+    public String getClassName() {
+        return "SharedArrayBuffer";
+    }
+
+    @Override
+    public boolean isShared() {
+        return true;
+    }
+
+    private static int relative(final int index, final int length) {
+        return index < 0 ? Math.max(length + index, 0) : Math.min(index, length);
+    }
+
+    /** The receiver, which these operations are as particular about as their ordinary siblings. */
+    private static NativeSharedArrayBuffer check(final Object self) {
+        if (self instanceof NativeSharedArrayBuffer buffer) {
+            return buffer;
+        }
+        throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
+    }
+}

@@ -104,7 +104,7 @@ public abstract class ArrayBufferView extends ScriptObject {
         }
     }
 
-    private int bytesPerElement() {
+    int bytesPerElement() {
         return factory().bytesPerElement;
     }
 
@@ -116,6 +116,22 @@ public abstract class ArrayBufferView extends ScriptObject {
 
     NativeArrayBuffer getArrayBuffer() {
         return buffer;
+    }
+
+    /**
+     * The bytes this view looks at, positioned and limited to its own window.
+     *
+     * @return a buffer of its own over the same storage
+     */
+    java.nio.ByteBuffer viewedBytes() {
+        final java.nio.ByteBuffer bytes = buffer.getNioBuffer().duplicate();
+        bytes.position(byteOffset).limit(byteOffset + getViewByteLength());
+        return bytes.slice().order(java.nio.ByteOrder.nativeOrder());
+    }
+
+    /** @return how wide one element is */
+    int elementWidth() {
+        return bytesPerElement();
     }
 
     int getViewByteOffset() {
