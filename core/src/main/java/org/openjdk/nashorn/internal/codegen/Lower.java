@@ -295,7 +295,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         newForNode = checkEscape(newForNode);
         // No enclosing block needed for for-in/of: the parser already created one
         // to capture let/const declarations.
-        addStatement(newForNode);
+        addResettingStatement(newForNode);
         return newForNode;
     }
 
@@ -312,7 +312,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public Node leaveIfNode(final IfNode ifNode) {
-        return addStatement(ifNode);
+        return addResettingStatement(ifNode);
     }
 
     @Override
@@ -353,6 +353,9 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public Node leaveSwitchNode(final SwitchNode switchNode) {
+        if (lc.getCurrentFunction().isProgram()) {
+            addResettingStatement(new EmptyNode(switchNode));
+        }
         if(!switchNode.isUniqueInteger()) {
             // Wrap it in a block so its internally created tag is restricted in scope
             addStatementEnclosedInBlock(switchNode);
@@ -538,7 +541,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     @Override
     public Node leaveTryNode(final TryNode tryNode) {
-        final Block finallyBody = tryNode.getFinallyBody();
+        final Block finallyBody = discardCompletionValue(tryNode.getFinallyBody());
         TryNode newTryNode = tryNode.setFinallyBody(lc, null);
 
         // No finally or empty finally
@@ -649,12 +652,12 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
             return forNode;
         }
 
-         return addStatement(checkEscape(whileNode));
+         return addResettingStatement(checkEscape(whileNode));
     }
 
     @Override
     public Node leaveWithNode(final WithNode withNode) {
-        return addStatement(withNode);
+        return addResettingStatement(withNode);
     }
 
     /**
@@ -767,6 +770,58 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
     private Node addStatement(final Statement statement) {
         lc.appendStatement(statement);
         return statement;
+    }
+
+    /**
+     * Adds a statement whose completion value is undefined unless its body
+     * produces one.
+     *
+     * ES2015 evaluates an if, an iteration statement, a switch, a try and a with
+     * as UpdateEmpty(result, undefined): a body that produces no value leaves
+     * the statement worth undefined rather than leaving whatever came before it
+     * showing through. Nashorn keeps the value a program has reached so far in
+     * :return, so all this takes is clearing it first - anything the body does
+     * produce assigns over the top.
+     */
+    /**
+     * Stops a finally block from deciding the completion value.
+     *
+     * ES2015 13.15.8: what a try statement is worth is what its body or its
+     * catch produced, and a finally that produces a value of its own does not
+     * replace it - "try { 1 } finally { 2 }" is worth 1. The statements of a
+     * program assign to :return as they go, so the ones in a finally block have
+     * that assignment taken back off them; a function inside it is untouched,
+     * since its statements were never a program's.
+     */
+    private Block discardCompletionValue(final Block finallyBody) {
+        if (finallyBody == null || !lc.getCurrentFunction().isProgram()) {
+            return finallyBody;
+        }
+        return (Block)finallyBody.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public Node leaveExpressionStatement(final ExpressionStatement statement) {
+                if (isEvalResultAssignment(statement.getExpression())) {
+                    return statement.setExpression(((BinaryNode)statement.getExpression()).rhs());
+                }
+                return statement;
+            }
+        });
+    }
+
+    private Node addResettingStatement(final Statement statement) {
+        if (lc.getCurrentFunction().isProgram()) {
+            final long token = statement.getToken();
+            addStatement(new ExpressionStatement(statement.getLineNumber(), token, statement.getFinish(),
+                    new BinaryNode(Token.recast(token, TokenType.ASSIGN), compilerConstant(RETURN),
+                            new UnaryNode(Token.recast(token, TokenType.VOID),
+                                    LiteralNode.newInstance(token, statement.getFinish(), 0)))));
+        }
+        return addStatement(statement);
     }
 
     private void addStatementEnclosedInBlock(final Statement stmt) {

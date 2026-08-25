@@ -104,7 +104,10 @@ final class FoldConstants extends SimpleNodeVisitor implements Loggable {
     @Override
     public Node leaveIfNode(final IfNode ifNode) {
         final Node test = ifNode.getTest();
-        if (test instanceof LiteralNode.PrimitiveLiteralNode) {
+        // In a program the statement itself carries a completion value - an if
+        // whose body produces nothing is worth undefined, where the statements
+        // it folds into would leave whatever came before it showing through.
+        if (test instanceof LiteralNode.PrimitiveLiteralNode && !lc.getCurrentFunction().isProgram()) {
             final boolean isTrue = ((LiteralNode.PrimitiveLiteralNode<?>)test).isTrue();
             final Block executed = isTrue ? ifNode.getPass() : ifNode.getFail();
             final Block dropped  = isTrue ? ifNode.getFail() : ifNode.getPass();
