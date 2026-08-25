@@ -98,6 +98,45 @@ public final class Test262Selector {
     private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging", "annexB",
             "async-generator", "async-generators");
 
+    /**
+     * Tests about something in scope whose bodies are written in syntax that is
+     * not.
+     *
+     * A BigInt literal and the nullish coalescing operator are ECMAScript 2020,
+     * and a file using one cannot be parsed by an engine that stops at 2017 -
+     * whatever the file is about. These are named one by one rather than caught
+     * by a rule because there is nothing in their frontmatter to catch: what
+     * each declares is the in-scope thing it tests, and the later syntax is
+     * incidental to it, usually one element of a list of values to try.
+     *
+     * Every one of them is a test we would otherwise hold ourselves to, so the
+     * list is deliberately explicit: a rule that skipped anything unparseable
+     * would hide real failures.
+     */
+    private static final Set<String> LATER_SYNTAX = Set.of(
+            // BigInt literals
+            "built-ins/Iterator/prototype/Symbol.iterator/return-val.js",
+            "built-ins/Promise/all/resolve-throws-iterator-return-is-not-callable.js",
+            "built-ins/Promise/any/resolve-throws-iterator-return-is-not-callable.js",
+            "built-ins/Promise/race/resolve-throws-iterator-return-is-not-callable.js",
+            "built-ins/RegExp/prototype/flags/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/global/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/multiline/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/source/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/sticky/this-val-non-obj.js",
+            "built-ins/RegExp/prototype/unicode/this-val-non-obj.js",
+            "built-ins/String/prototype/match/cstm-matcher-on-bigint-primitive.js",
+            "built-ins/String/prototype/replace/cstm-replace-on-bigint-primitive.js",
+            "built-ins/String/prototype/search/cstm-search-on-bigint-primitive.js",
+            "built-ins/String/prototype/split/cstm-split-on-bigint-primitive.js",
+            // nullish coalescing
+            "language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-expression-coalesce.js",
+            "language/expressions/class/cpn-class-expr-computed-property-name-from-expression-coalesce.js",
+            "language/expressions/object/cpn-obj-lit-computed-property-name-from-expression-coalesce.js",
+            "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-expression-coalesce.js",
+            "language/statements/class/cpn-class-decl-computed-property-name-from-expression-coalesce.js");
+
     private Test262Selector() {
     }
 
@@ -120,6 +159,14 @@ public final class Test262Selector {
         // _FIXTURE files are imported by module tests, never run on their own
         if (testFile.getFileName().toString().endsWith("_FIXTURE.js")) {
             return false;
+        }
+
+        // the relative path carries the suite's own "test/" in front of it
+        final String path = relative.toString().replace(java.io.File.separatorChar, '/');
+        for (final String excluded : LATER_SYNTAX) {
+            if (path.endsWith(excluded)) {
+                return false;
+            }
         }
 
         if (frontmatter == null) {
