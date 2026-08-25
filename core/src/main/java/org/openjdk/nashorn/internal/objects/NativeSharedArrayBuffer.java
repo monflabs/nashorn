@@ -60,6 +60,38 @@ public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
     }
 
     /**
+     * Wraps storage that already exists in the realm asking for it.
+     *
+     * Sharing a buffer between agents means sharing the storage, not the object:
+     * each agent sees a SharedArrayBuffer of its own realm over the same bytes,
+     * which is what makes the atomic operations meet.
+     *
+     * @param bytes  the storage to wrap
+     * @param global the realm the wrapper belongs to
+     * @return the wrapper
+     */
+    public static NativeSharedArrayBuffer wrap(final ByteBuffer bytes, final Global global) {
+        return new NativeSharedArrayBuffer(bytes, global);
+    }
+
+    /**
+     * The storage behind a shared buffer, for a host handing it to another agent.
+     *
+     * @param buffer the buffer
+     * @return its bytes, or null if it was not a shared buffer
+     */
+    public static ByteBuffer storageOf(final Object buffer) {
+        // a host reaches this through Java.type, so the buffer arrives wrapped
+        final Object target = buffer instanceof org.openjdk.nashorn.api.scripting.ScriptObjectMirror mirror
+                ? org.openjdk.nashorn.api.scripting.ScriptObjectMirror.unwrap(mirror,
+                        org.openjdk.nashorn.internal.runtime.Context.getGlobal())
+                : buffer;
+        // a view over one will do as well as the buffer itself
+        final Object owner = target instanceof ArrayBufferView view ? view.getArrayBuffer() : target;
+        return owner instanceof NativeSharedArrayBuffer shared ? shared.getNioBuffer() : null;
+    }
+
+    /**
      * ES2017 24.2.2.1 SharedArrayBuffer(length).
      *
      * @param newObj is this invoked with new

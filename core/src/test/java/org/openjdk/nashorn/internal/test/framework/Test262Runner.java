@@ -101,12 +101,20 @@ public final class Test262Runner {
 
     /** The host object test262 expects, as source, evaluated into every realm. */
     private static final String HOST_OBJECT =
-            "var $262 = {"
+            "var HOST = Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host');"
+            + "var $262 = {"
             + "  global: this,"
             + "  evalScript: function (source) { return (0, eval)(source); },"
             + "  gc: function () { java.lang.System.gc(); },"
             + "  detachArrayBuffer: function (buffer) {"
             + "    Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host').detachArrayBuffer(buffer);"
+            + "  },"
+            + "  agent: {"
+            + "    start: function (source) { HOST.agentStart(String(source)); },"
+            + "    broadcast: function (sab) { HOST.agentBroadcast(sab); },"
+            + "    getReport: function () { return HOST.agentGetReport(); },"
+            + "    sleep: function (ms) { HOST.agentSleep(ms); },"
+            + "    monotonicNow: function () { return HOST.agentMonotonicNow(); }"
             + "  },"
             + "  createRealm: function () {"
             + "    return loadWithNewGlobal({ name: 'realm', script: "
@@ -569,6 +577,9 @@ public final class Test262Runner {
          * failing obscurely.
          */
         private void installHostObject(final Global global) {
+            // agents belong to the execution that started them, and one that
+            // ran on is not a report the next execution should be able to see
+            Test262Host.agentReset();
             final Source source = harnessSources.computeIfAbsent(HOST_OBJECT_NAME,
                     n -> Source.sourceFor(n, HOST_OBJECT));
             final ScriptFunction install = context.compileScript(source, global);

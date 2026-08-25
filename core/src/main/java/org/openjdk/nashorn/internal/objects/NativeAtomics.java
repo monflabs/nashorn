@@ -65,6 +65,9 @@ public final class NativeAtomics extends ScriptObject {
     private static final VarHandle INTS =
             MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
+    /** Serialises the element widths that have no atomic update of their own. */
+    private static final Object NARROW = new Object();
+
     private NativeAtomics() {
         super(null, null);
         throw new UnsupportedOperationException();
@@ -321,22 +324,25 @@ public final class NativeAtomics extends ScriptObject {
             }
         }
 
+        /**
+         * A byte-buffer view handle offers its atomic update modes for four byte
+         * wide types and wider, and nothing narrower: a byte has no view handle
+         * at all and a short has one that will only read and write. So the two
+         * narrow widths are serialised here instead. That is a lock the
+         * specification does not describe - Atomics.isLockFree says as much for
+         * them - and it holds only against other narrow accesses made this way.
+         */
         boolean weakCompareAndSet(final int was, final int value) {
-            return switch (width) {
-                // a byte has no view handle of its own; the whole operation is
-                // serialised on the buffer instead, which is correct if slower
-                case 1 -> {
-                    synchronized (Access.class) {
-                        if (bytes.get(offset) != (byte)was) {
-                            yield false;
-                        }
-                        bytes.put(offset, (byte)value);
-                        yield true;
-                    }
+            if (width == 4) {
+                return INTS.compareAndSet(bytes, offset, was, value);
+            }
+            synchronized (NARROW) {
+                if (get() != was) {
+                    return false;
                 }
-                case 2 -> SHORTS.compareAndSet(bytes, offset, (short)was, (short)value);
-                default -> INTS.compareAndSet(bytes, offset, was, value);
-            };
+                set(value);
+                return true;
+            }
         }
 
         int compareExchange(final int want, final int replacement) {
