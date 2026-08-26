@@ -36,6 +36,8 @@ import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
+import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 
@@ -146,12 +148,56 @@ public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
         final int to = end == ScriptRuntime.UNDEFINED ? byteLength : relative(JSType.toInteger(end), byteLength);
 
         final int length = Math.max(to - from, 0);
-        final ByteBuffer copy = ByteBuffer.allocateDirect(length);
+
+        // 24.2.4.3 step 12: the copy is made by the species constructor, which
+        // is an ordinary constructor call and can hand back anything at all -
+        // so what it hands back is checked before a byte is written into it.
+        final ScriptFunction species = speciesConstructor(buffer);
+        final NativeSharedArrayBuffer target;
+        if (species == null) {
+            target = new NativeSharedArrayBuffer(ByteBuffer.allocateDirect(length), Global.instance());
+        } else {
+            final Object created = ScriptRuntime.construct(species, (double)length);
+            if (!(created instanceof NativeSharedArrayBuffer made)) {
+                throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(created));
+            }
+            if (made == buffer) {
+                throw typeError("arraybuffer.species.same", ScriptRuntime.safeToString(created));
+            }
+            if (made.getByteLength() < length) {
+                throw typeError("arraybuffer.species.too.short", JSType.toString(length));
+            }
+            target = made;
+        }
+
         final ByteBuffer source = buffer.getNioBuffer().duplicate();
         source.position(from).limit(from + length);
+        final ByteBuffer copy = target.getNioBuffer().duplicate();
+        copy.position(0);
         copy.put(source);
-        copy.rewind();
-        return new NativeSharedArrayBuffer(copy, Global.instance());
+        return target;
+    }
+
+    /**
+     * ES2015 7.3.20 SpeciesConstructor over a shared buffer, or null for the
+     * default one.
+     */
+    private static ScriptFunction speciesConstructor(final NativeSharedArrayBuffer source) {
+        final Object constructor = source.get("constructor");
+        if (constructor == ScriptRuntime.UNDEFINED) {
+            return null;
+        }
+        if (!(constructor instanceof ScriptObject ctor)) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
+        }
+        final Object species = ctor.get(NativeSymbol.species);
+        if (species == ScriptRuntime.UNDEFINED || species == null) {
+            return null;
+        }
+        if (!(species instanceof ScriptFunction function) || !function.isConstructor()) {
+            throw typeError("not.a.constructor", ScriptRuntime.safeToString(species));
+        }
+        return function;
     }
 
     /** ES2017 24.2.4.4 SharedArrayBuffer.prototype [ @@toStringTag ]. */
