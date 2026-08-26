@@ -200,6 +200,9 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     /** Method handle to reset the map of this ScriptObject */
     public static final Call SET_MAP = virtualCallNoLookup(ScriptObject.class, "setMap", void.class, PropertyMap.class);
 
+    /** Method handle for getting the property map of a ScriptObject */
+    public static final Call GET_MAP = virtualCallNoLookup(ScriptObject.class, "getMap", PropertyMap.class);
+
     static final MethodHandle CAS_MAP           = findOwnMH_V("compareAndSetMap", boolean.class, PropertyMap.class, PropertyMap.class);
     static final MethodHandle EXTENSION_CHECK   = findOwnMH_V("extensionCheck", boolean.class, boolean.class, String.class);
     static final MethodHandle ENSURE_SPILL_SIZE = findOwnMH_V("ensureSpillSize", Object.class, int.class);
@@ -2202,15 +2205,17 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     }
 
     private void declareAndSet(final FindProperty find, final Object value) {
-        final PropertyMap oldMap = getMap();
         assert find != null;
 
         final Property property = find.getProperty();
         assert property != null;
-        assert property.needsDeclaration();
 
-        final PropertyMap newMap = oldMap.replaceProperty(property, property.removeFlags(Property.NEEDS_DECLARATION));
-        setMap(newMap);
+        // A binding declared once may be declared again: a loop that gives each
+        // of its turns a scope of its own copies one whose bindings have been
+        // declared already, and the next turn declares them in the copy.
+        if (property.needsDeclaration()) {
+            setMap(getMap().replaceProperty(property, property.removeFlags(Property.NEEDS_DECLARATION)));
+        }
         set(property.getKey(), value, NashornCallSiteDescriptor.CALLSITE_DECLARE);
     }
 

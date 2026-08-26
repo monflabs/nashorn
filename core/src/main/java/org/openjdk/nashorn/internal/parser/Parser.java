@@ -1127,7 +1127,14 @@ public class Parser extends AbstractParser implements Loggable {
                 functionExpression(true, topLevel, true, asyncToken);
                 return;
             }
-            if (type == LET && lookaheadIsLetDeclaration(false) || type == CONST) {
+            // A lexical declaration is a StatementListItem rather than a
+            // Statement, so it cannot be the body of an if or a loop. "const"
+            // and "class" can only have been meant as one and are reported;
+            // "let" in sloppy code is also an ordinary identifier, and 13.6 has
+            // it read as one there - "if (x) let \n {}" is the identifier and
+            // then a block, by way of a semicolon inserted at the newline.
+            if (type == CONST || type == LET && (!singleStatement || lookaheadIsArrayPattern())
+                    && lookaheadIsLetDeclaration(false)) {
                 if (singleStatement) {
                     throw error(AbstractParser.message("expected.stmt", type.getName() + " declaration"), token);
                 }
@@ -1801,8 +1808,11 @@ public class Parser extends AbstractParser implements Loggable {
             if (!isDestructuring) {
                 assert init != null || varType != CONST || !isStatement;
                 final IdentNode ident = (IdentNode)binding;
-                if (!isStatement && ident.getName().equals("let")) {
-                    throw error(AbstractParser.message("let.binding.for")); //ES6 13.7.5.1
+                if (!isStatement && (varType == LET || varType == CONST) && ident.getName().equals("let")) {
+                    // ES2015 13.7.5.1 keeps "let" out of a for loop's lexical
+                    // declaration only; "for (var let of ...)" binds a variable
+                    // named let, which sloppy code may do anywhere else too
+                    throw error(AbstractParser.message("let.binding.for"));
                 }
                 // Only set declaration flag on lexically scoped let/const as it adds runtime overhead.
                 final IdentNode name = varType == LET || varType == CONST ? ident.setIsDeclaredHere() : ident;
@@ -2111,6 +2121,12 @@ public class Parser extends AbstractParser implements Loggable {
 
             expect(LPAREN);
 
+            // what the head starts with, for the two spellings ES2015 13.7.5 and
+            // ES2017 13.7 keep out of a for-of's left hand side
+            final long headToken = token;
+            final TokenType headType = type;
+            final boolean headIsAsync = isUnescapedAsync();
+
             TokenType varType = null;
             switch (type) {
             case VAR:
@@ -2169,6 +2185,27 @@ public class Parser extends AbstractParser implements Loggable {
 
             case IDENT:
                 if ("of".equals(getValue())) {
+                    // ES2015 11.6.2: "of" is a keyword here only when written as
+                    // itself; spelled with an escape it is an ordinary
+                    // identifier, and one cannot stand where this does
+                    if (Token.descLength(token) != 2) {
+                        throw error(AbstractParser.message("keyword.escaped.character"), token);
+                    }
+                    if (varDeclList == null) {
+                        // 13.7.5: the left hand side of a for-of may not start
+                        // with "let", which would otherwise be read as the
+                        // declaration the same head can hold, nor with "async",
+                        // which "for await" needs the room for
+                        if (headType == LET) {
+                            throw error(AbstractParser.message("let.binding.for"), headToken);
+                        }
+                        if (headIsAsync && init instanceof IdentNode ident
+                                && ASYNC_NAME.equals(ident.getName())) {
+                            // only the bare word: "for (async.x of ...)" is a
+                            // member expression and means what it says
+                            throw error(AbstractParser.message("expected.stmt", "async of"), headToken);
+                        }
+                    }
                     isForOf = true;
                     // fall through
                 } else {
@@ -2266,6 +2303,23 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     @SuppressWarnings("fallthrough")
+    /**
+     * Whether a "let" here is followed by a "[", across newlines and comments.
+     *
+     * ES2015 13.4 keeps "let [" out of an ExpressionStatement, so it is a
+     * declaration or nothing - which makes it an error where a declaration
+     * cannot go, rather than the identifier the bare word would otherwise be.
+     */
+    private boolean lookaheadIsArrayPattern() {
+        assert type == LET;
+        for (int i = 1;; i++) {
+            final TokenType t = T(k + i);
+            if (t != EOL && t != COMMENT) {
+                return t == LBRACKET;
+            }
+        }
+    }
+
     private boolean lookaheadIsLetDeclaration(final boolean ofContextualKeyword) {
         assert type == LET;
         for (int i = 1;; i++) {

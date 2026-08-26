@@ -131,7 +131,14 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
 
         final String className = getClassName();
         method._new(fieldObjectClass).dup();
-        loadMap(method); //load the map
+        // The map is the one the scope being copied is using rather than the one
+        // it was made with: a lexical binding is created needing a declaration
+        // and loses that when the declaration runs, which has already happened
+        // by the time an iteration is over. Made from the original map, every
+        // scope after the first would hold a binding in its dead zone, and a
+        // closure over it would report the name as undefined.
+        loadScope(method);
+        method.invoke(ScriptObject.GET_MAP);
         loadScope(method);
         // We create a scope identical to the currently active one, so use its parent as our parent
         method.invoke(ScriptObject.GET_PROTO);
