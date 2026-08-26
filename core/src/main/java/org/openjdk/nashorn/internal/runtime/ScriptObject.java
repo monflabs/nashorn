@@ -2143,6 +2143,27 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         final Class<?> returnType = desc.getMethodType().returnType();
         final Property property   = find.getProperty();
 
+        if (property.needsDeclaration()) {
+            // ES2015 8.1.1.1.6: a lexical binding cannot be read until its
+            // declaration has run. Which reads are in the dead zone is decided
+            // when the code is compiled wherever that can be seen, but a
+            // function reaching one from outside can only be caught here.
+            //
+            // The flag is part of the property map, and the declaration
+            // replaces the map, so the guard is what makes this cost nothing
+            // once the binding is live: the call site relinks then, as it does
+            // for any other change of shape. The guard is asked for explicitly
+            // because the ordinary one may decide a property of this kind needs
+            // none at all, and this link must not outlive the map it was made
+            // for.
+            return new GuardedInvocation(
+                    MH.dropArguments(MH.insertArguments(DEAD_ZONE, 0, name), 0,
+                            desc.getMethodType().parameterList()).asType(desc.getMethodType()),
+                    NashornGuards.getMapGuard(getMap(), explicitInstanceOfCheck),
+                    getProtoSwitchPoints(name, find.getOwner()),
+                    explicitInstanceOfCheck ? null : ClassCastException.class);
+        }
+
         final int programPoint = NashornCallSiteDescriptor.isOptimistic(desc) ?
                 NashornCallSiteDescriptor.getProgramPoint(desc) :
                 UnwarrantedOptimismException.INVALID_PROGRAM_POINT;
@@ -2173,6 +2194,13 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         final GuardedInvocation inv = new GuardedInvocation(mh, guard, protoSwitchPoints, exception);
         return inv.addSwitchPoint(findBuiltinSwitchPoint(name));
     }
+
+    @SuppressWarnings("unused")
+    private static Object deadZone(final String name) {
+        throw referenceError("not.defined", name);
+    }
+
+    private static final MethodHandle DEAD_ZONE = findOwnMH_S("deadZone", Object.class, String.class);
 
     private static GuardedInvocation findMegaMorphicGetMethod(final CallSiteDescriptor desc, final String name, final boolean isMethod) {
         Context.getContext()

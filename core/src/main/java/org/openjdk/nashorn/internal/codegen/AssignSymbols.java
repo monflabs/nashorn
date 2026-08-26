@@ -64,6 +64,7 @@ import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.BlockStatement;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.Expression;
+import org.openjdk.nashorn.internal.ir.JoinPredecessorExpression;
 import org.openjdk.nashorn.internal.ir.ForNode;
 import org.openjdk.nashorn.internal.ir.FunctionNode;
 import org.openjdk.nashorn.internal.ir.IdentNode;
@@ -791,10 +792,58 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     @Override
     public Node leaveForNode(final ForNode forNode) {
         if (forNode.isForInOrOf()) {
-            return forNode.setIterator(lc, newInternal(ITERATOR_PREFIX)); //NASHORN-73
+            return markHeadDeadZone(forNode).setIterator(lc, newInternal(ITERATOR_PREFIX)); //NASHORN-73
         }
 
         return end(forNode);
+    }
+
+    /**
+     * Marks a read of the loop's own binding from the expression it iterates.
+     *
+     * ES2015 13.7.5.11 evaluates that expression in the environment the head's
+     * bindings live in, before any of them has been initialised - so
+     * "for (let x of [x])" reads x in its dead zone, however many x's stand
+     * outside the loop. The declaration is a statement of the block the loop is
+     * in and is therefore seen first, which leaves the binding looking live by
+     * the time the expression is reached.
+     */
+    private ForNode markHeadDeadZone(final ForNode forNode) {
+        final JoinPredecessorExpression modify = forNode.getModify();
+        if (!forNode.hasPerIterationScope() || modify == null || forNode.getInit() == null) {
+            return forNode;
+        }
+        final Set<Symbol> bound = new HashSet<>();
+        forNode.getInit().accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public Node leaveIdentNode(final IdentNode identNode) {
+                if (identNode.getSymbol() != null && identNode.getSymbol().isBlockScoped()) {
+                    bound.add(identNode.getSymbol());
+                }
+                return identNode;
+            }
+        });
+        if (bound.isEmpty()) {
+            return forNode;
+        }
+        return forNode.setModify(lc, (JoinPredecessorExpression)modify.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                // a function written in the head is not read until it is called,
+                // which a dead zone this one cannot see the end of
+                return false;
+            }
+
+            @Override
+            public Node leaveIdentNode(final IdentNode identNode) {
+                return bound.contains(identNode.getSymbol()) ? identNode.markDead() : identNode;
+            }
+        }));
     }
 
     @Override
