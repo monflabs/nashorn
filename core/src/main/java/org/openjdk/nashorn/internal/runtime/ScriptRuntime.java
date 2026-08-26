@@ -2158,13 +2158,15 @@ public final class ScriptRuntime {
      * @return what the construction evaluates to
      */
     public static Object DERIVED_RETURN(final Object value, final Object thisBinding) {
-        if (value instanceof ScriptObject) {
-            return value;
-        }
         if (value == UNDEFINED) {
             return REQUIRE_THIS_INITIALIZED(thisBinding);
         }
-        throw typeError("derived.constructor.return", safeToString(value));
+        // Anything else is handed on as it stands, including something that is
+        // not an object at all. 9.2.2 step 13 refuses that, but it does so in
+        // [[Construct]] rather than here: the finally blocks the constructor
+        // leaves through run in between, and one of those throwing is the error
+        // worth reporting. ScriptFunction.construct makes the check.
+        return value;
     }
 
     /**

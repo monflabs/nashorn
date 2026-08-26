@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Set;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
+import org.openjdk.nashorn.internal.ir.BreakNode;
+import org.openjdk.nashorn.internal.ir.LabelNode;
 import org.openjdk.nashorn.internal.ir.BlockStatement;
 import org.openjdk.nashorn.internal.ir.CatchNode;
 import org.openjdk.nashorn.internal.ir.ThrowNode;
@@ -121,6 +123,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * beside it.
      */
     static final String THIS_BINDING = ":thisInitialized";
+
+    /** Where a derived class constructor keeps what it was asked to return. */
+    private static final String DERIVED_RESULT = ":derivedResult";
+
+    /** The label a return in a derived class constructor leaves the body by. */
+    private static final String DERIVED_EXIT = ":derivedExit";
+
 
     /** The global binding a default test compares against. */
     private static final String UNDEFINED_NAME = "undefined";
@@ -610,12 +619,21 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         if (!lc.getCurrentFunction().isSubclassConstructor()) {
             return super.leaveReturnNode(returnNode);
         }
+        // What the constructor answers with is worked out at the end of the body
+        // rather than here, because a finally block between here and there runs
+        // in between and can make the this binding, or throw. So the value is
+        // put by and the body left by a break, which runs those blocks on its
+        // way out exactly as a return would have.
+        final int line = returnNode.getLineNumber();
         final long token = returnNode.getToken();
         final int finish = returnNode.getFinish();
         final Expression value = returnNode.getExpression();
-        return returnNode.setExpression(new RuntimeNode(token, finish, RuntimeNode.Request.DERIVED_RETURN,
-                value == null ? new IdentNode(token, finish, "undefined") : value,
-                new IdentNode(token, finish, THIS_BINDING)));
+        return new BlockStatement(line, new Block(token, finish,
+                new ExpressionStatement(line, token, finish,
+                        new BinaryNode(Token.recast(token, TokenType.ASSIGN),
+                                new IdentNode(token, finish, DERIVED_RESULT),
+                                value == null ? new IdentNode(token, finish, UNDEFINED_NAME) : value)),
+                new BreakNode(line, token, finish, DERIVED_EXIT)));
     }
 
     /** {@code this}, checked against the binding having been made. */
@@ -806,8 +824,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> statements = new ArrayList<>();
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_BINDING),
                 new RuntimeNode(token, finish, RuntimeNode.Request.UNINITIALIZED_THIS)));
-        statements.addAll(body.getStatements());
-        statements.add(new ReturnNode(line, token, finish, checkedThis(token, finish)));
+        statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, DERIVED_RESULT),
+                new IdentNode(token, finish, UNDEFINED_NAME)));
+        // The body is left by a break rather than by a return, so that what it
+        // answered with is examined after everything it leaves through has run:
+        // 9.2.2 step 13 is part of constructing, not of returning, and a finally
+        // block may still call super() - or throw, which is then the error.
+        statements.add(new LabelNode(line, token, finish, DERIVED_EXIT,
+                new Block(token, finish, body.getStatements())));
+        statements.add(new ReturnNode(line, token, finish,
+                new RuntimeNode(token, finish, RuntimeNode.Request.DERIVED_RETURN,
+                        new IdentNode(token, finish, DERIVED_RESULT),
+                        new IdentNode(token, finish, THIS_BINDING))));
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
     }

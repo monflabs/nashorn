@@ -921,7 +921,21 @@ final class CompiledFunction {
 
     @SuppressWarnings("unused")
     private static Object newFilter(final Object result, final Object allocation) {
-        return (result instanceof ScriptObject || !JSType.isPrimitive(result))? result : allocation;
+        if (result instanceof ScriptObject || !JSType.isPrimitive(result)) {
+            return result;
+        }
+        if (allocation instanceof ScriptFunction function && function.isSubclassConstructor()) {
+            // ES2015 9.2.2 step 13: a derived constructor answers with an object
+            // or with nothing. The check is made here, where what it answered
+            // with arrives, rather than where it returns, because the finally
+            // blocks it leaves through run in between - a "return 0" out of a
+            // for-of closes the iterator first, and what that close throws is
+            // the error that gets out. There is nothing to fall back on either:
+            // a derived constructor allocates nothing, so what stands in for the
+            // allocation is the constructor itself.
+            throw ECMAErrors.typeError("derived.constructor.return", ScriptRuntime.safeToString(result));
+        }
+        return allocation;
     }
 
     private static MethodHandle findOwnMH(final String name, final Class<?> rtype, final Class<?>... types) {

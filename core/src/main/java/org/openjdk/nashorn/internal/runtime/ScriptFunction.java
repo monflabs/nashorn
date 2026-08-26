@@ -608,7 +608,16 @@ public class ScriptFunction extends ScriptObject {
      */
     public Object construct(final ScriptFunction newTarget, final Object[] args) throws Throwable {
         if (data.isSubclassConstructor()) {
-            return ScriptRuntime.apply(this, newTarget, args);
+            // ES2015 9.2.2 step 13: a derived constructor answers with an object
+            // or with nothing, and the check is made here rather than where it
+            // returns because the finally blocks it leaves through run in
+            // between - a "return 0" out of a for-of closes the iterator first,
+            // and what that close throws is the error that gets out.
+            final Object result = ScriptRuntime.apply(this, newTarget, args);
+            if (!(result instanceof ScriptObject)) {
+                throw typeError("derived.constructor.return", ScriptRuntime.safeToString(result));
+            }
+            return result;
         }
 
         // ES2015 9.1.13 OrdinaryCreateFromConstructor reads new.target's
