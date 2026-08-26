@@ -105,6 +105,9 @@ public final class WithObject extends Scope {
         final String name = ((NamedOperation)op).getName().toString();
 
         FindProperty find = unscopable(name) ? null : expression.findProperty(name, true);
+        if (find != null && !find.getOwner().answersForName(name)) {
+            find = null;
+        }
 
         if (find != null) {
             link = expression.lookup(desc, request);
@@ -137,7 +140,7 @@ public final class WithObject extends Scope {
 
         if (fallBack != null) {
             find = expression.findProperty(fallBack, true);
-            if (find != null) {
+            if (find != null && find.getOwner().answersForName(fallBack)) {
                 if (NO_SUCH_METHOD_NAME.equals(fallBack)) {
                     link = expression.noSuchMethod(desc, request).addSwitchPoint(getProtoSwitchPoint(name));
                 } else if (NO_SUCH_PROPERTY_NAME.equals(fallBack)) {
@@ -177,7 +180,7 @@ public final class WithObject extends Scope {
         // This way in ScriptObject.setObject we can tell the property is from a 'with' expression
         // (as opposed from another non-scope object in the proto chain such as Object.prototype).
         final FindProperty exprProperty = expression.findProperty(key, true, false, expression);
-        if (exprProperty != null && !unscopable(key)) {
+        if (exprProperty != null && !unscopable(key) && exprProperty.getOwner().answersForName(key)) {
             return exprProperty;
         }
         return super.findProperty(key, deep, isScope, start);

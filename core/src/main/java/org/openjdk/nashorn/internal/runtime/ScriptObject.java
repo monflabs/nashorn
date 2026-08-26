@@ -840,6 +840,22 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     }
 
     /**
+     * Whether a property found on this object is one it really has.
+     *
+     * Every ordinary object says yes: a property was found in its map, and
+     * there is nothing more to ask. A proxy answers for every name it is asked
+     * about, because a prototype chain reaching one is meant to end there and
+     * carry on inside its [[Get]] - so a with statement, which binds a name only
+     * when the object has it, has to ask the proxy separately.
+     *
+     * @param key the property key
+     * @return whether the object has it
+     */
+    protected boolean answersForName(final Object key) {
+        return true;
+    }
+
+    /**
      * Low level property API. This is similar to {@link #findProperty(Object, boolean)} but returns a
      * {@code boolean} value instead of a {@link FindProperty} object.
      * @param key  Property key.

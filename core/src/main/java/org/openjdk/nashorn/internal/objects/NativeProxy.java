@@ -41,9 +41,12 @@ import jdk.dynalink.linker.LinkRequest;
 import jdk.dynalink.linker.support.Guards;
 import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.Property;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
+import org.openjdk.nashorn.internal.runtime.AccessorProperty;
+import org.openjdk.nashorn.internal.runtime.FindProperty;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Symbol;
@@ -187,14 +190,73 @@ public final class NativeProxy extends ScriptObject {
         return ScriptRuntime.apply(trap, handler, args);
     }
 
+    /**
+     * Answers for a proxy that some object has as a prototype.
+     *
+     * The map behind a proxy is empty, so the walk that looks for a property
+     * along a prototype chain finds nothing in one and carries on past it,
+     * leaving the traps unrun. A proxy therefore answers with a property made
+     * on the spot, whose getter and setter are its own - what a trap says can
+     * change between one read and the next, so there is nothing here worth
+     * remembering.
+     *
+     * <p>It answers for every key, without asking its "has" trap first. That is
+     * not a shortcut: 9.1.8 reaches a prototype through its [[Get]] rather than
+     * its [[HasProperty]], and a proxy's [[Get]] carries the search on into its
+     * own target - so the walk ending here is the walk ending in the right
+     * place. {@code in} and the rest go through hasProperty below, which does
+     * ask.
+     */
+    @Override
+    protected FindProperty findProperty(final Object key, final boolean deep, final boolean isScope,
+            final ScriptObject start) {
+        return new FindProperty(start, this,
+                AccessorProperty.create(key, Property.IS_ACCESSOR_PROPERTY,
+                        MethodHandles.insertArguments(TRAP_GET, 0, this, key),
+                        MethodHandles.insertArguments(TRAP_SET, 0, this, key)));
+    }
+
+    @Override
+    protected boolean answersForName(final Object key) {
+        // 8.1.1.2.1 HasBinding: a with statement binds a name when the object
+        // has it, which for a proxy is what its "has" trap says
+        return has(key);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object trapGet(final NativeProxy proxy, final Object key, final Object self) {
+        return proxy.get(key, self);
+    }
+
+    @SuppressWarnings("unused")
+    private static void trapSet(final NativeProxy proxy, final Object key, final Object self, final Object value) {
+        proxy.set(key, value, 0);
+    }
+
+    private static final MethodHandle TRAP_GET = find("trapGet",
+            MethodType.methodType(Object.class, NativeProxy.class, Object.class, Object.class));
+    private static final MethodHandle TRAP_SET = find("trapSet",
+            MethodType.methodType(void.class, NativeProxy.class, Object.class, Object.class, Object.class));
+
     @Override
     public Object get(final Object key) {
+        return get(key, this);
+    }
+
+    /**
+     * ES2015 9.5.8 [[Get]], with the receiver it was reached through.
+     *
+     * The receiver is this proxy when the read was of the proxy itself, and the
+     * object the read started at when the proxy was found along its prototype
+     * chain - which is what the trap is handed either way.
+     */
+    private Object get(final Object key, final Object receiver) {
         final ScriptFunction trap = trap("get");
         final ScriptObject rx = target();
         if (trap == null) {
-            return rx.get(key);
+            return rx instanceof NativeProxy nested ? nested.get(key, receiver) : rx.get(key);
         }
-        final Object answered = call(trap, rx, propertyKey(key), this);
+        final Object answered = call(trap, rx, propertyKey(key), receiver);
 
         // ES2015 9.5.8 steps 10 and 11: a property the target has fixed - one
         // that can be neither reconfigured nor written - reads as what the
