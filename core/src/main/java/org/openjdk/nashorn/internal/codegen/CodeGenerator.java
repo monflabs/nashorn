@@ -1859,6 +1859,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.ifeq(breakLabel);
         }
 
+        if (forNode.needsScopeCreator() && hasScopeCreator()) {
+            // ES2015 13.7.5.13: a loop that binds lexically gives each of its
+            // turns a scope of its own, made before the binding is given its
+            // value - so the scope the head was evaluated in, which a function
+            // written there captured, is never written to at all, and its
+            // binding stays in the dead zone the head left it in.
+            final FieldObjectCreator<?> creator = scopeObjectCreators.peek();
+            assert creator != null;
+            creator.createForInIterationScope(method);
+            method.storeCompilerConstant(SCOPE);
+        }
+
         new Store<Expression>(forNode.getInit()) {
             @Override
             protected void storeNonDiscard() {
@@ -1883,14 +1895,6 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
         }.store();
         body.accept(this);
-
-        if (forNode.needsScopeCreator() && hasScopeCreator()) {
-            // for-in loops with lexical declaration need a new scope for each iteration.
-            final FieldObjectCreator<?> creator = scopeObjectCreators.peek();
-            assert creator != null;
-            creator.createForInIterationScope(method);
-            method.storeCompilerConstant(SCOPE);
-        }
 
         if(method.isReachable()) {
             method._goto(continueLabel);
@@ -3676,7 +3680,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // Block-scoped variables need a DECLARE flag to signal end of temporal dead zone (TDZ).
             // However, don't do this for CONST which always has an initializer except in the special case of
             // for-in/of loops, in which it is initialized in the loop header and should be left untouched here.
-            if (needsScope && varNode.isLet()) {
+            if (needsScope && varNode.isLet() && !varNode.isForHeadBinding()) {
                 method.loadCompilerConstant(SCOPE);
                 method.loadUndefined(Type.OBJECT);
                 final int flags = getScopeCallSiteFlags(identSymbol) | CALLSITE_DECLARE;

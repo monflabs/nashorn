@@ -63,6 +63,13 @@ public final class VarNode extends Statement implements Assignment<IdentNode> {
     public static final int IS_LAST_FUNCTION_DECLARATION = 1 << 2;
 
     /**
+     * Flag for the binding of a for-in or for-of loop's head. Such a declaration
+     * names the binding without giving it a value: the loop header assigns one
+     * on every turn, and until it has, the binding is in its dead zone.
+     */
+    public static final int IS_FOR_HEAD_BINDING          = 1 << 3;
+
+    /**
      * Constructor
      *
      * @param lineNumber line number
@@ -155,6 +162,15 @@ public final class VarNode extends Statement implements Assignment<IdentNode> {
      */
     public boolean isLet() {
         return getFlag(IS_LET);
+    }
+
+    /**
+     * Whether this declaration is the binding of a for-in or for-of loop's head.
+     *
+     * @return true if it is
+     */
+    public boolean isForHeadBinding() {
+        return getFlag(IS_FOR_HEAD_BINDING);
     }
 
     /**

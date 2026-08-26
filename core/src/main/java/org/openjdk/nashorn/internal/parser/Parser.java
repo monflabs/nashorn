@@ -1764,7 +1764,11 @@ public class Parser extends AbstractParser implements Loggable {
             final Expression binding = bindingIdentifierOrPattern(contextString);
             final boolean isDestructuring = !(binding instanceof IdentNode);
             if (isDestructuring) {
-                final int finalVarFlags = varFlags;
+                // in a for-in or for-of head every name the pattern binds is
+                // given its value by the loop header, on every turn; see the
+                // declaration made for a plain name below
+                final int finalVarFlags = !isStatement && (varType == LET || varType == CONST)
+                        ? varFlags | VarNode.IS_FOR_HEAD_BINDING : varFlags;
                 verifyDestructuringBindingPattern(binding, identNode -> {
                     verifyIdent(identNode, contextString);
                     if (!env._parse_only) {
@@ -1822,7 +1826,13 @@ public class Parser extends AbstractParser implements Loggable {
                     }
                     forResult.addBinding(new IdentNode(name));
                 }
-                final VarNode var = new VarNode(varLine, varToken, sourceOrder, finish, name, init, varFlags);
+                // ES2015 13.7.5.11 has a lexical binding in a for-in or for-of
+                // head named here and given a value by the loop header, on every
+                // turn; until the first of those it is in its dead zone, which
+                // it would not be if this declaration initialised it.
+                final int declarationFlags = isStatement || init != null || !(varType == LET || varType == CONST)
+                        ? varFlags : varFlags | VarNode.IS_FOR_HEAD_BINDING;
+                final VarNode var = new VarNode(varLine, varToken, sourceOrder, finish, name, init, declarationFlags);
                 appendStatement(var);
             } else {
                 assert init != null || !isStatement;
