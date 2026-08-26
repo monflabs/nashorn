@@ -210,7 +210,12 @@ public abstract class AbstractParser {
             // Set up next token.
             k++;
             final long lastToken = token;
-            previousToken = token;
+            if (type != COMMENT) {
+                // a comment is not what anything means by the token before this
+                // one - a function whose body is an expression ends where the
+                // expression ends, not where a comment after it does
+                previousToken = token;
+            }
             token = getToken(k);
             type = Token.descType(token);
 

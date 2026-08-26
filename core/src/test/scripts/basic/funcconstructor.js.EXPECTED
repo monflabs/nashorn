@@ -1,6 +1,7 @@
 anon func
 225
-function (x) {
+function anonymous(x
+) {
 print('anon func'); return x*x;
 }
 syntax error? true

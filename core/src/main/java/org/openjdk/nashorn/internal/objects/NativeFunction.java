@@ -81,10 +81,7 @@ public final class NativeFunction {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toString(final Object self) {
-        if (!(self instanceof ScriptFunction)) {
-            throw typeError("not.a.function", ScriptRuntime.safeToString(self));
-        }
-        return ((ScriptFunction)self).toSource();
+        return sourceOf(self);
     }
 
     /**
@@ -253,10 +250,20 @@ public final class NativeFunction {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toSource(final Object self) {
-        if (!(self instanceof ScriptFunction)) {
-            throw typeError("not.a.function", ScriptRuntime.safeToString(self));
+        return sourceOf(self);
+    }
+
+    private static String sourceOf(final Object self) {
+        if (self instanceof ScriptFunction function) {
+            return function.toSource();
         }
-        return ((ScriptFunction)self).toSource();
+        // Anything else callable - a proxy over a function, most of all - has no
+        // source of its own to give back, and 19.2.3.5 asks only for something
+        // that reads as a function: the native form is what is left to say.
+        if (Bootstrap.isCallable(self)) {
+            return "function () { [native code] }";
+        }
+        throw typeError("not.a.function", ScriptRuntime.safeToString(self));
     }
 
     /**
@@ -271,42 +278,39 @@ public final class NativeFunction {
      */
     @Constructor(arity = 1)
     public static ScriptFunction function(final boolean newObj, final Object self, final Object... args) {
-        final StringBuilder sb = new StringBuilder();
-
-        sb.append("(function (");
-        final String funcBody;
+        // ES2017 19.2.1.1.1 CreateDynamicFunction builds the source in one exact
+        // shape, and Function.prototype.toString hands that shape back: the
+        // parameters as written, then a newline before the closing parenthesis,
+        // and the body on lines of its own. The newlines are not decoration - a
+        // parameter list or a body ending in a // comment would otherwise
+        // swallow what follows it.
+        final String parameters;
+        final String body;
         if (args.length > 0) {
-            final StringBuilder paramListBuf = new StringBuilder();
+            final StringBuilder list = new StringBuilder();
             for (int i = 0; i < args.length - 1; i++) {
-                paramListBuf.append(JSType.toString(args[i]));
-                if (i < args.length - 2) {
-                    paramListBuf.append(",");
+                if (i > 0) {
+                    list.append(',');
                 }
+                list.append(JSType.toString(args[i]));
             }
-
-            // now convert function body to a string
-            funcBody = JSType.toString(args[args.length - 1]);
-
-            final String paramList = paramListBuf.toString();
-            if (!paramList.isEmpty()) {
-                checkFunctionParameters(paramList);
-                sb.append(paramList);
+            parameters = list.toString();
+            body = JSType.toString(args[args.length - 1]);
+            if (!parameters.isEmpty()) {
+                checkFunctionParameters(parameters);
             }
+            checkFunctionBody(body);
         } else {
-            funcBody = null;
+            parameters = "";
+            body = "";
         }
 
-        sb.append(") {\n");
-        if (args.length > 0) {
-            checkFunctionBody(funcBody);
-            sb.append(funcBody);
-            sb.append('\n');
-        }
-        sb.append("})");
-
+        // wrapped in parentheses so that it is evaluated as an expression; the
+        // function's own source is what is inside them
+        final String source = "(function anonymous(" + parameters + "\n) {\n" + body + "\n})";
         final Global global = Global.instance();
         final Context context = global.getContext();
-        return (ScriptFunction)context.eval(global, sb.toString(), global, "<function>");
+        return (ScriptFunction)context.eval(global, source, global, "<function>");
     }
 
     private static void checkFunctionParameters(final String params) {

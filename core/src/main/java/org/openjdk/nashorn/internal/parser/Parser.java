@@ -1360,6 +1360,7 @@ public class Parser extends AbstractParser implements Loggable {
                     next();
                 }
 
+                final long methodStartToken = token;
                 boolean async = lookaheadIsAsyncMethod();
                 if (async) {
                     next();
@@ -1369,7 +1370,8 @@ public class Parser extends AbstractParser implements Loggable {
                     generator = true;
                     next();
                 }
-                final PropertyNode classElement = methodDefinition(isStatic, classHeritage != null, generator, async);
+                final PropertyNode classElement = methodDefinition(methodStartToken, isStatic,
+                        classHeritage != null, generator, async);
                 if (classElement.isComputed()) {
                     classElements.add(classElement);
                 } else if (!classElement.isStatic() && CONSTRUCTOR_NAME.equals(classElement.getKeyName())) {
@@ -1481,9 +1483,12 @@ public class Parser extends AbstractParser implements Loggable {
                         ), null, null, false, false);
     }
 
-    private PropertyNode methodDefinition(final boolean isStatic, final boolean subclass, final boolean generator,
-            final boolean async) {
-        final long methodToken = token;
+    private PropertyNode methodDefinition(final long startToken, final boolean isStatic, final boolean subclass,
+            final boolean generator, final boolean async) {
+        // the method's source starts at whichever of async and * came first, so
+        // that Function.prototype.toString gives back what was written; "static"
+        // belongs to the class body rather than to the method, and is left out
+        final long methodToken = startToken;
         final int methodLine = line;
         final boolean computed = type == LBRACKET;
         final boolean isIdent = type == IDENT;
