@@ -372,14 +372,12 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
             final String written = NameCodec.decode(fn.getIdent().getName());
             return CONSTRUCTOR_NAME.equals(written) ? fn.getName() : written;
         }
-        final FunctionNode.Kind kind = fn.getKind();
-        if (kind == FunctionNode.Kind.GETTER || kind == FunctionNode.Kind.SETTER) {
-            // ES2015 14.3.9 names an accessor "get x" or "set x" - the prefix is
-            // part of the name, not decoration, and the internal name already
-            // carries it in that form
-            return NameCodec.decode(fn.getIdent().getName());
-        }
-        return fn.getIdent().getName();
+        // ES2015 14.3.9 names an accessor "get x" or "set x" - the prefix is part
+        // of the name, not decoration, and the internal name already carries it
+        // in that form. Every internal name is decoded, not just an accessor's:
+        // a name the class file format will not take as a method's is escaped on
+        // its way in, and decoding leaves an ordinary one alone.
+        return NameCodec.decode(fn.getIdent().getName());
     }
 
     private static long tokenFor(final FunctionNode fn) {

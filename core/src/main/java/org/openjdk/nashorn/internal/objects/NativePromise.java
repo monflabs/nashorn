@@ -73,7 +73,7 @@ public final class NativePromise extends ScriptObject {
     private enum State { PENDING, FULFILLED, REJECTED }
 
     /** What to do when a promise settles: one branch of a then(). */
-    private record Reaction(NativePromise derived, Object onFulfilled, Object onRejected) { }
+    private record Reaction(Capability capability, Object onFulfilled, Object onRejected) { }
 
     private State state = State.PENDING;
     private Object value = ScriptRuntime.UNDEFINED;
@@ -169,12 +169,16 @@ public final class NativePromise extends ScriptObject {
 
         final Global global = Global.instance();
         final NativePromise promise = allocate(global);
+        final Settlers settlers = promise.settlers();
         try {
-            ScriptRuntime.apply(function, ScriptRuntime.UNDEFINED,
-                    promise.resolveFunction(), promise.rejectFunction());
+            ScriptRuntime.apply(function, ScriptRuntime.UNDEFINED, settlers.resolve(), settlers.reject());
         } catch (final ECMAException e) {
-            // a throwing executor rejects the promise rather than propagating
-            promise.settle(State.REJECTED, e.getThrown());
+            // a throwing executor rejects the promise rather than propagating -
+            // unless it had already resolved it, in which case 25.4.3.1 step 9
+            // drops what it threw on the floor
+            if (!settlers.spent()) {
+                promise.settle(State.REJECTED, e.getThrown());
+            }
         }
         return promise;
     }
@@ -190,15 +194,43 @@ public final class NativePromise extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object then(final Object self, final Object onFulfilled, final Object onRejected) {
         final NativePromise promise = check(self);
-        final NativePromise derived = allocate(promise.global);
-        final Reaction reaction = new Reaction(derived, onFulfilled, onRejected);
+        // 25.4.5.3 step 3: what the derived promise is made by is the species of
+        // the constructor this promise says it has, so a subclass gets a promise
+        // of its own kind back and a foreign one gets whatever it makes.
+        final Capability capability = newPromiseCapability(
+                speciesConstructor(promise, promise.global.get("Promise")));
+        promise.performThen(onFulfilled, onRejected, capability);
+        return capability.promise();
+    }
 
-        if (promise.state == State.PENDING) {
-            promise.reactions.add(reaction);
+    /** ES2015 25.4.5.3.1 PerformPromiseThen. */
+    private void performThen(final Object onFulfilled, final Object onRejected, final Capability capability) {
+        final Reaction reaction = new Reaction(capability, onFulfilled, onRejected);
+        if (state == State.PENDING) {
+            reactions.add(reaction);
         } else {
-            promise.schedule(reaction);
+            schedule(reaction);
         }
-        return derived;
+    }
+
+    /**
+     * ES2015 7.3.20 SpeciesConstructor: the constructor property, then its
+     * @@species; either being absent means the default, and anything present
+     * that is not a constructor is a TypeError.
+     */
+    private static Object speciesConstructor(final ScriptObject object, final Object defaultConstructor) {
+        final Object constructor = object.get("constructor");
+        if (constructor == ScriptRuntime.UNDEFINED) {
+            return defaultConstructor;
+        }
+        if (!(constructor instanceof ScriptObject ctor)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(constructor));
+        }
+        final Object species = ctor.get(NativeSymbol.species);
+        if (species == ScriptRuntime.UNDEFINED || species == null) {
+            return defaultConstructor;
+        }
+        return species;
     }
 
     /**
@@ -213,14 +245,20 @@ public final class NativePromise extends ScriptObject {
         // ES2015 25.4.5.1 is written as Invoke(promise, "then", ...), which asks
         // nothing about what it was called on: anything with a then answers, and
         // anything without one fails the way calling undefined fails.
-        if (!(self instanceof ScriptObject sobj)) {
+        // Invoke starts with ToObject, so a primitive with a then on its
+        // prototype answers rather than failing
+        if (self == ScriptRuntime.UNDEFINED || self == null) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final Object receiver = self instanceof ScriptObject ? self : Global.toObject(self);
+        if (!(receiver instanceof ScriptObject sobj)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
         final Object then = sobj.get("then");
         if (!Bootstrap.isCallable(then)) {
             throw typeError("not.a.function", ScriptRuntime.safeToString(then));
         }
-        return ScriptRuntime.apply((ScriptFunction)then, sobj, ScriptRuntime.UNDEFINED, onRejected);
+        return ScriptRuntime.apply((ScriptFunction)then, self, ScriptRuntime.UNDEFINED, onRejected);
     }
 
     /**
@@ -274,6 +312,7 @@ public final class NativePromise extends ScriptObject {
         final int[] remaining = { 1 };
 
         try {
+            final Object onRejected = result.rejectFunction();
             combine(self, iterable, promised -> {
                 final int slot = values.size();
                 values.add(ScriptRuntime.UNDEFINED);
@@ -281,7 +320,7 @@ public final class NativePromise extends ScriptObject {
                 // ES2015 25.4.4.1.2: a resolve element function takes effect once
                 final boolean[] alreadyCalled = { false };
                 subscribe(promised,
-                    v -> {
+                    callback(v -> {
                         if (alreadyCalled[0]) {
                             return;
                         }
@@ -290,8 +329,8 @@ public final class NativePromise extends ScriptObject {
                         if (--remaining[0] == 0) {
                             result.resolve(new NativeArray(values.toArray()));
                         }
-                    },
-                    r -> result.reject(r));
+                    }),
+                    onRejected);
             });
             // 25.4.4.1 step 8 covers the whole of PerformPromiseAll, and
             // resolving the capability is part of it: a resolve function that
@@ -319,8 +358,10 @@ public final class NativePromise extends ScriptObject {
         requireConstructor(self);
         final Capability result = newPromiseCapability(self);
         try {
+            final Object onFulfilled = result.resolveFunction();
+            final Object onRejected = result.rejectFunction();
             combine(self, iterable,
-                    promised -> subscribe(promised, result::resolve, result::reject));
+                    promised -> subscribe(promised, onFulfilled, onRejected));
         } catch (final ECMAException e) {
             result.reject(e.getThrown());
         }
@@ -337,7 +378,23 @@ public final class NativePromise extends ScriptObject {
      * executor call. Only when it is this realm's own Promise is the whole
      * dance skipped, which is the common case and observably the same thing.
      */
-    private record Capability(Object promise, Object resolve, Object reject) {
+    private static final class Capability {
+        private final Object promise;
+        private final Object resolve;
+        private final Object reject;
+        /** Made only if something asks for the functions themselves. */
+        private Settlers settlers;
+
+        Capability(final Object promise, final Object resolve, final Object reject) {
+            this.promise = promise;
+            this.resolve = resolve;
+            this.reject = reject;
+        }
+
+        Object promise() {
+            return promise;
+        }
+
         void resolve(final Object value) {
             if (promise instanceof NativePromise own && resolve == null) {
                 own.resolveWith(value);
@@ -352,6 +409,26 @@ public final class NativePromise extends ScriptObject {
             } else {
                 ScriptRuntime.call(reject, ScriptRuntime.UNDEFINED, new Object[] { reason });
             }
+        }
+
+        /**
+         * The functions themselves, which a combinator hands to every element's
+         * then. It is the same pair every time, and a program can see that it
+         * is: the specification passes the capability's own functions through.
+         */
+        Object resolveFunction() {
+            return resolve != null ? resolve : own().resolve();
+        }
+
+        Object rejectFunction() {
+            return reject != null ? reject : own().reject();
+        }
+
+        private Settlers own() {
+            if (settlers == null) {
+                settlers = ((NativePromise)promise).settlers();
+            }
+            return settlers;
         }
     }
 
@@ -432,16 +509,26 @@ public final class NativePromise extends ScriptObject {
     private static void combine(final Object self, final Object iterable,
             final java.util.function.Consumer<Object> onElement) {
         final Global global = Global.instance();
+        // 25.4.4.1.1 GetPromiseResolve, before the iterable is touched at all: a
+        // constructor whose resolve is not callable fails without asking the
+        // iterable for its iterator.
         final Object resolver = self instanceof ScriptObject constructor ? constructor.get("resolve") : ScriptRuntime.UNDEFINED;
+        if (!(resolver instanceof ScriptFunction resolveFunction)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(resolver));
+        }
 
-        Object iterator = null;
-        try {
-            iterator = AbstractIterator.getIterator(iterable, global);
-            final org.openjdk.nashorn.internal.runtime.linker.InvokeByName next = AbstractIterator.getNextInvoker(global);
-            final java.lang.invoke.MethodHandle done = AbstractIterator.getDoneInvoker(global);
-            final java.lang.invoke.MethodHandle value = AbstractIterator.getValueInvoker(global);
+        final Object iterator = AbstractIterator.getIterator(iterable, global);
+        final org.openjdk.nashorn.internal.runtime.linker.InvokeByName next = AbstractIterator.getNextInvoker(global);
+        final java.lang.invoke.MethodHandle done = AbstractIterator.getDoneInvoker(global);
+        final java.lang.invoke.MethodHandle value = AbstractIterator.getValueInvoker(global);
 
-            while (true) {
+        while (true) {
+            final Object element;
+            // The iterator failing of its own accord - next() throwing, or a
+            // poisoned done or value - is not something 7.4.6 closes it for: it
+            // is already done. Only what the loop does with what it was handed
+            // counts as abandoning the iteration.
+            try {
                 final Object step = next.getInvoker().invokeExact(next.getGetter().invokeExact(iterator), iterator, (Object)null);
                 if (!(step instanceof ScriptObject)) {
                     throw typeError("not.an.object", ScriptRuntime.safeToString(step));
@@ -449,18 +536,19 @@ public final class NativePromise extends ScriptObject {
                 if (JSType.toBoolean((Object)done.invokeExact(step))) {
                     return;
                 }
-                final Object element = (Object)value.invokeExact(step);
-                final Object promised = resolver instanceof ScriptFunction resolveFunction
-                        ? ScriptRuntime.apply(resolveFunction, self, element)
-                        : resolve(self, element);
-                onElement.accept(promised);
+                element = (Object)value.invokeExact(step);
+            } catch (final RuntimeException | Error e) {
+                throw e;
+            } catch (final Throwable t) {
+                throw new RuntimeException(t);
             }
-        } catch (final RuntimeException | Error e) {
-            closeIterator(iterator, global);
-            throw e;
-        } catch (final Throwable t) {
-            closeIterator(iterator, global);
-            throw new RuntimeException(t);
+
+            try {
+                onElement.accept(ScriptRuntime.apply(resolveFunction, self, element));
+            } catch (final RuntimeException | Error e) {
+                closeIterator(iterator, global);
+                throw e;
+            }
         }
     }
 
@@ -472,14 +560,12 @@ public final class NativePromise extends ScriptObject {
      * a replacement that throws is how the surrounding iteration is meant to
      * stop. Reaching past it walks an infinite iterator forever.
      */
-    private static void subscribe(final Object promised, final java.util.function.Consumer<Object> onFulfilled,
-            final java.util.function.Consumer<Object> onRejected) {
-        if (promised instanceof ScriptObject sobj && sobj.get("then") instanceof ScriptFunction then) {
-            ScriptRuntime.apply(then, promised, callback(onFulfilled), callback(onRejected));
-            return;
+    private static void subscribe(final Object promised, final Object onFulfilled, final Object onRejected) {
+        final Object then = promised instanceof ScriptObject sobj ? sobj.get("then") : ScriptRuntime.UNDEFINED;
+        if (!(then instanceof ScriptFunction function)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(then));
         }
-        // not a thenable at all: it counts as already fulfilled with itself
-        onFulfilled.accept(promised);
+        ScriptRuntime.apply(function, promised, onFulfilled, onRejected);
     }
 
     /** Wraps one of the combinator's Java handlers as a function a script can call. */
@@ -560,10 +646,15 @@ public final class NativePromise extends ScriptObject {
             // a foreign thenable is adopted by calling its then with our own
             // resolve and reject, on the queue rather than inline
             global.getJobQueue().enqueue(() -> {
+                final Settlers settlers = settlers();
                 try {
-                    ScriptRuntime.apply(thenFunction, x, resolveFunction(), rejectFunction());
+                    ScriptRuntime.apply(thenFunction, x, settlers.resolve(), settlers.reject());
                 } catch (final ECMAException e) {
-                    settle(State.REJECTED, e.getThrown());
+                    // 25.4.2.2 step 3: a then that settles and then throws has
+                    // already had its say
+                    if (!settlers.spent()) {
+                        settle(State.REJECTED, e.getThrown());
+                    }
                 }
             });
             return;
@@ -598,37 +689,45 @@ public final class NativePromise extends ScriptObject {
             return;
         }
 
-        final NativePromise derived = reaction.derived();
+        final Capability capability = reaction.capability();
         if (!(handler instanceof ScriptFunction function)) {
             // no handler for this outcome: pass it straight through
             if (fulfilled) {
-                derived.resolveWith(value);
+                capability.resolve(value);
             } else {
-                derived.settle(State.REJECTED, value);
+                capability.reject(value);
             }
             return;
         }
 
         try {
-            derived.resolveWith(ScriptRuntime.apply(function, ScriptRuntime.UNDEFINED, value));
+            capability.resolve(ScriptRuntime.apply(function, ScriptRuntime.UNDEFINED, value));
         } catch (final ECMAException e) {
-            derived.settle(State.REJECTED, e.getThrown());
+            capability.reject(e.getThrown());
         }
     }
 
-    private ScriptFunction resolveFunction() {
-        return settler(true);
+    /**
+     * The resolve/reject pair handed to an executor.
+     *
+     * ES2015 25.4.1.3 gives the two of them one alreadyResolved between them, so
+     * whichever is called first is the one that counts and the other does
+     * nothing - and neither is named: they are anonymous functions of length 1.
+     */
+    private record Settlers(ScriptFunction resolve, ScriptFunction reject, boolean[] used) {
+        boolean spent() {
+            return used[0];
+        }
     }
 
-    private ScriptFunction rejectFunction() {
-        return settler(false);
-    }
-
-    /** The resolve/reject pair handed to an executor; each may only take effect once. */
-    private ScriptFunction settler(final boolean resolving) {
+    private Settlers settlers() {
         final boolean[] used = { false };
-        return ScriptFunction.createBuiltin(resolving ? "resolve" : "reject",
-                java.lang.invoke.MethodHandles.insertArguments(SETTLE, 0, this, resolving, used));
+        return new Settlers(
+                ScriptFunction.createBuiltin("",
+                        java.lang.invoke.MethodHandles.insertArguments(SETTLE, 0, this, true, used)),
+                ScriptFunction.createBuiltin("",
+                        java.lang.invoke.MethodHandles.insertArguments(SETTLE, 0, this, false, used)),
+                used);
     }
 
     @SuppressWarnings("unused")

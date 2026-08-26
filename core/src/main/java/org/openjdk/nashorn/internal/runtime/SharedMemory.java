@@ -25,6 +25,8 @@
 
 package org.openjdk.nashorn.internal.runtime;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntSupplier;
@@ -47,8 +49,28 @@ import java.util.function.IntSupplier;
  * do.
  */
 public final class SharedMemory {
-    /** One address's waiters, and the monitor they wait on. */
-    private static final Map<Address, Object> QUEUES = new HashMap<>();
+    /** The queues, by address. */
+    private static final Map<Address, Queue> QUEUES = new HashMap<>();
+
+    /**
+     * One address's waiters, and the monitor they wait on.
+     *
+     * The waiters are a list rather than a count because 24.4.12 takes the ones
+     * it wakes off the queue as it wakes them, and it holds the monitor while it
+     * does: a waiter cannot remove itself, because it is not running yet, and a
+     * second notify that could still see it would count it twice.
+     */
+    private static final class Queue {
+        private final Object monitor = new Object();
+        private final Deque<Waiter> waiters = new ArrayDeque<>();
+        /** How many agents are in a wait here, so an idle address can be dropped. */
+        private int users;
+    }
+
+    /** One agent waiting at one address. */
+    private static final class Waiter {
+        private boolean notified;
+    }
 
     /**
      * One address: a piece of storage and a byte offset into it.
@@ -96,35 +118,41 @@ public final class SharedMemory {
     public static String wait(final Object storage, final int offset, final int expected, final double millis,
             final IntSupplier current) {
         final Address address = new Address(storage, offset);
-        final Object monitor = queueFor(address);
+        final Queue queue = acquire(address);
+        final Waiter waiter = new Waiter();
 
-        synchronized (monitor) {
-            // the value is read under the queue, so a notify that has already
-            // happened cannot be missed between the read and the wait
-            if (current.getAsInt() != expected) {
-                release(address);
-                return "not-equal";
-            }
-            final long deadline = millis == Double.POSITIVE_INFINITY ? Long.MAX_VALUE
-                    : System.currentTimeMillis() + (long)Math.min(millis, Long.MAX_VALUE);
-            try {
-                final long remaining = deadline == Long.MAX_VALUE ? 0
-                        : deadline - System.currentTimeMillis();
-                if (deadline != Long.MAX_VALUE && remaining <= 0) {
-                    return "timed-out";
+        try {
+            synchronized (queue.monitor) {
+                // the value is read under the queue, so a notify that has already
+                // happened cannot be missed between the read and the wait
+                if (current.getAsInt() != expected) {
+                    return "not-equal";
                 }
-                monitor.wait(remaining);
-                // waking at or past the deadline is a timeout; waking before it
-                // is a notify, or a spurious wake, and answering "ok" to one of
-                // those is allowed
-                return deadline != Long.MAX_VALUE && System.currentTimeMillis() >= deadline
-                        ? "timed-out" : "ok";
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return "timed-out";
-            } finally {
-                release(address);
+                final long deadline = millis == Double.POSITIVE_INFINITY ? Long.MAX_VALUE
+                        : System.currentTimeMillis() + (long)Math.min(millis, Long.MAX_VALUE);
+                queue.waiters.add(waiter);
+                try {
+                    while (!waiter.notified) {
+                        if (deadline == Long.MAX_VALUE) {
+                            queue.monitor.wait();
+                            continue;
+                        }
+                        final long remaining = deadline - System.currentTimeMillis();
+                        if (remaining <= 0) {
+                            return "timed-out";
+                        }
+                        queue.monitor.wait(remaining);
+                    }
+                    return "ok";
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return "timed-out";
+                } finally {
+                    queue.waiters.remove(waiter);
+                }
             }
+        } finally {
+            release(address);
         }
     }
 
@@ -138,45 +166,40 @@ public final class SharedMemory {
      */
     public static int notify(final Object storage, final int offset, final double count) {
         final Address address = new Address(storage, offset);
-        final Object monitor;
-        final int waiting;
+        final Queue queue;
         synchronized (QUEUES) {
-            monitor = QUEUES.get(address);
-            waiting = monitor == null ? 0 : COUNTS.getOrDefault(address, 0);
+            queue = QUEUES.get(address);
         }
-        if (monitor == null || waiting == 0) {
+        if (queue == null) {
             return 0;
         }
-        final int woken = (int)Math.min(waiting, count);
-        synchronized (monitor) {
-            if (woken >= waiting) {
-                monitor.notifyAll();
-            } else {
-                for (int i = 0; i < woken; i++) {
-                    monitor.notify();
-                }
+        synchronized (queue.monitor) {
+            int woken = 0;
+            while (woken < count && !queue.waiters.isEmpty()) {
+                queue.waiters.remove().notified = true;
+                woken++;
             }
+            if (woken > 0) {
+                queue.monitor.notifyAll();
+            }
+            return woken;
         }
-        return woken;
     }
 
-    private static final Map<Address, Integer> COUNTS = new HashMap<>();
-
-    private static Object queueFor(final Address address) {
+    private static Queue acquire(final Address address) {
         synchronized (QUEUES) {
-            COUNTS.merge(address, 1, Integer::sum);
-            return QUEUES.computeIfAbsent(address, key -> new Object());
+            final Queue queue = QUEUES.computeIfAbsent(address, key -> new Queue());
+            queue.users++;
+            return queue;
         }
     }
 
     private static void release(final Address address) {
         synchronized (QUEUES) {
-            final int left = COUNTS.merge(address, -1, Integer::sum);
-            if (left <= 0) {
-                COUNTS.remove(address);
+            final Queue queue = QUEUES.get(address);
+            if (queue != null && --queue.users <= 0) {
                 QUEUES.remove(address);
             }
         }
     }
-
 }

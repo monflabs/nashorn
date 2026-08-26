@@ -3536,7 +3536,13 @@ public class Parser extends AbstractParser implements Loggable {
 
     private PropertyFunction propertyMethodFunction(final Expression key, final long propertyToken, final int methodLine, final boolean generator, final boolean async, final int flags, final boolean computed) {
         final long methodToken = includeOpeningQuote(propertyToken);
-        final String methodName = key instanceof PropertyKey ? ((PropertyKey) key).getPropertyName() : getDefaultValidFunctionName(methodLine, false);
+        // The name reaches bytecode as the name of a method, so a property name
+        // holding a character the class file format reserves - a dot, most
+        // commonly, from a numeric key like [1.1] - has to be escaped, the same
+        // way an accessor's is below.
+        final String methodName = key instanceof PropertyKey propertyKey
+                ? NameCodec.encode(propertyKey.getPropertyName())
+                : getDefaultValidFunctionName(methodLine, false);
         final IdentNode methodNameNode = createIdentNode(key.getToken(), finish, methodName);
 
         final FunctionNode.Kind functionKind = async ? FunctionNode.Kind.ASYNC
