@@ -148,6 +148,19 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     private final List<Statement> pendingDeclarations = new ArrayList<>();
 
     /**
+     * The iterators of the array patterns written in expression position in the
+     * statement being desugared, each with the temporary that records whether it
+     * is being left by a throw.
+     *
+     * A pattern in statement position carries its own try; one in expression
+     * position becomes a link in a comma chain, which is no place for one, so
+     * the guard goes around the whole statement instead. Closing an iterator
+     * that finished is a no-op, and so is closing one whose pattern was never
+     * reached, so a guard that turns out not to have been needed costs nothing.
+     */
+    private final List<String[]> expressionGuards = new ArrayList<>();
+
+    /**
      * The assignments the expression path must keep its hands off: the ones a
      * statement rewrite is going to take whole, and the ones that are not
      * assignments at all but defaults inside a pattern.
@@ -366,6 +379,48 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             chain = comma(token, chain, asExpression(statement));
         }
         return comma(token, chain, ref(at, value));
+    }
+
+    /**
+     * Wraps a statement in the close its expression-position patterns need.
+     *
+     * @param statement the statement, already desugared
+     * @return it, guarded, or itself when there was nothing to guard
+     */
+    private Statement guardExpressionIterators(final Statement statement) {
+        if (expressionGuards.isEmpty()) {
+            return statement;
+        }
+        final List<String[]> guards = new ArrayList<>(expressionGuards);
+        expressionGuards.clear();
+
+        final int line = statement.getLineNumber();
+        final long token = statement.getToken();
+        final int finish = statement.getFinish();
+        final String caught = newTemporary();
+
+        final List<Statement> record = new ArrayList<>(guards.size() + 1);
+        final List<Statement> close = new ArrayList<>(guards.size());
+        for (final String[] guard : guards) {
+            record.add(new ExpressionStatement(line, token, finish,
+                    new BinaryNode(Token.recast(token, TokenType.ASSIGN), ref(statement, guard[1]),
+                            LiteralNode.newInstance(token, finish, true))));
+            close.add(new ExpressionStatement(line, token, finish,
+                    runtime(statement, RuntimeNode.Request.ITERATOR_CLOSE_MAYBE,
+                            ref(statement, guard[0]), ref(statement, guard[1]))));
+        }
+        record.add(new ThrowNode(line, token, finish, ref(statement, caught), false));
+
+        return new TryNode(line, token, finish,
+                new Block(token, finish, statement),
+                List.of(new Block(token, finish, new CatchNode(line, token, finish,
+                        ref(statement, caught), null, new Block(token, finish, record), false))),
+                new Block(token, finish, close));
+    }
+
+    @Override
+    public Node leaveExpressionStatement(final ExpressionStatement expressionStatement) {
+        return guardExpressionIterators((Statement)super.leaveExpressionStatement(expressionStatement));
     }
 
     /** One step of the sequence, as an expression rather than a statement. */
@@ -1293,8 +1348,11 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(temporaryFor(at, iterator, runtime(at, RuntimeNode.Request.GET_ITERATOR, value)));
 
         if (asExpression) {
-            // A comma chain has nowhere to put a try, so a pattern written where
-            // an expression is wanted does without the guard below.
+            // A comma chain has nowhere to put a try, so the guard goes around
+            // the statement the chain is part of; see expressionGuards.
+            final String threwInStatement = newTemporary();
+            pendingDeclarations.add(declareTemporary(at, threwInStatement));
+            expressionGuards.add(new String[] { iterator, threwInStatement });
             destructureArrayElements(at, pattern, iterator, statements);
             return;
         }
@@ -1302,15 +1360,36 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> guarded = new ArrayList<>();
         destructureArrayElements(at, pattern, iterator, guarded);
 
+        final int line = at.getLineNumber();
+        final long token = at.getToken();
+        final int finish = at.getFinish();
+        final String threw = newTemporary();
+        final String caught = newTemporary();
+
         // ES2015 12.14.5.3: a pattern that gives up part way through tells its
         // iterator so, and it gives up as readily by throwing - out of a target
         // reference, a default, or a nested pattern - as by running out of
         // elements to bind. Closing twice is closing once.
-        statements.add(new TryNode(at.getLineNumber(), at.getToken(), at.getFinish(),
-                new Block(at.getToken(), at.getFinish(), guarded), List.of(),
-                new Block(at.getToken(), at.getFinish(),
-                        new ExpressionStatement(at.getLineNumber(), at.getToken(), at.getFinish(),
-                                runtime(at, RuntimeNode.Request.ITERATOR_CLOSE_QUIET, ref(at, iterator))))));
+        //
+        // What the close itself does wrong is reported unless the pattern was
+        // given up by a throw, which is the completion 7.4.6 keeps: a return out
+        // of a generator being destructured into does report it. Telling the two
+        // apart needs the throw seen, so a catch records it and rethrows.
+        final Block rethrow = new Block(token, finish,
+                new ExpressionStatement(line, token, finish,
+                        new BinaryNode(Token.recast(token, TokenType.ASSIGN), ref(at, threw),
+                                LiteralNode.newInstance(token, finish, true))),
+                new ThrowNode(line, token, finish, ref(at, caught), false));
+        statements.add(new VarNode(line, Token.recast(token, TokenType.VAR), finish, ref(at, threw),
+                LiteralNode.newInstance(token, finish, false)));
+        statements.add(new TryNode(line, token, finish,
+                new Block(token, finish, guarded),
+                List.of(new Block(token, finish,
+                        new CatchNode(line, token, finish, ref(at, caught), null, rethrow, false))),
+                new Block(token, finish,
+                        new ExpressionStatement(line, token, finish,
+                                runtime(at, RuntimeNode.Request.ITERATOR_CLOSE_MAYBE,
+                                        ref(at, iterator), ref(at, threw))))));
     }
 
     private void destructureArrayElements(final Statement at, final ArrayLiteralNode pattern,
