@@ -2143,11 +2143,13 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         final Class<?> returnType = desc.getMethodType().returnType();
         final Property property   = find.getProperty();
 
-        if (property.needsDeclaration()) {
+        if (property.needsDeclaration() && NashornCallSiteDescriptor.isScope(desc)) {
             // ES2015 8.1.1.1.6: a lexical binding cannot be read until its
             // declaration has run. Which reads are in the dead zone is decided
             // when the code is compiled wherever that can be seen, but a
-            // function reaching one from outside can only be caught here.
+            // function reaching one from outside can only be caught here. Only
+            // a scope lookup is asked: a lexical binding lives in a scope, and
+            // reading a property of an ordinary object never reaches one.
             //
             // The flag is part of the property map, and the declaration
             // replaces the map, so the guard is what makes this cost nothing
