@@ -396,6 +396,33 @@ public final class Global extends Scope {
     private volatile Object evalError = LAZY_SENTINEL;
 
     /**
+     * Getter for the AggregateError property.
+     *
+     * @param self self reference
+     * @return the value of the AggregateError property
+     */
+    @Getter(name = "AggregateError", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getAggregateError(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.aggregateError == LAZY_SENTINEL) {
+            global.aggregateError = global.getBuiltinAggregateError();
+        }
+        return global.aggregateError;
+    }
+
+    /**
+     * Setter for the AggregateError property.
+     *
+     * @param self  self reference
+     * @param value value for the AggregateError property
+     */
+    @Setter(name = "AggregateError", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setAggregateError(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.aggregateError = value;
+    }
+
+    /**
      * Getter for the RangeError property.
      * @param self self reference
      * @return the value of RangeError property
@@ -421,6 +448,7 @@ public final class Global extends Scope {
         global.rangeError = value;
     }
 
+    private volatile Object aggregateError = LAZY_SENTINEL;
     private volatile Object rangeError = LAZY_SENTINEL;
 
     /** ReferenceError object */
@@ -1120,6 +1148,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinError;
     private ScriptFunction builtinEval;
     private ScriptFunction builtinEvalError;
+    private ScriptFunction builtinAggregateError;
     private ScriptFunction builtinRangeError;
     private ScriptFunction builtinReferenceError;
     private ScriptFunction builtinSyntaxError;
@@ -1539,6 +1568,17 @@ public final class Global extends Scope {
      * @param msg error message
      * @return newly created RangeError object
      */
+    /**
+     * Create a new ECMAScript AggregateError object.
+     *
+     * @param errors the errors it stands for
+     * @param msg    error message
+     * @return newly created AggregateError object
+     */
+    public ScriptObject newAggregateError(final Object errors, final String msg) {
+        return new NativeAggregateError(errors, msg, this);
+    }
+
     public ScriptObject newRangeError(final String msg) {
         return new NativeRangeError(msg, this);
     }
@@ -1915,6 +1955,10 @@ public final class Global extends Scope {
 
     ScriptObject getEvalErrorPrototype() {
         return ScriptFunction.getPrototype(getBuiltinEvalError());
+    }
+
+    ScriptObject getAggregateErrorPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinAggregateError());
     }
 
     ScriptObject getRangeErrorPrototype() {
@@ -2500,6 +2544,13 @@ public final class Global extends Scope {
         return fn == Context.getGlobal().builtInJavaTo;
     }
 
+
+    private synchronized ScriptFunction getBuiltinAggregateError() {
+        if (this.builtinAggregateError == null) {
+            this.builtinAggregateError = initErrorSubtype("AggregateError", getErrorPrototype());
+        }
+        return builtinAggregateError;
+    }
 
     private synchronized ScriptFunction getBuiltinRangeError() {
         if (this.builtinRangeError == null) {

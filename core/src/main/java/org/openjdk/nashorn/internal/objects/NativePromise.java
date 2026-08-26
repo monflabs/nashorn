@@ -347,6 +347,110 @@ public final class NativePromise extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2021 25.6.4.3 Promise.any(iterable)
+     *
+     * The mirror image of all(): the first to be fulfilled settles it, and it
+     * gives up only when every one of them has rejected - with one error
+     * standing for all of theirs.
+     *
+     * @param self     self reference
+     * @param iterable the promises to take the first of
+     * @return a promise for whichever is fulfilled first
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static Object any(final Object self, final Object iterable) {
+        requireConstructor(self);
+        final Capability result = newPromiseCapability(self);
+        final List<Object> errors = new ArrayList<>();
+        final int[] remaining = { 1 };
+
+        try {
+            final Object onFulfilled = result.resolveFunction();
+            combine(self, iterable, promised -> {
+                final int slot = errors.size();
+                errors.add(ScriptRuntime.UNDEFINED);
+                remaining[0]++;
+                // 25.6.4.3.2: a reject element function takes effect once
+                final boolean[] alreadyCalled = { false };
+                subscribe(promised, onFulfilled, callback(r -> {
+                    if (alreadyCalled[0]) {
+                        return;
+                    }
+                    alreadyCalled[0] = true;
+                    errors.set(slot, r);
+                    if (--remaining[0] == 0) {
+                        result.reject(aggregate(errors));
+                    }
+                }));
+            });
+            if (--remaining[0] == 0) {
+                result.reject(aggregate(errors));
+            }
+        } catch (final ECMAException e) {
+            result.reject(e.getThrown());
+        }
+        return result.promise();
+    }
+
+    /** The error every rejection is gathered into, which is what any() gives up with. */
+    private static Object aggregate(final List<Object> errors) {
+        return Global.instance().newAggregateError(new NativeArray(errors.toArray()),
+                "All promises were rejected");
+    }
+
+    /**
+     * ECMAScript 2020 25.6.4.2 Promise.allSettled(iterable)
+     *
+     * Waits for every one of them and gives up on none: the promise it returns
+     * is fulfilled whatever they do, with a record of what each did.
+     *
+     * @param self     self reference
+     * @param iterable the promises to wait for
+     * @return a promise for one record per element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static Object allSettled(final Object self, final Object iterable) {
+        requireConstructor(self);
+        final Capability result = newPromiseCapability(self);
+        final List<Object> records = new ArrayList<>();
+        final int[] remaining = { 1 };
+
+        try {
+            combine(self, iterable, promised -> {
+                final int slot = records.size();
+                records.add(ScriptRuntime.UNDEFINED);
+                remaining[0]++;
+                // one flag between the pair: an element settles once
+                final boolean[] alreadyCalled = { false };
+                subscribe(promised,
+                    callback(v -> settled(alreadyCalled, records, slot, remaining, result, "fulfilled", "value", v)),
+                    callback(r -> settled(alreadyCalled, records, slot, remaining, result, "rejected", "reason", r)));
+            });
+            if (--remaining[0] == 0) {
+                result.resolve(new NativeArray(records.toArray()));
+            }
+        } catch (final ECMAException e) {
+            result.reject(e.getThrown());
+        }
+        return result.promise();
+    }
+
+    private static void settled(final boolean[] alreadyCalled, final List<Object> records, final int slot,
+            final int[] remaining, final Capability result, final String status, final String key, final Object value) {
+        if (alreadyCalled[0]) {
+            return;
+        }
+        alreadyCalled[0] = true;
+        final ScriptObject record = Global.newEmptyInstance();
+        record.set("status", status, 0);
+        record.set(key, value, 0);
+        records.set(slot, record);
+        if (--remaining[0] == 0) {
+            result.resolve(new NativeArray(records.toArray()));
+        }
+    }
+
+    /**
      * ECMAScript 2015 25.4.4.3 Promise.race(iterable)
      *
      * @param self     self reference
@@ -366,6 +470,97 @@ public final class NativePromise extends ScriptObject {
             result.reject(e.getThrown());
         }
         return result.promise();
+    }
+
+    /**
+     * ECMAScript 2018 25.6.5.3 Promise.prototype.finally(onFinally)
+     *
+     * The handler is told nothing and changes nothing: whatever the promise
+     * settled with passes through it untouched, which is what separates this
+     * from then(f, f). What it hands back is waited for first, though, so a
+     * handler that returns a promise delays the settlement - and one that
+     * throws replaces it.
+     *
+     * @param self      the promise
+     * @param onFinally called however it settles
+     * @return a promise that settles as this one does, after the handler has
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "finally")
+    public static Object _finally(final Object self, final Object onFinally) {
+        if (!(self instanceof ScriptObject promise)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final Object constructor = speciesConstructor(promise, Global.instance().get("Promise"));
+
+        final Object thenFinally;
+        final Object catchFinally;
+        if (!Bootstrap.isCallable(onFinally)) {
+            // 25.6.5.3 step 6: something uncallable is passed to then as it
+            // stands, which ignores it - so the promise passes straight through
+            thenFinally = onFinally;
+            catchFinally = onFinally;
+        } else {
+            thenFinally = ScriptFunction.createBuiltin("",
+                    java.lang.invoke.MethodHandles.insertArguments(THEN_FINALLY, 0, constructor, onFinally));
+            catchFinally = ScriptFunction.createBuiltin("",
+                    java.lang.invoke.MethodHandles.insertArguments(CATCH_FINALLY, 0, constructor, onFinally));
+        }
+        return invokeThen(promise, thenFinally, catchFinally);
+    }
+
+    /** Invoke(promise, "then", ...), which is how the specification reaches it. */
+    private static Object invokeThen(final Object promise, final Object onFulfilled, final Object onRejected) {
+        final Object then = promise instanceof ScriptObject sobj ? sobj.get("then") : ScriptRuntime.UNDEFINED;
+        if (!(then instanceof ScriptFunction function)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(then));
+        }
+        return ScriptRuntime.apply(function, promise, onFulfilled, onRejected);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object thenFinally(final Object constructor, final Object onFinally, final Object self,
+            final Object value) {
+        final Object waited = resolve(constructor,
+                ScriptRuntime.call(onFinally, ScriptRuntime.UNDEFINED, new Object[0]));
+        return invokeThen(waited, ScriptFunction.createBuiltin("",
+                java.lang.invoke.MethodHandles.insertArguments(RETURN_VALUE, 0, value)), ScriptRuntime.UNDEFINED);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object catchFinally(final Object constructor, final Object onFinally, final Object self,
+            final Object reason) {
+        final Object waited = resolve(constructor,
+                ScriptRuntime.call(onFinally, ScriptRuntime.UNDEFINED, new Object[0]));
+        return invokeThen(waited, ScriptFunction.createBuiltin("",
+                java.lang.invoke.MethodHandles.insertArguments(RETHROW, 0, reason)), ScriptRuntime.UNDEFINED);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object returnValue(final Object value, final Object self, final Object ignored) {
+        return value;
+    }
+
+    @SuppressWarnings("unused")
+    private static Object rethrow(final Object reason, final Object self, final Object ignored) {
+        throw new ECMAException(reason, null);
+    }
+
+    private static final java.lang.invoke.MethodHandle THEN_FINALLY = findStatic("thenFinally",
+            java.lang.invoke.MethodType.methodType(Object.class, Object.class, Object.class, Object.class, Object.class));
+    private static final java.lang.invoke.MethodHandle CATCH_FINALLY = findStatic("catchFinally",
+            java.lang.invoke.MethodType.methodType(Object.class, Object.class, Object.class, Object.class, Object.class));
+    private static final java.lang.invoke.MethodHandle RETURN_VALUE = findStatic("returnValue",
+            java.lang.invoke.MethodType.methodType(Object.class, Object.class, Object.class, Object.class));
+    private static final java.lang.invoke.MethodHandle RETHROW = findStatic("rethrow",
+            java.lang.invoke.MethodType.methodType(Object.class, Object.class, Object.class, Object.class));
+
+    private static java.lang.invoke.MethodHandle findStatic(final String name,
+            final java.lang.invoke.MethodType type) {
+        try {
+            return java.lang.invoke.MethodHandles.lookup().findStatic(NativePromise.class, name, type);
+        } catch (final ReflectiveOperationException e) {
+            throw new InternalError(e);
+        }
     }
 
     /**
@@ -630,12 +825,12 @@ public final class NativePromise extends ScriptObject {
             settle(State.REJECTED, typeError("promise.self.resolution").getThrown());
             return;
         }
-        if (x instanceof NativePromise thenable) {
-            thenable.onSettled(v -> settle(State.FULFILLED, v), r -> settle(State.REJECTED, r));
-            return;
-        }
         final Object then;
         try {
+            // 25.4.1.3.2 step 8: what "then" holds is read here, once, and a
+            // promise of this realm is read no differently - one whose then has
+            // been replaced is a thenable like any other, and one whose then is
+            // still the built-in reaches its own machinery through it
             then = x instanceof ScriptObject sobj ? sobj.get("then") : ScriptRuntime.UNDEFINED;
         } catch (final ECMAException e) {
             // a throwing "then" getter rejects, it does not escape
@@ -643,8 +838,8 @@ public final class NativePromise extends ScriptObject {
             return;
         }
         if (then instanceof ScriptFunction thenFunction) {
-            // a foreign thenable is adopted by calling its then with our own
-            // resolve and reject, on the queue rather than inline
+            // a thenable is adopted by calling its then with our own resolve and
+            // reject, on the queue rather than inline
             global.getJobQueue().enqueue(() -> {
                 final Settlers settlers = settlers();
                 try {

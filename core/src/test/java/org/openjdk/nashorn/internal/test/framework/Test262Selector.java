@@ -117,6 +117,7 @@ public final class Test262Selector {
             // BigInt literals
             "built-ins/Iterator/prototype/Symbol.iterator/return-val.js",
             "built-ins/Promise/all/resolve-throws-iterator-return-is-not-callable.js",
+            "built-ins/Promise/allSettled/resolve-throws-iterator-return-is-not-callable.js",
             "built-ins/Promise/any/resolve-throws-iterator-return-is-not-callable.js",
             "built-ins/Promise/race/resolve-throws-iterator-return-is-not-callable.js",
             "built-ins/RegExp/prototype/flags/this-val-non-obj.js",
