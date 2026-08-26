@@ -34,6 +34,7 @@ import org.openjdk.nashorn.internal.ir.BinaryNode;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.BlockStatement;
 import org.openjdk.nashorn.internal.ir.CatchNode;
+import org.openjdk.nashorn.internal.ir.ThrowNode;
 import org.openjdk.nashorn.internal.ir.ClassNode;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.ir.Expression;
@@ -1196,6 +1197,16 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * call to it then passes the temporary straight through. Closing an iterator
      * that ran to completion is a no-op, so the normal exit costs nothing beyond
      * the call.
+     *
+     * What the close does wrong is reported when the loop was left normally or
+     * by a break, and swallowed when it was left by a throw, which would
+     * otherwise lose the error the loop was already carrying. Telling the two
+     * apart needs the throw seen, so a second temporary records it, set by a
+     * catch that rethrows. That catch goes around the loop's body rather than
+     * around the loop: a try between the loop and the block that declares its
+     * variable hides it from the per-iteration scope the block builds, and the
+     * one exit it does not see - the iterator's own next() throwing - has
+     * already marked the iterator done, so the close there is a no-op anyway.
      */
     private List<Statement> closingIteration(final ForNode forNode) {
         final String iterator = newTemporary();
@@ -1204,15 +1215,34 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Expression store = new BinaryNode(Token.recast(forNode.getToken(), TokenType.ASSIGN),
                 ref(forNode, iterator), get);
 
-        final ForNode loop = forNode.setModify(lc, new JoinPredecessorExpression(store));
+        final int line = forNode.getLineNumber();
+        final long token = forNode.getToken();
+        final int finish = forNode.getFinish();
+        final String threw = newTemporary();
+        final String caught = newTemporary();
+
+        final Block rethrow = new Block(token, finish,
+                new ExpressionStatement(line, token, finish,
+                        new BinaryNode(Token.recast(token, TokenType.ASSIGN), ref(forNode, threw),
+                                LiteralNode.newInstance(token, finish, true))),
+                new ThrowNode(line, token, finish, ref(forNode, caught), false));
+        final Block catches = new Block(token, finish,
+                new CatchNode(line, token, finish, ref(forNode, caught), null, rethrow, false));
+        final Block guardedBody = new Block(forNode.getBody().getToken(), forNode.getBody().getFinish(),
+                new TryNode(line, token, finish, forNode.getBody(), List.of(catches), null));
+
+        final ForNode loop = forNode.setBody(lc, guardedBody)
+                .setModify(lc, new JoinPredecessorExpression(store));
         final Block body = new Block(forNode.getToken(), forNode.getFinish(), loop);
-        final Block close = new Block(forNode.getToken(), forNode.getFinish(),
-                new ExpressionStatement(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
-                        runtime(forNode, RuntimeNode.Request.ITERATOR_CLOSE_QUIET, ref(forNode, iterator))));
+        final Block close = new Block(token, finish,
+                new ExpressionStatement(line, token, finish,
+                        runtime(forNode, RuntimeNode.Request.ITERATOR_CLOSE_MAYBE,
+                                ref(forNode, iterator), ref(forNode, threw))));
 
         return List.of(declareTemporary(forNode, iterator),
-                new TryNode(forNode.getLineNumber(), forNode.getToken(), forNode.getFinish(),
-                        body, List.of(), close));
+                new VarNode(line, Token.recast(token, TokenType.VAR), finish, ref(forNode, threw),
+                        LiteralNode.newInstance(token, finish, false)),
+                new TryNode(line, token, finish, body, List.of(), close));
     }
 
     /**

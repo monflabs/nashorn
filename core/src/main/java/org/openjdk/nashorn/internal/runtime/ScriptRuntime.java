@@ -489,7 +489,15 @@ public final class ScriptRuntime {
                 try {
                     final Object next = nextInvoker.getGetter().invokeExact(iterator);
                     if (Bootstrap.isCallable(next)) {
-                        return nextInvoker.getInvoker().invokeExact(next, iterator, (Object) null);
+                        final Object result = nextInvoker.getInvoker().invokeExact(next, iterator, (Object) null);
+                        // ES2015 7.4.2 step 3: what next answers with has to be
+                        // an object. Reading "done" off a primitive answers
+                        // undefined, which is a loop that never ends.
+                        if (JSType.isPrimitive(result)) {
+                            exhausted = true;
+                            throw typeError("not.an.object", safeToString(result));
+                        }
+                        return result;
                     }
                 } catch (final RuntimeException|Error r) {
                     // ES2015 7.4.6 is only reached when the iteration is being
@@ -1432,6 +1440,25 @@ public final class ScriptRuntime {
      * @param iterator from {@link #GET_ITERATOR}
      * @return undefined
      */
+    /**
+     * Closes an iterator, reporting what the close does wrong unless something
+     * is already being thrown.
+     *
+     * ES2015 13.7.5.13 closes with whatever completion left the loop: a normal
+     * one, a break, a continue or a return all report, and a throw does not,
+     * because the throw on its way out is the one worth reporting.
+     *
+     * @param iterator from {@link #GET_ITERATOR}
+     * @param threw    whether the loop is being left by a throw
+     * @return undefined
+     */
+    public static Object ITERATOR_CLOSE_MAYBE(final Object iterator, final Object threw) {
+        if (iterator instanceof CloseableIterator closeable) {
+            closeable.close(!JSType.toBoolean(threw));
+        }
+        return UNDEFINED;
+    }
+
     public static Object ITERATOR_CLOSE_QUIET(final Object iterator) {
         if (iterator instanceof CloseableIterator closeable) {
             closeable.close(false);

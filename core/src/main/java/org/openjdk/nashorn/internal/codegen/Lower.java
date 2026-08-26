@@ -32,8 +32,11 @@ import static org.openjdk.nashorn.internal.ir.Expression.isAlwaysTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.openjdk.nashorn.internal.ir.AccessNode;
 import org.openjdk.nashorn.internal.ir.BaseNode;
@@ -59,6 +62,7 @@ import org.openjdk.nashorn.internal.ir.IndexNode;
 import org.openjdk.nashorn.internal.ir.JumpStatement;
 import org.openjdk.nashorn.internal.ir.JumpToInlinedFinally;
 import org.openjdk.nashorn.internal.ir.LabelNode;
+import org.openjdk.nashorn.internal.ir.LexicalContextNode;
 import org.openjdk.nashorn.internal.ir.LexicalContext;
 import org.openjdk.nashorn.internal.ir.LiteralNode;
 import org.openjdk.nashorn.internal.ir.LiteralNode.ArrayLiteralNode;
@@ -425,6 +429,66 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
     }
 
     /**
+     * The labels that, from inside {@code tryNode}, name a loop that is itself
+     * inside it.
+     *
+     * The visitor in {@link #spliceFinally} decides whether a jump leaves the
+     * try by asking whether its target resolves in a lexical context that
+     * begins at the try, so a label outside the try is a label it cannot see.
+     * Ordinarily that is the right answer - a jump to something outside does
+     * leave - but the desugaring of {@code for-of} puts a try between the loop
+     * and a label on it, to close the iterator, and a {@code continue} to that
+     * label does not leave the try at all. Splicing the finally into it would
+     * close the iterator on every turn of the loop; worse, the spliced jump
+     * ends up in a block where the loop is no longer in scope, and the target
+     * cannot be resolved at all later on.
+     *
+     * <p>A label on a statement that contains a loop, with a try in between,
+     * cannot arise any other way: {@code continue} naming a label that is not
+     * on an iteration statement is an early error, so a label whose loop is
+     * inside this try is a label this try was inserted underneath. That
+     * reasoning is what limits this to {@code continue}. A {@code break} may
+     * name any label, so one naming a statement that holds both this try and a
+     * loop leaves the try as any other outward jump does.
+     *
+     * @param tryNode the try node about to have its finally spliced in
+     * @return the names of those labels, empty if the try holds no loop
+     */
+    private Set<String> loopLabelsInside(final TryNode tryNode) {
+        final Set<String> names = new HashSet<>();
+        for (final Iterator<LexicalContextNode> iter = lc.getAllNodes(); iter.hasNext();) {
+            final LexicalContextNode node = iter.next();
+            if (node instanceof FunctionNode || node instanceof LoopNode) {
+                // a label further out than a loop names that loop, not this try
+                break;
+            }
+            if (node instanceof LabelNode labelNode) {
+                names.add(labelNode.getLabelName());
+            }
+        }
+        return names.isEmpty() || !holdsLoop(tryNode.getBody()) ? Collections.emptySet() : names;
+    }
+
+    private static boolean holdsLoop(final Block block) {
+        final boolean[] found = new boolean[1];
+        block.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public boolean enterDefault(final Node node) {
+                if (node instanceof LoopNode) {
+                    found[0] = true;
+                }
+                return !found[0];
+            }
+        });
+        return found[0];
+    }
+
+    /**
      * Splice finally code into all endpoints of a trynode
      * @param tryNode the try node
      * @param rethrow the rethrowing throw nodes from the synthetic catch block
@@ -437,6 +501,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         final Block finallyBlock = createFinallyBlock(finallyBody);
         final ArrayList<Block> inlinedFinallies = new ArrayList<>();
         final FunctionNode fn = lc.getCurrentFunction();
+        final Set<String> loopLabelsInside = loopLabelsInside(tryNode);
         final TryNode newTryNode = (TryNode)tryNode.accept(new SimpleNodeVisitor() {
 
             @Override
@@ -469,7 +534,8 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
                 // break/continue/return that were moved into the inlined finally block itself will be changed.
 
                 // If this visitor's lc doesn't find the target of the jump, it means it's external to the try block.
-                if (jump.getTarget(lc) == null) {
+                if (jump.getTarget(lc) == null
+                        && !(jump instanceof ContinueNode && loopLabelsInside.contains(jump.getLabelName()))) {
                     return createJumpToInlinedFinally(fn, inlinedFinallies, prependFinally(finallyBlock, jump));
                 }
                 return jump;
@@ -840,6 +906,14 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
      * @return true if internal, false otherwise
      */
     private static boolean isInternalExpression(final Expression expression) {
+        if (expression instanceof RuntimeNode runtime) {
+            // Closing an iterator is something the desugaring put there, not
+            // something the program said, so it is not what the program is worth
+            final RuntimeNode.Request request = runtime.getRequest();
+            return request == RuntimeNode.Request.ITERATOR_CLOSE
+                    || request == RuntimeNode.Request.ITERATOR_CLOSE_QUIET
+                    || request == RuntimeNode.Request.ITERATOR_CLOSE_MAYBE;
+        }
         if (!(expression instanceof IdentNode)) {
             return false;
         }

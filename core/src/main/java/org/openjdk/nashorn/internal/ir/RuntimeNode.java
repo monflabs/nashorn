@@ -88,6 +88,8 @@ public class RuntimeNode extends Expression {
         ITERATOR_REST(TokenType.VOID, Type.OBJECT, 1),
         /** ES2015 7.4.6 IteratorClose, when a pattern stops before its iterator does. */
         ITERATOR_CLOSE(TokenType.VOID, Type.OBJECT, 1),
+        /** Closes an iterator, reporting unless a throw is already on its way out. */
+        ITERATOR_CLOSE_MAYBE(TokenType.VOID, Type.OBJECT, 2),
         /** The same, where the iteration is being abandoned rather than finished. */
         ITERATOR_CLOSE_QUIET(TokenType.VOID, Type.OBJECT, 1),
         /** ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring. */

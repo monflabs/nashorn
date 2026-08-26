@@ -381,7 +381,11 @@ public final class NativePromise extends ScriptObject {
     @SuppressWarnings("unused")
     private static Object capture(final Object[] captured, final Object self,
             final Object resolve, final Object reject) {
-        if (captured[0] != null || captured[1] != null) {
+        // 25.4.1.5.1 steps 2 and 3 refuse only what has already been set, and
+        // an executor called with nothing sets nothing - so a constructor may
+        // call it again afterwards with the two functions for real
+        if (captured[0] != ScriptRuntime.UNDEFINED && captured[0] != null
+                || captured[1] != ScriptRuntime.UNDEFINED && captured[1] != null) {
             throw typeError("promise.capability.already.settled");
         }
         captured[0] = resolve;
