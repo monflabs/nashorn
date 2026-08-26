@@ -164,6 +164,18 @@ public class Parser extends AbstractParser implements Loggable {
 
     /** The temporary a class declaration is carried out of its own scope in. */
     private static final String CLASS_CARRIER_PREFIX = ":class";
+
+    /**
+     * Whether a method's key is being read on its own during a reparse.
+     *
+     * A method is recompiled from its own source text, which begins at its key,
+     * and a computed key may hold a yield or an await - the enclosing generator
+     * or async function is not there to say so, because nothing of it is in
+     * range. The key was read once already when the whole was parsed, so
+     * allowing the words here cannot let anything through that was not allowed
+     * then; it only lets the same text be read the same way twice.
+     */
+    private boolean reparsingPropertyKey;
     /** Whether an async arrow's parameter list is being parsed, where await is a keyword. */
     private boolean inAsyncParameters;
 
@@ -1167,11 +1179,21 @@ public class Parser extends AbstractParser implements Loggable {
                     final int propertyLine = line;
                     if (GET_NAME.equals(ident)) {
                         next();
-                        addPropertyFunctionStatement(propertyGetterFunction(propertyToken, propertyLine));
+                        reparsingPropertyKey = true;
+                        try {
+                            addPropertyFunctionStatement(propertyGetterFunction(propertyToken, propertyLine));
+                        } finally {
+                            reparsingPropertyKey = false;
+                        }
                         return;
                     } else if (SET_NAME.equals(ident)) {
                         next();
-                        addPropertyFunctionStatement(propertySetterFunction(propertyToken, propertyLine));
+                        reparsingPropertyKey = true;
+                        try {
+                            addPropertyFunctionStatement(propertySetterFunction(propertyToken, propertyLine));
+                        } finally {
+                            reparsingPropertyKey = false;
+                        }
                         return;
                     }
                 }
@@ -1208,7 +1230,13 @@ public class Parser extends AbstractParser implements Loggable {
         if (lookaheadIsAsyncMethod()) {
             next();
         }
-        final Expression propertyKey = propertyName();
+        final Expression propertyKey;
+        reparsingPropertyKey = true;
+        try {
+            propertyKey = propertyName();
+        } finally {
+            reparsingPropertyKey = false;
+        }
         final String ident = propertyKey instanceof PropertyKey key ? key.getPropertyName() : null;
 
         // A reparsed method has to be given back the flags it was parsed with, or
@@ -6220,7 +6248,7 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private boolean inGeneratorFunction() {
-        return lc.getCurrentFunction().getKind() == FunctionNode.Kind.GENERATOR;
+        return reparsingPropertyKey || lc.getCurrentFunction().getKind() == FunctionNode.Kind.GENERATOR;
     }
 
     /**
@@ -6231,7 +6259,7 @@ public class Parser extends AbstractParser implements Loggable {
      * await.
      */
     private boolean inAsyncFunction() {
-        if (inAsyncParameters) {
+        if (inAsyncParameters || reparsingPropertyKey) {
             return true;
         }
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
