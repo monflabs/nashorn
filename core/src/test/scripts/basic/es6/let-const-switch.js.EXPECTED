@@ -4,9 +4,5 @@
 1
 2
 0
-SyntaxError: src/test/scripts/basic/es6/let-const-switch.js#34:8<eval>:1:21 Unsupported let declaration in unprotected switch statement
-switch (x) { case 0: let x = 1; }
-                     ^
-SyntaxError: src/test/scripts/basic/es6/let-const-switch.js#34:8<eval>:1:21 Unsupported const declaration in unprotected switch statement
-switch (x) { case 0: const x = 1; }
-                     ^
+ReferenceError: "x" is not defined
+ReferenceError: "x" is not defined

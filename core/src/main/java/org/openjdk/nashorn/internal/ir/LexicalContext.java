@@ -691,19 +691,35 @@ public class LexicalContext {
     }
 
     /**
-     * Checks whether the current context is inside a switch statement without
-     * explicit blocks (curly braces).
+     * The block a declaration written straight into a case clause belongs to.
      *
-     * @return {@code true} if in unprotected switch statement.
+     * ES2015 13.12.11 gives a switch statement one scope for the whole of it
+     * rather than one per clause, so a "let" in one clause is in scope - in its
+     * dead zone before it runs - in all of them. Every clause is parsed into a
+     * block of its own, though, so the current block at the point of a
+     * declaration is the wrong one, and the right one is the block the parser
+     * put around the switch.
+     *
+     * @return that block, or {@code null} when the innermost block is not a
+     *         case clause's - a declaration inside braces the program wrote is
+     *         scoped to them as any other is
      */
-    public boolean inUnprotectedSwitchContext() {
+    public Block getSwitchBlock() {
         for (int i = sp - 1; i > 0; i--) {
-            final LexicalContextNode next = stack[i];
-            if (next instanceof Block) {
-                return stack[i - 1] instanceof SwitchNode;
+            if (!(stack[i] instanceof Block)) {
+                continue;
             }
+            if (!(stack[i - 1] instanceof SwitchNode)) {
+                return null;
+            }
+            for (int j = i - 2; j >= 0; j--) {
+                if (stack[j] instanceof Block block) {
+                    return block;
+                }
+            }
+            return null;
         }
-        return false;
+        return null;
     }
 
     @Override

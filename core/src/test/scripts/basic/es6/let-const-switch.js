@@ -40,6 +40,9 @@ function tryEval(s) {
 tryEval('var x = 0; switch (x) { case 0: { let   x = 1; print(x); } case 1: { let   x = 2; print(x); }} print(x);');
 tryEval('var x = 0; switch (x) { case 0: { const x = 1; print(x); } case 1: { const x = 2; print(x); }} print(x);');
 
-// TODO: the following should not throw
+// A clause needs no braces of its own: the whole switch is one scope, so the
+// declaration is in scope - and in its dead zone - across every clause. The
+// discriminant is evaluated before that scope exists, so reading an x that is
+// nowhere else declared is the ordinary reference error.
 tryEval('switch (x) { case 0: let x = 1; }');
 tryEval('switch (x) { case 0: const x = 1; }');

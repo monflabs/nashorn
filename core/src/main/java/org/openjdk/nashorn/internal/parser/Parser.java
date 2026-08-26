@@ -2982,7 +2982,19 @@ public class Parser extends AbstractParser implements Loggable {
                 return new ExpressionList(primaryToken, finish, Collections.emptyList());
             } else if (type == ELLIPSIS) {
                 // (...rest)
-                final IdentNode restParam = formalParameterList(false).get(0);
+                final Expression restParam;
+                final TokenType afterEllipsis = T(k + 1);
+                if (afterEllipsis == LBRACKET || afterEllipsis == LBRACE) {
+                    // (...[a, b]) => : the pattern is matched against what the
+                    // rest gathers, but the arrow that owns the parameter does
+                    // not exist yet, so the pattern is carried out of here and
+                    // taken apart in verifyArrowParameter, where it does.
+                    final long restToken = token;
+                    next();
+                    restParam = new UnaryNode(Token.recast(restToken, TokenType.SPREAD_ARRAY), bindingPattern());
+                } else {
+                    restParam = formalParameterList(false).get(0);
+                }
                 expectDontAdvance(RPAREN);
                 nextOrEOL();
                 expectDontAdvance(ARROW);
@@ -4304,6 +4316,33 @@ public class Parser extends AbstractParser implements Loggable {
             final int paramLine = line;
             final String contextString = "function parameter";
             IdentNode ident;
+            if (restParameter && !isBindingIdentifier()) {
+                // ES2015 14.1: a rest element may be a pattern, "...[a, b]". The
+                // rest is gathered into a parameter of its own, as it is for a
+                // name, and the pattern is matched against that - which is also
+                // what the pattern branch below does with an ordinary parameter.
+                final Expression pattern = bindingPattern();
+                ident = createIdentNode(paramToken, pattern.getFinish(),
+                        destructuredParameterName(parameters.size()))
+                        .setIsDestructuredParameter().setIsRestParameter();
+                verifyDestructuringParameterBindingPattern(pattern, paramToken, paramLine, contextString);
+                // a rest element ends the list, and takes no initializer
+                expectDontAdvance(endType);
+
+                final ParserContextFunctionNode restFunction = lc.getCurrentFunction();
+                if (restFunction != null) {
+                    if (env._parse_only) {
+                        restFunction.addParameterExpression(ident, pattern);
+                    } else {
+                        final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), pattern, ident);
+                        appendParameterStatement(restFunction, new ExpressionStatement(paramLine,
+                                assignment.getToken(), assignment.getFinish(), assignment));
+                    }
+                    restFunction.setSimpleParameterList(false);
+                }
+                parameters.add(ident);
+                break;
+            }
             if (isBindingIdentifier() || restParameter) {
                 ident = bindingIdentifier(contextString);
 
@@ -5233,7 +5272,8 @@ public class Parser extends AbstractParser implements Loggable {
         if (paramListExpr == null) {
             // empty parameter list, i.e. () =>
             parameters = Collections.emptyList();
-        } else if (paramListExpr instanceof IdentNode || paramListExpr.isTokenType(ASSIGN) || isDestructuringLhs(paramListExpr)) {
+        } else if (paramListExpr instanceof IdentNode || paramListExpr.isTokenType(ASSIGN)
+                || isDestructuringLhs(paramListExpr) || isRestPattern(paramListExpr)) {
             parameters = Collections.singletonList(verifyArrowParameter(paramListExpr, 0, functionLine));
         } else if (paramListExpr instanceof BinaryNode && Token.descType(paramListExpr.getToken()) == COMMARIGHT) {
             parameters = new ArrayList<>();
@@ -5248,6 +5288,12 @@ public class Parser extends AbstractParser implements Loggable {
             throw error(AbstractParser.message("expected.arrow.parameter"), paramListExpr.getToken());
         }
         return parameters;
+    }
+
+    /** "...[a, b]", carried out of the parenthesized form primaryExpression saw. */
+    private boolean isRestPattern(final Expression expression) {
+        return expression instanceof UnaryNode spread && spread.isTokenType(SPREAD_ARRAY)
+                && isDestructuringLhs(spread.getExpression());
     }
 
     private IdentNode verifyArrowParameter(final Expression param, final int index, final int paramLine) {
@@ -5310,6 +5356,27 @@ public class Parser extends AbstractParser implements Loggable {
                 }
                 return ident;
             }
+        } else if (isRestPattern(param)) {
+            // "...[a, b]" - the rest is gathered into a parameter of its own and
+            // the pattern is matched against it, as it is for a function
+            final Expression pattern = ((UnaryNode)param).getExpression();
+            final long paramToken = pattern.getToken();
+            final IdentNode ident = createIdentNode(paramToken, pattern.getFinish(),
+                    destructuredParameterName(index)).setIsDestructuredParameter().setIsRestParameter();
+            verifyDestructuringParameterBindingPattern(pattern, paramToken, paramLine, contextString);
+
+            final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
+            if (currentFunction != null) {
+                if (env._parse_only) {
+                    currentFunction.addParameterExpression(ident, pattern);
+                } else {
+                    final BinaryNode assignment = new BinaryNode(Token.recast(paramToken, ASSIGN), pattern, ident);
+                    appendParameterStatement(currentFunction, new ExpressionStatement(paramLine,
+                            assignment.getToken(), assignment.getFinish(), assignment));
+                }
+                currentFunction.setSimpleParameterList(false);
+            }
+            return ident;
         } else if (isDestructuringLhs(param)) {
             // binding pattern
             final long paramToken = param.getToken();

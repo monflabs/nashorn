@@ -205,10 +205,9 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
             public Node leaveVarNode(final VarNode varNode) {
                 final IdentNode ident  = varNode.getName();
                 final boolean blockScoped = varNode.isBlockScoped();
-                if (blockScoped && lc.inUnprotectedSwitchContext()) {
-                    throwUnprotectedSwitchError(varNode);
-                }
-                final Block block = blockScoped ? lc.getCurrentBlock() : body;
+                final Block switchBlock = blockScoped ? lc.getSwitchBlock() : null;
+                // a switch is one scope, not one per clause: see getSwitchBlock
+                final Block block = blockScoped ? (switchBlock != null ? switchBlock : lc.getCurrentBlock()) : body;
                 // A var written in the parameter list - the temporaries a
                 // pattern is taken apart with - belongs to the parameter
                 // list's environment, not the body's.
@@ -598,7 +597,10 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         } else {
             flags = 0;
         }
-        defineSymbol(lc.getCurrentBlock(), ident.getName(), ident, varNode.getSymbolFlags() | flags);
+        final Block switchBlock = varNode.isBlockScoped() ? lc.getSwitchBlock() : null;
+        // the same block the declaration was hoisted into: see getSwitchBlock
+        defineSymbol(switchBlock != null ? switchBlock : lc.getCurrentBlock(),
+                ident.getName(), ident, varNode.getSymbolFlags() | flags);
     }
 
     private Symbol exceptionSymbol() {
@@ -987,15 +989,6 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
 
     private static boolean isSplitLiteral(final LexicalContextNode expr) {
         return expr instanceof Splittable && ((Splittable) expr).getSplitRanges() != null;
-    }
-
-    private void throwUnprotectedSwitchError(final VarNode varNode) {
-        // Block scoped declarations in switch statements without explicit blocks should be declared
-        // in a common block that contains all the case clauses. We cannot support this without a
-        // fundamental rewrite of how switch statements are handled (case nodes contain blocks and are
-        // directly contained by switch node). As a temporary solution we throw a reference error here.
-        final String msg = ECMAErrors.getMessage("syntax.error.unprotected.switch.declaration", varNode.isLet() ? "let" : "const");
-        throwParserException(msg, varNode);
     }
 
     private void throwParserException(final String message, final Node origin) {
