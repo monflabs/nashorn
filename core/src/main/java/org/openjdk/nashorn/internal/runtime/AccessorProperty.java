@@ -524,7 +524,7 @@ public class AccessorProperty extends Property {
     private String accessorName(final String prefix) {
         final Object key = getKey();
         return key instanceof Symbol symbol
-                ? prefix + "[" + symbol.getName() + "]"
+                ? prefix + symbol.asFunctionName()
                 : prefix + key;
     }
 

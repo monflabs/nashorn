@@ -54,6 +54,19 @@ public final class Symbol implements Serializable {
      * Return the symbol's name
      * @return the name
      */
+    /**
+     * The name a function keyed by this symbol takes.
+     *
+     * ES2015 9.2.11 names it after the symbol's description, in brackets - and
+     * one with no description names it nothing at all, which is what separates
+     * "get " from "get []".
+     *
+     * @return that name
+     */
+    public final String asFunctionName() {
+        return name.isEmpty() ? "" : "[" + name + "]";
+    }
+
     public final String getName() {
         return name;
     }

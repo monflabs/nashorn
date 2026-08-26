@@ -1802,7 +1802,7 @@ public final class ScriptRuntime {
 
     /** An accessor's name carries "get " or "set " in front of the key's. */
     private static Object prefixed(final String prefix, final Object key) {
-        return key instanceof Symbol symbol ? prefix + "[" + symbol.getName() + "]" : prefix + JSType.toString(key);
+        return key instanceof Symbol symbol ? prefix + symbol.asFunctionName() : prefix + JSType.toString(key);
     }
 
     private static void defineClassElement(final ScriptObject target, final Object key, final int flags,

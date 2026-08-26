@@ -1104,7 +1104,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param setter {@link UserAccessorProperty} defined setter, or null if none
      */
     private static Object prefixedKey(final String prefix, final Object key) {
-        return key instanceof Symbol symbol ? prefix + "[" + symbol.getName() + "]" : prefix + JSType.toString(key);
+        return key instanceof Symbol symbol ? prefix + symbol.asFunctionName() : prefix + JSType.toString(key);
     }
 
     public final void setUserAccessors(final Object key, final ScriptFunction getter, final ScriptFunction setter) {

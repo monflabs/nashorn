@@ -146,12 +146,15 @@ public class ScriptFunction extends ScriptObject {
     static {
         anonmap$ = PropertyMap.newMap();
         final ArrayList<Property> properties = new ArrayList<>(3);
-        properties.add(AccessorProperty.create("prototype", Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, G$PROTOTYPE, S$PROTOTYPE));
-        // ES2015 19.2.4.1/19.2.4.2 made length and name configurable, where ES5.1
-        // had them fixed. Classes rely on it: a class names its constructor, which
+        // In the order ES2015 9.2.5 creates them - length, then name, then
+        // prototype - which is the order they are then enumerated in.
+        //
+        // 19.2.4.1/19.2.4.2 made length and name configurable, where ES5.1 had
+        // them fixed. Classes rely on it: a class names its constructor, which
         // is otherwise called "constructor".
         properties.add(AccessorProperty.create("length", Property.NOT_ENUMERABLE | Property.NOT_WRITABLE, G$LENGTH, null));
         properties.add(AccessorProperty.create("name", Property.NOT_ENUMERABLE | Property.NOT_WRITABLE, G$NAME, null));
+        properties.add(AccessorProperty.create("prototype", Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, G$PROTOTYPE, S$PROTOTYPE));
         map$ = PropertyMap.newMap(properties);
         strictmodemap$ = createStrictModeMap(map$);
         boundfunctionmap$ = createBoundFunctionMap(strictmodemap$);
@@ -879,7 +882,7 @@ public class ScriptFunction extends ScriptObject {
             // description, in brackets - and one with no description names it
             // nothing at all
             function.data.setName(key instanceof Symbol symbol
-                    ? (symbol.getName().isEmpty() ? "" : "[" + symbol.getName() + "]")
+                    ? symbol.asFunctionName()
                     : JSType.toString(key));
         }
         return value;
