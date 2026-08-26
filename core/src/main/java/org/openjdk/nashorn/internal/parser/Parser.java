@@ -5112,12 +5112,15 @@ public class Parser extends AbstractParser implements Loggable {
                 final Expression trueExpr;
                 final Expression falseExpr;
                 try {
-                    trueExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), false);
+                    // Both branches are AssignmentExpressions, which is more than
+                    // an expression begun from a unary one: a yield is read as a
+                    // name that way, and an arrow is not read at all.
+                    trueExpr = assignmentExpression(false);
 
                     expect(COLON);
 
                     // Fail expression.
-                    falseExpr = expression(unaryExpression(), ASSIGN.getPrecedence(), noIn);
+                    falseExpr = assignmentExpression(noIn);
                 } finally {
                     defaultNames.pop();
                 }
