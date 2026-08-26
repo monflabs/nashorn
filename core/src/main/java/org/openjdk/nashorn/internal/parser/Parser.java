@@ -161,6 +161,9 @@ import org.openjdk.nashorn.internal.runtime.logging.Logger;
 public class Parser extends AbstractParser implements Loggable {
     private static final String ARGUMENTS_NAME = CompilerConstants.ARGUMENTS_VAR.symbolName();
     private static final String CONSTRUCTOR_NAME = "constructor";
+
+    /** The temporary a class declaration is carried out of its own scope in. */
+    private static final String CLASS_CARRIER_PREFIX = ":class";
     /** Whether an async arrow's parameter list is being parsed, where await is a keyword. */
     private boolean inAsyncParameters;
 
@@ -1234,12 +1237,41 @@ public class Parser extends AbstractParser implements Loggable {
     private ClassNode classDeclaration(final boolean isDefault) {
         final int classLineNumber = line;
 
-        final ClassNode classExpression = classExpression(!isDefault);
-
-        if (!isDefault) {
-            final VarNode classVar = new VarNode(classLineNumber, classExpression.getToken(), classExpression.getIdent().getFinish(), classExpression.getIdent(), classExpression, VarNode.IS_CONST);
-            appendStatement(classVar);
+        if (isDefault) {
+            return classExpression(false);
         }
+
+        // ES2015 14.5.14 gives a class a scope of its own holding its name,
+        // which is what the methods see: an immutable binding, separate from the
+        // mutable one the declaration makes in the block around it, so that
+        // reassigning the name afterwards leaves what the methods read alone.
+        // The class is built inside that scope and carried out of it in a
+        // temporary, because the name the outside knows it by is shadowed there.
+        final long classToken = token;
+        final String carrier = namespace.uniqueName(CLASS_CARRIER_PREFIX);
+        final IdentNode carrierIdent = new IdentNode(classToken, finish, carrier);
+        appendStatement(new VarNode(classLineNumber, Token.recast(classToken, VAR), finish,
+                new IdentNode(classToken, finish, carrier), null));
+
+        final ParserContextBlockNode scope = newBlock();
+        final ClassNode classExpression;
+        try {
+            classExpression = classExpression(true);
+            final IdentNode name = classExpression.getIdent();
+            appendStatement(new VarNode(classLineNumber, classExpression.getToken(), name.getFinish(),
+                    name.setIsDeclaredHere(), classExpression, VarNode.IS_CONST));
+            appendStatement(new ExpressionStatement(classLineNumber, classToken, finish,
+                    new BinaryNode(Token.recast(classToken, ASSIGN), carrierIdent,
+                            new IdentNode(name.getToken(), name.getFinish(), name.getName()))));
+        } finally {
+            restoreBlock(scope);
+        }
+        appendStatement(new BlockStatement(classLineNumber,
+                new Block(classToken, finish, scope.getFlags() | Block.IS_SYNTHETIC, scope.getStatements())));
+
+        appendStatement(new VarNode(classLineNumber, classExpression.getToken(),
+                classExpression.getIdent().getFinish(), classExpression.getIdent(),
+                new IdentNode(classToken, finish, carrier), VarNode.IS_LET));
         return classExpression;
     }
 

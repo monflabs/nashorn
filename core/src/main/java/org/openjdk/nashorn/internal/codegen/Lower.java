@@ -914,11 +914,24 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
                     || request == RuntimeNode.Request.ITERATOR_CLOSE_QUIET
                     || request == RuntimeNode.Request.ITERATOR_CLOSE_MAYBE;
         }
+        if (expression instanceof BinaryNode assignment && assignment.isTokenType(TokenType.ASSIGN)
+                && assignment.lhs() instanceof IdentNode target && isInternalName(target.getName())) {
+            // Something being put by in a compiler temporary is not what the
+            // program is worth either: a class declaration carries its class out
+            // of its own scope that way, and 14.5.16 leaves the completion value
+            // of one empty.
+            return true;
+        }
         if (!(expression instanceof IdentNode)) {
             return false;
         }
         final Symbol symbol = ((IdentNode)expression).getSymbol();
         return symbol != null && symbol.isInternal();
+    }
+
+    /** Whether a name is one the compiler made up rather than one the program wrote. */
+    private static boolean isInternalName(final String name) {
+        return !name.isEmpty() && name.charAt(0) == ':';
     }
 
     /**
