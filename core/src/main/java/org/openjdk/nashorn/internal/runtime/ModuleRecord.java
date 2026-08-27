@@ -25,10 +25,12 @@
 
 package org.openjdk.nashorn.internal.runtime;
 
+import static org.openjdk.nashorn.internal.runtime.ECMAErrors.referenceError;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.syntaxError;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,20 +52,38 @@ import org.openjdk.nashorn.internal.objects.Global;
  * function reassigning an exported variable is seen by everyone who imported it.
  * Nothing is copied.
  *
- * <p>Two things are simpler here than in the specification. Instantiation and
- * evaluation are one pass rather than two, so a cycle sees a module whose body
- * has started but not finished - which is what the specification says happens
- * for a cycle's back edge anyway, only reached by a different route. And an
- * export that names nothing is reported when it is read rather than when the
- * graph is linked.
+ * <p>Linking and evaluation are separate passes. {@link #link} loads the whole
+ * graph and resolves every import and every re-export against it, so a name that
+ * is exported by nobody, or by two modules at once, is a SyntaxError before any
+ * module body has run - which is what the specification means by an error at
+ * instantiation. Evaluation is then the depth-first walk of the same graph.
  */
 public final class ModuleRecord {
     /** Where a module says which scope is its own, while its body is starting. */
     private static final ThreadLocal<ModuleRecord> STARTING = new ThreadLocal<>();
 
+    /** What ResolveExport answers when a name is exported by two modules at once. */
+    private static final Binding AMBIGUOUS = new Binding(null, null);
+
+    /** What a re-exported namespace object is bound as, rather than by name. */
+    private static final String NAMESPACE = "*namespace*";
+
+    /**
+     * A name in the module that holds it (15.2.1.16.3).
+     *
+     * @param module where the binding lives
+     * @param name   what it is called there
+     */
+    private record Binding(ModuleRecord module, String name) {
+    }
+
     private enum State {
-        /** compiled, not yet run */
+        /** compiled, not yet linked */
         NEW,
+        /** its dependencies are being loaded, or it is on the stack of a link that is */
+        LINKING,
+        /** linked, not yet run */
+        LINKED,
         /** its body is running, or one of its dependencies is */
         EVALUATING,
         /** its body has finished */
@@ -77,6 +97,7 @@ public final class ModuleRecord {
 
     private State state = State.NEW;
     private ScriptObject environment;
+    private ScriptObject namespace;
 
     ModuleRecord(final String name, final Module module, final ScriptFunction body, final Global global) {
         this.name = name;
@@ -91,12 +112,120 @@ public final class ModuleRecord {
     }
 
     /**
+     * Loads everything this module depends on and resolves every name it names.
+     *
+     * ES2015 15.2.1.16.4: an import of a name nothing exports, or of one two
+     * modules export under the same name, is a SyntaxError - and it is one
+     * before any of the graph runs, which is why this is a pass of its own. A
+     * dependency that will not parse is reported here too, for the same reason.
+     *
+     * @return the module itself
+     */
+    public ModuleRecord link() {
+        if (state != State.NEW) {
+            // already linked, or on the stack of a link that is: a cycle
+            return this;
+        }
+        state = State.LINKING;
+
+        for (final String requested : module.getRequestedModules()) {
+            dependency(requested).link();
+        }
+
+        for (final Module.ExportEntry entry : module.getIndirectExportEntries()) {
+            required(resolveExport(entry.getExportName().getName(), new HashSet<>()),
+                    entry.getExportName().getName());
+        }
+        for (final Module.ImportEntry entry : module.getImportEntries()) {
+            final String imported = entry.getImportName().getName();
+            if (!Module.STAR_NAME.equals(imported)) {
+                required(dependency(entry.getModuleRequest().getName())
+                        .resolveExport(imported, new HashSet<>()), imported);
+            }
+        }
+
+        state = State.LINKED;
+        return this;
+    }
+
+    private void required(final Binding resolution, final String exportName) {
+        if (resolution == null) {
+            throw syntaxError("module.export.not.found", exportName, name);
+        }
+        if (resolution == AMBIGUOUS) {
+            throw syntaxError("module.export.ambiguous", exportName, name);
+        }
+    }
+
+    /**
+     * ES2015 15.2.1.16.3 ResolveExport: which binding, in which module, one of
+     * this module's export names stands for.
+     *
+     * @param exportName the name as exported
+     * @param resolving  the (module, name) pairs already being resolved, which is
+     *                   how a cycle ends rather than repeating
+     * @return the binding, null if nothing exports the name, or {@link #AMBIGUOUS}
+     */
+    private Binding resolveExport(final String exportName, final Set<String> resolving) {
+        if (!resolving.add(name + "\u0000" + exportName)) {
+            // this module is already being asked the same question further up
+            // the stack: it is a cycle, and answering again would not end
+            return null;
+        }
+
+        for (final Module.ExportEntry entry : module.getLocalExportEntries()) {
+            if (exportName.equals(entry.getExportName().getName())) {
+                final String local = entry.getLocalName().getName();
+                final Module.ImportEntry namespaceImport = namespaceImportOf(local);
+                if (namespaceImport != null) {
+                    // "import * as ns; export {ns}" re-exports the namespace
+                    // object of the module it came from, and names that module
+                    // rather than this one - so two modules re-exporting the
+                    // same namespace agree about it instead of clashing
+                    return new Binding(dependency(namespaceImport.getModuleRequest().getName()), NAMESPACE);
+                }
+                return new Binding(this, local);
+            }
+        }
+        for (final Module.ExportEntry entry : module.getIndirectExportEntries()) {
+            if (exportName.equals(entry.getExportName().getName())) {
+                return dependency(entry.getModuleRequest().getName())
+                        .resolveExport(entry.getImportName().getName(), resolving);
+            }
+        }
+        if (Module.DEFAULT_NAME.equals(exportName)) {
+            // 15.2.1.16.3 step 5: export * never carries a default
+            return null;
+        }
+
+        Binding star = null;
+        for (final Module.ExportEntry entry : module.getStarExportEntries()) {
+            final Binding resolution = dependency(entry.getModuleRequest().getName())
+                    .resolveExport(exportName, resolving);
+            if (resolution == AMBIGUOUS) {
+                return AMBIGUOUS;
+            }
+            if (resolution != null) {
+                if (star == null) {
+                    star = resolution;
+                } else if (star.module() != resolution.module() || !star.name().equals(resolution.name())) {
+                    return AMBIGUOUS;
+                }
+            }
+        }
+        return star;
+    }
+
+    /**
      * Runs the module's body, and everything it depends on first.
      *
      * @return the module itself, once its body has finished
      */
     public ModuleRecord evaluate() {
-        if (state != State.NEW) {
+        if (state == State.NEW) {
+            link();
+        }
+        if (state != State.LINKED) {
             // already run, or being run further down the same stack: a cycle
             return this;
         }
@@ -109,7 +238,7 @@ public final class ModuleRecord {
         final ModuleRecord previous = STARTING.get();
         STARTING.set(this);
         try {
-            ScriptRuntime.apply(body, global);
+            ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
         } finally {
             STARTING.set(previous);
         }
@@ -153,29 +282,33 @@ public final class ModuleRecord {
      * @return the current value of the binding behind it
      */
     public Object read(final String exportName) {
-        for (final Module.ExportEntry entry : module.getLocalExportEntries()) {
-            if (exportName.equals(entry.getExportName().getName())) {
-                return local(entry.getLocalName().getName());
-            }
+        final Binding resolution = resolveExport(exportName, new HashSet<>());
+        if (resolution == null || resolution == AMBIGUOUS) {
+            throw syntaxError("module.export.not.found", exportName, name);
         }
-        for (final Module.ExportEntry entry : module.getIndirectExportEntries()) {
-            if (exportName.equals(entry.getExportName().getName())) {
-                return dependency(entry.getModuleRequest().getName())
-                        .read(entry.getImportName().getName());
-            }
+        if (NAMESPACE.equals(resolution.name())) {
+            return resolution.module().namespace();
         }
-        for (final Module.ExportEntry entry : module.getStarExportEntries()) {
-            final ModuleRecord from = dependency(entry.getModuleRequest().getName());
-            if (from.exportNames().contains(exportName)) {
-                return from.read(exportName);
-            }
-        }
-        throw syntaxError("module.export.not.found", exportName, name);
+        return resolution.module().local(resolution.name());
     }
 
-    /** Every name this module exports, including the ones it re-exports. */
+    /**
+     * ES2015 15.2.1.16.2 GetExportedNames: every name this module exports,
+     * including the ones it re-exports.
+     *
+     * @return the names, in the order the specification collects them
+     */
     public Set<String> exportNames() {
+        return exportNames(new HashSet<>());
+    }
+
+    private Set<String> exportNames(final Set<String> visited) {
         final Set<String> names = new LinkedHashSet<>();
+        if (!visited.add(name)) {
+            // a cycle of export * declarations, which the specification ends by
+            // answering with nothing rather than by going round again
+            return names;
+        }
         for (final Module.ExportEntry entry : module.getLocalExportEntries()) {
             names.add(entry.getExportName().getName());
         }
@@ -183,7 +316,11 @@ public final class ModuleRecord {
             names.add(entry.getExportName().getName());
         }
         for (final Module.ExportEntry entry : module.getStarExportEntries()) {
-            names.addAll(dependency(entry.getModuleRequest().getName()).exportNames());
+            for (final String starred : dependency(entry.getModuleRequest().getName()).exportNames(visited)) {
+                if (!Module.DEFAULT_NAME.equals(starred)) {
+                    names.add(starred);
+                }
+            }
         }
         return names;
     }
@@ -191,20 +328,66 @@ public final class ModuleRecord {
     /**
      * The module namespace object (ES2015 9.4.6), which {@code import * as ns}
      * binds. Its properties read the exports as they stand.
+     *
+     * <p>A name two modules export at once is left out rather than reported: it
+     * is only an error where it is named, which the namespace object does not do.
+     * The same object is answered every time, because 15.2.1.18 makes a module's
+     * namespace its own and equality between two imports of it is observable.
+     *
+     * @return the namespace object
      */
     public ScriptObject namespace() {
-        final List<String> sorted = new ArrayList<>(exportNames());
-        // 9.4.6.11: a namespace object's keys are sorted
-        sorted.sort(null);
-        return new ModuleNamespace(this, sorted);
+        if (namespace == null) {
+            final List<String> sorted = new ArrayList<>();
+            for (final String exported : exportNames()) {
+                if (resolveExport(exported, new HashSet<>()) != AMBIGUOUS) {
+                    sorted.add(exported);
+                }
+            }
+            // 9.4.6.11: a namespace object's keys are sorted
+            sorted.sort(null);
+            namespace = new ModuleNamespace(this, sorted);
+        }
+        return namespace;
     }
 
+    /** The namespace import that binds a name here, if that is what binds it. */
+    private Module.ImportEntry namespaceImportOf(final String localName) {
+        for (final Module.ImportEntry entry : module.getImportEntries()) {
+            if (localName.equals(entry.getLocalName().getName())
+                    && Module.STAR_NAME.equals(entry.getImportName().getName())) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The value of one of this module's own bindings.
+     *
+     * ES2015 8.1.1.1.6 GetBindingValue: a binding that has not been initialised
+     * yet is a ReferenceError to read, and an import is a read of the exporting
+     * module's binding rather than a copy of it - so an import read before the
+     * module it came from has run, whether through a cycle or through a
+     * namespace object, is one too.
+     *
+     * @param localName the name in this module
+     * @return its value
+     */
     private Object local(final String localName) {
         if (environment == null) {
-            // reached through a cycle before this module's body started
+            // reached through a cycle before this module's body started, so
+            // nothing it declares has been initialised
+            throw referenceError("not.defined", localName);
+        }
+        final FindProperty found = environment.findProperty(localName, false);
+        if (found == null) {
             return ScriptRuntime.UNDEFINED;
         }
-        return environment.get(localName);
+        if (found.getProperty().needsDeclaration()) {
+            throw referenceError("not.defined", localName);
+        }
+        return found.getObjectValue();
     }
 
     private ModuleRecord dependency(final String specifier) {

@@ -1318,6 +1318,13 @@ public class Parser extends AbstractParser implements Loggable {
         return classExpression;
     }
 
+    /** Whether the function about to be read has a name. */
+    private boolean lookaheadIsNamedFunction() {
+        assert type == FUNCTION;
+        final int name = T(k + 1) == MUL ? k + 2 : k + 1;
+        return T(name) != LPAREN;
+    }
+
     /** Whether the class about to be read has a name. */
     private boolean lookaheadIsNamedClass() {
         assert type == CLASS;
@@ -4338,8 +4345,12 @@ public class Parser extends AbstractParser implements Loggable {
                 return function;
             }
 
-            // mark ES6 block functions as lexically scoped
-            final int     varFlags = topLevel ? 0 : VarNode.IS_LET;
+            // mark ES6 block functions as lexically scoped. A module's own top
+            // level is lexical too: 15.2.1.1 counts its function declarations
+            // among its LexicallyDeclaredNames, so two of a name, or one beside
+            // a var of the same name, is an early error there where in a script
+            // it is not.
+            final int     varFlags = topLevel && !isModuleTopLevel() ? 0 : VarNode.IS_LET;
             final VarNode varNode  = new VarNode(functionLine, functionToken, finish, name, function, varFlags);
             if (topLevel) {
                 functionDeclarations.add(varNode);
@@ -5839,6 +5850,7 @@ public class Parser extends AbstractParser implements Loggable {
 
             final Module parsedModule = module.createModule();
             verifyUniqueExports(parsedModule, functionToken);
+            verifyExportedBindings(parsedModule, moduleStatements, functionToken);
             script.setModule(parsedModule);
             return createFunctionNode(script, functionToken, ident, Collections.emptyList(), FunctionNode.Kind.MODULE, functionLine, programBody);
         } finally {
@@ -5853,6 +5865,47 @@ public class Parser extends AbstractParser implements Loggable {
      * and are not checked here; two written out with the same name are an early
      * error, whichever kind they are.
      */
+    /**
+     * ES2015 15.2.1.1: every name a module exports has to be one it declares.
+     * Exporting a name the global happens to have, or one nothing declares, is
+     * an error rather than a re-export of it.
+     *
+     * Only what the module writes down counts as a declaration. A let inside a
+     * block of the module's own is not one either, and is missed here rather
+     * than reported, because unwinding which of the nested declarations reach
+     * the top is work the symbol assignment does later and better.
+     */
+    private void verifyExportedBindings(final Module parsedModule, final List<Statement> statements, final long moduleToken) {
+        if (env._parse_only) {
+            // the tree API is shown the module as written, without the
+            // declarations the runtime needs behind it, so there is nothing here
+            // that could tell a missing binding from an unwritten one
+            return;
+        }
+        final Set<String> declared = new HashSet<>();
+        final NodeVisitor<LexicalContext> collector = new NodeVisitor<>(new LexicalContext()) {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public boolean enterVarNode(final VarNode varNode) {
+                declared.add(varNode.getName().getName());
+                return true;
+            }
+        };
+        for (final Statement statement : statements) {
+            statement.accept(collector);
+        }
+        for (final Module.ExportEntry entry : parsedModule.getLocalExportEntries()) {
+            final String local = entry.getLocalName().getName();
+            if (!declared.contains(local)) {
+                throw error(AbstractParser.message("export.not.declared", local), moduleToken);
+            }
+        }
+    }
+
     private void verifyUniqueExports(final Module parsedModule, final long moduleToken) {
         final Set<String> seen = new HashSet<>();
         for (final Module.ExportEntry entry : parsedModule.getLocalExportEntries()) {
@@ -5974,7 +6027,7 @@ public class Parser extends AbstractParser implements Loggable {
                 declareImportedBinding(importEntry.getLocalName(), importLine);
             }
         }
-        expect(SEMICOLON);
+        endOfLine();
     }
 
     /**
@@ -6044,6 +6097,9 @@ public class Parser extends AbstractParser implements Loggable {
             } else if (!bindingIdentifier) {
                 throw error(AbstractParser.message("expected.binding.identifier"), nameToken);
             } else {
+                // the name is the binding as well as the export it names, and
+                // module code is strict, so "arguments" and "eval" are out
+                verifyIdent(importName, "ImportedBinding");
                 importEntries.add(Module.ImportEntry.importSpecifier(importName, startPosition, finish));
             }
             if (type == COMMARIGHT) {
@@ -6097,7 +6153,7 @@ public class Parser extends AbstractParser implements Loggable {
                 final IdentNode starName = createIdentNode(Token.recast(token, IDENT), finish, Module.STAR_NAME);
                 next();
                 final IdentNode moduleRequest = fromClause();
-                expect(SEMICOLON);
+                endOfLine();
                 module.addModuleRequest(moduleRequest);
                 module.addStarExportEntry(Module.ExportEntry.exportStarFrom(starName, moduleRequest, startPosition, finish));
                 break;
@@ -6115,7 +6171,7 @@ public class Parser extends AbstractParser implements Loggable {
                         module.addLocalExportEntry(exportEntry);
                     }
                 }
-                expect(SEMICOLON);
+                endOfLine();
                 break;
             }
             case DEFAULT:
@@ -6126,30 +6182,77 @@ public class Parser extends AbstractParser implements Loggable {
                 final int lineNumber = line;
                 final long rhsToken = token;
                 final boolean declaration;
+                // whether what is exported is a function, which 15.2.1.16.4 has
+                // ready before the module's body starts, named or not
+                boolean hoistable = false;
+                // 15.2.3.11: what a module exports by default and does not name
+                // is named "default", which is the NamedEvaluation the binding
+                // it is given performs
+                defaultNames.push(createIdentNode(Token.recast(rhsToken, IDENT), finish, Module.DEFAULT_NAME));
+                try {
                 switch (type) {
-                    case FUNCTION:
-                        assignmentExpression = functionExpression(false, true);
-                        ident = ((FunctionNode) assignmentExpression).getIdent();
+                    case FUNCTION: {
+                        // 15.2.3.11: "export default function F() {}" is a
+                        // hoistable declaration and binds F in the module, as
+                        // the same function written without the export would.
+                        // Only the anonymous form is an expression, bound to the
+                        // name the module keeps its default export under.
+                        final boolean named = lookaheadIsNamedFunction();
+                        final FunctionNode function = (FunctionNode) functionExpression(named, true);
+                        assignmentExpression = function;
+                        ident = named ? function.getIdent() : null;
+                        declaration = true;
+                        hoistable = true;
+                        break;
+                    }
+                    case CLASS: {
+                        final boolean named = T(k + 1) == IDENT;
+                        final ClassNode classNode = classDeclaration(!named);
+                        assignmentExpression = classNode;
+                        ident = named ? classNode.getIdent() : null;
                         declaration = true;
                         break;
-                    case CLASS:
-                        assignmentExpression = classDeclaration(true);
-                        ident = ((ClassNode) assignmentExpression).getIdent();
-                        declaration = true;
-                        break;
+                    }
                     default:
+                        if (lookaheadIsAsyncFunction()) {
+                            // "export default async function A() {}" is a
+                            // hoistable declaration too
+                            final long asyncToken = token;
+                            next();
+                            final boolean named = lookaheadIsNamedFunction();
+                            final FunctionNode async = (FunctionNode)
+                                    functionExpression(named, true, true, asyncToken);
+                            assignmentExpression = async;
+                            ident = named ? async.getIdent() : null;
+                            declaration = true;
+                            hoistable = true;
+                            break;
+                        }
                         assignmentExpression = assignmentExpression(false);
                         ident = null;
                         declaration = false;
                         break;
                 }
+                } finally {
+                    defaultNames.pop();
+                }
                 if (ident != null) {
                     module.addLocalExportEntry(Module.ExportEntry.exportDefault(defaultName, ident, startPosition, finish));
                 } else {
                     ident = createIdentNode(Token.recast(rhsToken, IDENT), finish, Module.DEFAULT_EXPORT_BINDING_NAME);
-                    lc.appendStatementToCurrentNode(new VarNode(lineNumber, Token.recast(rhsToken, LET), finish, ident, assignmentExpression));
+                    // 15.2.1.16.4: the binding is lexical and uninitialised
+                    // until the export runs, which reading it before then is a
+                    // ReferenceError - except for a function, which is ready
+                    // before the body starts, as a declaration of one is
+                    final VarNode binding = new VarNode(lineNumber, Token.recast(rhsToken, LET), finish,
+                            ident, assignmentExpression, VarNode.IS_LET);
+                    if (hoistable) {
+                        functionDeclarations.add(binding);
+                    } else {
+                        lc.appendStatementToCurrentNode(binding);
+                    }
                     if (!declaration) {
-                        expect(SEMICOLON);
+                        endOfLine();
                     }
                     module.addLocalExportEntry(Module.ExportEntry.exportDefault(defaultName, ident, startPosition, finish));
                 }
@@ -6339,6 +6442,12 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     /** Whether what is being parsed is a module, where "await" is a reserved word. */
+    /** Whether what is being parsed is a statement of a module's own body. */
+    private boolean isModuleTopLevel() {
+        final ParserContextFunctionNode function = lc.getCurrentFunction();
+        return function != null && function.getKind() == FunctionNode.Kind.MODULE;
+    }
+
     private boolean inModule() {
         for (final Iterator<ParserContextFunctionNode> iter = lc.getFunctions(); iter.hasNext();) {
             if (iter.next().getKind() == FunctionNode.Kind.MODULE) {

@@ -674,7 +674,7 @@ public final class Context {
      * @return the module record, once its body has finished
      */
     public ModuleRecord evaluateModule(final Source source) {
-        return loadModule(source, source.getName()).evaluate();
+        return loadModule(source, source.getName()).link().evaluate();
     }
 
     /**

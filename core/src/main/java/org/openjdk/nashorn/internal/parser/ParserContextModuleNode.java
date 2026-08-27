@@ -85,7 +85,42 @@ class ParserContextModuleNode extends ParserContextBaseNode {
         starExportEntries.add(exportEntry);
     }
 
+    /**
+     * The module as the runtime needs it.
+     *
+     * ES2015 15.2.1.16 ParseModule step 9: exporting a name the module imported
+     * is a re-export of what the other module holds, not an export of anything
+     * of this one's - so it becomes an indirect export naming the module the
+     * import came from. Written as a local export it would be a second binding
+     * of the same thing, which is what makes a name exported twice through two
+     * routes look ambiguous when it is not. A namespace import is the exception:
+     * that binding is the module's own.
+     *
+     * @return the module record's static half
+     */
     public Module createModule() {
-        return new Module(requestedModules, importEntries, localExportEntries, indirectExportEntries, starExportEntries);
+        final List<ExportEntry> locals = new ArrayList<>(localExportEntries.size());
+        final List<ExportEntry> indirects = new ArrayList<>(indirectExportEntries);
+        for (final ExportEntry local : localExportEntries) {
+            final ImportEntry imported = importOf(local.getLocalName().getName());
+            if (imported == null || Module.STAR_NAME.equals(imported.getImportName().getName())) {
+                locals.add(local);
+            } else {
+                indirects.add(Module.ExportEntry
+                        .exportSpecifier(local.getExportName(), imported.getImportName(),
+                                local.getStartPosition(), local.getEndPosition())
+                        .withFrom(imported.getModuleRequest(), local.getEndPosition()));
+            }
+        }
+        return new Module(requestedModules, importEntries, locals, indirects, starExportEntries);
+    }
+
+    private ImportEntry importOf(final String localName) {
+        for (final ImportEntry entry : importEntries) {
+            if (localName.equals(entry.getLocalName().getName())) {
+                return entry;
+            }
+        }
+        return null;
     }
 }

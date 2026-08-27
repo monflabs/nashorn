@@ -510,9 +510,15 @@ public final class Test262Runner {
             String parseError = null;
             try {
                 if (module) {
-                    // a module is parsed and linked in one step, so a resolution
-                    // error arrives here rather than at evaluation
-                    moduleRecord = context.loadModule(variant.file().toString(), null);
+                    // linking is a pass of its own, before anything runs, so a
+                    // resolution error arrives here rather than at evaluation
+                    final ModuleRecord loaded = context.loadModule(variant.file().toString(), null);
+                    if (loaded != null) {
+                        // assigned only once linking has succeeded, so that a
+                        // resolution error reads as the failure it is
+                        loaded.link();
+                    }
+                    moduleRecord = loaded;
                 } else {
                     script = context.compileScript(
                             Source.sourceFor(variant.file().toString(), source), global);

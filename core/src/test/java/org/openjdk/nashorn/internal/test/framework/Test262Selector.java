@@ -140,7 +140,10 @@ public final class Test262Selector {
             "language/expressions/class/cpn-class-expr-computed-property-name-from-expression-coalesce.js",
             "language/expressions/object/cpn-obj-lit-computed-property-name-from-expression-coalesce.js",
             "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-expression-coalesce.js",
-            "language/statements/class/cpn-class-decl-computed-property-name-from-expression-coalesce.js");
+            "language/statements/class/cpn-class-decl-computed-property-name-from-expression-coalesce.js",
+            // export * as ns from "mod", which is ECMAScript 2020
+            "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from.js",
+            "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js");
 
     private Test262Selector() {
     }
