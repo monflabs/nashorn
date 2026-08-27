@@ -1939,13 +1939,25 @@ public final class ScriptRuntime {
     /**
      * {@code super.x} and {@code super[x]}.
      *
+     * ES2015 8.1.1.3.5 looks the property up above the method's home object but
+     * reads it with the running method's receiver, so a getter inherited from
+     * two levels up still sees the object the method was called on.
+     *
      * @param callee the running method
      * @param key    the property
+     * @param thiz   the receiver
      * @return its value, looked up above the method's home object
      */
-    public static Object SUPER_GET(final Object callee, final Object key) {
+    public static Object SUPER_GET(final Object callee, final Object key, final Object thiz) {
         final ScriptObject base = superBase(callee);
-        return base.get(key);
+        final Object name = JSType.toPropertyKey(key);
+
+        final FindProperty found = base.findProperty(name, true);
+        if (found != null && found.getProperty() instanceof UserAccessorProperty accessor) {
+            final ScriptFunction getter = accessor.getGetterFunction(found.getOwner());
+            return getter == null ? UNDEFINED : apply(getter, thiz);
+        }
+        return base.get(name);
     }
 
 
@@ -1969,14 +1981,8 @@ public final class ScriptRuntime {
     /**
      * {@code super(...)} in a derived constructor.
      *
-     * Nashorn allocates the object before the constructor runs, so rather than
-     * constructing a second one this calls the parent constructor on the object
-     * that already exists. That is the documented limit of this implementation:
-     * a base class that would return an exotic object - Array, Map - does not
-     * get to do so for a subclass.
-     *
      * @param callee    the running constructor
-     * @param thiz      the object being constructed
+     * @param thiz      its receiver, which is new.target
      * @param argsArray the arguments
      * @return undefined
      */

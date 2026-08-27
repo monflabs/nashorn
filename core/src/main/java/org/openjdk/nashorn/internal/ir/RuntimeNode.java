@@ -103,7 +103,7 @@ public class RuntimeNode extends Expression {
         /** Builds a class from its constructor, heritage and elements. */
         DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 6),
         /** super.x - the code generator supplies the running method. */
-        SUPER_GET(TokenType.VOID, Type.OBJECT, 2),
+        SUPER_GET(TokenType.VOID, Type.OBJECT, 3),
         /** super.x = value. */
         SUPER_SET(TokenType.VOID, Type.OBJECT, 4),
         /** super.m(...). */

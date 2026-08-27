@@ -2557,8 +2557,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         requireThisInitialized();
         method.loadCompilerConstant(CALLEE);
         loadSuperKey(base);
+        method.loadCompilerConstant(THIS);
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_GET",
-                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+                new FunctionSignature(false, false, Type.OBJECT, 3).toString());
     }
 
     private void loadArray(final ArrayLiteralNode arrayLiteralNode, final ArrayType arrayType) {
