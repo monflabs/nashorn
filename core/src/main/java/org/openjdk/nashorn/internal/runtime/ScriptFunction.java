@@ -812,8 +812,14 @@ public class ScriptFunction extends ScriptObject {
             if (data.isGenerator()) {
                 // ES2015 25.2.4.2: what a generator function's generators
                 // inherit from sits below %GeneratorPrototype%, where next,
-                // return and throw are
+                // return and throw are - and unlike an ordinary function's
+                // prototype it does not name the function back, so 25.2.4 gives
+                // it no constructor property at all
                 made.setProto(Global.instance().getGeneratorPrototype());
+                final Property names = made.getMap().findProperty("constructor");
+                if (names != null) {
+                    made.deleteOwnProperty(names);
+                }
             }
             prototype = made;
         }
