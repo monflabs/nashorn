@@ -252,8 +252,8 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     /** Is this the constructor of a subclass (i.e., a class with an extends declaration)? */
     public static final int ES6_IS_SUBCLASS_CONSTRUCTOR = 1 << 23;
 
-    /** is this a strong mode function? */
-    public static final int ES6_IS_STRONG               = 1 << 24;
+    /** Is super() written inside an arrow function somewhere in this one? */
+    public static final int ES6_ARROW_CALLS_SUPER       = 1 << 24;
 
     /** Does this function use new.target? */
     public static final int ES6_USES_NEW_TARGET         = 1 << 25;
@@ -1257,12 +1257,18 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     }
 
     /**
-     * Checks if the function is generated in strong mode.
+     * Whether super() is written inside an arrow function somewhere in this one.
      *
-     * @return true if strong mode enabled for function
+     * An arrow calls it through a function the constructor leaves in its scope,
+     * having none of what the call is otherwise compiled from, and this is what
+     * says the function has to be made. It is set where the call is written
+     * rather than worked out later because a lazily compiled function's nested
+     * functions have no bodies to look in by then.
+     *
+     * @return true if an arrow in this function calls super()
      */
-    public boolean isStrong() {
-        return getFlag(ES6_IS_STRONG);
+    public boolean arrowCallsSuper() {
+        return getFlag(ES6_ARROW_CALLS_SUPER);
     }
 
     /**

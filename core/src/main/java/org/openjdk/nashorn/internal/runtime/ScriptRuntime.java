@@ -36,6 +36,7 @@ import static org.openjdk.nashorn.internal.runtime.JSType.isString;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.invoke.SwitchPoint;
 import java.lang.reflect.Array;
 import java.util.Collections;
@@ -1980,6 +1981,20 @@ public final class ScriptRuntime {
      * @return undefined
      */
     public static Object SUPER_CONSTRUCT(final Object callee, final Object thiz, final Object argsArray) {
+        return SUPER_CONSTRUCT_ARGS(callee, thiz, SPREAD_TO_ARGUMENTS(argsArray));
+    }
+
+    /**
+     * ES2015 12.3.5.1 step 5: the parent is constructed, not called, and it is
+     * told what new.target is - which for a derived constructor is what its own
+     * this slot holds, since it allocated nothing.
+     *
+     * @param callee    the derived constructor
+     * @param thiz      its receiver, which is new.target
+     * @param args      the arguments, already spread
+     * @return the object the parent made
+     */
+    private static Object SUPER_CONSTRUCT_ARGS(final Object callee, final Object thiz, final Object[] args) {
         if (!(callee instanceof ScriptFunction constructor)) {
             throw typeError("no.super");
         }
@@ -1989,14 +2004,11 @@ public final class ScriptRuntime {
             // Function.prototype, which is callable and is not a constructor
             throw typeError("not.a.constructor", safeToString(parent));
         }
-        // ES2015 12.3.5.1 step 5: the parent is constructed, not called, and it
-        // is told what new.target is - which for a derived constructor is what
-        // its own this slot holds, since it allocated nothing.
         if (!(thiz instanceof ScriptFunction newTarget)) {
             throw typeError("no.super");
         }
         try {
-            return parentConstructor.construct(newTarget, SPREAD_TO_ARGUMENTS(argsArray));
+            return parentConstructor.construct(newTarget, args);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
@@ -2213,6 +2225,40 @@ public final class ScriptRuntime {
         }
         // 12.3.5.1 step 7: super() evaluates to the object it bound
         return result;
+    }
+
+    private static final MethodHandle SUPER_INIT;
+
+    static {
+        try {
+            SUPER_INIT = MethodHandles.lookup().findStatic(ScriptRuntime.class, "superInit",
+                    MethodType.methodType(Object.class, Object.class, Object.class, Object.class, Object[].class));
+        } catch (final ReflectiveOperationException e) {
+            throw new InternalError(e);
+        }
+    }
+
+    /**
+     * The function an arrow calls super() through.
+     *
+     * An arrow has neither a callee of the constructor's nor its new.target, and
+     * cannot be given them: it may be compiled on its own, long after the
+     * constructor was, with nothing of the constructor in sight but what its
+     * scope holds. So the constructor puts a function there that already knows
+     * both, and the arrow's super() is a call to it.
+     *
+     * @param callee    the derived constructor super() belongs to
+     * @param newTarget what it is being constructed as
+     * @return a function that constructs the parent
+     */
+    public static Object SUPER_INITIALIZER(final Object callee, final Object newTarget) {
+        return ScriptFunction.createBuiltin("super",
+                MethodHandles.insertArguments(SUPER_INIT, 0, callee, newTarget));
+    }
+
+    @SuppressWarnings("unused")
+    private static Object superInit(final Object callee, final Object newTarget, final Object self, final Object... args) {
+        return SUPER_CONSTRUCT_ARGS(callee, newTarget, args);
     }
 
     /**

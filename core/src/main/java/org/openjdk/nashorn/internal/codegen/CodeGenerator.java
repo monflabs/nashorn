@@ -3235,7 +3235,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         // the class-constructor guard asks the same question new.target does
-        final boolean pushesCallee = request == Request.REQUIRE_NEW;
+        final boolean pushesCallee = request == Request.REQUIRE_NEW || request == Request.SUPER_INITIALIZER;
         if (pushesCallee) {
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);

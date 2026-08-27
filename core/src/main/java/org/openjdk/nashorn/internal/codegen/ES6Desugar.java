@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
+import org.openjdk.nashorn.internal.ir.CallNode;
 import org.openjdk.nashorn.internal.ir.Block;
 import org.openjdk.nashorn.internal.ir.BreakNode;
 import org.openjdk.nashorn.internal.ir.LabelNode;
@@ -124,6 +125,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * beside it.
      */
     static final String THIS_BINDING = ":thisInitialized";
+    /** The function an arrow inside a derived constructor calls super() through. */
+    private static final String SUPER_INIT = ":superInit";
 
     /** Where a derived class constructor keeps what it was asked to return. */
     private static final String DERIVED_RESULT = ":derivedResult";
@@ -836,6 +839,14 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final Block body = functionNode.getBody();
 
         final List<Statement> statements = new ArrayList<>();
+        if (functionNode.arrowCallsSuper()) {
+            // An arrow has neither this constructor's callee nor its new.target,
+            // and cannot be handed them: it may be compiled on its own, with
+            // nothing of the constructor in sight but what its scope holds. What
+            // goes there is a function that already knows both.
+            statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, SUPER_INIT),
+                    new RuntimeNode(token, finish, RuntimeNode.Request.SUPER_INITIALIZER)));
+        }
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, THIS_BINDING),
                 new RuntimeNode(token, finish, RuntimeNode.Request.UNINITIALIZED_THIS)));
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, DERIVED_RESULT),
@@ -861,6 +872,35 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                         new IdentNode(token, finish, THIS_BINDING))));
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
+    /**
+     * super() written inside an arrow function.
+     *
+     * The arrow has none of what the constructor's own super() is compiled from
+     * - not its callee, not its new.target, not the slot the binding lives in -
+     * so all three are reached by name through the scope instead, which is what
+     * an arrow compiled on its own can still do. The result is bound in the
+     * constructor's binding, mirrored into the one arrows read, and made this
+     * for the rest of the arrow.
+     */
+    @Override
+    public Node leaveCallNode(final CallNode callNode) {
+        final FunctionNode current = lc.getCurrentFunction();
+        if (current == null || !current.isArrow()
+                || !(callNode.getFunction() instanceof IdentNode called) || !called.isDirectSuper()) {
+            return super.leaveCallNode(callNode);
+        }
+
+        final long token = Token.recast(callNode.getToken(), TokenType.ASSIGN);
+        final int finish = callNode.getFinish();
+        final Expression bound = new RuntimeNode(token, finish, RuntimeNode.Request.BIND_THIS,
+                new IdentNode(token, finish, THIS_BINDING),
+                callNode.setFunction(new IdentNode(called.getToken(), called.getFinish(), SUPER_INIT)));
+
+        return new BinaryNode(token, new IdentNode(token, finish, CompilerConstants.THIS.symbolName()),
+                new BinaryNode(token, new IdentNode(token, finish, ARROW_THIS),
+                        new BinaryNode(token, new IdentNode(token, finish, THIS_BINDING), bound)));
     }
 
     /**

@@ -6259,6 +6259,7 @@ public class Parser extends AbstractParser implements Loggable {
 
     private void markSuperCall(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        boolean insideArrow = false;
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             if (!FunctionNode.isArrow(fn.getKind())) {
@@ -6266,8 +6267,14 @@ public class Parser extends AbstractParser implements Loggable {
                 // nothing here that could know it was one
                 assert fn.isSubclassConstructor() || reparsedFunction != null;
                 fn.setFlag(FunctionNode.ES6_HAS_DIRECT_SUPER);
+                if (insideArrow) {
+                    // an arrow has none of what super() is compiled from, and
+                    // reaches it through the scope instead
+                    fn.setFlag(FunctionNode.ES6_ARROW_CALLS_SUPER);
+                }
                 break;
             }
+            insideArrow = true;
         }
     }
 

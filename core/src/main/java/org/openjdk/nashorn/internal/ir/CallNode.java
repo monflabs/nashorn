@@ -177,7 +177,7 @@ public final class CallNode extends LexicalContextExpression implements Optimist
     @Override
     public Node accept(final LexicalContext lc, final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterCallNode(this)) {
-            final CallNode newCallNode = (CallNode)visitor.leaveCallNode(
+            final Node newNode = visitor.leaveCallNode(
                     setFunction((Expression)function.accept(visitor)).
                     setArgs(Node.accept(visitor, args)).
                     setEvalArgs(evalArgs == null ?
@@ -185,8 +185,13 @@ public final class CallNode extends LexicalContextExpression implements Optimist
                             evalArgs.setArgs(Node.accept(visitor, evalArgs.getArgs()))));
             // Theoretically, we'd need to instead pass lc to every setter and do a replacement on each. In practice,
             // setType from TypeOverride can't accept a lc, and we don't necessarily want to go there now.
-            if (this != newCallNode) {
-                return Node.replaceInLexicalContext(lc, this, newCallNode);
+            if (this != newNode) {
+                // A call can be rewritten into something that is not one - a
+                // super() inside an arrow becomes an assignment - and then there
+                // is no call left in the lexical context to replace this with.
+                return newNode instanceof CallNode newCallNode
+                        ? Node.replaceInLexicalContext(lc, this, newCallNode)
+                        : newNode;
             }
         }
 

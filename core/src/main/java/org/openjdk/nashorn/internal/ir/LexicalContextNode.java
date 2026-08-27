@@ -56,6 +56,11 @@ public interface LexicalContextNode {
         final LexicalContext lc = visitor.getLexicalContext();
         lc.push(node);
         final Node newNode = node.accept(lc, visitor);
-        return lc.pop(newNode);
+        final Node popped = lc.pop(newNode);
+        // pop answers with what is on the stack, which is the node or whatever
+        // replaced it there. A node can also be rewritten into something that is
+        // not a lexical context node at all - super() inside an arrow becomes an
+        // assignment - and then nothing took its place and it is the answer.
+        return newNode instanceof LexicalContextNode ? popped : newNode;
     }
 }
