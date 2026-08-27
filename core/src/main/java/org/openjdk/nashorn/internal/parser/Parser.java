@@ -1666,8 +1666,10 @@ public class Parser extends AbstractParser implements Loggable {
         verifyStrictIdent(ident, contextString);
         checkEscapedKeyword(ident);
         // ES2017 14.6: await is a keyword inside an async function, so it names
-        // nothing there - not a binding, not a label, not a parameter
-        if (inAsyncFunction() && AWAIT_NAME.equals(ident.getName())) {
+        // nothing there - not a binding, not a label, not a parameter. ES2015
+        // 11.6.2.2 reserves it throughout a module as well, whether or not
+        // anything in it is async.
+        if (AWAIT_NAME.equals(ident.getName()) && (inAsyncFunction() || inModule())) {
             throw error(AbstractParser.message("strict.name", ident.getName(), contextString), ident.getToken());
         }
     }
@@ -6245,6 +6247,16 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             }
         }
+    }
+
+    /** Whether what is being parsed is a module, where "await" is a reserved word. */
+    private boolean inModule() {
+        for (final Iterator<ParserContextFunctionNode> iter = lc.getFunctions(); iter.hasNext();) {
+            if (iter.next().getKind() == FunctionNode.Kind.MODULE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean inGeneratorFunction() {

@@ -2448,7 +2448,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // allocated for this one
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);
-            loadSpreadArray(callNode.getArgs());
+            if (lc.getCurrentFunction().isDefaultClassConstructor()) {
+                // A default constructor hands on what it was called with and
+                // nothing more: since ES2019 it does not spread, so an
+                // Array.prototype[@@iterator] the program has replaced is not
+                // called - and what it hands on is already the array the rest
+                // parameter gathered.
+                loadExpressionAsObject(((UnaryNode)callNode.getArgs().get(0)).getExpression());
+            } else {
+                loadSpreadArray(callNode.getArgs());
+            }
             method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CONSTRUCT",
                     new FunctionSignature(false, false, Type.OBJECT, 3).toString());
             bindThis();
