@@ -101,7 +101,7 @@ public class RuntimeNode extends Expression {
          */
         REST_ARGUMENTS(TokenType.VOID, Type.OBJECT, 1),
         /** Builds a class from its constructor, heritage and elements. */
-        DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 4),
+        DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 6),
         /** super.x - the code generator supplies the running method. */
         SUPER_GET(TokenType.VOID, Type.OBJECT, 2),
         /** super.x = value. */

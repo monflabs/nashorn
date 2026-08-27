@@ -274,14 +274,29 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         return parent;
     }
 
+    /** Where toString reads from, when that is not where the function was compiled from. */
+    private transient long sourceToken;
+
     void setParent(final RecompilableScriptFunctionData parent) {
         this.parent = parent;
     }
 
+    /**
+     * Where the text this function answers toString with is, when that is not
+     * where it was compiled from - which for a class constructor is the class.
+     *
+     * @param position where the text starts
+     * @param length   how long it is
+     */
+    void setSourceRange(final int position, final int length) {
+        this.sourceToken = Token.toDesc(TokenType.FUNCTION, position, length);
+    }
+
     @Override
     String toSource() {
-        if (source != null && token != 0) {
-            return source.getString(token);
+        final long text = sourceToken != 0 ? sourceToken : token;
+        if (source != null && text != 0) {
+            return source.getString(text);
         }
 
         return "function " + (name == null ? "" : name) + "() { [native code] }";

@@ -731,11 +731,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final Expression heritage = classNode.getClassHeritage();
+        // Where the class was written. ES2019 19.2.3.5 makes a class's
+        // Function.prototype.toString the whole class, not its constructor, and
+        // the constructor's own range is the method it was written as - which is
+        // also what a lazy reparse reads, so it cannot be widened in place.
+        final int position = Token.descPosition(token);
         return new RuntimeNode(token, finish, RuntimeNode.Request.DEFINE_CLASS,
                 classNode.getConstructor().getValue(),
                 heritage == null ? LiteralNode.newInstance(token, finish) : heritage,
                 LiteralNode.newInstance(token, finish, heritage != null),
-                LiteralNode.newInstance(token, finish, elements));
+                LiteralNode.newInstance(token, finish, elements),
+                LiteralNode.newInstance(token, finish, position),
+                LiteralNode.newInstance(token, finish, finish - position));
     }
 
     /**

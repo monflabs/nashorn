@@ -1742,9 +1742,12 @@ public final class ScriptRuntime {
     }
 
     public static Object DEFINE_CLASS(final Object constructor, final Object heritage, final Object derived,
-            final Object elements) {
+            final Object elements, final Object position, final Object sourceLength) {
         final ScriptFunction ctor = (ScriptFunction)constructor;
         final ScriptObject prototype = (ScriptObject)ctor.getPrototype();
+
+        // 19.2.3.5: what a class answers toString with is the class as written
+        ctor.setSourceRange(JSType.toInt32(position), JSType.toInt32(sourceLength));
 
         if (JSType.toBoolean(derived)) {
             if (heritage == null) {

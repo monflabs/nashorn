@@ -809,6 +809,23 @@ public class ScriptFunction extends ScriptObject {
         return arrow;
     }
 
+    /**
+     * Record where in its source this function was written, when that is not the
+     * range it was compiled from.
+     *
+     * ES2019 19.2.3.5 makes a class constructor's {@code toString} the whole
+     * class rather than the constructor, while what the constructor is compiled
+     * and recompiled from stays the method it was written as.
+     *
+     * @param position where the text starts
+     * @param length   how long it is
+     */
+    public final void setSourceRange(final int position, final int length) {
+        if (data instanceof RecompilableScriptFunctionData recompilable) {
+            recompilable.setSourceRange(position, length);
+        }
+    }
+
     public final void setHomeObject(final ScriptObject homeObject) {
         this.homeObject = homeObject;
     }

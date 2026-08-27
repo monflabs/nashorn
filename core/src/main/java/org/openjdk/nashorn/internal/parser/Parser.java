@@ -178,6 +178,12 @@ public class Parser extends AbstractParser implements Loggable {
     private boolean reparsingPropertyKey;
     /** Whether an async arrow's parameter list is being parsed, where await is a keyword. */
     private boolean inAsyncParameters;
+    /**
+     * Whether nothing in the statement being parsed has run yet, so that a class
+     * expression met now can be lifted into a scope of its own. See
+     * {@link #classInOwnScope}.
+     */
+    private boolean nothingEvaluatedYet;
 
     private static final String ASYNC_NAME = "async";
     private static final String AWAIT_NAME = "await";
@@ -556,6 +562,10 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private ParserContextFunctionNode createParserContextFunctionNode(final IdentNode ident, final long functionToken, final FunctionNode.Kind kind, final int functionLine, final List<IdentNode> parameters) {
+        // A statement of the function's own is being started, and a class inside
+        // it may not be lifted out past the function's boundary.
+        nothingEvaluatedYet = false;
+
         // Build function name.
         final StringBuilder sb = new StringBuilder();
 
@@ -1308,6 +1318,51 @@ public class Parser extends AbstractParser implements Loggable {
         return classExpression;
     }
 
+    /** Whether the class about to be read has a name. */
+    private boolean lookaheadIsNamedClass() {
+        assert type == CLASS;
+        return T(k + 1) == IDENT;
+    }
+
+    /**
+     * A named class expression, given the scope ES2015 14.5.14 says it has.
+     *
+     * The scope holds an immutable binding of the class's own name and covers
+     * the heritage and the method bodies, so that what a method reads is the
+     * class however the name is reassigned outside. There is no way to put a
+     * scope around an expression, so the class is built in a block of its own,
+     * placed in front of the statement it belongs to, and a temporary is left
+     * where the expression was. That is only the same thing when nothing in the
+     * statement has run yet, which is what {@link #nothingEvaluatedYet} tracks:
+     * a class expression reached any later is read as it was before, without a
+     * scope, rather than being lifted past something that has to run first.
+     */
+    private Expression classInOwnScope() {
+        final int classLineNumber = line;
+        final long classToken = token;
+        final String carrier = namespace.uniqueName(CLASS_CARRIER_PREFIX);
+        appendStatement(new VarNode(classLineNumber, Token.recast(classToken, VAR), finish,
+                new IdentNode(classToken, finish, carrier), null));
+
+        final ParserContextBlockNode scope = newBlock();
+        try {
+            final ClassNode classExpression = classExpression(false);
+            final IdentNode name = classExpression.getIdent();
+            appendStatement(new VarNode(classLineNumber, classExpression.getToken(), name.getFinish(),
+                    name.setIsDeclaredHere(), classExpression, VarNode.IS_CONST));
+            appendStatement(new ExpressionStatement(classLineNumber, classToken, finish,
+                    new BinaryNode(Token.recast(classToken, ASSIGN),
+                            new IdentNode(classToken, finish, carrier),
+                            new IdentNode(name.getToken(), name.getFinish(), name.getName()))));
+        } finally {
+            restoreBlock(scope);
+        }
+        appendStatement(new BlockStatement(classLineNumber,
+                new Block(classToken, finish, scope.getFlags() | Block.IS_SYNTHETIC, scope.getStatements())));
+
+        return new IdentNode(classToken, finish, carrier);
+    }
+
     /**
      * ClassExpression[Yield] :
      *   class BindingIdentifier[?Yield]opt ClassTail[?Yield]
@@ -1496,7 +1551,11 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             classElements.trimToSize();
-            return new ClassNode(classLineNumber, classToken, finish, className, classHeritage, constructor, classElements, isStatement);
+            // The class ends at its closing brace. finish has moved past it, on
+            // to whatever follows, and the class's own extent is what its
+            // toString answers with.
+            final int classFinish = Token.descPosition(lastToken) + Token.descLength(lastToken);
+            return new ClassNode(classLineNumber, classToken, classFinish, className, classHeritage, constructor, classElements, isStatement);
         } finally {
             isStrictMode = oldStrictMode;
         }
@@ -1861,8 +1920,10 @@ public class Parser extends AbstractParser implements Loggable {
                     defaultNames.push(binding);
                 }
                 try {
+                    nothingEvaluatedYet = true;
                     init = assignmentExpression(!isStatement);
                 } finally {
+                    nothingEvaluatedYet = false;
                     if (!isDestructuring) {
                         defaultNames.pop();
                     }
@@ -2108,7 +2169,13 @@ public class Parser extends AbstractParser implements Loggable {
         final long expressionToken = token;
 
         // Get expression and add as statement.
-        final Expression expression = expression();
+        nothingEvaluatedYet = true;
+        final Expression expression;
+        try {
+            expression = expression();
+        } finally {
+            nothingEvaluatedYet = false;
+        }
 
         if (expression != null) {
             final ExpressionStatement expressionStatement = new ExpressionStatement(expressionLine, expressionToken, finish, expression);
@@ -3927,6 +3994,15 @@ public class Parser extends AbstractParser implements Loggable {
         Expression lhs;
         boolean isSuper = false;
 
+        // Every leaf of an expression is reached through here, so this is where
+        // a statement stops being one that has not run anything yet. A class
+        // expression only gets a scope of its own while it does - "(" and "new"
+        // evaluate nothing themselves, so they leave it standing.
+        final boolean unevaluated = nothingEvaluatedYet;
+        if (type != CLASS && type != LPAREN && type != TokenType.NEW) {
+            nothingEvaluatedYet = false;
+        }
+
         switch (type) {
         case NEW:
             // Get new expression.
@@ -3939,7 +4015,8 @@ public class Parser extends AbstractParser implements Loggable {
             break;
 
         case CLASS:
-            lhs = classExpression(false);
+            nothingEvaluatedYet = false;
+            lhs = unevaluated && lookaheadIsNamedClass() ? classInOwnScope() : classExpression(false);
             break;
 
         case IDENT:
