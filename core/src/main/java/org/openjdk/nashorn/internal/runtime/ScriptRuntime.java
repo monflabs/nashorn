@@ -1937,6 +1937,104 @@ public final class ScriptRuntime {
     }
 
     /**
+     * The object a name resolves to, for an assignment that reads it first.
+     *
+     * ES2015 12.15.4 evaluates the left-hand side once, before the read and
+     * before the right-hand side, and writes back through that same reference.
+     * Where the scope is dynamic the two would not otherwise agree: a with block
+     * whose getter deletes the property, or a direct eval that declares one,
+     * changes what the name resolves to in between. The object holding it is
+     * found here, before any of that has run, and the write goes there.
+     *
+     * @param scope the running scope
+     * @param name  the name being assigned to
+     * @return the object the reference is based on
+     */
+    public static Object SCOPE_BASE(final Object scope, final Object name) {
+        for (ScriptObject current = (ScriptObject)scope; current != null; current = current.getProto()) {
+            if (current instanceof WithObject) {
+                // the with block answers for the object it was given, and for
+                // nothing of its own, so a hit here is a hit on that object
+                if (current.findProperty(name, false) != null) {
+                    return current;
+                }
+                continue;
+            }
+            if (current instanceof Global global) {
+                // a program's let and const bindings sit beside the global
+                // rather than on it, and shadow what is on it
+                final ScriptObject lexical = global.getLexicalScope();
+                if (lexical != null && lexical.hasOwnProperty(name)) {
+                    return lexical;
+                }
+                // the global ends the scope chain and has a prototype chain of
+                // its own; every link before it is asked about itself alone
+                return current.findProperty(name, true) != null ? current : Context.getGlobal();
+            }
+            if (current.findProperty(name, false) != null) {
+                return current;
+            }
+        }
+        // an unresolvable reference: the read that follows is a ReferenceError,
+        // and where it is not, 8.1.1.4.9 writes the name on the global
+        return Context.getGlobal();
+    }
+
+    /**
+     * Writes through the reference {@link #SCOPE_BASE} made.
+     *
+     * What the write means depends on what the reference named: a scope object
+     * holds bindings, where assigning to a const is an error whether the code is
+     * strict or not, while a with block's binding object is an ordinary object
+     * and an ordinary property write is what 8.1.1.2.5 asks for.
+     *
+     * @param base   the object the reference named
+     * @param name   the name
+     * @param value  what to write
+     * @param strict whether the assignment is in strict code
+     */
+    public static void SCOPE_PUT(final Object base, final Object name, final Object value, final boolean strict) {
+        final int strictFlag = strict ? NashornCallSiteDescriptor.CALLSITE_STRICT : 0;
+        if (base instanceof WithObject with) {
+            final ScriptObject bindings = with.getExpression();
+            if (strict && !bindings.has(name)) {
+                // 8.1.1.2.5 step 3: strict code is told when the binding it
+                // resolved to has gone in the meantime, which a getter deleting
+                // the property it was read through is how it happens
+                throw referenceError("not.defined", JSType.toString(name));
+            }
+            // otherwise an ordinary property write on the object the with block
+            // was given, whether or not it still has one under that name
+            bindings.set(name, value, strictFlag);
+            return;
+        }
+        ((ScriptObject)base).set(name, value, NashornCallSiteDescriptor.CALLSITE_SCOPE | strictFlag);
+    }
+
+    /**
+     * A computed property key, made where the reference is.
+     *
+     * ES2015 12.3.2.1 checks the base and converts the key as part of evaluating
+     * {@code base[expr]}, so an object whose toString is observable is asked
+     * once however many times the reference is then used - and a compound
+     * assignment uses it twice, to read and to write. The base is checked first,
+     * so {@code null[prop()]} runs prop() and then fails without ever asking
+     * what it answered with for its string. Anything that is not an object
+     * converts to the same thing every time and is left alone, so the array and
+     * string fast paths still see the value they expect.
+     *
+     * @param base the evaluated base expression
+     * @param key  the evaluated key expression
+     * @return the property key
+     */
+    public static Object TO_PROPERTY_KEY(final Object base, final Object key) {
+        if (base == null || base == UNDEFINED) {
+            throw typeError("cant.get.property", safeToString(key), safeToString(base));
+        }
+        return key instanceof ScriptObject || key instanceof JSObject ? JSType.toPropertyKey(key) : key;
+    }
+
+    /**
      * {@code super.x} and {@code super[x]}.
      *
      * ES2015 8.1.1.3.5 looks the property up above the method's home object but

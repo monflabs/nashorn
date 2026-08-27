@@ -4847,6 +4847,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         /** If we have too many arguments, we need temporary storage, this is stored in 'quick' */
         private IdentNode quick;
 
+        /** Whether the prologue left the object the name resolves to rather than the scope. */
+        private boolean resolvedBase;
+
         /**
          * Constructor
          *
@@ -4886,6 +4889,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 public boolean enterIdentNode(final IdentNode node) {
                     if (node.getSymbol().isScope()) {
                         method.loadCompilerConstant(SCOPE);
+                        if (isSelfModifying() && !isFastScope(node.getSymbol())) {
+                            // 12.15.4 makes the reference once, before the read
+                            // and the right-hand side, and writes back through
+                            // it - which in a dynamic scope is not where the
+                            // name would resolve to by then
+                            method.load(node.getName());
+                            method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                                    "SCOPE_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+                            resolvedBase = true;
+                        }
                         depth += Type.SCOPE.getSlots();
                         assert depth == 1;
                     }
@@ -4939,11 +4952,24 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     enterBaseNode();
 
                     final Expression index = node.getIndex();
+                    // the key belongs to the reference rather than to each use
+                    // of it, so an object's toString runs once rather than once
+                    // for the read and once for the write. The base goes with it
+                    // because it is checked first, and a third copy of it is
+                    // pushed for that.
+                    final boolean keyOnce = isSelfModifying() && !index.getType().isNumeric();
+                    if (keyOnce) {
+                        method.dup();
+                    }
                     if (!index.getType().isNumeric()) {
                         // could be boolean here as well
                         loadExpressionAsObject(index);
                     } else {
                         loadExpressionUnbounded(index);
+                    }
+                    if (keyOnce) {
+                        method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                                "TO_PROPERTY_KEY", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
                     }
                     depth += index.getType().getSlots();
 
@@ -5012,7 +5038,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     assert symbol != null;
                     if (symbol.isScope()) {
                         final int flags = getScopeCallSiteFlags(symbol) | (node.isDeclaredHere() ? CALLSITE_DECLARE : 0);
-                        if (isFastScope(symbol)) {
+                        if (resolvedBase) {
+                            method.convert(Type.OBJECT);
+                            // (base, value) -> (base, name, value, strict)
+                            method.load(node.getName());
+                            method.swap();
+                            method.load(org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.isStrictFlag(getCallSiteFlags()));
+                            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SCOPE_PUT",
+                                    "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Z)V");
+                        } else if (isFastScope(symbol)) {
                             storeFastScopeVar(symbol, flags);
                         } else {
                             method.dynamicSet(node.getName(), flags, false);
