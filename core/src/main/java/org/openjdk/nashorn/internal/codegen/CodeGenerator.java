@@ -2404,6 +2404,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         if (binding == null) {
             return;
         }
+        // What the arrows inside the constructor read is kept in step with it
+        final Symbol published = namedInScope(ES6Desugar.ARROW_THIS);
+        if (published != null) {
+            method.dup();
+            storeBinding(published);
+        }
         method.load(binding, Type.OBJECT);
         method.swap();
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "BIND_THIS",
@@ -2430,13 +2436,40 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     /** The variable holding a derived constructor's this binding, if it has one. */
     private Symbol thisBinding() {
+        return namedInScope(ES6Desugar.THIS_BINDING);
+    }
+
+    /** A variable of the given name in this function's blocks, if there is one. */
+    private Symbol namedInScope(final String name) {
         for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
-            final Symbol symbol = blocks.next().getExistingSymbol(ES6Desugar.THIS_BINDING);
+            final Symbol symbol = blocks.next().getExistingSymbol(name);
             if (symbol != null) {
                 return symbol;
             }
         }
         return null;
+    }
+
+    /**
+     * Stores the value on the stack into a variable, wherever it is kept.
+     *
+     * The variable an arrow reads is in a scope object rather than a slot, which
+     * is the whole point of it: the arrow has to see what super() made.
+     */
+    private void storeBinding(final Symbol symbol) {
+        if (!symbol.isScope()) {
+            method.store(symbol, Type.OBJECT);
+            return;
+        }
+        final int flags = getScopeCallSiteFlags(symbol);
+        // (value) -> (value, scope) -> (scope, value) -> ()
+        method.loadCompilerConstant(SCOPE);
+        method.swap();
+        if (isFastScope(symbol)) {
+            storeFastScopeVar(symbol, flags);
+        } else {
+            method.dynamicSet(symbol.getName(), flags, false);
+        }
     }
 
     private void loadSpreadCall(final CallNode callNode) {
@@ -2465,7 +2498,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         if (function instanceof BaseNode base && base.isSuper()) {
-            // super.m(...) and super[k](...) - the inherited method, run on this
+            // super.m(...) and super[k](...) - the inherited method, run on this,
+            // which 12.3.5.3 reads before anything else: calling one before
+            // super() has run is a reference error, as reading one is
+            requireThisInitialized();
             method.loadCompilerConstant(CALLEE);
             loadSuperKey(base);
             method.loadCompilerConstant(THIS);

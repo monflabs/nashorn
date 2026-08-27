@@ -2182,7 +2182,13 @@ public final class ScriptRuntime {
      * @return undefined
      */
     public static Object UNINITIALIZED_THIS() {
-        return UNDEFINED;
+        // Not plain undefined: an arrow written in a derived constructor reads
+        // the binding without anything telling it that is where it is - the
+        // arrow is compiled on its own, and nothing of the constructor is in
+        // range then - so what says the binding has not been made has to be
+        // something no ordinary this could be. It reads as undefined wherever it
+        // is seen at all, which is nowhere the specification allows.
+        return Undefined.getEmpty();
     }
 
     /**
@@ -2198,7 +2204,7 @@ public final class ScriptRuntime {
      * @return the object
      */
     public static Object REQUIRE_THIS_INITIALIZED(final Object binding) {
-        if (binding == UNDEFINED) {
+        if (binding == Undefined.getEmpty()) {
             throw referenceError("this.before.super");
         }
         return binding;
@@ -2212,7 +2218,7 @@ public final class ScriptRuntime {
      * @return true, to be stored back into the flag
      */
     public static Object BIND_THIS(final Object binding, final Object result) {
-        if (binding != UNDEFINED) {
+        if (binding != Undefined.getEmpty()) {
             throw referenceError("super.called.twice");
         }
         // 12.3.5.1 step 7: super() evaluates to the object it bound

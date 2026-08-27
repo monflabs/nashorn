@@ -28,6 +28,7 @@ package org.openjdk.nashorn.internal.codegen;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import org.openjdk.nashorn.internal.ir.BinaryNode;
@@ -111,7 +112,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * the enclosing function copies it into an ordinary variable that the arrow
      * reads through the scope it already captures.
      */
-    private static final String ARROW_THIS = ":arrowThis";
+    static final String ARROW_THIS = ":arrowThis";
 
     /**
      * Whether super() has run, in a derived class constructor.
@@ -658,7 +659,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
         final FunctionNode function = lc.getCurrentFunction();
         if (function.isArrow()) {
-            return new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS);
+            // The check costs a comparison and is made whatever the arrow was
+            // written in, because an arrow compiled on its own cannot tell: only
+            // a derived constructor's binding is ever the uninitialised one, so
+            // nothing else can fail it.
+            return new RuntimeNode(identNode.getToken(), identNode.getFinish(),
+                    RuntimeNode.Request.REQUIRE_THIS_INITIALIZED,
+                    new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_THIS));
         }
         if (function.isSubclassConstructor()) {
             return checkedThis(identNode.getToken(), identNode.getFinish());
@@ -673,7 +680,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                bindArrowThis(publishThis(bindThis(addAsyncPrologue(addGeneratorPrologue(addClassConstructorGuard(
+                bindArrowThis(bindThis(publishThis(addAsyncPrologue(addGeneratorPrologue(addClassConstructorGuard(
                         moduleEnvironment(rejectEarlyParameterReads(functionNode))))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
@@ -826,6 +833,15 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 new RuntimeNode(token, finish, RuntimeNode.Request.UNINITIALIZED_THIS)));
         statements.add(new VarNode(line, token, finish, new IdentNode(token, finish, DERIVED_RESULT),
                 new IdentNode(token, finish, UNDEFINED_NAME)));
+        // Both bindings are also read where no statement can reach - the epilogue
+        // below is unreachable in a constructor that always throws - and a local
+        // that is never read loses its slot, which the code generator then has
+        // nothing to load. Reading them here costs nothing: discarding a local
+        // variable emits no code at all.
+        statements.add(new ExpressionStatement(line, token, finish,
+                new IdentNode(token, finish, THIS_BINDING)));
+        statements.add(new ExpressionStatement(line, token, finish,
+                new IdentNode(token, finish, DERIVED_RESULT)));
         // The body is left by a break rather than by a return, so that what it
         // answered with is examined after everything it leaves through has run:
         // 9.2.2 step 13 is part of constructing, not of returning, and a finally
@@ -911,7 +927,11 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> statements = new ArrayList<>();
         statements.add(new VarNode(functionNode.getLineNumber(), token, finish,
                 new IdentNode(token, finish, ARROW_THIS),
-                new IdentNode(token, finish, CompilerConstants.THIS.symbolName())));
+                // a derived constructor has no this of its own until super()
+                // makes one, and what it publishes is that binding, kept in step
+                // with it by the store beside the super call
+                new IdentNode(token, finish, functionNode.isSubclassConstructor()
+                        ? THIS_BINDING : CompilerConstants.THIS.symbolName())));
         statements.addAll(body.getStatements());
 
         return functionNode.setBody(lc, body.setStatements(lc, statements));
