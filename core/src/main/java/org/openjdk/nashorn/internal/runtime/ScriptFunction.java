@@ -392,6 +392,39 @@ public class ScriptFunction extends ScriptObject {
      * @param methodHandle handle for invocation
      * @return new ScriptFunction
      */
+    /**
+     * Factory method for a built-in that can be used to construct something.
+     *
+     * @param name function name
+     * @param methodHandle handle for invocation
+     * @return new ScriptFunction
+     */
+    /**
+     * Fixes this function's prototype property so that it cannot be reassigned.
+     *
+     * An ordinary function's prototype is writable; the constructors that have
+     * no name in the global object - %GeneratorFunction% and %AsyncFunction% -
+     * have theirs { writable: false, enumerable: false, configurable: false },
+     * which for an accessor means one with no setter.
+     *
+     * @param newPrototype the prototype
+     */
+    public final void setFixedPrototype(final ScriptObject newPrototype) {
+        setPrototype(newPrototype);
+        final Property existing = getMap().findProperty("prototype");
+        if (existing != null) {
+            setMap(getMap().replaceProperty(existing, AccessorProperty.create("prototype",
+                    Property.NOT_ENUMERABLE | Property.NOT_WRITABLE | Property.NOT_CONFIGURABLE,
+                    G$PROTOTYPE, null)));
+        }
+    }
+
+    public static ScriptFunction createBuiltinConstructor(final String name, final MethodHandle methodHandle) {
+        // not through createBuiltin: that takes the prototype property away, on
+        // the grounds that a built-in function is not used to construct anything
+        return new ScriptFunction(name, methodHandle, null, null, ScriptFunctionData.IS_BUILTIN_CONSTRUCTOR);
+    }
+
     public static ScriptFunction createStrictBuiltin(final String name, final MethodHandle methodHandle) {
         return ScriptFunction.createBuiltin(name, methodHandle, null, ScriptFunctionData.IS_BUILTIN | ScriptFunctionData.IS_STRICT);
     }

@@ -278,6 +278,35 @@ public final class NativeFunction {
      */
     @Constructor(arity = 1)
     public static ScriptFunction function(final boolean newObj, final Object self, final Object... args) {
+        return createDynamicFunction("function", args);
+    }
+
+    /**
+     * ES2015 25.2.1.1 GeneratorFunction(p1, p2, ... , pn, body), reached through
+     * the constructor property of what a generator function inherits from.
+     *
+     * @param newObj is the new operator used for constructing this function
+     * @param self   self reference
+     * @param args   arguments
+     * @return the generator function
+     */
+    public static ScriptFunction generatorFunction(final boolean newObj, final Object self, final Object... args) {
+        return createDynamicFunction("function*", args);
+    }
+
+    /**
+     * ES2017 25.7.1.1 AsyncFunction(p1, p2, ... , pn, body), reached the same way.
+     *
+     * @param newObj is the new operator used for constructing this function
+     * @param self   self reference
+     * @param args   arguments
+     * @return the async function
+     */
+    public static ScriptFunction asyncFunction(final boolean newObj, final Object self, final Object... args) {
+        return createDynamicFunction("async function", args);
+    }
+
+    private static ScriptFunction createDynamicFunction(final String kind, final Object... args) {
         // ES2017 19.2.1.1.1 CreateDynamicFunction builds the source in one exact
         // shape, and Function.prototype.toString hands that shape back: the
         // parameters as written, then a newline before the closing parenthesis,
@@ -299,7 +328,14 @@ public final class NativeFunction {
             if (!parameters.isEmpty()) {
                 checkFunctionParameters(parameters);
             }
-            checkFunctionBody(body);
+            // The body is read on its own here only to report what is wrong with
+            // it in its own terms. A generator's or an async function's body may
+            // hold a yield or an await, which mean nothing read that way, so
+            // those are left to the parse of the whole below - which reports the
+            // same errors, only against the assembled text.
+            if ("function".equals(kind)) {
+                checkFunctionBody(body);
+            }
         } else {
             parameters = "";
             body = "";
@@ -307,7 +343,7 @@ public final class NativeFunction {
 
         // wrapped in parentheses so that it is evaluated as an expression; the
         // function's own source is what is inside them
-        final String source = "(function anonymous(" + parameters + "\n) {\n" + body + "\n})";
+        final String source = "(" + kind + " anonymous(" + parameters + "\n) {\n" + body + "\n})";
         final Global global = Global.instance();
         final Context context = global.getContext();
         return (ScriptFunction)context.eval(global, source, global, "<function>");

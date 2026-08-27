@@ -2172,8 +2172,40 @@ public final class Global extends Scope {
                     "AsyncFunction");
             proto.setIsBuiltin();
             builtinAsyncFunctionPrototype = proto;
+            // ES2017 25.7.2: %AsyncFunction% has no name in the global object,
+            // and is reached through the constructor property here
+            intrinsicFunctionConstructor("AsyncFunction", proto, ASYNC_FUNCTION);
         }
         return builtinAsyncFunctionPrototype;
+    }
+
+    /**
+     * The constructor of a kind of function that the global object does not
+     * name: a program reaches it through the constructor property of what such
+     * a function inherits from. ES2015 25.2.2.2 and ES2017 25.7.2.2 make it
+     * inherit from Function itself rather than from Function.prototype.
+     */
+    private void intrinsicFunctionConstructor(final String name, final ScriptObject proto,
+            final MethodHandle maker) {
+        final ScriptFunction constructor = ScriptFunction.createBuiltinConstructor(name, maker);
+        constructor.setInitialProto(getBuiltinFunction());
+        // the prototype property is the accessor every function has, and here it
+        // is one that cannot be reassigned
+        constructor.setFixedPrototype(proto);
+        constructor.setArity(1);
+        proto.addOwnProperty("constructor", Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, constructor);
+    }
+
+    private static final MethodHandle GENERATOR_FUNCTION = findDynamicFunction("generatorFunction");
+    private static final MethodHandle ASYNC_FUNCTION = findDynamicFunction("asyncFunction");
+
+    private static MethodHandle findDynamicFunction(final String name) {
+        try {
+            return MethodHandles.lookup().findStatic(NativeFunction.class, name,
+                    MethodType.methodType(ScriptFunction.class, boolean.class, Object.class, Object[].class));
+        } catch (final ReflectiveOperationException e) {
+            throw new InternalError(e);
+        }
     }
 
     public ScriptObject getGeneratorFunctionPrototype() {
@@ -2190,6 +2222,8 @@ public final class Global extends Scope {
             // constructor, not the function that makes generators
             getGeneratorPrototype().addOwnProperty("constructor",
                     Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, proto);
+            // ES2015 25.2.2: %GeneratorFunction% is reached the same way
+            intrinsicFunctionConstructor("GeneratorFunction", proto, GENERATOR_FUNCTION);
         }
         return builtinGeneratorFunctionPrototype;
     }
