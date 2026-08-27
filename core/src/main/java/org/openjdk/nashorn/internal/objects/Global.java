@@ -3008,6 +3008,14 @@ public final class Global extends Scope {
         this.builtinReflect   = initConstructorAndSwitchPoint("Reflect", ScriptObject.class);
         this.builtinPromise   = initConstructorAndSwitchPoint("Promise", ScriptFunction.class);
         this.builtinProxy     = initConstructorAndSwitchPoint("Proxy", ScriptFunction.class);
+        // ES2015 26.2.2: the Proxy constructor has no prototype property at all,
+        // which is what makes "class P extends Proxy {}" a TypeError - there is
+        // nothing there for the subclass's prototype to inherit from
+        final org.openjdk.nashorn.internal.runtime.Property proxyPrototype =
+                this.builtinProxy.getMap().findProperty("prototype");
+        if (proxyPrototype != null) {
+            this.builtinProxy.deleteOwnProperty(proxyPrototype);
+        }
 
         // initialize String.prototype.length to 0
         // add String.prototype.length
