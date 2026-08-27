@@ -1914,6 +1914,17 @@ public final class Global extends Scope {
     }
 
     /**
+     * Whether a function is this realm's Object constructor, which 19.1.1.1
+     * gives a behaviour of its own when it is not what is being constructed.
+     *
+     * @param function the function to test
+     * @return true if it is the built-in Object
+     */
+    public boolean isObjectConstructor(final ScriptFunction function) {
+        return function == builtinObject;
+    }
+
+    /**
      * Get the builtin Function prototype.
      * @return the Function prototype.
      */

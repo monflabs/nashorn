@@ -672,6 +672,13 @@ public class ScriptFunction extends ScriptObject {
             return withProto(construct(args), newProto);
         }
 
+        // ES2015 19.1.1.1 step 1: Object standing as the base of a subclass makes
+        // an ordinary object of the subclass's shape and ignores what it was
+        // given. Only Object constructed as itself converts its argument.
+        if (newTarget != this && Global.instance().isObjectConstructor(this)) {
+            return withProto(Global.newEmptyInstance(), newTarget.get("prototype"));
+        }
+
         // A built-in checks its arguments before it allocates anything, and the
         // prototype is read as part of allocating - so a constructor that is
         // going to reject what it was given rejects it before the read, which

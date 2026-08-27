@@ -1230,6 +1230,11 @@ public class Parser extends AbstractParser implements Loggable {
         if (lookaheadIsAsyncMethod()) {
             next();
         }
+        // A computed key is read the same way as a written one and can name the
+        // same string, so whether it was computed has to be remembered rather
+        // than inferred from what it names: 14.5 takes the constructor from a
+        // key that was written, and ["constructor"] is an ordinary method.
+        final boolean computed = type == LBRACKET;
         final Expression propertyKey;
         reparsingPropertyKey = true;
         try {
@@ -1237,7 +1242,7 @@ public class Parser extends AbstractParser implements Loggable {
         } finally {
             reparsingPropertyKey = false;
         }
-        final String ident = propertyKey instanceof PropertyKey key ? key.getPropertyName() : null;
+        final String ident = !computed && propertyKey instanceof PropertyKey key ? key.getPropertyName() : null;
 
         // A reparsed method has to be given back the flags it was parsed with, or
         // it is no longer recognisably a method: super would be rejected outright,
@@ -1249,7 +1254,7 @@ public class Parser extends AbstractParser implements Loggable {
                 flags |= FunctionNode.ES6_IS_SUBCLASS_CONSTRUCTOR | FunctionNode.ES6_HAS_DIRECT_SUPER;
             }
         }
-        addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, async, flags, false));
+        addPropertyFunctionStatement(propertyMethodFunction(propertyKey, propertyToken, propertyLine, generator, async, flags, computed));
     }
 
     private void addPropertyFunctionStatement(final PropertyFunction propertyFunction) {

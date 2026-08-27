@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -622,8 +623,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
                 // would silently do nothing. ES2015 19.2.4.1 and 19.2.4.2 make
                 // both configurable so that they can be redefined, which means
                 // replacing the property rather than writing through it.
-                deleteOwnProperty(property);
-                addOwnProperty(key, propFlags, value);
+                redefineOwnProperty(property, key, propFlags, value);
                 checkIntegerKey(key);
                 return true;
             }
@@ -699,10 +699,8 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
                     propFlags |= Property.NOT_WRITABLE;
                 }
 
-                // delete the old property
-                deleteOwnProperty(property);
-                // add new data property
-                addOwnProperty(key, propFlags, desc.getValue());
+                // replace the accessor with a data property, where it stands
+                redefineOwnProperty(property, key, propFlags, desc.getValue());
             } else if (type == PropertyDescriptor.ACCESSOR) {
                 if (property == null) {
                     addOwnProperty(key, propFlags,
@@ -951,6 +949,43 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             } else {
                 return newProperty;
             }
+        }
+    }
+
+    /**
+     * Replace an own property with a data property of the same key, in its place.
+     *
+     * ES2015 9.1.6 redefines a property where it stands, and 9.1.12 makes the
+     * order own keys come out in observable, so deleting the old property and
+     * adding the new one would be visibly wrong: the key would move to the end.
+     * The new property always takes a spill slot, because a map's field count is
+     * fixed by the properties it was derived with.
+     *
+     * @param oldProperty the property being redefined
+     * @param key         its key
+     * @param propertyFlags flags for the new property
+     * @param value       the new value
+     */
+    private void redefineOwnProperty(final Property oldProperty, final Object key, final int propertyFlags, final Object value) {
+        WellKnownSymbols.note(key);
+        erasePropertyValue(oldProperty);
+
+        PropertyMap oldMap = getMap();
+        while (true) {
+            final int spillSlot = oldMap.getFreeSpillSlot();
+            final SpillProperty newProperty = new SpillProperty(key,
+                    propertyFlags | (useDualFields() ? Property.DUAL_FIELDS : 0), spillSlot);
+            if (compareAndSetMap(oldMap, oldMap.redefineProperty(oldProperty, newProperty))) {
+                if (oldProperty instanceof UserAccessorProperty accessors) {
+                    // or the getter and setter it held are never collected
+                    accessors.setAccessors(this, getMap(), null);
+                }
+                invalidateGlobalConstant(key);
+                ensureSpillSize(newProperty.getSlot());
+                newProperty.setValue(this, this, value, false);
+                return;
+            }
+            oldMap = getMap();
         }
     }
 
@@ -1494,7 +1529,24 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             }
         }
 
+        if (type == String.class && selfMap.containsArrayKeys()) {
+            // ES2015 9.1.12: an array index comes before an ordinary name,
+            // whatever order the two were added in, and the indices are in
+            // ascending numeric order. Index keys ordinarily live in the array
+            // part, which iterates that way already, but defineProperty and a
+            // computed method key put them in the property map, which keeps only
+            // the order they arrived in. The sort is stable, so the names that
+            // are not indices keep theirs.
+            keys.sort(Comparator.comparingLong(ScriptObject::indexOrder));
+        }
+
         return keys.toArray((T[]) Array.newInstance(type, keys.size()));
+    }
+
+    /** Where a key sorts among the array indices: after all of them if it is not one. */
+    private static long indexOrder(final Object key) {
+        final int index = getArrayIndex(key);
+        return isValidArrayIndex(index) ? ArrayIndex.toLongIndex(index) : Long.MAX_VALUE;
     }
 
     /**

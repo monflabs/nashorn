@@ -453,6 +453,28 @@ public class PropertyMap implements Iterable<Object>, Serializable {
      *
      * @return New {@link PropertyMap} with {@link Property} replaced.
      */
+    /**
+     * Replace a property with one held a different way, keeping its place.
+     *
+     * ES2015 9.1.6 redefines a property where it stands, and the order own keys
+     * come out in is observable, so a redefinition that cannot reuse the old
+     * property's storage - a data property replacing one backed by an accessor -
+     * still may not be a delete and an add. Unlike
+     * {@link #replaceProperty(Property, Property)} the two need not be of a kind:
+     * the new property brings its own slot and the old one's is given back.
+     *
+     * @param oldProperty the property to replace
+     * @param newProperty what to replace it with, under the same key
+     * @return the new map
+     */
+    public final PropertyMap redefineProperty(final Property oldProperty, final Property newProperty) {
+        propertyChanged(oldProperty);
+        final PropertyMap newMap = deriveMap(properties.immutableReplace(oldProperty, newProperty), flags,
+                fieldCount, Math.max(spillLength, newProperty.getSlot() + 1));
+        newMap.updateFreeSlots(oldProperty, newProperty);
+        return newMap;
+    }
+
     public final PropertyMap replaceProperty(final Property oldProperty, final Property newProperty) {
         propertyChanged(oldProperty);
         /*
