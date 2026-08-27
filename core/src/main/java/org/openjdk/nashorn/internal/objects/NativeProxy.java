@@ -225,7 +225,7 @@ public final class NativeProxy extends ScriptObject {
 
     @SuppressWarnings("unused")
     private static Object trapGet(final NativeProxy proxy, final Object key, final Object self) {
-        return proxy.get(key, self);
+        return proxy.getWithReceiver(key, self);
     }
 
     @SuppressWarnings("unused")
@@ -240,7 +240,7 @@ public final class NativeProxy extends ScriptObject {
 
     @Override
     public Object get(final Object key) {
-        return get(key, this);
+        return getWithReceiver(key, this);
     }
 
     /**
@@ -250,11 +250,12 @@ public final class NativeProxy extends ScriptObject {
      * object the read started at when the proxy was found along its prototype
      * chain - which is what the trap is handed either way.
      */
-    private Object get(final Object key, final Object receiver) {
+    @Override
+    public Object getWithReceiver(final Object key, final Object receiver) {
         final ScriptFunction trap = trap("get");
         final ScriptObject rx = target();
         if (trap == null) {
-            return rx instanceof NativeProxy nested ? nested.get(key, receiver) : rx.get(key);
+            return rx.getWithReceiver(key, receiver);
         }
         final Object answered = call(trap, rx, propertyKey(key), receiver);
 
@@ -319,22 +320,32 @@ public final class NativeProxy extends ScriptObject {
 
     @Override
     public void set(final Object key, final Object value, final int flags) {
-        final ScriptFunction trap = trap("set");
-        if (trap == null) {
-            target().set(key, value, flags);
-            return;
+        if (!setWithReceiver(key, value, this)
+                && NashornCallSiteDescriptorStrictness.isStrict(flags)) {
+            throw typeError("property.not.writable", ScriptRuntime.safeToString(key),
+                    ScriptRuntime.safeToString(this));
         }
+    }
+
+    /**
+     * ES2015 9.5.9 [[Set]]: the trap answers for the whole operation, the
+     * receiver among its arguments, and what it answers is whether the write
+     * happened - which is what Reflect.set reports and what a strict assignment
+     * turns into a TypeError.
+     */
+    @Override
+    public boolean setWithReceiver(final Object key, final Object value, final Object receiver) {
+        final ScriptFunction trap = trap("set");
         final ScriptObject rx = target();
-        if (!JSType.toBoolean(call(trap, rx, propertyKey(key), value, this))) {
-            if (NashornCallSiteDescriptorStrictness.isStrict(flags)) {
-                throw typeError("property.not.writable", ScriptRuntime.safeToString(key),
-                        ScriptRuntime.safeToString(this));
-            }
-            return;
+        if (trap == null) {
+            return rx.setWithReceiver(key, value, receiver);
+        }
+        if (!JSType.toBoolean(call(trap, rx, propertyKey(key), value, receiver))) {
+            return false;
         }
 
-        // ES2015 9.5.9 step 13: a write the target would not have allowed
-        // cannot be reported as having happened
+        // step 13: a write the target would not have allowed cannot be reported
+        // as having happened
         if (rx.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor onTarget
                 && !onTarget.isConfigurable()) {
             if (onTarget.type() == PropertyDescriptor.DATA && !onTarget.isWritable()
@@ -346,6 +357,7 @@ public final class NativeProxy extends ScriptObject {
                 throw typeError("proxy.set.not.same.value", ScriptRuntime.safeToString(key));
             }
         }
+        return true;
     }
 
     @Override

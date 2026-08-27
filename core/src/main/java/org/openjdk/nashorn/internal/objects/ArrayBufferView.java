@@ -782,6 +782,28 @@ public abstract class ArrayBufferView extends ScriptObject {
         }
     }
 
+    /**
+     * ES2021 10.4.5.5 [[Set]]: a canonical numeric index is the array's own
+     * business whoever is writing through it. Written on the array itself it is
+     * an element write; written with another receiver it is dropped and reported
+     * as done, so a name that only looks like an index never reaches a property
+     * of the receiver's, and the value is never even converted.
+     */
+    @Override
+    public boolean setWithReceiver(final Object key, final Object value, final Object receiver) {
+        final Double index = canonicalNumericIndex(key);
+        if (index != null) {
+            if (receiver == this) {
+                set(key, value, 0);
+                return true;
+            }
+            if (!isElementIndex(index)) {
+                return true;
+            }
+        }
+        return super.setWithReceiver(key, value, receiver);
+    }
+
     @Override
     public void set(final Object key, final int value, final int callSiteFlags) {
         if (!dropWrite(key)) {

@@ -989,6 +989,109 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         }
     }
 
+    /**
+     * ES2015 9.1.9 [[Set]] with a receiver that is not the object the property
+     * was found on, which is what Reflect.set and a super assignment both do.
+     *
+     * The lookup walks the target's prototype chain, and what it finds decides
+     * how the write happens - a setter runs with the receiver, a writable data
+     * property is written on the receiver rather than where it was found. The
+     * receiver's own property is what decides whether that write is allowed:
+     * 9.1.9.1 step 3.c asks it before writing, and on an exotic object that is
+     * observable.
+     *
+     * Failure is answered rather than thrown. Everything the specification
+     * marks as an abrupt completion - a setter that throws, a proxy trap that
+     * does - still comes out as one.
+     *
+     * @param key      the property key, already converted
+     * @param value    what to write
+     * @param receiver what the write is made on
+     * @return true if the write happened
+     */
+    public boolean setWithReceiver(final Object key, final Object value, final Object receiver) {
+        final FindProperty found = findProperty(key, true);
+        if (found != null && found.getProperty().isAccessorProperty()) {
+            final Property property = found.getProperty();
+            if (property instanceof UserAccessorProperty accessor) {
+                final ScriptFunction setter = accessor.getSetterFunction(found.getOwner());
+                if (setter == null) {
+                    return false;
+                }
+                ScriptRuntime.apply(setter, receiver, value);
+                return true;
+            }
+            // a built-in accessor belongs to the object it was found on rather
+            // than to whoever is writing through it, so it is written there -
+            // and one with nothing to write through refuses
+            if (!property.hasNativeSetter()) {
+                return false;
+            }
+            property.setValue(found.getSelf(), found.getOwner(), value, false);
+            return true;
+        }
+        if (found != null && !found.getProperty().isWritable()) {
+            return false;
+        }
+        if (found == null && getOwnPropertyDescriptor(key) instanceof ScriptObject own
+                && !JSType.toBoolean(own.get(PropertyDescriptor.WRITABLE))
+                && own.get(PropertyDescriptor.SET) == UNDEFINED
+                && own.get(PropertyDescriptor.GET) == UNDEFINED) {
+            // an index or an exotic own property the map does not hold
+            return false;
+        }
+        if (!(receiver instanceof ScriptObject holder)) {
+            return false;
+        }
+
+        final Object existing = holder.getOwnPropertyDescriptor(key);
+        final ScriptObject wanted = Global.newEmptyInstance();
+        wanted.set(PropertyDescriptor.VALUE, value, 0);
+        if (existing instanceof ScriptObject described) {
+            if (described.get(PropertyDescriptor.SET) != UNDEFINED
+                    || described.get(PropertyDescriptor.GET) != UNDEFINED) {
+                // the receiver's own accessor is not what the lookup found, and
+                // 9.1.9.1 step 3.d.i will not write through it
+                return false;
+            }
+            if (!JSType.toBoolean(described.get(PropertyDescriptor.WRITABLE))) {
+                return false;
+            }
+        } else {
+            // 9.1.9.1 step 3.e is CreateDataProperty, so the property it makes
+            // is writable, enumerable and configurable
+            wanted.set(PropertyDescriptor.WRITABLE, true, 0);
+            wanted.set(PropertyDescriptor.ENUMERABLE, true, 0);
+            wanted.set(PropertyDescriptor.CONFIGURABLE, true, 0);
+        }
+        // the write is a definition rather than a set: a set on the receiver
+        // would start the whole operation again, which for a proxy receiver
+        // would not end
+        return holder.defineOwnProperty(key, wanted, false);
+    }
+
+    /**
+     * ES2015 9.1.8 [[Get]] with a receiver that is not the object the property
+     * was found on, which Reflect.get and a super property read both do.
+     *
+     * @param key      the property key, already converted
+     * @param receiver what a getter is run with
+     * @return the value
+     */
+    public Object getWithReceiver(final Object key, final Object receiver) {
+        final FindProperty found = findProperty(key, true);
+        if (found == null) {
+            // an array index, or an own property of an exotic object: what the
+            // map does not hold, only the object itself can answer for
+            return get(key);
+        }
+        if (found.getProperty() instanceof UserAccessorProperty accessor) {
+            final ScriptFunction getter = accessor.getGetterFunction(found.getOwner());
+            return getter == null ? ScriptRuntime.UNDEFINED : ScriptRuntime.apply(getter, receiver);
+        }
+        return found.getObjectValue();
+    }
+
     private void erasePropertyValue(final Property property) {
         // Erase the property field value with undefined. If the property is an accessor property
         // we don't want to call the setter!!

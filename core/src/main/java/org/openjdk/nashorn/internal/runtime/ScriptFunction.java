@@ -661,7 +661,7 @@ public class ScriptFunction extends ScriptObject {
         // runs once. getPrototype() would read the internal field past it.
         if (!data.isBuiltin()) {
             final Object newProto = newTarget.get("prototype");
-            if (newProto instanceof ScriptObject prototype && inherits(prototype, getPrototype())) {
+            if (newProto instanceof ScriptObject prototype) {
                 final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
                 if (allocated != null) {
                     allocated.setInitialProto(prototype);
@@ -707,18 +707,6 @@ public class ScriptFunction extends ScriptObject {
      * prototype corrected afterwards, and new.target read inside reports the
      * function itself.
      */
-    private static boolean inherits(final ScriptObject prototype, final Object own) {
-        if (!(own instanceof ScriptObject target)) {
-            return false;
-        }
-        for (ScriptObject proto = prototype; proto != null; proto = proto.getProto()) {
-            if (proto == target) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * Get the property map used by "allocate"
      * @param prototype actual prototype object

@@ -31,7 +31,10 @@ import org.openjdk.nashorn.internal.objects.annotations.Attribute;
 import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
+import org.openjdk.nashorn.internal.objects.annotations.Property;
+import org.openjdk.nashorn.internal.runtime.FindProperty;
 import org.openjdk.nashorn.internal.runtime.JSType;
+import org.openjdk.nashorn.internal.runtime.UserAccessorProperty;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -157,8 +160,17 @@ public final class NativeReflect extends ScriptObject {
      * @return the value
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
-    public static Object get(final Object self, final Object target, final Object key, final Object receiver) {
-        return object(target, "get").get(propertyKey(key));
+    public static Object get(final Object self, final Object... args) {
+        final Object target = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        final Object key = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
+        final ScriptObject sobj = object(target, "get");
+        final Object name = propertyKey(key);
+        if (args.length < 3 || args[2] == sobj) {
+            return sobj.get(name);
+        }
+        // 26.1.6 step 4: the property is looked up on the target and read with
+        // the receiver, so a getter sees the receiver as its this
+        return sobj.getWithReceiver(name, args[2]);
     }
 
     /**
@@ -255,14 +267,10 @@ public final class NativeReflect extends ScriptObject {
         final Object key = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object value = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
         final ScriptObject sobj = object(target, "set");
-        try {
-            sobj.set(propertyKey(key), value, org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.CALLSITE_STRICT);
-            return true;
-        } catch (final RuntimeException e) {
-            // Reflect reports failure by returning false where a strict
-            // assignment would throw
-            return false;
-        }
+        // 26.1.13 step 4: the receiver defaults to the target, and where it does
+        // not, the write is made on it rather than on what was looked up
+        final Object receiver = args.length > 3 ? args[3] : sobj;
+        return sobj.setWithReceiver(propertyKey(key), value, receiver);
     }
 
     /**
@@ -276,10 +284,13 @@ public final class NativeReflect extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
     public static boolean setPrototypeOf(final Object self, final Object target, final Object proto) {
         final ScriptObject sobj = object(target, "setPrototypeOf");
-        if (proto != null && proto != ScriptRuntime.UNDEFINED && !(proto instanceof ScriptObject)) {
+        // 26.1.14 step 2: an object or null, and undefined is neither - unlike
+        // Object.setPrototypeOf, which is reached through a coercion that lets
+        // it through
+        if (proto != null && !(proto instanceof ScriptObject)) {
             throw typeError("proto.not.an.object", ScriptRuntime.safeToString(proto));
         }
-        return sobj.trySetPrototypeOf(proto == ScriptRuntime.UNDEFINED ? null : proto);
+        return sobj.trySetPrototypeOf(proto);
     }
 
     /** Whether a value can be used with new, which a builtin function cannot. */
@@ -291,6 +302,14 @@ public final class NativeReflect extends ScriptObject {
         return value instanceof ScriptObject sobj && sobj.isProxyOverCallable()
                 && sobj.isProxyOverConstructor();
     }
+
+    /**
+     * ES2021 28.1.14 Reflect [ @@toStringTag ]. It postdates ECMAScript 2017,
+     * but Math and JSON have had one since 2015 and the suite holds all three to
+     * the same shape.
+     */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Reflect";
 
     /** Every Reflect function rejects a non-object target outright. */
     private static ScriptObject object(final Object target, final String method) {
@@ -307,9 +326,21 @@ public final class NativeReflect extends ScriptObject {
 
     /** Coerces Reflect.apply's and Reflect.construct's array-like argument list. */
     private static Object[] toArguments(final Object list) {
-        if (list == null || list == ScriptRuntime.UNDEFINED) {
+        if (list instanceof ScriptObject arrayLike) {
+            // 7.3.17 CreateListFromArrayLike reads length and then the indices,
+            // and never asks for an iterator: an array-like that is not iterable
+            // is still a list, and one whose length throws throws here
+            final long length = JSType.toUint32(arrayLike.get("length"));
+            final Object[] values = new Object[(int)Math.min(length, Integer.MAX_VALUE)];
+            for (int i = 0; i < values.length; i++) {
+                values[i] = arrayLike.get(i);
+            }
+            return values;
+        }
+        if (JSType.isPrimitive(list)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(list));
         }
+        // a Java object standing in for one, which Nashorn lets through
         return ScriptRuntime.SPREAD_TO_ARGUMENTS(NativeArray.from(null, list));
     }
 }
