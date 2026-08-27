@@ -161,6 +161,8 @@ import org.openjdk.nashorn.internal.runtime.logging.Logger;
 public class Parser extends AbstractParser implements Loggable {
     private static final String ARGUMENTS_NAME = CompilerConstants.ARGUMENTS_VAR.symbolName();
     private static final String CONSTRUCTOR_NAME = "constructor";
+    /** The property name that reparents the object it is written in (B.3.1). */
+    private static final String PROTO_PROPERTY_NAME = "__proto__";
 
     /** The temporary a class declaration is carried out of its own scope in. */
     private static final String CLASS_CARRIER_PREFIX = ":class";
@@ -2116,6 +2118,33 @@ public class Parser extends AbstractParser implements Loggable {
     /**
      * Verify destructuring variable declaration binding pattern and extract bound variable declarations.
      */
+    /**
+     * ES2015 13.15.1: a catch parameter is a binding of the catch block, so a let,
+     * a const or a class of the same name inside it declares the name twice. A
+     * var does not, in the one case the specification still allows it - which is
+     * why only the block scoped declarations are looked at.
+     */
+    /** Whether a property name is the one that reparents the object. */
+    private static boolean isProtoProperty(final Expression propertyName) {
+        return propertyName instanceof IdentNode name && name.isProtoPropertyName();
+    }
+
+    private void verifyCatchParameterNames(final Expression parameter, final Block catchBody) {
+        final Set<String> bound = new HashSet<>();
+        if (parameter instanceof IdentNode name) {
+            bound.add(name.getName());
+        } else if (parameter != null) {
+            verifyDestructuringBindingPattern(parameter, identNode -> bound.add(identNode.getName()));
+        }
+        for (final Statement statement : catchBody.getStatements()) {
+            if (statement instanceof VarNode declaration && declaration.isBlockScoped()
+                    && bound.contains(declaration.getName().getName())) {
+                throw error(AbstractParser.message("duplicate.binding", declaration.getName().getName()),
+                        declaration.getToken());
+            }
+        }
+    }
+
     private void verifyDestructuringBindingPattern(final Expression pattern, final Consumer<IdentNode> identifierCallback) {
         assert (pattern instanceof BinaryNode && pattern.isTokenType(ASSIGN)) ||
                 pattern instanceof ObjectNode || pattern instanceof LiteralNode.ArrayLiteralNode;
@@ -3051,6 +3080,7 @@ public class Parser extends AbstractParser implements Loggable {
                 try {
                     // Get CATCH body.
                     final Block catchBody = getBlock(true);
+                    verifyCatchParameterNames(exception, catchBody);
                     final CatchNode catchNode = new CatchNode(catchLine, catchToken, finish, exception, ifExpression, catchBody, false);
                     appendStatement(catchNode);
                 } finally {
@@ -3590,7 +3620,15 @@ public class Parser extends AbstractParser implements Loggable {
             propertyName = identNode;
         } else {
             isIdentifier = isNonStrictModeIdent();
-            propertyName = propertyName();
+            final Expression written = propertyName();
+            // B.3.1 reads the property name, not the way it was written, so
+            // "'__proto__': value" reparents the object as the bare name does.
+            // The tree API is shown what was written.
+            propertyName = !computed && type == COLON && !env._parse_only && written instanceof LiteralNode<?> literal
+                    && PROTO_PROPERTY_NAME.equals(literal.getString())
+                    ? createIdentNode(propertyToken, finish, PROTO_PROPERTY_NAME)
+                            .setIsPropertyName().setIsProtoPropertyName()
+                    : written;
         }
 
         Expression propertyValue;
@@ -3629,8 +3667,10 @@ public class Parser extends AbstractParser implements Loggable {
             expect(COLON);
 
             // a computed key is only known once it has been evaluated, so the
-            // function is left nameless here and named at run time from the key
-            defaultNames.push(computed ? "" : propertyName);
+            // function is left nameless here and named at run time from the key.
+            // "__proto__ : value" names nothing either: it is not a property
+            // definition at all, and 12.2.6.9 does no NamedEvaluation
+            defaultNames.push(computed || isProtoProperty(propertyName) ? "" : propertyName);
             try {
                 propertyValue = assignmentExpression(false);
             } finally {

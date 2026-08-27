@@ -38,10 +38,12 @@ print(JSON.stringify(desc))
 print("getter", desc.get)
 print("setter", desc.set)
 
-// no computed "__proto__" name, only identifier!
+// B.3.1 reads the property name, not the way it was written: a quoted
+// __proto__ reparents the object as the bare name does. Only a computed one
+// makes an ordinary property.
 var p = {}
 var obj = {
-    "__proto__" : p
+    ["__proto__"] : p
 }
 
 if (Object.getPrototypeOf(obj) === p) {
@@ -54,6 +56,14 @@ if (obj.__proto__ !== p) {
 
 if (Object.getPrototypeOf(obj) !== Object.prototype) {
     fail("obj has wrong __proto__")
+}
+
+var quoted = {
+    "__proto__" : p
+}
+
+if (Object.getPrototypeOf(quoted) !== p) {
+    fail("can't set __proto__ under a quoted name")
 }
 
 var obj2 = {

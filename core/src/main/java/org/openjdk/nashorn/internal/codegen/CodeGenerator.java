@@ -2854,10 +2854,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // Just use a pseudo-symbol. We just need something non null; use the name and zero flags.
             final Symbol symbol = isComputedOrAccessor ? null : new Symbol(key, 0);
 
-            if (propertyNode.getKey() instanceof IdentNode && !isComputedOrAccessor
-                    && ScriptObject.PROTO_PROPERTY_NAME.equals(key)) {
-                // ES6 draft compliant __proto__ inside object literal
-                // Identifier key and name is __proto__
+            if (propertyNode.getKey() instanceof IdentNode name && name.isProtoPropertyName()
+                    && !isComputedOrAccessor) {
+                // B.3.1: only "__proto__ : value" reparents the object. The
+                // shorthand and the method forms make an ordinary property of
+                // the name, which is why the parser's mark is what decides it
+                // rather than the name itself
                 protoNode = value;
                 continue;
             }
@@ -2948,8 +2950,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     method.invokestatic(CompilerConstants.className(ScriptFunction.class), "setFunctionName",
                             new FunctionSignature(false, false, Type.OBJECT, 2).toString());
                 }
-                method.load(0);
-                method.invoke(ScriptObject.GENERIC_SET);
+                method.invoke(ScriptRuntime.DEFINE_LITERAL_PROPERTY);
             } else {
                 final FunctionNode getter = propertyNode.getGetter();
                 final FunctionNode setter = propertyNode.getSetter();

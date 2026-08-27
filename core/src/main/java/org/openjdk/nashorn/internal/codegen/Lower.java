@@ -606,6 +606,18 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
     }
 
     @Override
+    public boolean enterTryNode(final TryNode tryNode) {
+        // 13.15.8 evaluates a try as UpdateEmpty(result, undefined): a body that
+        // produces no value leaves the statement worth undefined rather than
+        // leaving whatever came before it showing through. The reset goes in
+        // front of the statement rather than after it, because what the body
+        // assigns has to survive - and because by the time the statement is
+        // left, a finally block has been spliced through it.
+        resetCompletionValue(tryNode);
+        return super.enterTryNode(tryNode);
+    }
+
+    @Override
     public Node leaveTryNode(final TryNode tryNode) {
         final Block finallyBody = discardCompletionValue(tryNode.getFinallyBody());
         TryNode newTryNode = tryNode.setFinallyBody(lc, null);
@@ -615,9 +627,9 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
             final List<CatchNode> catches = newTryNode.getCatches();
             if (catches == null || catches.isEmpty()) {
                 // A completely degenerate try block: empty finally, no catches. Replace it with try body.
-                return addStatement(new BlockStatement(tryNode.getBody()));
+                return addResettingStatement(new BlockStatement(tryNode.getBody()));
             }
-            return addStatement(ensureUnconditionalCatch(newTryNode));
+            return addResettingStatement(ensureUnconditionalCatch(newTryNode));
         }
 
         /*
@@ -879,7 +891,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         });
     }
 
-    private Node addResettingStatement(final Statement statement) {
+    private void resetCompletionValue(final Statement statement) {
         if (lc.getCurrentFunction().isProgram()) {
             final long token = statement.getToken();
             addStatement(new ExpressionStatement(statement.getLineNumber(), token, statement.getFinish(),
@@ -887,6 +899,10 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
                             new UnaryNode(Token.recast(token, TokenType.VOID),
                                     LiteralNode.newInstance(token, statement.getFinish(), 0)))));
         }
+    }
+
+    private Node addResettingStatement(final Statement statement) {
+        resetCompletionValue(statement);
         return addStatement(statement);
     }
 

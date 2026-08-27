@@ -2011,6 +2011,35 @@ public final class ScriptRuntime {
         ((ScriptObject)base).set(name, value, NashornCallSiteDescriptor.CALLSITE_SCOPE | strictFlag);
     }
 
+    /** {@link #DEFINE_LITERAL_PROPERTY} as a call. */
+    public static final Call DEFINE_LITERAL_PROPERTY = staticCallNoLookup(ScriptRuntime.class,
+            "DEFINE_LITERAL_PROPERTY", void.class, Object.class, Object.class, Object.class);
+
+    /**
+     * ES2015 9.1.6.3 CreateDataPropertyOrThrow, which is how an object literal
+     * writes a property it could not bake into its map.
+     *
+     * The property is defined rather than set, which matters for a name the
+     * prototype chain answers for: writing __proto__ would run the accessor
+     * Object.prototype has and reparent the object, where the specification
+     * makes an ordinary own property of it.
+     *
+     * @param object the literal being built
+     * @param key    the property key
+     * @param value  its value
+     */
+    public static void DEFINE_LITERAL_PROPERTY(final Object object, final Object key, final Object value) {
+        final ScriptObject sobj = (ScriptObject)object;
+        final Object name = JSType.toPropertyKey(key);
+        if (!ArrayIndex.isValidArrayIndex(ArrayIndex.getArrayIndex(name)) && sobj.getMap().findProperty(name) == null) {
+            sobj.addOwnProperty(name, 0, value);
+            return;
+        }
+        // an index, or a key the literal already has, where an ordinary write
+        // reaches the same property and does the same thing
+        sobj.set(name, value, 0);
+    }
+
     /**
      * A computed property key, made where the reference is.
      *
