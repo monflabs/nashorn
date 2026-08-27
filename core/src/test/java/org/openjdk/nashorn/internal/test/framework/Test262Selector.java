@@ -145,6 +145,21 @@ public final class Test262Selector {
             "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from.js",
             "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js");
 
+    /**
+     * Tests keyed to a Unicode version newer than the one the JDK carries.
+     *
+     * What counts as an identifier character comes from java.lang.Character,
+     * whose tables are the JDK's own: JDK 25 has Unicode 16.0, and a character
+     * assigned in 17.0 is unassigned as far as it is concerned. Nothing in the
+     * engine can answer for one, so these move when the JDK does rather than
+     * when Nashorn does.
+     */
+    private static final Set<String> LATER_UNICODE = Set.of(
+            "language/identifiers/start-unicode-17.0.0.js",
+            "language/identifiers/start-unicode-17.0.0-escaped.js",
+            "language/identifiers/part-unicode-17.0.0.js",
+            "language/identifiers/part-unicode-17.0.0-escaped.js");
+
     private Test262Selector() {
     }
 
@@ -172,6 +187,11 @@ public final class Test262Selector {
         // the relative path carries the suite's own "test/" in front of it
         final String path = relative.toString().replace(java.io.File.separatorChar, '/');
         for (final String excluded : LATER_SYNTAX) {
+            if (path.endsWith(excluded)) {
+                return false;
+            }
+        }
+        for (final String excluded : LATER_UNICODE) {
             if (path.endsWith(excluded)) {
                 return false;
             }

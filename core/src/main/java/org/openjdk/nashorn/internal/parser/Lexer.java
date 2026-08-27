@@ -818,8 +818,11 @@ public class Lexer extends Scanner {
             if (ch0 == '\\' && ch1 == 'u') {
                 skip(2);
                 final int ch = identifierEscape();
-                assert ! isWhitespace((char)ch);
                 assert ch >= 0;
+                // the check is on the character, so it can only be made for one:
+                // truncating a supplementary code point to a char asks about
+                // something else entirely, and an escaped U+13000 came out as U+3000
+                assert ch > 0xFFFF || !isWhitespace((char)ch);
                 sb.appendCodePoint(ch);
             } else {
                 // Add regular character.
@@ -1406,7 +1409,10 @@ public class Lexer extends Scanner {
             return codePoint >= 'a' && codePoint <= 'z' || codePoint >= 'A' && codePoint <= 'Z'
                     || codePoint == '$' || codePoint == '_';
         }
-        return Character.isUnicodeIdentifierStart(codePoint);
+        // UAX #31 takes the Pattern_Syntax characters out of ID_Start, and
+        // U+2E2F VERTICAL TILDE is the only letter among them. The JDK's own
+        // test predates that and still answers yes.
+        return codePoint != VERTICAL_TILDE && Character.isUnicodeIdentifierStart(codePoint);
     }
 
     /**
@@ -1418,8 +1424,12 @@ public class Lexer extends Scanner {
             return codePoint >= 'a' && codePoint <= 'z' || codePoint >= 'A' && codePoint <= 'Z'
                     || codePoint >= '0' && codePoint <= '9' || codePoint == '$' || codePoint == '_';
         }
-        return codePoint == 0x200C || codePoint == 0x200D || Character.isUnicodeIdentifierPart(codePoint);
+        return codePoint == 0x200C || codePoint == 0x200D
+                || codePoint != VERTICAL_TILDE && Character.isUnicodeIdentifierPart(codePoint);
     }
+
+    /** The one letter UAX #31 excludes from identifiers for being Pattern_Syntax. */
+    private static final int VERTICAL_TILDE = 0x2E2F;
 
     /**
      * Compare two identifiers (in content) for equality.
