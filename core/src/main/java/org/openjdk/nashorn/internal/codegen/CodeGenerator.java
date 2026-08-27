@@ -2419,6 +2419,24 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     /**
+     * Pushes the receiver a super property is read or written with.
+     *
+     * A derived constructor's this slot holds new.target rather than the object,
+     * because it allocated nothing and super() has to be told what to construct
+     * as. What it built is in the binding instead, and that is the receiver
+     * 12.3.5.3 means. Everywhere else - a method, an arrow, which is handed its
+     * enclosing this on the way in - the slot is the receiver.
+     */
+    private void loadThisReceiver() {
+        final Symbol binding = thisBinding();
+        if (binding != null && binding.hasSlot()) {
+            method.load(binding, Type.OBJECT);
+        } else {
+            method.loadCompilerConstant(THIS);
+        }
+    }
+
+    /**
      * ES2015 12.3.5.3 makes a super property reference read this, so in a
      * derived constructor one written before super() is a ReferenceError rather
      * than a look at a property of nothing.
@@ -2504,7 +2522,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             requireThisInitialized();
             method.loadCompilerConstant(CALLEE);
             loadSuperKey(base);
-            method.loadCompilerConstant(THIS);
+            loadThisReceiver();
             loadSpreadArray(callNode.getArgs());
             method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CALL",
                     new FunctionSignature(false, false, Type.OBJECT, 4).toString());
@@ -2557,7 +2575,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         requireThisInitialized();
         method.loadCompilerConstant(CALLEE);
         loadSuperKey(base);
-        method.loadCompilerConstant(THIS);
+        loadThisReceiver();
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_GET",
                 new FunctionSignature(false, false, Type.OBJECT, 3).toString());
     }
@@ -4939,7 +4957,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     requireThisInitialized();
                     method.loadCompilerConstant(CALLEE);
                     loadSuperKey(node);
-                    method.loadCompilerConstant(THIS);
+                    loadThisReceiver();
                     depth += 3 * Type.OBJECT.getSlots();
                 }
 

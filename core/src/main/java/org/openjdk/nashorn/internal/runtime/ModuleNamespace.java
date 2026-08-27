@@ -26,6 +26,7 @@
 package org.openjdk.nashorn.internal.runtime;
 
 import java.util.List;
+import java.util.Set;
 import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.objects.NativeSymbol;
 
@@ -69,6 +70,57 @@ public final class ModuleNamespace extends ScriptObject {
             return Global.instance().newDataDescriptor(module.read(name), false, true, true);
         }
         return super.getOwnPropertyDescriptor(key);
+    }
+
+    /**
+     * ES2015 9.4.6.4 [[GetOwnProperty]] again: asking whether an export is there
+     * describes it, and describing it reads it.
+     */
+    @Override
+    public boolean hasOwnProperty(final Object key) {
+        if (key instanceof String name && exports.contains(name)) {
+            module.read(name);
+            return true;
+        }
+        return super.hasOwnProperty(key);
+    }
+
+    /**
+     * ES2015 7.3.21 EnumerableOwnNames, which Object.keys and a for-in loop are:
+     * each name is asked whether it is enumerable, and asking describes it,
+     * which reads it. Listing the names without asking - what
+     * Object.getOwnPropertyNames does - reads nothing.
+     */
+    @Override
+    protected <T> T[] getOwnKeys(final Class<T> type, final boolean all, final Set<T> nonEnumerable) {
+        if (!all) {
+            for (final String exportName : exports) {
+                module.read(exportName);
+            }
+        }
+        return super.getOwnKeys(type, all, nonEnumerable);
+    }
+
+    /**
+     * ES2015 7.3.14 SetIntegrityLevel: freezing asks every property to become
+     * non-writable, which an export may not be, so a namespace object with
+     * anything in it cannot be frozen. Sealing it succeeds: its properties are
+     * non-configurable already.
+     */
+    @Override
+    public boolean isFrozen() {
+        // an export describes itself as writable, whatever the property behind
+        // it says, so a namespace object with anything in it is never frozen
+        return exports.isEmpty() && super.isFrozen();
+    }
+
+    @Override
+    public ScriptObject freeze() {
+        if (!exports.isEmpty()) {
+            throw ECMAErrors.typeError("cant.redefine.property", exports.get(0),
+                    ScriptRuntime.safeToString(this));
+        }
+        return super.freeze();
     }
 
     /** ES2015 9.4.6.7 [[Delete]]: an export cannot be removed. */

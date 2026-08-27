@@ -267,6 +267,13 @@ public final class ModuleRecord {
 
             if (Module.STAR_NAME.equals(imported)) {
                 scope.set(local, from.namespace(), 0);
+                // 15.2.1.16.4 step 12.a: an immutable binding, like every import.
+                // The name is already declared, so the property is modified
+                // where it stands rather than added again.
+                final Property property = scope.getMap().findProperty(local);
+                if (property != null) {
+                    scope.modifyOwnProperty(property, property.getFlags() | Property.NOT_WRITABLE);
+                }
             } else {
                 // ES2015 15.2.1.16.4 step 12.b: an indirect binding, not a copy
                 scope.addOwnProperty(local, Property.NOT_WRITABLE | Property.NOT_ENUMERABLE,

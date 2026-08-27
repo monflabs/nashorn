@@ -708,12 +708,14 @@ public final class NativeObject {
 
         if (obj instanceof ScriptObject) {
             final ScriptObject sobj = (ScriptObject) obj;
-            final Property property = sobj.getMap().findProperty(key);
-            if (property != null) {
-                return property.isEnumerable();
-            } else {
-                return (sobj.getArray().has(ArrayIndex.getArrayIndex(v)));
+            // 19.1.3.4 step 3 describes the property rather than reading its
+            // flags out of the map, which is observable on an object that
+            // answers for itself - a module namespace reads the export
+            final Object descriptor = sobj.getOwnPropertyDescriptor(key);
+            if (descriptor instanceof ScriptObject described) {
+                return JSType.toBoolean(described.get("enumerable"));
             }
+            return sobj.getArray().has(ArrayIndex.getArrayIndex(v));
         }
 
         return false;

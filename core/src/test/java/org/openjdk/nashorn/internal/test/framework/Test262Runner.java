@@ -617,6 +617,12 @@ public final class Test262Runner {
             if (!isUndefined(name)) {
                 return name.toString();
             }
+            // Test262Error has no name property of its own, so what it is called
+            // has to come from what made it
+            final Object constructor = thrown.get("constructor");
+            if (constructor instanceof ScriptFunction made && !made.getName().isEmpty()) {
+                return made.getName();
+            }
         }
         return t.getClass().getSimpleName();
     }
