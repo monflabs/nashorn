@@ -3294,6 +3294,14 @@ public class Parser extends AbstractParser implements Loggable {
                 return getLiteral();
             }
             if (isNonStrictModeIdent()) {
+                // ES2015 12.1.1: yield is a keyword inside a generator, so it is
+                // not an identifier reference there. A YieldExpression is an
+                // AssignmentExpression and nothing narrower, so one written
+                // where only a narrower expression fits - "void yield" - has no
+                // reading at all rather than being a read of a variable.
+                if (type == YIELD && inGeneratorFunction()) {
+                    throw error(AbstractParser.message("strict.name", YIELD_NAME, "identifier"), primaryToken);
+                }
                 return getIdent();
             }
             break;
