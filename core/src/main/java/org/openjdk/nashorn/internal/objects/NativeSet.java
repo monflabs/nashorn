@@ -90,7 +90,8 @@ public class NativeSet extends ScriptObject {
         }
         final Global global = Global.instance();
         final NativeSet set = new NativeSet(global.getSetPrototype(), $nasgenmap$);
-        populateSet(set.getJavaMap(), arg, global);
+        // 23.2.1.1 step 8: the values go in through the set's own "add"
+        AbstractIterator.fillFrom(set, "add", arg, global, value -> new Object[] { value });
         return set;
     }
 
@@ -234,11 +235,6 @@ public class NativeSet extends ScriptObject {
         return "Set";
     }
 
-    static void populateSet(final LinkedMap map, final Object arg, final Global global) {
-        if (arg != null && arg != Undefined.getUndefined()) {
-            AbstractIterator.iterate(arg, global, value -> map.set(convertKey(value), null));
-        }
-    }
 
     LinkedMap getJavaMap() {
         return map;

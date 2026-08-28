@@ -92,7 +92,8 @@ public class NativeMap extends ScriptObject {
         }
         final Global global = Global.instance();
         final NativeMap map = new NativeMap(global.getMapPrototype(), $nasgenmap$);
-        populateMap(map.getJavaMap(), arg, global);
+        // 23.1.1.1 step 7: the entries go in through the map's own "set"
+        AbstractIterator.fillFrom(map, "set", arg, global, NativeMap::entryOf);
         return map;
     }
 
@@ -248,18 +249,16 @@ public class NativeMap extends ScriptObject {
         return "Map";
     }
 
-    static void populateMap(final LinkedMap map, final Object arg, final Global global) {
-        if (arg != null && arg != Undefined.getUndefined()) {
-            AbstractIterator.iterate(arg, global, value -> {
-                if (JSType.isPrimitive(value)) {
-                    throw typeError(global, "not.an.object", ScriptRuntime.safeToString(value));
-                }
-                if (value instanceof ScriptObject) {
-                    final ScriptObject sobj = (ScriptObject) value;
-                    map.set(convertKey(sobj.get(0)), sobj.get(1));
-                }
-            });
+    /**
+     * ES2015 23.1.1.2 AddEntriesFromIterable step 4: an entry is an object, and
+     * the two things it is read for are its "0" and its "1".
+     */
+    static Object[] entryOf(final Object value) {
+        if (JSType.isPrimitive(value)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(value));
         }
+        final ScriptObject entry = (ScriptObject)Global.toObject(value);
+        return new Object[] { entry.get(0), entry.get(1) };
     }
 
     /**

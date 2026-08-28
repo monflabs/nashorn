@@ -32,6 +32,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Function;
 import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
@@ -192,6 +193,55 @@ public abstract class AbstractIterator extends ScriptObject {
      * @param global the current global
      * @param consumer the value consumer
      */
+    /**
+     * ES2015 23.1.1.1 and its three siblings: a collection built from an iterable
+     * is filled through the method it publishes rather than by reaching inside.
+     *
+     * The method is read once, before anything is iterated, so a getter on it
+     * runs once and what it throws comes out before the iterable is touched; it
+     * has to be callable; and it is called for each entry, so a replacement is
+     * used and counted. What it throws closes the iterator.
+     *
+     * @param collection the collection being built
+     * @param name       what it calls the method that adds to it
+     * @param iterable   what to fill it from, which may be nothing
+     * @param global     the current global
+     * @param entry      how to make the arguments of one call out of one item
+     */
+    public static void fillFrom(final ScriptObject collection, final String name, final Object iterable,
+            final Global global, final java.util.function.Function<Object, Object[]> entry) {
+        if (iterable == null || iterable == ScriptRuntime.UNDEFINED) {
+            return;
+        }
+        final Object adder = collection.get(name);
+        if (!Bootstrap.isCallable(adder)) {
+            throw typeError(global, "not.a.function", ScriptRuntime.safeToString(adder));
+        }
+        iterate(iterable, global, value -> ScriptRuntime.apply((ScriptFunction)adder, collection, entry.apply(value)));
+    }
+
+    /**
+     * ES2015 7.4.6 IteratorClose, for an iteration being abandoned because
+     * something threw.
+     *
+     * The iterator here is the object the iterable answered with rather than one
+     * of Nashorn's own wrappers, so its return method is asked for and called
+     * outright. Step 6 hands the original throw back, so whatever the close
+     * makes of it is dropped.
+     */
+    private static void closeQuietly(final Object iterator) {
+        try {
+            final Object returnMethod = iterator instanceof ScriptObject sobj
+                    ? sobj.get("return")
+                    : ScriptRuntime.UNDEFINED;
+            if (Bootstrap.isCallable(returnMethod)) {
+                ScriptRuntime.apply((ScriptFunction)returnMethod, iterator);
+            }
+        } catch (final RuntimeException ignored) {
+            // the throw on its way out is the one worth reporting
+        }
+    }
+
     public static void iterate(final Object iterable, final Global global, final Consumer<Object> consumer) {
 
         final Object iterator = AbstractIterator.getIterator(Global.toObject(iterable), global);
@@ -217,7 +267,13 @@ public abstract class AbstractIterator extends ScriptObject {
                     break;
                 }
 
-                consumer.accept(valueInvoker.invokeExact(result));
+                final Object value = valueInvoker.invokeExact(result);
+                try {
+                    consumer.accept(value);
+                } catch (final RuntimeException r) {
+                    closeQuietly(iterator);
+                    throw r;
+                }
 
             } while (true);
 

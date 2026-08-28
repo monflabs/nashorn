@@ -72,7 +72,8 @@ public class NativeWeakSet extends ScriptObject {
         }
         final Global global = Global.instance();
         final NativeWeakSet weakSet = new NativeWeakSet(global.getWeakSetPrototype(), $nasgenmap$);
-        populateWeakSet(weakSet.map, arg, global);
+        // 23.4.1.1 step 7: the values go in through the set's own "add"
+        AbstractIterator.fillFrom(weakSet, "add", arg, global, value -> new Object[] { value });
         return weakSet;
     }
 
@@ -126,11 +127,6 @@ public class NativeWeakSet extends ScriptObject {
         return "WeakSet";
     }
 
-    static void populateWeakSet(final Map<Object, Boolean> set, final Object arg, final Global global) {
-        if (arg != null && arg != Undefined.getUndefined()) {
-            AbstractIterator.iterate(arg, global, value -> set.put(checkKey(value), Boolean.TRUE));
-        }
-    }
 
     private static NativeWeakSet getSet(final Object self) {
         if (self instanceof NativeWeakSet) {

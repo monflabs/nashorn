@@ -71,7 +71,8 @@ public class NativeWeakMap extends ScriptObject {
         }
         final Global global = Global.instance();
         final NativeWeakMap weakMap = new NativeWeakMap(global.getWeakMapPrototype(), $nasgenmap$);
-        populateMap(weakMap.jmap, arg, global);
+        // 23.3.1.1 step 7: the entries go in through the map's own "set"
+        AbstractIterator.fillFrom(weakMap, "set", arg, global, NativeMap::entryOf);
         return weakMap;
     }
 
@@ -155,21 +156,7 @@ public class NativeWeakMap extends ScriptObject {
         return key;
     }
 
-    static void populateMap(final Map<Object, Object> map, final Object arg, final Global global) {
-        // This method is similar to NativeMap.populateMap, but it uses a different
-        // map implementation and the checking/conversion of keys differs as well.
-        if (arg != null && arg != Undefined.getUndefined()) {
-            AbstractIterator.iterate(arg, global, value -> {
-                if (isPrimitive(value)) {
-                    throw typeError(global, "not.an.object", ScriptRuntime.safeToString(value));
-                }
-                if (value instanceof ScriptObject) {
-                    final ScriptObject sobj = (ScriptObject) value;
-                    map.put(checkKey(sobj.get(0)), sobj.get(1));
-                }
-            });
-        }
-    }
+
 
     private static NativeWeakMap getMap(final Object self) {
         if (self instanceof NativeWeakMap) {
