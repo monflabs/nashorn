@@ -426,8 +426,6 @@ test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js (s
 test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js (strict)
 test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-get-err.js (sloppy)
 test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-get-err.js (strict)
-test/language/global-code/script-decl-lex.js (sloppy)
-test/language/global-code/script-decl-lex.js (strict)
 test/language/identifier-resolution/assign-to-global-undefined.js (strict)
 test/language/import/escaped-as-import-specifier.js (sloppy)
 test/language/import/escaped-as-namespace-import.js (sloppy)

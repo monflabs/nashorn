@@ -70,6 +70,13 @@ public final class VarNode extends Statement implements Assignment<IdentNode> {
     public static final int IS_FOR_HEAD_BINDING          = 1 << 3;
 
     /**
+     * Flag for a temporary the desugaring introduced, which is not a binding
+     * the source made. It is named by nothing but the code that made it, so it
+     * may be declared again where a binding of the source could not be.
+     */
+    public static final int IS_TEMPORARY                 = 1 << 4;
+
+    /**
      * Constructor
      *
      * @param lineNumber line number
@@ -182,14 +189,24 @@ public final class VarNode extends Statement implements Assignment<IdentNode> {
     }
 
     /**
+     * Whether this declares a temporary the desugaring introduced rather than a
+     * binding the source made.
+     * @return true if it is a temporary
+     */
+    public boolean isTemporary() {
+        return getFlag(IS_TEMPORARY);
+    }
+
+    /**
      * Return the flags to use for symbols for this declaration.
      * @return the symbol flags
      */
     public int getSymbolFlags() {
+        final int temporary = isTemporary() ? Symbol.IS_TEMPORARY : 0;
         if (isLet()) {
-            return Symbol.IS_VAR | Symbol.IS_LET;
+            return Symbol.IS_VAR | Symbol.IS_LET | temporary;
         } else if (isConst()) {
-            return Symbol.IS_VAR | Symbol.IS_CONST;
+            return Symbol.IS_VAR | Symbol.IS_CONST | temporary;
         }
         return Symbol.IS_VAR;
     }

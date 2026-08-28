@@ -1328,7 +1328,7 @@ public class Parser extends AbstractParser implements Loggable {
         final String carrier = namespace.uniqueName(CLASS_CARRIER_PREFIX);
         final IdentNode carrierIdent = new IdentNode(classToken, finish, carrier);
         appendStatement(new VarNode(classLineNumber, Token.recast(classToken, VAR), finish,
-                new IdentNode(classToken, finish, carrier), null));
+                new IdentNode(classToken, finish, carrier), null, VarNode.IS_LET | VarNode.IS_TEMPORARY));
 
         final ParserContextBlockNode scope = newBlock();
         final ClassNode classExpression;
@@ -1383,7 +1383,7 @@ public class Parser extends AbstractParser implements Loggable {
         final long classToken = token;
         final String carrier = namespace.uniqueName(CLASS_CARRIER_PREFIX);
         appendStatement(new VarNode(classLineNumber, Token.recast(classToken, VAR), finish,
-                new IdentNode(classToken, finish, carrier), null));
+                new IdentNode(classToken, finish, carrier), null, VarNode.IS_LET | VarNode.IS_TEMPORARY));
 
         final ParserContextBlockNode scope = newBlock();
         try {

@@ -2921,6 +2921,13 @@ public final class Global extends Scope {
         final boolean extensible = isExtensible();
         for (final org.openjdk.nashorn.internal.runtime.Property property : properties) {
             if (property.isLexicalBinding()) {
+                final org.openjdk.nashorn.internal.runtime.Property existing = lexicalMap.findProperty(property.getKey());
+                if (existing != null && property.isConfigurable()) {
+                    // a temporary the desugaring made, which the check above let
+                    // through: the one that is there names the scope of whatever
+                    // declared it last, and this one names this scope
+                    lexicalMap = lexicalMap.deleteProperty(existing);
+                }
                 lexicalMap = lexScope.addBoundProperty(lexicalMap, source, property, true);
 
                 if (ownMap.findProperty(property.getKey()) != null) {

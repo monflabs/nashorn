@@ -93,6 +93,14 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
      * which 9.2.12 therefore gives a scope of its own, separate from the body's.
      */
     public static final int IS_PARAM_IN_OWN_SCOPE   = 1 << 15;
+    /**
+     * A temporary the desugaring introduced rather than a binding the source
+     * made. It is named by nothing but the code that made it, so where a
+     * binding would be fixed in place - a lexical one at the top level of a
+     * script, which the next script may not declare again - a temporary may be
+     * declared as often as it is needed.
+     */
+    public static final int IS_TEMPORARY            = 1 << 16;
 
     /** Null or name identifying symbol. */
     private final String name;
@@ -449,6 +457,11 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
     /** Whether this is a parameter of a function whose parameters have a scope of their own. */
     public boolean isParamInOwnScope() {
         return (flags & IS_PARAM_IN_OWN_SCOPE) != 0;
+    }
+
+    /** Whether this is a temporary the desugaring made rather than a binding the source did. */
+    public boolean isTemporary() {
+        return (flags & IS_TEMPORARY) != 0;
     }
 
     public boolean isFunctionSelf() {

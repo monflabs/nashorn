@@ -144,7 +144,10 @@ public class MapCreator<T> {
         // We have to make vars, functions declared in 'eval' code
         // configurable. But vars, functions from any other code is
         // not configurable.
-        if (symbol.isScope() && !evalCode) {
+        // a temporary is not a binding the source made and is not fixed in
+        // place the way one is: the next script that needs the same one
+        // declares it again
+        if (symbol.isScope() && !evalCode && !symbol.isTemporary()) {
             flags |= Property.NOT_CONFIGURABLE;
         }
 
