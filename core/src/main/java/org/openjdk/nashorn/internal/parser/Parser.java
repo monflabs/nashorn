@@ -5629,14 +5629,22 @@ public class Parser extends AbstractParser implements Loggable {
                 || isDestructuringLhs(paramListExpr) || isRestPattern(paramListExpr)) {
             parameters = Collections.singletonList(verifyArrowParameter(paramListExpr, 0, functionLine));
         } else if (paramListExpr instanceof BinaryNode && Token.descType(paramListExpr.getToken()) == COMMARIGHT) {
-            parameters = new ArrayList<>();
+            // the comma expression leans left, so it is taken apart from the
+            // last parameter back; the parameters are then read in the order
+            // they were written, which is the order their defaults run in and
+            // the order in which each becomes visible to the next
+            final List<Expression> written = new ArrayList<>();
             Expression car = paramListExpr;
             do {
-                final Expression cdr = ((BinaryNode) car).rhs();
-                parameters.add(0, verifyArrowParameter(cdr, parameters.size(), functionLine));
+                written.add(0, ((BinaryNode) car).rhs());
                 car = ((BinaryNode) car).lhs();
             } while (car instanceof BinaryNode && Token.descType(car.getToken()) == COMMARIGHT);
-            parameters.add(0, verifyArrowParameter(car, parameters.size(), functionLine));
+            written.add(0, car);
+
+            parameters = new ArrayList<>(written.size());
+            for (final Expression param : written) {
+                parameters.add(verifyArrowParameter(param, parameters.size(), functionLine));
+            }
         } else {
             throw error(AbstractParser.message("expected.arrow.parameter"), paramListExpr.getToken());
         }
