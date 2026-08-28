@@ -186,6 +186,12 @@ public class Parser extends AbstractParser implements Loggable {
      * {@link #classInOwnScope}.
      */
     private boolean nothingEvaluatedYet;
+    /**
+     * Where a CoverInitializedName was written, while it is still unknown whether
+     * the object literal holding it is a destructuring pattern. Zero when there
+     * is none outstanding. See {@link #verifyNoCoverInitializedName}.
+     */
+    private long coverInitializedName;
 
     private static final String ASYNC_NAME = "async";
     private static final String AWAIT_NAME = "await";
@@ -779,6 +785,9 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private void verifyDestructuringAssignmentPattern(final Expression pattern, final String contextString) {
+        // the object literal is a pattern after all, so a shorthand with an
+        // initializer in it is a property definition rather than an error
+        coverInitializedName = 0L;
         assert pattern instanceof ObjectNode || pattern instanceof LiteralNode.ArrayLiteralNode;
         pattern.accept(new VerifyDestructuringPatternNodeVisitor(new LexicalContext()) {
             @Override
@@ -2130,6 +2139,20 @@ public class Parser extends AbstractParser implements Loggable {
         return propertyName instanceof IdentNode name && name.isProtoPropertyName();
     }
 
+    /**
+     * ES2015 12.2.6.1: a shorthand property written with an initializer is an
+     * error unless the object literal holding it is a destructuring pattern,
+     * which the cover grammar leaves open until the whole expression has been
+     * read. This is where it is closed.
+     */
+    private void verifyNoCoverInitializedName() {
+        if (coverInitializedName != 0L) {
+            final long where = coverInitializedName;
+            coverInitializedName = 0L;
+            throw error(AbstractParser.message("invalid.property.initializer"), where);
+        }
+    }
+
     private void verifyCatchParameterNames(final Expression parameter, final Block catchBody) {
         final Set<String> bound = new HashSet<>();
         if (parameter instanceof IdentNode name) {
@@ -2147,6 +2170,9 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private void verifyDestructuringBindingPattern(final Expression pattern, final Consumer<IdentNode> identifierCallback) {
+        // the object literal is a pattern after all, so a shorthand with an
+        // initializer in it is a property definition rather than an error
+        coverInitializedName = 0L;
         assert (pattern instanceof BinaryNode && pattern.isTokenType(ASSIGN)) ||
                 pattern instanceof ObjectNode || pattern instanceof LiteralNode.ArrayLiteralNode;
         pattern.accept(new VerifyDestructuringPatternNodeVisitor(new LexicalContext()) {
@@ -2213,6 +2239,7 @@ public class Parser extends AbstractParser implements Loggable {
         } finally {
             nothingEvaluatedYet = false;
         }
+        verifyNoCoverInitializedName();
 
         if (expression != null) {
             final ExpressionStatement expressionStatement = new ExpressionStatement(expressionLine, expressionToken, finish, expression);
@@ -3656,7 +3683,13 @@ public class Parser extends AbstractParser implements Loggable {
         } else if (isIdentifier && (type == COMMARIGHT || type == RBRACE || type == ASSIGN)) {
             propertyValue = createIdentNode(propertyToken, finish, ((IdentNode) propertyName).getPropertyName());
             if (type == ASSIGN) {
-                // TODO if not destructuring, this is a SyntaxError
+                // ES2015 12.2.6.1: "{ a = 1 }" is only a property definition
+                // inside a destructuring pattern, and the cover grammar means
+                // that is not known yet. Where it is written is remembered, and
+                // reported unless the literal turns out to be one.
+                if (coverInitializedName == 0L) {
+                    coverInitializedName = token;
+                }
                 final long assignToken = token;
                 next();
                 // ES2015 12.14.5.2: "{ p = function () {} }" names the function
@@ -4713,6 +4746,9 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private void verifyDestructuringParameterBindingPattern(final Expression pattern, final long paramToken, final int paramLine, final String contextString) {
+        // the object literal is a pattern after all, so a shorthand with an
+        // initializer in it is a property definition rather than an error
+        coverInitializedName = 0L;
         verifyDestructuringBindingPattern(pattern, identNode -> {
             verifyIdent(identNode, contextString);
 
@@ -4739,6 +4775,18 @@ public class Parser extends AbstractParser implements Loggable {
      * @return function node (body.)
      */
     private Block functionBody(final ParserContextFunctionNode functionNode) {
+        // a body is statements of its own, and nothing in it answers the
+        // question an expression outside it left open
+        final long outerCoverInitializedName = coverInitializedName;
+        coverInitializedName = 0L;
+        try {
+            return functionBody0(functionNode);
+        } finally {
+            coverInitializedName = outerCoverInitializedName;
+        }
+    }
+
+    private Block functionBody0(final ParserContextFunctionNode functionNode) {
         ParserContextBlockNode body = null;
         final long bodyToken = token;
         Block functionBody;
