@@ -126,6 +126,9 @@ final class RegExpScanner extends Scanner {
             final int pos = iterator.next();
             final int num = iterator.next();
             if (num > caps.size()) {
+                if (unicode) {
+                    throw new RuntimeException("Reference to a group that is not there in unicode pattern");
+                }
                 // Non-existing backreference. If the number begins with a valid octal convert it to
                 // Unicode escape and append the rest to a literal character sequence.
                 final StringBuilder buffer = new StringBuilder();
@@ -605,7 +608,48 @@ final class RegExpScanner extends Scanner {
     }
 
     private boolean unicodeEscapeSequence() {
+        if (unicode && ch0 == 'u' && ch1 == '{') {
+            return bracedCodePointEscape();
+        }
         return scanEscapeSequence('u', 4);
+    }
+
+    /**
+     * ES2015 21.2.1 RegExpUnicodeEscapeSequence: a braced escape naming a code
+     * point outright. The JDK's engine spells the same thing with an x rather
+     * than a u, so that is what is emitted; the value has to be a code point,
+     * which is what makes an overlong one a syntax error rather than a literal
+     * brace.
+     */
+    private boolean bracedCodePointEscape() {
+        final int startIn = position;
+        final int startOut = sb.length();
+
+        commit(2);
+        int value = 0;
+        int digits = 0;
+        while (isHexDigit(ch0)) {
+            value = value * 16 + Character.digit(ch0, 16);
+            digits++;
+            if (value > Character.MAX_CODE_POINT) {
+                throw new RuntimeException("Code point out of range in unicode pattern");
+            }
+            skip(1);
+        }
+        if (digits == 0 || ch0 != '}') {
+            restart(startIn, startOut);
+            throw new RuntimeException("Invalid unicode escape in unicode pattern");
+        }
+        skip(1);
+        sb.setLength(startOut);
+        // the backslash the caller committed is still there
+        sb.append("x{").append(Integer.toHexString(value)).append('}');
+        return true;
+    }
+
+    private static boolean isHexDigit(final char ch) {
+        final char lower = Character.toLowerCase(ch);
+        return lower >= 'a' && lower <= 'f' || lower >= '0' && lower <= '9';
     }
 
     /*
@@ -687,6 +731,16 @@ final class RegExpScanner extends Scanner {
         }
 
         if (isDecimalDigit(ch0)) {
+            if (unicode) {
+                // ES2015 21.2.1 has no LegacyOctalEscapeSequence and no
+                // reference to a group that is not there
+                if (ch0 == '0') {
+                    throw new RuntimeException("Octal escape in unicode pattern");
+                }
+                if (inCharClass) {
+                    throw new RuntimeException("Backreference in a character class in unicode pattern");
+                }
+            }
 
             if (ch0 == '0') {
                 // We know this is an octal escape.
@@ -749,6 +803,20 @@ final class RegExpScanner extends Scanner {
      *  one of dDsSwW
      */
     private boolean characterClassEscape() {
+        switch (ch0) {
+        case 'd': case 'D': case 's': case 'S': case 'w': case 'W':
+            atomWasCharacterClass = true;
+            break;
+        default:
+            break;
+        }
+        return characterClassEscape0();
+    }
+
+    /** Whether the class atom just read was one of \d, \s, \w or their negations. */
+    private boolean atomWasCharacterClass;
+
+    private boolean characterClassEscape0() {
         switch (ch0) {
         // java.util.regex requires translation of \s and \S to explicit character list
         case 's':
@@ -850,12 +918,16 @@ final class RegExpScanner extends Scanner {
         final int startOut = sb.length();
 
         if (classAtom()) {
+            final boolean lowerWasCharacterClass = atomWasCharacterClass;
 
             if (ch0 == '-') {
                 commit(1);
 
-                if (classAtom() && classRanges()) {
-                    return true;
+                if (classAtom()) {
+                    verifyClassRange(lowerWasCharacterClass);
+                    if (classRanges()) {
+                        return true;
+                    }
                 }
             }
 
@@ -879,13 +951,17 @@ final class RegExpScanner extends Scanner {
         final int startOut = sb.length();
 
         if (classAtomNoDash()) {
+            final boolean lowerWasCharacterClass = atomWasCharacterClass;
 
             // need to check dash first, as for e.g. [a-b|c-d] will otherwise parse - as an atom
             if (ch0 == '-') {
                commit(1);
 
-               if (classAtom() && classRanges()) {
-                   return true;
+               if (classAtom()) {
+                   verifyClassRange(lowerWasCharacterClass);
+                   if (classRanges()) {
+                       return true;
+                   }
                }
                //fallthru
            }
@@ -906,6 +982,7 @@ final class RegExpScanner extends Scanner {
      * ClassAtom : - ClassAtomNoDash
      */
     private boolean classAtom() {
+        atomWasCharacterClass = false;
 
         if (ch0 == '-') {
             return commit(1);
@@ -914,12 +991,24 @@ final class RegExpScanner extends Scanner {
         return classAtomNoDash();
     }
 
+    /**
+     * ES2015 21.2.1 NonemptyClassRanges: a range may not have {@code \d} and its
+     * kind at either end. Annex B still allows it, and only outside a unicode
+     * pattern.
+     */
+    private void verifyClassRange(final boolean lowerWasCharacterClass) {
+        if (unicode && (lowerWasCharacterClass || atomWasCharacterClass)) {
+            throw new RuntimeException("Character class as a range boundary in unicode pattern");
+        }
+    }
+
     /*
      * ClassAtomNoDash ::
      *      SourceCharacter but not one of \ or ] or -
      *      \ ClassEscape
      */
     private boolean classAtomNoDash() {
+        atomWasCharacterClass = false;
         if (atEOF()) {
             return false;
         }

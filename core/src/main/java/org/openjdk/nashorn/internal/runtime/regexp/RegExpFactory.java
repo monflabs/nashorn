@@ -89,7 +89,15 @@ public class RegExpFactory {
         final String key = pattern + "/" + flags;
         RegExp regexp = REGEXP_CACHE.get(key);
         if (regexp == null) {
-            regexp = instance.compile(pattern,  flags);
+            // The bundled Joni engine works in UTF-16 code units and has no
+            // notion of a code point, which is the whole of what the unicode
+            // flag changes - an astral character is one atom, a class range may
+            // cross the surrogate boundary, and case folding is the full Unicode
+            // one. The JDK's engine is code point based, so a unicode pattern is
+            // compiled with it whatever the configured factory is.
+            regexp = flags != null && flags.indexOf('u') >= 0
+                    ? new JdkRegExp(pattern, flags)
+                    : instance.compile(pattern, flags);
             REGEXP_CACHE.put(key, regexp);
         }
         return regexp;

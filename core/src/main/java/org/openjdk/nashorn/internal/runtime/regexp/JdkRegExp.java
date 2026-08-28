@@ -58,7 +58,14 @@ public class JdkRegExp extends RegExp {
         int intFlags = 0;
 
         if (isIgnoreCase()) {
-            intFlags |= CASE_INSENSITIVE | UNICODE_CASE;
+            intFlags |= CASE_INSENSITIVE;
+            // ES2015 21.2.2.8.2 Canonicalize folds by the full Unicode rules
+            // only under the unicode flag: without it, a character outside
+            // Latin-1 that folds into it stays where it is, so the Kelvin sign
+            // is not a k
+            if (isUnicode()) {
+                intFlags |= UNICODE_CASE;
+            }
         }
         if (isMultiline()) {
             intFlags |= MULTILINE;
