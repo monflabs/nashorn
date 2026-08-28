@@ -2055,6 +2055,26 @@ public final class ScriptRuntime {
         throw typeError("assign.constant", JSType.toString(name));
     }
 
+    /** {@link #TO_PROPERTY_KEY} as a call. */
+    public static final Call TO_PROPERTY_KEY = staticCallNoLookup(ScriptRuntime.class,
+            "TO_PROPERTY_KEY", Object.class, Object.class);
+
+    /**
+     * ES2015 7.1.14 ToPropertyKey, where there is no base to check first.
+     *
+     * An object literal converts a computed key as soon as it has evaluated it,
+     * before the value beside it is evaluated at all, which is observable when
+     * the key is an object whose toString does something. Anything that is not
+     * an object converts to the same thing whenever it is asked, and is left
+     * alone so the array and string fast paths still see it.
+     *
+     * @param key the evaluated key expression
+     * @return the property key
+     */
+    public static Object TO_PROPERTY_KEY(final Object key) {
+        return key instanceof ScriptObject || key instanceof JSObject ? JSType.toPropertyKey(key) : key;
+    }
+
     /**
      * A computed property key, made where the reference is.
      *

@@ -124,6 +124,7 @@ public final class Test262Selector {
             "language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js",
             "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-integer-separators.js",
             "language/statements/class/cpn-class-decl-computed-property-name-from-integer-separators.js",
+            "language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js",
             "built-ins/RegExp/prototype/flags/this-val-non-obj.js",
             "built-ins/RegExp/prototype/global/this-val-non-obj.js",
             "built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js",

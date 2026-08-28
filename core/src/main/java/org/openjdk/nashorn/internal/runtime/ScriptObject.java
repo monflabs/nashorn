@@ -304,6 +304,15 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         final boolean extensible = newMap.isExtensible();
 
         for (final Property property : properties) {
+            // ES2015 18.2.1.3 step 5.d: what a direct eval declares with var may
+            // not be a name the scope it lands in has bound with let or const
+            final Property existing = newMap.findProperty(property.getKey());
+            if (existing != null && existing.isLexicalBinding() && !property.isLexicalBinding()) {
+                throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
+            }
+        }
+
+        for (final Property property : properties) {
             newMap = addBoundProperty(newMap, source, property, extensible);
         }
 

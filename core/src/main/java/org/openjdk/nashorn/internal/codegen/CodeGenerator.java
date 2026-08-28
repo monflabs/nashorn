@@ -2939,6 +2939,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if (computed) {
                 assert propertyNode.getKeyName() == null;
                 loadExpressionAsObject(propertyNode.getKey());
+                // 12.2.6.8: the key is made a property key as soon as it has been
+                // evaluated, which is before the value beside it is evaluated
+                method.invoke(ScriptRuntime.TO_PROPERTY_KEY);
             } else {
                 method.loadKey(propertyNode.getKey());
             }
