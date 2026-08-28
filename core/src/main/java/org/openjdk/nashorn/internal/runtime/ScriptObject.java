@@ -305,9 +305,12 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
         for (final Property property : properties) {
             // ES2015 18.2.1.3 step 5.d: what a direct eval declares with var may
-            // not be a name the scope it lands in has bound with let or const
+            // not be a name the scope it lands in has bound with let or const -
+            // nor, where 9.2.12 gave the parameters a scope of their own because
+            // one of them is an expression, a name that is a parameter
             final Property existing = newMap.findProperty(property.getKey());
-            if (existing != null && existing.isLexicalBinding() && !property.isLexicalBinding()) {
+            if (existing != null && !property.isLexicalBinding()
+                    && (existing.isLexicalBinding() || existing.isInParameterScope())) {
                 throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
             }
         }

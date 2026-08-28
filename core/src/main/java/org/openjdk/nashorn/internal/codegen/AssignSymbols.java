@@ -729,8 +729,16 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     private void initParameters(final FunctionNode functionNode, final Block body) {
         final boolean isVarArg = functionNode.isVarArg();
         final boolean scopeParams = functionNode.allVarsInScope() || isVarArg;
+        // ES2015 9.2.12 gives the parameters a scope of their own when one of
+        // them is an expression, which is the one the code in the parameter list
+        // runs with - and the only thing that can reach it is a direct eval
+        // written there
+        final boolean ownScope = body.isParameterBlock();
         for (final IdentNode param : functionNode.getParameters()) {
             final Symbol symbol = defineSymbol(body, param.getName(), param, IS_PARAM);
+            if (ownScope) {
+                symbol.setFlag(Symbol.IS_PARAM_IN_OWN_SCOPE);
+            }
             if(scopeParams) {
                 // NOTE: this "set is scope" is a poor substitute for clear expression of where the symbol is stored.
                 // It will force creation of scopes where they would otherwise not necessarily be needed (functions

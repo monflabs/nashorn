@@ -88,6 +88,11 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
     public static final int HAS_OBJECT_VALUE        = 1 << 13;
     /** Is this symbol seen a declaration? Used for block scoped LET and CONST symbols only. */
     public static final int HAS_BEEN_DECLARED       = 1 << 14;
+    /**
+     * A parameter of a function whose parameter list has expressions in it, and
+     * which 9.2.12 therefore gives a scope of its own, separate from the body's.
+     */
+    public static final int IS_PARAM_IN_OWN_SCOPE   = 1 << 15;
 
     /** Null or name identifying symbol. */
     private final String name;
@@ -441,6 +446,11 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
      * Flag this symbol as a function's self-referencing symbol.
      * @return true if this symbol as a function's self-referencing symbol.
      */
+    /** Whether this is a parameter of a function whose parameters have a scope of their own. */
+    public boolean isParamInOwnScope() {
+        return (flags & IS_PARAM_IN_OWN_SCOPE) != 0;
+    }
+
     public boolean isFunctionSelf() {
         return (flags & IS_FUNCTION_SELF) != 0;
     }

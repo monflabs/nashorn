@@ -129,6 +129,9 @@ public class MapCreator<T> {
 
         if (symbol.isParam()) {
             flags |= Property.IS_PARAMETER;
+            if (symbol.isParamInOwnScope()) {
+                flags |= Property.IS_PARAMETER_SCOPE;
+            }
         }
 
         if (hasArguments) {

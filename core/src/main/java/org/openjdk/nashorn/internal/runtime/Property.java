@@ -102,6 +102,15 @@ public abstract class Property implements Serializable {
     /** Is this an accessor property as as defined in ES5 8.6.1? */
     public static final int IS_ACCESSOR_PROPERTY    = 1 << 12;
 
+    /**
+     * A parameter held in a scope of the parameters' own, which ES2015 9.2.12
+     * gives a function whose parameter list has expressions in it. Only code
+     * written in the parameter list runs with that scope as its variable
+     * environment, so a direct eval that declares the name is the one thing
+     * that can reach it.
+     */
+    public static final int IS_PARAMETER_SCOPE      = 1 << 13;
+
     /** Property key. */
     @SuppressWarnings("serial") // Not statically typed as Serializable
     private final Object key;
@@ -292,6 +301,11 @@ public abstract class Property implements Serializable {
      * Check whether this property is used as a function parameter
      * @return true if parameter
      */
+    /** Whether this is a parameter in a scope of the parameters' own. */
+    public boolean isInParameterScope() {
+        return (flags & IS_PARAMETER_SCOPE) != 0;
+    }
+
     public boolean isParameter() {
         return (flags & IS_PARAMETER) != 0;
     }
