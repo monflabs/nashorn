@@ -189,6 +189,7 @@ public class Parser extends AbstractParser implements Loggable {
 
     private static final String ASYNC_NAME = "async";
     private static final String AWAIT_NAME = "await";
+    private static final String YIELD_NAME = "yield";
     private static final String GET_NAME = "get";
     private static final String SET_NAME = "set";
 
@@ -2943,6 +2944,12 @@ public class Parser extends AbstractParser implements Loggable {
         // Get label ident.
         final IdentNode ident = getIdent();
         verifyIdent(ident, "label");
+        // ES2015 12.1.1: yield is a keyword inside a generator, so it does not
+        // name a label there. A function written inside one may still be called
+        // yield - that name belongs to the function and is read without [Yield].
+        if (YIELD_NAME.equals(ident.getName()) && inGeneratorFunction()) {
+            throw error(AbstractParser.message("strict.name", ident.getName(), "label"), ident.getToken());
+        }
 
         expect(COLON);
 

@@ -2041,6 +2041,21 @@ public final class ScriptRuntime {
     }
 
     /**
+     * ES2015 9.2.6: a named function expression's own name is an immutable
+     * binding of a scope holding nothing else, so an assignment to it does not
+     * take - and in strict code, where 6.2.3.2 PutValue is told to throw, it is
+     * a TypeError. The value is evaluated first, which is why it is passed and
+     * not just the name.
+     *
+     * @param value what was assigned, already evaluated
+     * @param name  the function's name
+     * @return never
+     */
+    public static Object ASSIGN_TO_FUNCTION_NAME(final Object value, final Object name) {
+        throw typeError("assign.constant", JSType.toString(name));
+    }
+
+    /**
      * A computed property key, made where the reference is.
      *
      * ES2015 12.3.2.1 checks the base and converts the key as part of evaluating

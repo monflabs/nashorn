@@ -756,6 +756,36 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         return definingFn == function;
     }
 
+    /**
+     * ES2015 9.2.6: the name a function expression knows itself by is an
+     * immutable binding of a scope holding nothing else, so an assignment to it
+     * does not take. What it is worth is still what was assigned, so the
+     * assignment becomes the value alone - and in strict code, where 6.2.3.2
+     * PutValue is told to throw, a call that raises the TypeError after it.
+     *
+     * The rewrite happens here rather than where the store is emitted because a
+     * store that is never made must not be there when the local variable types
+     * are worked out: a dropped "g = 1" would otherwise make the binding an int.
+     */
+    private Node rejectAssignmentToFunctionName(final BinaryNode binaryNode) {
+        if (!(binaryNode.lhs() instanceof IdentNode name) || name.isDeclaredHere()
+                || name.getSymbol() == null || !name.getSymbol().isFunctionSelf()
+                || name.getSymbol().isScope()) {
+            // A binding something else can see lives in a scope object, and the
+            // assignment to it may be compiled on its own, out of sight of the
+            // function that owns the name. Only the ones this compilation can
+            // account for are rewritten.
+            return null;
+        }
+        final Expression value = binaryNode.rhs();
+        if (!lc.getCurrentFunction().isStrict()) {
+            return value;
+        }
+        return new RuntimeNode(binaryNode.getToken(), binaryNode.getFinish(),
+                RuntimeNode.Request.ASSIGN_TO_FUNCTION_NAME, value,
+                LiteralNode.newInstance(binaryNode.getToken(), binaryNode.getFinish(), name.getName()));
+    }
+
     @Override
     public Node leaveBinaryNode(final BinaryNode binaryNode) {
         if (binaryNode.isTokenType(TokenType.ASSIGN)) {
@@ -765,6 +795,10 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     }
 
     private Node leaveASSIGN(final BinaryNode binaryNode) {
+        final Node immutable = rejectAssignmentToFunctionName(binaryNode);
+        if (immutable != null) {
+            return immutable;
+        }
         // If we're assigning a property of the this object ("this.foo = ..."), record it.
         final Expression lhs = binaryNode.lhs();
         if (lhs instanceof AccessNode) {

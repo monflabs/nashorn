@@ -132,6 +132,8 @@ public class RuntimeNode extends Expression {
         DERIVED_RETURN(TokenType.VOID, Type.OBJECT, 2),
         /** ES2015 8.1.1.3.1 BindThisValue, for a derived class constructor */
         BIND_THIS(TokenType.VOID, Type.OBJECT, 2),
+        /** An assignment to the name a function expression knows itself by. */
+        ASSIGN_TO_FUNCTION_NAME(TokenType.VOID, Type.OBJECT, 2),
         /** The function an arrow inside a derived constructor calls super() through. */
         SUPER_INITIALIZER(TokenType.VOID, Type.OBJECT, 2),
         /** yield - suspends the generator body. */
