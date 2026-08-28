@@ -31,6 +31,7 @@ import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SOURCE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.STRICT_MODE;
 import static org.openjdk.nashorn.internal.runtime.CodeStore.newCodeStore;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
+import static org.openjdk.nashorn.internal.runtime.ScriptRuntime.EVAL_NEW_TARGET_KEY;
 import static org.openjdk.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
 import static org.openjdk.nashorn.internal.runtime.Source.sourceFor;
 
@@ -849,6 +850,27 @@ public final class Context {
     public Object eval(final ScriptObject initialScope, final String string,
             final Object callThis, final Object location, final boolean strict, final boolean evalCall,
             final boolean inParameters) {
+        return eval(initialScope, string, callThis, location, strict, evalCall, inParameters, null);
+    }
+
+    /**
+     * Entry point for {@code eval}, from a call site that knows what function it
+     * sits in.
+     *
+     * @param initialScope The scope of this eval call
+     * @param string       Evaluated code as a String
+     * @param callThis     "this" to be passed to the evaluated code
+     * @param location     location of the eval call
+     * @param strict       is this {@code eval} call from a strict mode code?
+     * @param evalCall     is this called from "eval" builtin?
+     * @param inParameters is the call in a parameter expression?
+     * @param callerCallee the function the call was written in, or null
+     *
+     * @return the return value of the {@code eval}
+     */
+    public Object eval(final ScriptObject initialScope, final String string,
+            final Object callThis, final Object location, final boolean strict, final boolean evalCall,
+            final boolean inParameters, final Object callerCallee) {
         if (inParameters && declaresArguments(string)) {
             // ES2017 18.2.1.1: a direct eval in a parameter expression declares
             // into the parameter environment, where "arguments" is already
@@ -868,9 +890,20 @@ public final class Context {
         // Nashorn extension: any 'eval' is unconditionally strict when -strict is specified.
         boolean strictFlag = strict || this._strict;
 
+        // ES2015 18.2.1.1: direct eval code is evaluated where it stands, so
+        // new.target and super mean there what they mean at the call - which
+        // makes them a syntax error unless the caller is a function, and a
+        // method, respectively
+        final ScriptFunction caller = directEval && callerCallee instanceof ScriptFunction f ? f : null;
+        // an arrow reads the new.target of whatever made it, which the eval
+        // cannot see from here, so it is treated as not having one - which is
+        // right for an arrow written at the top level, the case the tests pin
+        final boolean newTargetAllowed = caller != null && !caller.isProgramFunction() && !caller.isArrowFunction();
+        final ScriptObject homeObject = caller == null ? null : caller.getHomeObject();
+
         Class<?> clazz;
         try {
-            clazz = compile(source, new ThrowErrorManager(), strictFlag);
+            clazz = compile(source, new ThrowErrorManager(), strictFlag, newTargetAllowed, homeObject != null);
         } catch (final ParserException e) {
             e.throwAsEcmaException(global);
             return null;
@@ -895,6 +928,17 @@ public final class Context {
         }
 
         final ScriptFunction func = getProgramFunction(clazz, scope);
+        if (homeObject != null) {
+            // super in the eval code resolves against the caller's home object,
+            // which is where the program function carries it
+            func.setHomeObject(homeObject);
+        }
+        if (newTargetAllowed) {
+            final Object newTarget = ScriptRuntime.NEW_TARGET(callerCallee, callThis);
+            if (newTarget != UNDEFINED) {
+                func.set(EVAL_NEW_TARGET_KEY, newTarget, 0);
+            }
+        }
         Object evalThis;
         if (directEval) {
             evalThis = (callThis != UNDEFINED && callThis != null) || strictFlag ? callThis : global;
@@ -1441,10 +1485,19 @@ public final class Context {
     }
 
     private synchronized Class<?> compile(final Source source, final ErrorManager errMan, final boolean strict) {
+        return compile(source, errMan, strict, false, false);
+    }
+
+    private synchronized Class<?> compile(final Source source, final ErrorManager errMan, final boolean strict,
+            final boolean newTargetAllowed, final boolean superAllowed) {
         // start with no errors, no warnings.
         errMan.reset();
 
-        Class<?> script = findCachedClass(source);
+        // what the same text parses to depends on the eval it was written in,
+        // so a class compiled for one is not the class another one wants
+        final boolean cacheable = !newTargetAllowed && !superAllowed;
+
+        Class<?> script = cacheable ? findCachedClass(source) : null;
         if (script != null) {
             final DebugLogger log = getLogger(Compiler.class);
             if (log.isEnabled()) {
@@ -1458,7 +1511,7 @@ public final class Context {
         // Don't use code store if optimistic types is enabled but lazy compilation is not.
         // This would store a full script compilation with many wrong optimistic assumptions that would
         // do more harm than good on later runs with both optimistic types and lazy compilation enabled.
-        final boolean useCodeStore = codeStore != null && !env._parse_only && (!env._optimistic_types || env._lazy_compilation);
+        final boolean useCodeStore = cacheable && codeStore != null && !env._parse_only && (!env._optimistic_types || env._lazy_compilation);
         final String cacheKey = useCodeStore ? CodeStore.getCacheKey("script", null) : null;
 
         if (useCodeStore) {
@@ -1470,7 +1523,9 @@ public final class Context {
                 source.dump(env._dest_dir);
             }
 
-            functionNode = new Parser(env, source, errMan, strict, getLogger(Parser.class)).parse();
+            final Parser parser = new Parser(env, source, errMan, strict, getLogger(Parser.class));
+            parser.setEvalContext(newTargetAllowed, superAllowed);
+            functionNode = parser.parse();
 
             if (errMan.hasErrors()) {
                 return null;
@@ -1526,7 +1581,9 @@ public final class Context {
             script = storedScript.installScript(source, installer);
         }
 
-        cacheClass(source, script);
+        if (cacheable) {
+            cacheClass(source, script);
+        }
         return script;
     }
 

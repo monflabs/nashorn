@@ -341,6 +341,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      */
     private void loadIdent(final IdentNode identNode, final TypeBounds resultBounds) {
         if (NEW_TARGET_NAME.equals(identNode.getName())) {
+            if (lc.getCurrentFunction().isProgram()) {
+                // eval code, whose new.target is the calling function's and is
+                // recorded on the program the eval compiled to
+                method.loadCompilerConstant(CALLEE);
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "EVAL_NEW_TARGET",
+                        new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+                return;
+            }
             // new.target is not a variable; it is answered from the frame.
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);
@@ -1597,6 +1605,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         method.load(callNode.getEvalArgs().getLocation());
                         method.load(CodeGenerator.this.lc.getCurrentFunction().isStrict());
                         method.load(inParameterExpression());
+                        // the function the call was written in, which is what
+                        // says whether new.target and super are legal in it
+                        if (CodeGenerator.this.lc.getCurrentFunction().needsCallee()) {
+                            method.loadCompilerConstant(CALLEE);
+                        } else {
+                            method.loadNull();
+                        }
                         // direct call to Global.directEval
                         globalDirectEval();
                         convertOptimisticReturnValue();
@@ -3003,7 +3018,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private static boolean usesSuper(final Expression value) {
-        return value instanceof FunctionNode function && function.isMethod() && function.usesSuper();
+        // a direct eval written in the method, or in an arrow inside it, may
+        // read super, and what it reads is only known when it runs, so the
+        // method needs its home object for that too
+        return value instanceof FunctionNode function && function.isMethod()
+                && (function.usesSuper() || function.hasEval() || function.hasNestedEval());
     }
 
     @Override
@@ -5225,7 +5244,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private void globalDirectEval() {
         method.invokestatic(GLOBAL_OBJECT, "directEval",
                 methodDescriptor(Object.class, Object.class, Object.class, Object.class, Object.class,
-                        boolean.class, boolean.class));
+                        boolean.class, boolean.class, Object.class));
     }
 
     /**

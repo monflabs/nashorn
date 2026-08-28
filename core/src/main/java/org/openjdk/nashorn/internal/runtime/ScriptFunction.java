@@ -814,6 +814,25 @@ public class ScriptFunction extends ScriptObject {
         }
     }
 
+    /**
+     * Whether this is an arrow function, which has no new.target of its own.
+     *
+     * @return true if it is an arrow
+     */
+    public final boolean isArrowFunction() {
+        return data.isArrow();
+    }
+
+    /**
+     * Whether this function is a compiled program - a script, a module or the
+     * body of an eval - rather than a function the source declared.
+     *
+     * @return true if it is a program
+     */
+    public final boolean isProgramFunction() {
+        return data instanceof RecompilableScriptFunctionData recompilable && recompilable.isProgramFunction();
+    }
+
     public final void setHomeObject(final ScriptObject homeObject) {
         this.homeObject = homeObject;
     }

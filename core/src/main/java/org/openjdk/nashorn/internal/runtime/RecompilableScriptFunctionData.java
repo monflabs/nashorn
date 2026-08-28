@@ -449,6 +449,9 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         if (functionNode.isAsync()) {
             flags |= IS_ES6_ASYNC;
         }
+        if (functionNode.isArrow()) {
+            flags |= IS_ES6_ARROW;
+        }
         return flags;
     }
 
@@ -698,6 +701,16 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
 
     private boolean getFunctionFlag(final int flag) {
         return (functionFlags & flag) != 0;
+    }
+
+    /**
+     * Whether the function this describes is a program rather than one the
+     * source declared.
+     *
+     * @return true if it is a program
+     */
+    public boolean isProgramFunction() {
+        return isProgram();
     }
 
     private boolean isProgram() {

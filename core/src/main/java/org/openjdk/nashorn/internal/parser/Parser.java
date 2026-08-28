@@ -230,6 +230,28 @@ public class Parser extends AbstractParser implements Loggable {
 
     private RecompilableScriptFunctionData reparsedFunction;
 
+    /** Whether this is eval code whose caller was a function, so new.target is legal at its top level. */
+    private boolean evalNewTargetAllowed;
+
+    /** Whether this is eval code whose caller was a method, so super is legal at its top level. */
+    private boolean evalSuperAllowed;
+
+    /**
+     * Records what the direct eval this parses for was called from.
+     *
+     * ES2015 18.2.1.1 evaluates direct eval code in the caller's function
+     * context, so {@code new.target} and {@code super} are legal at the top
+     * level of the eval exactly when they were legal where the call was
+     * written, and a syntax error otherwise.
+     *
+     * @param newTargetAllowed the eval was called from a function
+     * @param superAllowed     the eval was called from a method
+     */
+    public void setEvalContext(final boolean newTargetAllowed, final boolean superAllowed) {
+        this.evalNewTargetAllowed = newTargetAllowed;
+        this.evalSuperAllowed = superAllowed;
+    }
+
     /**
      * Constructor
      *
@@ -4015,7 +4037,14 @@ public class Parser extends AbstractParser implements Loggable {
         if (type == PERIOD) {
             next();
             if (type == IDENT && "target".equals(getValue())) {
-                if (lc.getCurrentFunction().isProgram()) {
+                // an arrow has no new.target of its own and reads the one of
+                // the function that made it, so what says whether this is
+                // legal is the nearest function that is not an arrow. On an
+                // on-demand re-parse that function is not on the stack, and
+                // the eager parse over the same text already ruled on it.
+                final ParserContextFunctionNode enclosing = getCurrentNonArrowFunction();
+                final boolean atTopLevel = (enclosing == null || enclosing.isProgram()) && reparsedFunction == null;
+                if (atTopLevel && !evalNewTargetAllowed) {
                     throw error(AbstractParser.message("new.target.in.function"), token);
                 }
                 next();
@@ -4131,7 +4160,10 @@ public class Parser extends AbstractParser implements Loggable {
             // whatever is being compiled sits at the top - so there is nothing
             // here to ask. The eager parse read the same text with the whole
             // chain in place and would have rejected an illegal super then.
-            final boolean inMethod = currentFunction.isMethod() || reparsedFunction != null;
+            // eval code stands where it was called from, so a method's eval
+            // may read super even though the program it compiles to is not one
+            final boolean inMethod = currentFunction.isMethod() || reparsedFunction != null
+                    || currentFunction.isProgram() && evalSuperAllowed;
             if (inMethod) {
                 final long identToken = Token.recast(token, IDENT);
                 next();
@@ -6429,7 +6461,7 @@ public class Parser extends AbstractParser implements Loggable {
         return "'JavaScript Parsing'";
     }
 
-    private static void markEval(final ParserContext lc) {
+    private void markEval(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         boolean flaggedCurrentFn = false;
         while (iter.hasNext()) {
@@ -6531,12 +6563,14 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
-    private static void markNewTarget(final ParserContext lc) {
+    private void markNewTarget(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             if (!FunctionNode.isArrow(fn.getKind())) {
-                if (!fn.isProgram()) {
+                // an eval program reads the caller's new.target through its own
+                // callee, so it is marked too, which is what gives it one
+                if (!fn.isProgram() || evalNewTargetAllowed) {
                     fn.setFlag(FunctionNode.ES6_USES_NEW_TARGET);
                 }
                 break;

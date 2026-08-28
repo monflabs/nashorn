@@ -123,6 +123,9 @@ public abstract class ScriptFunctionData implements Serializable {
     /** Is this an async function? */
     public static final int IS_ES6_ASYNC = 1 << 10;
 
+    /** Is this an arrow function, which has no new.target and no this of its own? */
+    public static final int IS_ES6_ARROW = 1 << 11;
+
     /** Flag for strict or built-in functions */
     public static final int IS_STRICT_OR_BUILTIN = IS_STRICT | IS_BUILTIN;
     /** Flag for built-in constructors */
@@ -239,6 +242,10 @@ public abstract class ScriptFunctionData implements Serializable {
      */
     public boolean isSubclassConstructor() {
         return (flags & IS_ES6_SUBCLASS_CONSTRUCTOR) != 0;
+    }
+
+    boolean isArrow() {
+        return (flags & IS_ES6_ARROW) != 0;
     }
 
     boolean isGenerator() {

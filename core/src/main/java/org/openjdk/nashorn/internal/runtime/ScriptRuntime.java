@@ -2233,6 +2233,23 @@ public final class ScriptRuntime {
     }
 
     /**
+     * The key a direct eval's program function records the caller's
+     * {@code new.target} under. It is not a name script code can write.
+     */
+    public static final String EVAL_NEW_TARGET_KEY = ":evalNewTarget";
+
+    /**
+     * {@code new.target} in the top level of eval code, which is the one of the
+     * function the eval was called from rather than of the eval itself.
+     *
+     * @param callee the running eval program
+     * @return the caller's new.target, or undefined
+     */
+    public static Object EVAL_NEW_TARGET(final Object callee) {
+        return callee instanceof ScriptObject program ? program.get(EVAL_NEW_TARGET_KEY) : UNDEFINED;
+    }
+
+    /**
      * {@code new.target}: the constructor a function is being invoked as, or
      * undefined when it is being called normally.
      *
