@@ -104,8 +104,11 @@ public final class WithObject extends Scope {
         assert op instanceof NamedOperation; // WithObject is a scope object, access is always named
         final String name = ((NamedOperation)op).getName().toString();
 
-        FindProperty find = unscopable(name) ? null : expression.findProperty(name, true);
-        if (find != null && !find.getOwner().answersForName(name)) {
+        // ES2015 8.1.1.2.1 HasBinding asks whether the object has the name
+        // before it asks whether the name is unscopable, and the second question
+        // is not asked at all when the answer to the first is no
+        FindProperty find = expression.findProperty(name, true);
+        if (find != null && (!find.getOwner().answersForName(name) || unscopable(name))) {
             find = null;
         }
 
@@ -180,7 +183,7 @@ public final class WithObject extends Scope {
         // This way in ScriptObject.setObject we can tell the property is from a 'with' expression
         // (as opposed from another non-scope object in the proto chain such as Object.prototype).
         final FindProperty exprProperty = expression.findProperty(key, true, false, expression);
-        if (exprProperty != null && !unscopable(key) && exprProperty.getOwner().answersForName(key)) {
+        if (exprProperty != null && exprProperty.getOwner().answersForName(key) && !unscopable(key)) {
             return exprProperty;
         }
         return super.findProperty(key, deep, isScope, start);
