@@ -944,7 +944,11 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     public boolean needsArguments() {
         // uses "arguments" or calls eval, but it does not redefine "arguments", and finally, it's not a script, since
         // for top-level script, "arguments" is picked up from Context by Global.init() instead.
-        return getFlag(MAYBE_NEEDS_ARGUMENTS) && !getFlag(DEFINES_ARGUMENTS) && !isProgram();
+        // ES2015 9.2.12 step 22 creates the arguments binding for a function
+        // that is not an arrow; an arrow reads the one of the function it was
+        // written in, so giving it one of its own would shadow that - and
+        // would take the name from a var the body declares under it
+        return getFlag(MAYBE_NEEDS_ARGUMENTS) && !getFlag(DEFINES_ARGUMENTS) && !isProgram() && !isArrow();
     }
 
     /**
