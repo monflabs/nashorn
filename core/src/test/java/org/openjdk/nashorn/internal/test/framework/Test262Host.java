@@ -25,7 +25,9 @@
 
 package org.openjdk.nashorn.internal.test.framework;
 
+import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.objects.NativeArrayBuffer;
+import org.openjdk.nashorn.internal.runtime.Context;
 
 /**
  * The part of test262's {@code $262} host object that a script cannot do for
@@ -181,7 +183,9 @@ public final class Test262Host {
     /** What an agent's own realm gets, which is the host object minus the parts only a parent has. */
     private static final String AGENT_HOST_OBJECT =
             "var $262 = { global: this,"
-            + "  evalScript: function (s) { return (0, eval)(s); },"
+            + "  evalScript: function (s) {"
+            + "    return Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host').evalScript(String(s));"
+            + "  },"
             + "  gc: function () {},"
             + "  agent: {"
             + "    receiveBroadcast: function (cb) {"
@@ -199,6 +203,23 @@ public final class Test262Host {
             + "    leaving: function () {}"
             + "  }"
             + "};";
+
+    /**
+     * $262.evalScript, which evaluates its argument as a Script.
+     *
+     * That is not what an eval does: ES2015 18.2.1.1 gives eval code a lexical
+     * environment of its own, which goes away when it returns, while a script's
+     * let, const and class declarations belong to the global one and outlive
+     * it. Only a host can run a script, which is why this is here rather than
+     * written as {@code (0, eval)(s)} in the host object.
+     *
+     * @param source the script text
+     * @return its completion value
+     */
+    public static Object evalScript(final Object source) {
+        final Global global = Context.getGlobal();
+        return Context.getContext().eval(global, String.valueOf(source), global, "<evalScript>");
+    }
 
     /**
      * ES2015 24.1.1.3 DetachArrayBuffer, which the suite uses to check what

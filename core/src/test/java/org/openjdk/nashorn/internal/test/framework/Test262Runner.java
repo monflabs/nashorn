@@ -104,7 +104,7 @@ public final class Test262Runner {
             "var HOST = Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host');"
             + "var $262 = {"
             + "  global: this,"
-            + "  evalScript: function (source) { return (0, eval)(source); },"
+            + "  evalScript: function (source) { return HOST.evalScript(String(source)); },"
             + "  gc: function () { java.lang.System.gc(); },"
             + "  detachArrayBuffer: function (buffer) {"
             + "    Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host').detachArrayBuffer(buffer);"
@@ -118,7 +118,8 @@ public final class Test262Runner {
             + "  },"
             + "  createRealm: function () {"
             + "    return loadWithNewGlobal({ name: 'realm', script: "
-            + "      \"var $262 = { global: this, evalScript: function (s) { return (0, eval)(s); },\""
+            + "      \"var HOST = Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host');\""
+            + "      + \"var $262 = { global: this, evalScript: function (s) { return HOST.evalScript(String(s)); },\""
             + "      + \" gc: function () {}, detachArrayBuffer: function (b) { Java.type('org.openjdk.nashorn.internal.test.framework.Test262Host').detachArrayBuffer(b); },\""
             + "      + \" createRealm: function () { throw new Error('nested createRealm is not supported'); } }; $262\""
             + "    });"
@@ -575,8 +576,9 @@ public final class Test262Runner {
         /**
          * Installs $262, the object test262 expects its host to provide.
          *
-         * evalScript has to reach global scope, so it goes through indirect eval
-         * rather than a direct one, which would see this function's scope.
+         * evalScript evaluates a Script, which only the host can do: an eval,
+         * direct or not, would give the source a lexical environment of its own
+         * rather than the global one a script's declarations belong to.
          * createRealm builds a fresh realm and hands back its own $262, which
          * loadWithNewGlobal is exactly the right shape for. detachArrayBuffer
          * needs engine support that does not exist yet and says so rather than

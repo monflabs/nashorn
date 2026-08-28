@@ -106,6 +106,9 @@ public final class ScriptRuntime {
      */
     public static final Call MERGE_SCOPE = staticCallNoLookup(ScriptRuntime.class, "mergeScope", ScriptObject.class, ScriptObject.class);
 
+    /** Merge a scope into its prototype, keeping what the scope binds lexically */
+    public static final Call MERGE_EVAL_SCOPE = staticCallNoLookup(ScriptRuntime.class, "mergeEvalScope", ScriptObject.class, ScriptObject.class);
+
     /**
      * Return an appropriate iterator for the elements in a for-in construct
      */
@@ -624,6 +627,51 @@ public final class ScriptRuntime {
         final ScriptObject parentScope = scope.getProto();
         parentScope.addBoundProperties(scope);
         return parentScope;
+    }
+
+    /**
+     * Merge what an eval declared with var into the scope that called it, and
+     * keep the rest.
+     *
+     * ES2015 18.2.1.3 gives eval code two environments: its var declarations
+     * belong to the caller's variable environment, which is what the merge
+     * makes them, while its let, const and class declarations belong to an
+     * environment of the eval's own, which goes away when it returns. So the
+     * scope that is returned - the one the eval code goes on to run against -
+     * is therefore a fresh one holding the lexical bindings, standing between
+     * the eval code and the scope that called it.
+     *
+     * @param scope the eval program's scope
+     * @return the scope the eval code runs against
+     */
+    public static ScriptObject mergeEvalScope(final ScriptObject scope) {
+        final ScriptObject parentScope = scope.getProto();
+        final Property[] all = scope.getMap().getProperties();
+        int lexicalCount = 0;
+        for (final Property property : all) {
+            if (property.isLexicalBinding()) {
+                lexicalCount++;
+            }
+        }
+        if (lexicalCount == 0) {
+            // an eval that binds nothing lexically, which is most of them, is
+            // the ordinary merge and pays nothing for this one being different
+            parentScope.addBoundProperties(scope, all);
+            return parentScope;
+        }
+
+        final List<Property> vars = new ArrayList<>(all.length - lexicalCount);
+        final List<Property> lexical = new ArrayList<>(lexicalCount);
+        for (final Property property : all) {
+            (property.isLexicalBinding() ? lexical : vars).add(property);
+        }
+        parentScope.addBoundProperties(scope, vars.toArray(new Property[0]));
+        // the environment of the eval's own, holding what it bound lexically
+        // and nothing else, so that what it bound with var is still read and
+        // written where it was merged to
+        final ScriptObject lexicalScope = new Scope(parentScope, PropertyMap.newMap(Scope.class));
+        lexicalScope.addBoundProperties(scope, lexical.toArray(new Property[0]));
+        return lexicalScope;
     }
 
     /**

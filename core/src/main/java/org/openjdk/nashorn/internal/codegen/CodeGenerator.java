@@ -2022,7 +2022,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // top level declarations an environment of their own, and that
             // environment is what the importing side reads.
             if (isFunctionBody && function.isProgram() && !function.isModule()) {
-                method.invoke(ScriptRuntime.MERGE_SCOPE);
+                // eval keeps its lexical declarations to itself, and so keeps
+                // its own scope; a script's belong to the global lexical scope
+                method.invoke(isEvalCode() ? ScriptRuntime.MERGE_EVAL_SCOPE : ScriptRuntime.MERGE_SCOPE);
             }
 
             method.storeCompilerConstant(SCOPE);
