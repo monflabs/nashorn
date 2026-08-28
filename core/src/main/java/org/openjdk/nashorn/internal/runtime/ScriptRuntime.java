@@ -2266,17 +2266,20 @@ public final class ScriptRuntime {
      * @return the generator object, or undefined on the generator's own thread
      */
     public static Object GENERATOR_ENTER_PARAMETERS(final Object callee, final Object self, final Object args) {
-        final Object entered = GENERATOR_ENTER(callee, self, args);
-        if (entered instanceof NativeGenerator generator) {
-            // ES2015 25.2.1.1 binds the parameters and only then makes the
-            // generator object; the object is made first here, which nothing can
-            // observe because the call has not returned it yet. What is
-            // observable is that everything the parameter list does - a default
-            // that throws, an iterator it steps, a getter it reads - happens
-            // before the call returns, which is what this waits for.
-            generator.getSupport().bindParameters();
+        if (GeneratorSupport.entering()) {
+            return UNDEFINED;
         }
-        return entered;
+        final Global global = Context.getGlobal();
+        final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
+        final GeneratorSupport support = new GeneratorSupport((ScriptFunction)callee, self, arguments, global);
+        global.registerGenerator(support);
+        // ES2015 25.2.1.1 steps 2 and 3: the parameters are bound and only then
+        // is the generator object made, so everything the parameter list does -
+        // a default that throws, an iterator it steps, a getter it reads, an
+        // assignment to the function's own prototype - has happened by the time
+        // the object takes what it inherits from.
+        support.bindParameters();
+        return new NativeGenerator(support, global, generatorPrototype((ScriptFunction)callee, global));
     }
 
     /**
