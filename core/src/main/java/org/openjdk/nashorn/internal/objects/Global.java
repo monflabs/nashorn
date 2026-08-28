@@ -2893,7 +2893,10 @@ public final class Global extends Scope {
                 throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
             }
             final org.openjdk.nashorn.internal.runtime.Property lexicalProperty = lexicalMap.findProperty(property.getKey());
-            if (lexicalProperty != null && !property.isConfigurable()) {
+            // ES2015 18.2.1.3 step 5.a.iv: a var may not take a name the global
+            // lexical environment has bound, however it was declared - a direct
+            // eval's var is configurable and is caught here just the same
+            if (lexicalProperty != null && (!property.isConfigurable() || !property.isLexicalBinding())) {
                 throw ECMAErrors.syntaxError("redeclare.variable", property.getKey().toString());
             }
         }
