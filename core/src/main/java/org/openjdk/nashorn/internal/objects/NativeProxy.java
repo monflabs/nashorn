@@ -838,16 +838,43 @@ public final class NativeProxy extends ScriptObject {
 
     @SuppressWarnings("unused")
     private static Object construct(final Object self, final Object[] args) {
+        // "new proxy()" constructs as the proxy itself
+        return construct(self, args, self);
+    }
+
+    /**
+     * ES2015 9.5.13 [[Construct]] (argumentsList, newTarget).
+     *
+     * What is being constructed as is the trap's third argument, and a proxy
+     * without a trap hands it on rather than replacing it with its target: a
+     * proxy over a proxy constructs as the one that was called.
+     *
+     * @param self      the proxy
+     * @param args      the arguments
+     * @param newTarget what is being constructed as
+     * @return the object
+     */
+    public static Object construct(final Object self, final Object[] args, final Object newTarget) {
         final NativeProxy proxy = (NativeProxy)self;
         final ScriptFunction trap = proxy.trap("construct");
         final ScriptObject target = proxy.target();
         if (trap == null) {
-            return target instanceof ScriptFunction function
-                    ? ScriptRuntime.construct(function, args)
-                    : construct(target, args);
+            if (target instanceof NativeProxy nested) {
+                return construct(nested, args, newTarget);
+            }
+            if (target instanceof ScriptFunction function) {
+                try {
+                    return function.construct(newTarget instanceof ScriptFunction as ? as : function, args);
+                } catch (final RuntimeException | Error e) {
+                    throw e;
+                } catch (final Throwable t) {
+                    throw new RuntimeException(t);
+                }
+            }
+            return construct(target, args, newTarget);
         }
         // 9.5.13 step 9: what a construct trap answers with has to be an object
-        final Object created = proxy.call(trap, target, new NativeArray(args.clone()), proxy);
+        final Object created = proxy.call(trap, target, new NativeArray(args.clone()), newTarget);
         if (!(created instanceof ScriptObject)) {
             throw typeError("proxy.construct.not.an.object", ScriptRuntime.safeToString(created));
         }

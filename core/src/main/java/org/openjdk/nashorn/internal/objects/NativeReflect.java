@@ -105,8 +105,9 @@ public final class NativeReflect extends ScriptObject {
         }
         final Object list = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         if (!(target instanceof ScriptFunction constructor)) {
-            // a proxy, whose construct trap is reached by calling it with new
-            return ScriptRuntime.newInstance(target, toArguments(list));
+            // a proxy, whose construct trap takes what is being constructed as
+            return NativeProxy.construct(target, toArguments(list),
+                    args.length > 2 ? args[2] : target);
         }
         final Object given = args.length > 2 ? args[2] : constructor;
         final ScriptFunction newTarget = given instanceof ScriptFunction function ? function : constructor;
