@@ -189,7 +189,11 @@ class ParserContext {
     public ParserContextBlockNode getFunctionBody(final ParserContextFunctionNode functionNode) {
         for (int i = sp - 1; i >= 0 ; i--) {
             if (stack[i] == functionNode) {
-                return (ParserContextBlockNode)stack[i + 1];
+                // a module stands between its function and its body, being
+                // neither: what it holds is what the module names, and the
+                // statements are in the block below it
+                final int body = stack[i + 1] instanceof ParserContextModuleNode ? i + 2 : i + 1;
+                return (ParserContextBlockNode)stack[body];
             }
         }
         throw new AssertionError(functionNode.getName() + " not on context stack");

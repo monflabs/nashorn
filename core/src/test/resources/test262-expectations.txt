@@ -323,8 +323,6 @@ test/language/computed-property-names/to-name-side-effects/numbers-class.js (slo
 test/language/computed-property-names/to-name-side-effects/numbers-class.js (strict)
 test/language/destructuring/binding/keyed-destructuring-property-reference-target-evaluation-order-with-bindings.js (sloppy)
 test/language/eval-code/direct/arrow-fn-body-cntns-arguments-var-bind-arrow-func-declare-arguments-assign-incl-def-param-arrow-arguments.js (sloppy)
-test/language/eval-code/direct/export.js (sloppy)
-test/language/eval-code/direct/import.js (sloppy)
 test/language/eval-code/direct/lex-env-distinct-cls.js (sloppy)
 test/language/eval-code/direct/lex-env-distinct-const.js (sloppy)
 test/language/eval-code/direct/lex-env-distinct-let.js (sloppy)

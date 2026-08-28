@@ -1415,6 +1415,10 @@ public final class Context {
      * level declarations belong to the module, not to the global object.
      */
     private FunctionNode compileModuleNode(final Source source) {
+        // start with no errors, no warnings, as script compilation does: the
+        // error manager belongs to the context and outlives any one parse, so
+        // an error left by an earlier one is not this module's
+        errors.reset();
         final FunctionNode moduleNode =
                 // the name becomes a method name, so it is the kind that programs use
                 // rather than the path the module was resolved to
