@@ -34,6 +34,7 @@ import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
+import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Undefined;
@@ -165,17 +166,6 @@ public class NativeSet extends ScriptObject {
     }
 
     /**
-     * ECMA6 23.2.3.8 Set.prototype.keys ( )
-     *
-     * @param self the self reference
-     * @return an iterator over the Set object's values
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static Object keys(final Object self) {
-        return new SetIterator(getNativeSet(self), AbstractIterator.IterationKind.KEY, Global.instance());
-    }
-
-    /**
      * ECMA6 23.2.3.10 Set.prototype.values ( )
      *
      * @param self the self reference
@@ -186,16 +176,6 @@ public class NativeSet extends ScriptObject {
         return new SetIterator(getNativeSet(self), AbstractIterator.IterationKind.VALUE, Global.instance());
     }
 
-    /**
-     * ECMA6 23.2.3.11 Set.prototype [ @@iterator ] ( )
-     *
-     * @param self the self reference
-     * @return an iterator over the Set object's values
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@iterator")
-    public static Object getIterator(final Object self) {
-        return new SetIterator(getNativeSet(self), AbstractIterator.IterationKind.VALUE, Global.instance());
-    }
 
     /**
      * ECMA6 23.2.3.6 Set.prototype.forEach ( callbackfn [ , thisArg ] )
@@ -210,6 +190,12 @@ public class NativeSet extends ScriptObject {
         if (!Bootstrap.isCallable(callbackFn)) {
             throw typeError("not.a.function", ScriptRuntime.safeToString(callbackFn));
         }
+        // 23.1.3.5 step 5 calls the callback with what it was given, and a
+        // callback that is not strict is entered with the global where that is
+        // undefined - the coercion every other iteration helper makes
+        final Object callbackThis = thisArg == ScriptRuntime.UNDEFINED && !Bootstrap.isStrictCallable(callbackFn)
+                ? Context.getGlobal()
+                : thisArg;
         final MethodHandle invoker = Global.instance().getDynamicInvoker(FOREACH_INVOKER_KEY,
                 () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class, Object.class, Object.class, Object.class));
 
@@ -221,7 +207,7 @@ public class NativeSet extends ScriptObject {
             }
 
             try {
-                final Object result = invoker.invokeExact(callbackFn, thisArg, node.getKey(), node.getKey(), self);
+                final Object result = invoker.invokeExact(callbackFn, callbackThis, node.getKey(), node.getKey(), self);
             } catch (final RuntimeException | Error e) {
                 throw e;
             } catch (final Throwable t) {

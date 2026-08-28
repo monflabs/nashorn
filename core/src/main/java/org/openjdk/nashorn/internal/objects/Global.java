@@ -2634,8 +2634,22 @@ public final class Global extends Scope {
     private synchronized ScriptFunction getBuiltinMap() {
         if (this.builtinMap == null) {
             this.builtinMap = initConstructorAndSwitchPoint("Map", ScriptFunction.class);
+            // ES2015 23.1.3.12: [ @@iterator ] is the same function object as entries
+            alias(ScriptFunction.getPrototype(this.builtinMap), NativeSymbol.iterator, "entries");
         }
         return this.builtinMap;
+    }
+
+    /**
+     * Gives a prototype a second name for one of the functions it already has.
+     *
+     * Several of the iteration methods are not merely alike but the very same
+     * function object, which is observable and which the specification is
+     * explicit about - Set.prototype.keys is Set.prototype.values, and each
+     * collection's @@iterator is one of its named methods.
+     */
+    private static void alias(final ScriptObject prototype, final Object name, final String existing) {
+        prototype.addOwnProperty(name, Attribute.NOT_ENUMERABLE, prototype.get(existing));
     }
 
     private synchronized ScriptFunction getBuiltinWeakMap() {
@@ -2648,6 +2662,10 @@ public final class Global extends Scope {
     private synchronized ScriptFunction getBuiltinSet() {
         if (this.builtinSet == null) {
             this.builtinSet = initConstructorAndSwitchPoint("Set", ScriptFunction.class);
+            // ES2015 23.2.3.8 and 23.2.3.11: keys and [ @@iterator ] are both values
+            final ScriptObject prototype = ScriptFunction.getPrototype(this.builtinSet);
+            alias(prototype, "keys", "values");
+            alias(prototype, NativeSymbol.iterator, "values");
         }
         return this.builtinSet;
     }

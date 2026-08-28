@@ -35,6 +35,7 @@ import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.objects.annotations.Property;
 import org.openjdk.nashorn.internal.runtime.ConsString;
+import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -202,17 +203,6 @@ public class NativeMap extends ScriptObject {
     }
 
     /**
-     * ECMA6 23.1.3.12 Map.prototype [ @@iterator ]( )
-     *
-     * @param self the self reference
-     * @return An iterator over the Map's entries
-     */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@iterator")
-    public static Object getIterator(final Object self) {
-        return new MapIterator(getNativeMap(self), AbstractIterator.IterationKind.KEY_VALUE, Global.instance());
-    }
-
-    /**
      *
      * @param self the self reference
      * @param callbackFn the callback function
@@ -224,6 +214,12 @@ public class NativeMap extends ScriptObject {
         if (!Bootstrap.isCallable(callbackFn)) {
             throw typeError("not.a.function", ScriptRuntime.safeToString(callbackFn));
         }
+        // 23.1.3.5 step 5 calls the callback with what it was given, and a
+        // callback that is not strict is entered with the global where that is
+        // undefined - the coercion every other iteration helper makes
+        final Object callbackThis = thisArg == ScriptRuntime.UNDEFINED && !Bootstrap.isStrictCallable(callbackFn)
+                ? Context.getGlobal()
+                : thisArg;
         final MethodHandle invoker = Global.instance().getDynamicInvoker(FOREACH_INVOKER_KEY,
                 () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class, Object.class, Object.class, Object.class));
 
@@ -235,7 +231,7 @@ public class NativeMap extends ScriptObject {
             }
 
             try {
-                final Object result = invoker.invokeExact(callbackFn, thisArg, node.getValue(), node.getKey(), self);
+                final Object result = invoker.invokeExact(callbackFn, callbackThis, node.getValue(), node.getKey(), self);
             } catch (final RuntimeException | Error e) {
                 throw e;
             } catch (final Throwable t) {

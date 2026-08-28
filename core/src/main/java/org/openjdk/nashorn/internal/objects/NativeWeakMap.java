@@ -104,7 +104,9 @@ public class NativeWeakMap extends ScriptObject {
         if (isPrimitive(key)) {
             return Undefined.getUndefined();
         }
-        return map.jmap.get(key);
+        // 23.3.3.3 step 4: a key the map does not hold reads as undefined, which
+        // the Java map answers for with a null it also uses for a stored one
+        return map.jmap.getOrDefault(key, Undefined.getUndefined());
     }
 
     /**
