@@ -56,15 +56,10 @@ if (setterLen != 0) {
 }
 
 var strictArgs = (function() { 'use strict'; return arguments; })();
-callerPropDesc = Object.getOwnPropertyDescriptor(strictArgs,"caller");
-getterLen = callerPropDesc.get.length;
-if (getterLen != 0) {
-    fail("argument.caller's get.length != 0");
-}
-
-setterLen = callerPropDesc.set.length;
-if (setterLen != 0) {
-    fail("argument.caller's set.length != 1");
+// ES2017 dropped the caller poison pill: an unmapped arguments object has no
+// such property at all, and only callee is still one
+if (Object.getOwnPropertyDescriptor(strictArgs, "caller") !== undefined) {
+    fail("arguments has a caller property");
 }
 
 calleePropDesc = Object.getOwnPropertyDescriptor(strictArgs,"callee");

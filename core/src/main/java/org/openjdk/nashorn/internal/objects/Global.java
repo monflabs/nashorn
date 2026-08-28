@@ -2755,8 +2755,9 @@ public final class Global extends Scope {
      *
      * @return the new array
      */
-    public static ScriptObject allocateArguments(final Object[] arguments, final Object callee, final int numParams) {
-        return NativeArguments.allocate(arguments, (ScriptFunction)callee, numParams);
+    public static ScriptObject allocateArguments(final Object[] arguments, final Object callee, final int numParams,
+            final boolean unmapped) {
+        return NativeArguments.allocate(arguments, (ScriptFunction)callee, numParams, unmapped);
     }
 
     /**

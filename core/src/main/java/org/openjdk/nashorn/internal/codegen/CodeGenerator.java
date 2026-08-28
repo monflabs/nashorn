@@ -2131,6 +2131,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadNull();
         }
         method.load(function.getParameters().size());
+        // ES2015 9.2.12: a function whose parameter list is not simple - a
+        // default, a destructuring pattern or a rest parameter - has an
+        // arguments object that is not mapped, as a strict function does. The
+        // parameter block the parser makes for the first two is what says so.
+        method.load(function.hasRestParameter() || function.getBody().isParameterBlock());
         globalAllocateArguments();
         method.storeCompilerConstant(ARGUMENTS);
     }
@@ -5184,7 +5189,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void globalAllocateArguments() {
-        method.invokestatic(GLOBAL_OBJECT, "allocateArguments", methodDescriptor(ScriptObject.class, Object[].class, Object.class, int.class));
+        method.invokestatic(GLOBAL_OBJECT, "allocateArguments", methodDescriptor(ScriptObject.class, Object[].class, Object.class, int.class, boolean.class));
     }
 
     private void globalNewRegExp() {

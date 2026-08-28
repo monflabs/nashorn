@@ -105,7 +105,19 @@ public final class NativeArguments extends ScriptObject {
     @Override
     public Object getArgument(final int key) {
         assert key >= 0 && key < numParams : "invalid argument index";
-        return isMapped(key) ? getArray().getObject(key) : getUnmappedArg(key);
+        return isMapped(key) ? mappedValue(key) : getUnmappedArg(key);
+    }
+
+    /**
+     * The value behind a mapped index.
+     *
+     * The mapping is the array data, until a redefinition the array cannot
+     * express - a non-configurable element - moves the value into the property
+     * map. 9.4.4.2 keeps the parameter and the element the same thing across
+     * that, so the parameter follows the value.
+     */
+    private Object mappedValue(final int index) {
+        return getArray().has(index) ? getArray().getObject(index) : get(index);
     }
 
     /**
@@ -114,10 +126,13 @@ public final class NativeArguments extends ScriptObject {
     @Override
     public void setArgument(final int key, final Object value) {
         assert key >= 0 && key < numParams : "invalid argument index";
-        if (isMapped(key)) {
+        if (!isMapped(key)) {
+            setUnmappedArg(key, value);
+        } else if (getArray().has(key)) {
             setArray(getArray().set(key, value, false));
         } else {
-            setUnmappedArg(key, value);
+            // the element has left the array data, as above
+            set(key, value, 0);
         }
     }
 
@@ -149,7 +164,7 @@ public final class NativeArguments extends ScriptObject {
         final int index = ArrayIndex.getArrayIndex(key);
         if (index >= 0) {
             final boolean isMapped = isMapped(index);
-            final Object oldValue = isMapped ? getArray().getObject(index) : null;
+            final Object oldValue = isMapped ? mappedValue(index) : null;
 
             if (!super.defineOwnProperty(key, propertyDesc, false)) {
                 if (reject) {
@@ -255,9 +270,12 @@ public final class NativeArguments extends ScriptObject {
      * @param numParams the number of declared (named) function parameters
      * @return Arguments Object
      */
-    public static ScriptObject allocate(final Object[] arguments, final ScriptFunction callee, final int numParams) {
+    public static ScriptObject allocate(final Object[] arguments, final ScriptFunction callee, final int numParams,
+            final boolean unmapped) {
         // Strict functions won't always have a callee for arguments, and will pass null instead.
-        final boolean isStrict = callee == null || callee.isStrict();
+        // 9.2.12 gives an unmapped object to a function whose parameter list is
+        // not simple as well, whether it is strict or not.
+        final boolean isStrict = unmapped || callee == null || callee.isStrict();
         final Global global = Global.instance();
         final ScriptObject proto = global.getObjectPrototype();
         final ScriptObject created = isStrict

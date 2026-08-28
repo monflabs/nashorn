@@ -103,7 +103,8 @@ try {
     }
 }
 
-// arguments.caller and arguments.callee can't read or written in strict mode
+// arguments.callee can't be read or written in strict mode. ES2017 dropped the
+// caller poison pill, so that name is an ordinary one and simply absent.
 function func2() {
     'use strict';
 
@@ -116,22 +117,13 @@ function func2() {
         }
     }
 
-    try {
-        print(arguments.caller);
-        fail("#14 arguments.caller should have thrown TypeError");
-    } catch (e) {
-        if (! (e instanceof TypeError)) {
-            fail("#15 TypeError expected, got " + e);
-        }
+    if (arguments.caller !== undefined) {
+        fail("#14 arguments.caller should be absent");
     }
 
-    try {
-        arguments.caller = 10;
-        fail("#16 arguments.caller assign should have thrown TypeError");
-    } catch (e) {
-        if (! (e instanceof TypeError)) {
-            fail("#17 TypeError expected, got " + e);
-        }
+    arguments.caller = 10;
+    if (arguments.caller !== 10) {
+        fail("#16 arguments.caller should be an ordinary property");
     }
 
     try {

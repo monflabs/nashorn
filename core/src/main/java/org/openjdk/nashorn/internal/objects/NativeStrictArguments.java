@@ -57,10 +57,9 @@ public final class NativeStrictArguments extends ScriptObject {
         final ArrayList<Property> properties = new ArrayList<>(1);
         properties.add(AccessorProperty.create("length", Property.NOT_ENUMERABLE, G$LENGTH, S$LENGTH));
         PropertyMap map = PropertyMap.newMap(properties);
-        // In strict mode, the caller and callee properties should throw TypeError
+        // In strict mode, the callee property should throw TypeError
         // Need to add properties directly to map since slots are assigned speculatively by newUserAccessors.
         final int flags = Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE;
-        map = map.addPropertyNoHistory(map.newUserAccessors("caller", flags));
         map = map.addPropertyNoHistory(map.newUserAccessors("callee", flags));
         map$ = map;
     }
@@ -79,7 +78,6 @@ public final class NativeStrictArguments extends ScriptObject {
         final ScriptFunction func = Global.instance().getTypeErrorThrower();
         // We have to fill user accessor functions late as these are stored
         // in this object rather than in the PropertyMap of this object.
-        initUserAccessors("caller", func, func);
         initUserAccessors("callee", func, func);
 
         setArray(ArrayData.allocate(values));
