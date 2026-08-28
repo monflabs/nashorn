@@ -332,7 +332,6 @@ test/language/expressions/arrow-function/lexical-super-call-from-within-construc
 test/language/expressions/arrow-function/lexical-super-call-from-within-constructor.js (strict)
 test/language/expressions/arrow-function/param-dflt-yield-expr.js (sloppy)
 test/language/expressions/arrow-function/param-dflt-yield-expr.js (strict)
-test/language/expressions/arrow-function/scope-param-rest-elem-var-open.js (sloppy)
 test/language/expressions/assignment/S11.13.1_A5_T1.js (sloppy)
 test/language/expressions/assignment/S11.13.1_A5_T2.js (sloppy)
 test/language/expressions/assignment/S11.13.1_A5_T3.js (sloppy)

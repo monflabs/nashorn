@@ -5310,7 +5310,19 @@ public class Parser extends AbstractParser implements Loggable {
                 // (a, b, ...rest) is not a valid expression, unless we're parsing the parameter list of an arrow function (we need to throw the right error).
                 // But since the rest parameter is always last, at least we know that the expression has to end here and be followed by RPAREN and ARROW, so peek ahead.
                 if (isRestParameterEndOfArrowFunctionParameterList()) {
+                    final long restToken = token;
+                    final TokenType afterEllipsis = T(k + 1);
                     next();
+                    if (afterEllipsis == LBRACKET || afterEllipsis == LBRACE) {
+                        // "(a, ...[b]) =>": as for a rest pattern written on its
+                        // own, the pattern is carried out of here and taken
+                        // apart in verifyArrowParameter, once the arrow it
+                        // belongs to exists. The parameter list ends here.
+                        final Expression pattern = new UnaryNode(Token.recast(restToken, TokenType.SPREAD_ARRAY),
+                                bindingPattern());
+                        assert type == RPAREN;
+                        return new BinaryNode(commaToken, assignmentExpression, pattern);
+                    }
                     rhsRestParameter = true;
                 }
             }
@@ -5790,11 +5802,20 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private boolean isRestParameterEndOfArrowFunctionParameterList() {
         assert type == ELLIPSIS;
-        // find IDENT, RPAREN, ARROW, in that order, skipping over EOL (where allowed) and COMMENT
+        // find the rest parameter, then RPAREN, ARROW, in that order, skipping
+        // over EOL (where allowed) and COMMENT
         int i = 1;
         for (;;) {
             final TokenType t = T(k + i++);
             if (t == IDENT) {
+                break;
+            } else if (t == LBRACKET || t == LBRACE) {
+                // "...[a, b]" - a pattern rather than a name, whose end is
+                // where the bracket it opened with closes again
+                i = endOfBracketed(i);
+                if (i < 0) {
+                    return false;
+                }
                 break;
             } else if (t != EOL && t != COMMENT) {
                 return false;
@@ -5817,6 +5838,28 @@ public class Parser extends AbstractParser implements Loggable {
             }
         }
         return true;
+    }
+
+    /**
+     * Scan past a bracketed group whose opening bracket is at {@code k + i - 1}.
+     *
+     * @param i the offset just after the opening bracket
+     * @return the offset just after the matching close, or -1 if there is none
+     */
+    private int endOfBracketed(final int i) {
+        int at = i;
+        int depth = 1;
+        while (depth > 0) {
+            final TokenType t = T(k + at++);
+            if (t == LBRACKET || t == LBRACE || t == LPAREN) {
+                depth++;
+            } else if (t == RBRACKET || t == RBRACE || t == RPAREN) {
+                depth--;
+            } else if (t == EOF) {
+                return -1;
+            }
+        }
+        return at;
     }
 
     /**
