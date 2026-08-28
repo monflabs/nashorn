@@ -356,6 +356,13 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
                         !(oldProp.isWritable() && oldProp.isEnumerable())) {
                     throw typeError("cant.redefine.property", key.toString(), ScriptRuntime.safeToString(this));
                 }
+            } else if (property.isFunctionDeclaration() && !(property instanceof UserAccessorProperty)) {
+                // ES2015 8.1.1.4.18 CreateGlobalFunctionBinding: over a
+                // configurable property a function declaration is a define,
+                // not an assignment, so the attributes become the ones a
+                // declaration gives and not the ones that were there
+                newMap = newMap.deleteProperty(oldProp);
+                newMap = newMap.addPropertyBind((AccessorProperty)property, source);
             }
         }
         return newMap;
