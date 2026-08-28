@@ -27,6 +27,7 @@ package org.openjdk.nashorn.internal.runtime;
 
 import java.lang.invoke.MethodHandle;
 import org.openjdk.nashorn.internal.objects.Global;
+import org.openjdk.nashorn.internal.objects.NativeArray;
 import org.openjdk.nashorn.internal.parser.JSONParser;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.openjdk.nashorn.internal.runtime.linker.Bootstrap;
@@ -94,18 +95,19 @@ public final class JSONFunctions {
     // This is the abstract "Walk" operation from the spec.
     private static Object walk(final ScriptObject holder, final Object name, final Object reviver) {
         final Object val = holder.get(name);
-        if (val instanceof ScriptObject) {
-            final ScriptObject     valueObj = (ScriptObject)val;
-            if (valueObj.isArray()) {
-                final int length = JSType.toInteger(valueObj.getLength());
-                for (int i = 0; i < length; i++) {
-                    final String key = Integer.toString(i);
+        if (val instanceof ScriptObject valueObj) {
+            // 24.3.1.1 asks IsArray, which sees through however many proxies
+            // stand in the way, and reads the length as an ordinary property
+            if (NativeArray.isArray(null, valueObj)) {
+                final long length = JSType.toUint32(valueObj.get("length"));
+                for (long i = 0; i < length; i++) {
+                    final String key = Long.toString(i);
                     final Object newElement = walk(valueObj, key, reviver);
 
                     if (newElement == ScriptRuntime.UNDEFINED) {
-                        valueObj.delete(i, false);
+                        valueObj.delete(key, false);
                     } else {
-                        setPropertyValue(valueObj, key, newElement);
+                        createDataProperty(valueObj, key, newElement);
                     }
                 }
             } else {
@@ -116,7 +118,7 @@ public final class JSONFunctions {
                     if (newElement == ScriptRuntime.UNDEFINED) {
                         valueObj.delete(key, false);
                     } else {
-                        setPropertyValue(valueObj, key, newElement);
+                        createDataProperty(valueObj, key, newElement);
                     }
                 }
             }
@@ -132,19 +134,19 @@ public final class JSONFunctions {
         }
     }
 
-    // add a new property if does not exist already, or else set old property
-    private static void setPropertyValue(final ScriptObject sobj, final String name, final Object value) {
-        final int index = ArrayIndex.getArrayIndex(name);
-        if (ArrayIndex.isValidArrayIndex(index)) {
-            // array index key
-            sobj.defineOwnProperty(index, value);
-        } else if (sobj.getMap().findProperty(name) != null) {
-            // pre-existing non-inherited property, call set
-            sobj.set(name, value, 0);
-        } else {
-            // add new property
-            sobj.addOwnProperty(name, Property.WRITABLE_ENUMERABLE_CONFIGURABLE, value);
-        }
+    /**
+     * ES2017 24.3.1.1 step 2: what the reviver answered is written with
+     * CreateDataProperty, whose failure is not an error - a property the object
+     * will not redefine is simply left as it was - while an object that refuses
+     * by throwing still throws.
+     */
+    private static void createDataProperty(final ScriptObject sobj, final String name, final Object value) {
+        final ScriptObject descriptor = Global.newEmptyInstance();
+        descriptor.set(PropertyDescriptor.VALUE, value, 0);
+        descriptor.set(PropertyDescriptor.WRITABLE, true, 0);
+        descriptor.set(PropertyDescriptor.ENUMERABLE, true, 0);
+        descriptor.set(PropertyDescriptor.CONFIGURABLE, true, 0);
+        sobj.defineOwnProperty(name, descriptor, false);
     }
 
 }

@@ -53,6 +53,7 @@ import static org.openjdk.nashorn.internal.parser.TokenType.STRING;
  * See: 15.12.1.2 The JSON Syntactic Grammar
  */
 public class JSONParser {
+    private static final long NEGATIVE_ZERO = Double.doubleToRawLongBits(-0.0);
 
     final private String source;
     final private Global global;
@@ -473,7 +474,9 @@ public class JSONParser {
         }
 
         final double d = Double.parseDouble(source.substring(start, pos));
-        if (JSType.isRepresentableAsInt(d)) {
+        if (JSType.isRepresentableAsInt(d) && Double.doubleToRawLongBits(d) != NEGATIVE_ZERO) {
+            // "-0" is a double: as an int it would be an ordinary zero, and
+            // 24.3.1 keeps the value the grammar gives
             return (int) d;
         }
         return d;

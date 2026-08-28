@@ -129,32 +129,26 @@ public final class NativeJSON extends ScriptObject {
         // If there is a replacer, it must be a function or an array.
         if (Bootstrap.isCallable(replacer)) {
             state.replacerFunction = replacer;
-        } else if (isArray(replacer) ||
-                isJSObjectArray(replacer) ||
+        } else if (replacer instanceof ScriptObject list && NativeArray.isArray(null, replacer)) {
+            // ES2015 24.3.2 step 4.b reads the length and then the elements, so
+            // a getter on either is called and what it throws comes out here -
+            // which is why this is not an ArrayLikeIterator over the object
+            state.propertyList = new ArrayList<>();
+            final long length = JSType.toUint32(list.get("length"));
+            for (long i = 0; i < length; i++) {
+                addReplacerName(state.propertyList, list.get(i));
+            }
+        } else if (isJSObjectArray(replacer) ||
                 replacer instanceof Iterable ||
                 (replacer != null && replacer.getClass().isArray())) {
-
+            // a Java array or collection standing in for one, which Nashorn
+            // lets through
             state.propertyList = new ArrayList<>();
 
             final Iterator<Object> iter = ArrayLikeIterator.arrayLikeIterator(replacer);
 
             while (iter.hasNext()) {
-                String item = null;
-                final Object v = iter.next();
-
-                if (v instanceof String) {
-                    item = (String) v;
-                } else if (v instanceof ConsString) {
-                    item = v.toString();
-                } else if (v instanceof Number ||
-                        v instanceof NativeNumber ||
-                        v instanceof NativeString) {
-                    item = JSType.toString(v);
-                }
-
-                if (item != null) {
-                    state.propertyList.add(item);
-                }
+                addReplacerName(state.propertyList, iter.next());
             }
         }
 
@@ -188,9 +182,34 @@ public final class NativeJSON extends ScriptObject {
         state.gap = gap;
 
         final ScriptObject wrapper = Global.newEmptyInstance();
-        wrapper.set("", value, 0);
+        // 24.3.2 step 9 is CreateDataProperty, not a set: what the replacer is
+        // handed as its holder has the value as an own property of its own
+        wrapper.addOwnProperty("", 0, value);
 
         return str("", wrapper, state);
+    }
+
+    /**
+     * Adds one element of a replacer array to the list of names to serialize.
+     *
+     * ES2015 24.3.2 step 4.b: a string, a number, or an object wrapping one
+     * names a property; anything else is passed over. A name already in the
+     * list is passed over too, so a key repeated in the replacer is written
+     * once.
+     */
+    private static void addReplacerName(final List<String> propertyList, final Object element) {
+        final String item;
+        if (element instanceof String || element instanceof ConsString) {
+            item = element.toString();
+        } else if (element instanceof Number || element instanceof NativeNumber
+                || element instanceof NativeString) {
+            item = JSType.toString(element);
+        } else {
+            return;
+        }
+        if (!propertyList.contains(item)) {
+            propertyList.add(item);
+        }
     }
 
     // -- Internals only below this point
@@ -211,13 +230,17 @@ public final class NativeJSON extends ScriptObject {
         assert holder instanceof ScriptObject || holder instanceof JSObject;
 
         Object value = getProperty(holder, key);
+        // 24.3.12 step 8.a hands SerializeJSONProperty ToString(index), so what
+        // a toJSON or a replacer is told an element is called is its name and
+        // not its number. The lookup above still goes by the number.
+        final Object name = key instanceof Integer ? JSType.toString(key) : key;
         try {
             if (value instanceof ScriptObject) {
                 final InvokeByName toJSONInvoker = getTO_JSON();
                 final ScriptObject svalue = (ScriptObject)value;
                 final Object toJSON = toJSONInvoker.getGetter().invokeExact(svalue);
                 if (Bootstrap.isCallable(toJSON)) {
-                    value = toJSONInvoker.getInvoker().invokeExact(toJSON, svalue, key);
+                    value = toJSONInvoker.getInvoker().invokeExact(toJSON, svalue, name);
                 }
             } else if (value instanceof JSObject) {
                 final JSObject jsObj = (JSObject)value;
@@ -228,7 +251,7 @@ public final class NativeJSON extends ScriptObject {
             }
 
             if (state.replacerFunction != null) {
-                value = getREPLACER_INVOKER().invokeExact(state.replacerFunction, holder, key, value);
+                value = getREPLACER_INVOKER().invokeExact(state.replacerFunction, holder, name, value);
             }
         } catch(Error|RuntimeException t) {
             throw t;
@@ -266,7 +289,7 @@ public final class NativeJSON extends ScriptObject {
 
         final JSType type = JSType.of(value);
         if (type == JSType.OBJECT) {
-            if (isArray(value) || isJSObjectArray(value)) {
+            if (NativeArray.isArray(null, value) || isJSObjectArray(value)) {
                 return JA(value, state);
             } else if (value instanceof ScriptObject || value instanceof JSObject) {
                 return JO(value, state);
@@ -432,8 +455,10 @@ public final class NativeJSON extends ScriptObject {
     }
 
     private static Object getLength(final Object obj) {
-        if (obj instanceof ScriptObject) {
-            return ((ScriptObject)obj).getLength();
+        if (obj instanceof ScriptObject sobj) {
+            // 24.3.12 step 6 reads it as an ordinary property, so a getter runs
+            // and a proxy's trap is asked
+            return sobj.get("length");
         } else if (obj instanceof JSObject) {
             return ((JSObject)obj).getMember("length");
         } else {
