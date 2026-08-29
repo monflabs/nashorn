@@ -27,8 +27,6 @@ test/built-ins/Object/internals/DefineOwnProperty/consistent-value-regexp-dollar
 test/built-ins/Object/internals/DefineOwnProperty/consistent-value-regexp-dollar1.js (strict)
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (sloppy)
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (strict)
-test/built-ins/RegExp/prototype/Symbol.replace/coerce-lastindex.js (sloppy)
-test/built-ins/RegExp/prototype/Symbol.replace/coerce-lastindex.js (strict)
 test/built-ins/RegExp/quantifier-integer-limit.js (sloppy)
 test/built-ins/RegExp/quantifier-integer-limit.js (strict)
 test/built-ins/RegExp/unicode_full_case_folding.js (sloppy)

@@ -977,8 +977,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         }
 
         if (separator instanceof NativeRegExp regexpSeparator) {
+            // the built-in @@split is the same algorithm, reached without the
+            // lookup: what a regular expression splits on must not depend on
+            // whether some script has installed a symbol method somewhere
             final Object splitted = viaSymbol(regexpSeparator, NativeSymbol.split, str, limit);
-            return splitted != NOT_DELEGATED ? splitted : regexpSeparator.split(str, lim);
+            return splitted != NOT_DELEGATED ? splitted
+                    : NativeRegExp.split(regexpSeparator, str, limit);
         }
 
         // when separator is a string, it is treated as a literal search string to be used for splitting.

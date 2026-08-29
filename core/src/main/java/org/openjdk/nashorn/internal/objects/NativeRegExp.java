@@ -567,7 +567,7 @@ public final class NativeRegExp extends ScriptObject {
                 q = advanceStringIndex(str, q, unicode);
                 continue;
             }
-            final int e = (int)Math.min(JSType.toUint32(splitter.get("lastIndex")), size);
+            final int e = (int)Math.min(toLength(splitter.get("lastIndex")), size);
             if (e == p) {
                 q = advanceStringIndex(str, q, unicode);
                 continue;
@@ -639,7 +639,16 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     private static long lastIndex(final ScriptObject rx) {
-        return JSType.toUint32(rx.get("lastIndex"));
+        // 21.2.5.8 reads it with ToLength, which clamps at 2^53-1 where an
+        // unsigned wrap would answer with something else entirely
+        return toLength(rx.get("lastIndex"));
+    }
+
+    /** ES2015 7.1.15 ToLength. */
+    private static long toLength(final Object value) {
+        final double number = JSType.toNumber(value);
+        return Double.isNaN(number) || number < 0 ? 0
+                : (long)Math.min(number, 9007199254740991d);
     }
 
     /** The constructor a derived operation should build with (ES2015 7.3.20). */
@@ -1122,22 +1131,6 @@ public final class NativeRegExp extends ScriptObject {
         return match;
     }
 
-    // String.prototype.split method ignores the global flag and should not update lastIndex property.
-    private RegExpResult execSplit(final String string, final int start) {
-        if (start < 0 || start > string.length()) {
-            return null;
-        }
-
-        final RegExpMatcher matcher = regexp.match(string);
-        if (matcher == null || !matcher.search(start)) {
-            return null;
-        }
-
-        final RegExpResult match = new RegExpResult(string, matcher.start(), groups(matcher));
-        globalObject.setLastRegExpResult(match);
-        return match;
-    }
-
     /**
      * Convert java.util.regex.Matcher groups to JavaScript groups.
      * That is, replace null and groups that didn't match with undefined.
@@ -1362,69 +1355,6 @@ public final class NativeRegExp extends ScriptObject {
         return (String)invoker.invokeExact(function, self, args);
     }
 
-    /**
-     * Breaks up a string into an array of substrings based on a regular
-     * expression or fixed string.
-     *
-     * @param string String to match.
-     * @param limit  Split limit.
-     * @return Array of substrings.
-     */
-    NativeArray split(final String string, final long limit) {
-        if (limit == 0L) {
-            return new NativeArray();
-        }
-
-        final List<Object> matches = new ArrayList<>();
-
-        RegExpResult match;
-        final int inputLength = string.length();
-        int splitLastLength = -1;
-        int splitLastIndex = 0;
-        int splitLastLastIndex = 0;
-
-        while ((match = execSplit(string, splitLastIndex)) != null) {
-            splitLastIndex = match.getIndex() + match.length();
-
-            if (splitLastIndex > splitLastLastIndex) {
-                matches.add(string.substring(splitLastLastIndex, match.getIndex()));
-                final Object[] groups = match.getGroups();
-                if (groups.length > 1 && match.getIndex() < inputLength) {
-                    for (int index = 1; index < groups.length && matches.size() < limit; index++) {
-                        matches.add(groups[index]);
-                    }
-                }
-
-                splitLastLength = match.length();
-
-                if (matches.size() >= limit) {
-                    break;
-                }
-            }
-
-            // bump the index to avoid infinite loop
-            if (splitLastIndex == splitLastLastIndex) {
-                splitLastIndex++;
-            } else {
-                splitLastLastIndex = splitLastIndex;
-            }
-        }
-
-        if (matches.size() < limit) {
-            // check special case if we need to append an empty string at the
-            // end of the match
-            // if the lastIndex was the entire string
-            if (splitLastLastIndex == string.length()) {
-                if (splitLastLength > 0 || execSplit("", 0) == null) {
-                    matches.add("");
-                }
-            } else {
-                matches.add(string.substring(splitLastLastIndex, inputLength));
-            }
-        }
-
-        return new NativeArray(matches.toArray());
-    }
 
     /**
      * Tests for a match in a string. It returns the index of the match, or -1
