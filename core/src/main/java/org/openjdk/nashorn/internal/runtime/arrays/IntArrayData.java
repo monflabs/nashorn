@@ -223,7 +223,11 @@ final class IntArrayData extends ContinuousArrayData implements IntElements {
 
     @Override
     public ArrayData set(final int index, final Object value, final boolean strict) {
-        if (JSType.isRepresentableAsInt(value)) {
+        // a negative zero is not one of the ints: narrowing it loses the sign,
+        // which Object.is and a division both see
+        if (value instanceof Number number
+                ? JSType.isStrictlyRepresentableAsInt(number.doubleValue())
+                : JSType.isRepresentableAsInt(value)) {
             return set(index, JSType.toInt32(value), strict);
         } else if (value == ScriptRuntime.UNDEFINED) {
             return new UndefinedArrayFilter(this).set(index, value, strict);
@@ -243,7 +247,7 @@ final class IntArrayData extends ContinuousArrayData implements IntElements {
 
     @Override
     public ArrayData set(final int index, final double value, final boolean strict) {
-        if (JSType.isRepresentableAsInt(value)) {
+        if (JSType.isStrictlyRepresentableAsInt(value)) {
             array[index] = (int)(long)value;
             setLength(Math.max(index + 1, length()));
             return this;
