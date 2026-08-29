@@ -95,6 +95,13 @@ public class ArrayIterator extends AbstractIterator {
     protected IteratorResult next(final Object arg) {
         final long index = nextIndex;
 
+        // 22.1.5.2.1 step 8.a: a typed array is validated on every step, so a
+        // buffer detached in the middle of a loop stops it with an error rather
+        // than with an end
+        if (iteratedObject instanceof ArrayBufferView view && view.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+
         if (iteratedObject == null || index >= JSType.toUint32(iteratedObject.getLength())) {
             // ES6 22.1.5.2.1 step 10
             iteratedObject = null;

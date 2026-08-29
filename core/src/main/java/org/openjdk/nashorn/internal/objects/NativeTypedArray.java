@@ -228,7 +228,11 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object subarray(final Object self, final Object begin, final Object end) {
-        return ArrayBufferView.subarrayImpl(view(self), begin, end);
+        // 22.2.3.27 does not validate the array first: a detached buffer has a
+        // length of zero here, and what refuses it is the constructor at the
+        // end - by which time the arguments have been converted, which a script
+        // can see them being
+        return ArrayBufferView.subarrayImpl(described(self), begin, end);
     }
 
     /**
