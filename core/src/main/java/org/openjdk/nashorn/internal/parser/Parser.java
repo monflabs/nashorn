@@ -5754,16 +5754,20 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     /**
-     * ES2015 14.2.1: an arrow's parameters may not hold a yield expression.
+     * ES2015 14.2.1: an arrow's parameters may not hold a yield expression,
+     * and ES2017 14.7.1 says the same of an await.
      *
      * The parameters are recovered from a parenthesized expression, where a
-     * yield written inside a generator is an expression like any other - so
-     * what was read as one has to be refused once the arrow it belongs to
-     * turns up. An arrow is not a generator, and its parameters are not part
-     * of the one it is written in.
+     * yield written inside a generator - or an await written inside an async
+     * function - is an expression like any other, so what was read as one has
+     * to be refused once the arrow it belongs to turns up. An arrow is neither
+     * a generator nor an async function, and its parameters are not part of
+     * the one it is written in.
      */
     private void verifyNoYieldInParameters(final Expression paramListExpr) {
-        if (paramListExpr == null || !insideGenerator()) {
+        final boolean generator = insideGenerator();
+        final boolean async = inAsyncFunction();
+        if (paramListExpr == null || !generator && !async) {
             return;
         }
         paramListExpr.accept(new NodeVisitor<>(new LexicalContext()) {
@@ -5775,8 +5779,11 @@ public class Parser extends AbstractParser implements Loggable {
 
             @Override
             public boolean enterUnaryNode(final UnaryNode unaryNode) {
-                if (unaryNode.isTokenType(YIELD) || unaryNode.isTokenType(YIELD_STAR)) {
+                if (generator && (unaryNode.isTokenType(YIELD) || unaryNode.isTokenType(YIELD_STAR))) {
                     throw error(AbstractParser.message("yield.in.arrow.parameters"), unaryNode.getToken());
+                }
+                if (async && unaryNode.isTokenType(TokenType.AWAIT)) {
+                    throw error(AbstractParser.message("await.in.arrow.parameters"), unaryNode.getToken());
                 }
                 return true;
             }

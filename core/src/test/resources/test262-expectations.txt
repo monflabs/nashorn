@@ -311,8 +311,6 @@ test/language/expressions/assignment/destructuring/target-assign-throws-iterator
 test/language/expressions/assignment/destructuring/target-assign-throws-iterator-return-is-not-callable.js (strict)
 test/language/expressions/assignment/fn-name-lhs-cover.js (sloppy)
 test/language/expressions/assignment/fn-name-lhs-cover.js (strict)
-test/language/expressions/async-arrow-function/await-as-param-nested-arrow-body-position.js (sloppy)
-test/language/expressions/async-arrow-function/await-as-param-nested-arrow-body-position.js (strict)
 test/language/expressions/async-function/named-reassign-fn-name-in-body-in-arrow.js (sloppy)
 test/language/expressions/async-function/named-reassign-fn-name-in-body-in-eval.js (sloppy)
 test/language/expressions/async-function/named-strict-error-reassign-fn-name-in-body-in-arrow.js (strict)
