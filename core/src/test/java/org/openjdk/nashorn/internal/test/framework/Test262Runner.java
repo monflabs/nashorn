@@ -143,6 +143,18 @@ public final class Test262Runner {
      * One execution of one test file. A test with no strictness flag produces
      * two of these.
      */
+    /**
+     * How long one execution is given.
+     *
+     * A test that starts agents waits for threads of its own, and a machine
+     * running a shard of these on every core takes far longer over one than it
+     * does over anything else - long enough to be taken for a wedged engine.
+     * They are given room rather than the whole run waiting on their pace.
+     */
+    private static long timeoutFor(final Variant variant) {
+        return variant.frontmatter().getFeatures().contains("Atomics") ? TIMEOUT_SECONDS * 3 : TIMEOUT_SECONDS;
+    }
+
     private record Variant(Path file, Test262Frontmatter frontmatter, boolean strict) {
         String id(final Path root) {
             return root.relativize(file).toString().replace('\\', '/') + (strict ? " (strict)" : " (sloppy)");
@@ -357,7 +369,7 @@ public final class Test262Runner {
                         result = sandbox.run(variant);
                     } catch (final TimeoutException e) {
                         // the engine thread is wedged; abandon it and start a clean one
-                        failures.put(variant.id(suiteRoot), "timed out after " + TIMEOUT_SECONDS + "s");
+                        failures.put(variant.id(suiteRoot), "timed out after " + timeoutFor(variant) + "s");
                         sandbox.discard();
                         sandbox = new Sandbox();
                         sinceRecycled = 0;
@@ -424,7 +436,7 @@ public final class Test262Runner {
         Result run(final Variant variant) throws Exception {
             final Future<Result> future = executor.submit(() -> engine.run(variant));
             try {
-                return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                return future.get(timeoutFor(variant), TimeUnit.SECONDS);
             } catch (final TimeoutException e) {
                 future.cancel(true);
                 throw e;
