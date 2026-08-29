@@ -1918,23 +1918,17 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     private static ScriptObject speciesCreate(final Object original, final long length) {
-        // ES2015 9.4.2.3 step 5 makes an ordinary array of that length, and an
-        // array cannot be 2^32 long or longer - a length an array-like is free
-        // to claim and a derived array is not.
-        if (length > MAX_ARRAY_LENGTH) {
-            throw rangeError("inappropriate.array.length", JSType.toString((double)length));
-        }
         final Global global = Global.instance();
         if (!(original instanceof ScriptObject sobj) || !isArrayThroughProxies(sobj)) {
-            return new NativeArray(length);
+            return arrayCreate(length);
         }
         if (hasDefaultSpecies(sobj, global)) {
-            return new NativeArray(length);
+            return arrayCreate(length);
         }
 
         final Object constructor = sobj.get("constructor");
         if (constructor == ScriptRuntime.UNDEFINED) {
-            return new NativeArray(length);
+            return arrayCreate(length);
         }
         if (!(constructor instanceof ScriptObject ctor)) {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
@@ -1942,16 +1936,27 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         final Object species = ctor.get(NativeSymbol.species);
         if (species == ScriptRuntime.UNDEFINED || species == null
                 || species == global.get("Array")) {
-            return new NativeArray(length);
+            return arrayCreate(length);
         }
         if (!(species instanceof ScriptFunction function) || !function.isConstructor()) {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(species));
         }
+        // 9.4.2.3 step 11 hands the length to the species as a number and lets
+        // it make what it likes of it: only the array this would otherwise have
+        // made has a length it cannot hold
         final Object created = ScriptRuntime.construct(function, (double)length);
         if (created instanceof ScriptObject target) {
             return target;
         }
         throw typeError("not.an.object", ScriptRuntime.safeToString(created));
+    }
+
+    /** ES2015 9.4.2.2 ArrayCreate: an array cannot be 2^32 long or longer. */
+    private static NativeArray arrayCreate(final long length) {
+        if (length > MAX_ARRAY_LENGTH) {
+            throw rangeError("inappropriate.array.length", JSType.toString((double)length));
+        }
+        return new NativeArray(length);
     }
 
     private static Object reduceInner(final ArrayLikeIterator<Object> iter, final Object self, final Object... args) {

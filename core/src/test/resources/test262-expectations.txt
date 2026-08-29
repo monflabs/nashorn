@@ -3,8 +3,6 @@
 # Reasons for the current run are written to target/test262-failures.txt.
 test/built-ins/Array/length/define-own-prop-length-coercion-order-set.js (sloppy)
 test/built-ins/Array/length/define-own-prop-length-coercion-order-set.js (strict)
-test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js (sloppy)
-test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js (strict)
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (sloppy)
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (strict)
 test/built-ins/RegExp/unicode_full_case_folding.js (sloppy)
