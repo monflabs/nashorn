@@ -5,8 +5,8 @@ Nashorn engine is an open source implementation of the
 [ECMAScript 2017 Language Specification](https://262.ecma-international.org/8.0/)
 (ECMAScript 8). It is written in Java and runs on the Java Virtual Machine.
 
-This fork is working towards full ES2017 conformance; see the
-[change log](CHANGELOG.md) for what has landed. There is no ES5-only mode:
+This fork passes every test of the ES2017 slice of `tc39/test262`; see the
+[change log](CHANGELOG.md) for what that took. There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols, the
 `Map`/`Set` family, which upstream hid behind `--language=es6`, and the
 editions after them - `**`, `Object.values`, `String.prototype.padStart`,
@@ -70,7 +70,10 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2017 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2017. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards.
+moves forwards. That file is now empty - every one of the ~51,000 selected
+executions passes - so any failure at all fails the build. Four things are
+excluded, all of them outside ECMA-262 8th edition proper: Annex B, proper tail
+calls, ECMA-402 (`intl402`), and the non-normative `staging` directory.
 
 Other profiles: `-Pbenchmark` and `-Psunspider` for the benchmarks,
 `-Pcoverage` for a JaCoCo report, `-Prun` to execute a sample script through
