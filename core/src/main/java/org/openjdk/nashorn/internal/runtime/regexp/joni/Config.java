@@ -31,7 +31,13 @@ public interface Config {
     final int ENC_CASE_FOLD_MIN = INTERNAL_ENC_CASE_FOLD_MULTI_CHAR;
     final int ENC_CASE_FOLD_DEFAULT = ENC_CASE_FOLD_MIN;
 
-    final boolean USE_MONOMANIAC_CHECK_CAPTURES_IN_ENDLESS_REPEAT = true; /* /(?:()|())*\2/ */
+    /**
+     * Ruby lets an empty repetition continue when a capture inside it changed.
+     * ECMAScript 22.2.2.3 RepeatMatcher does not: it fails an iteration that
+     * matched nothing whenever the quantifier allows zero of them, whatever the
+     * iteration captured.
+     */
+    final boolean USE_MONOMANIAC_CHECK_CAPTURES_IN_ENDLESS_REPEAT = false; /* /(?:()|())*\2/ */
     final boolean USE_NEWLINE_AT_END_OF_STRING_HAS_EMPTY_LINE = true;     /* /\n$/ =~ "\n" */
     final boolean USE_WARNING_REDUNDANT_NESTED_REPEAT_OPERATOR = false;
 

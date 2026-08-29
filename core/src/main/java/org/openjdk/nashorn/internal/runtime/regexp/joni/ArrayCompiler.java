@@ -400,9 +400,9 @@ final class ArrayCompiler extends Compiler {
         } else if (!infinite && qn.greedy &&
                   (qn.upper == 1 || (tlen + OPSize.PUSH) * qn.upper <= QUANTIFIER_EXPAND_LIMIT_SIZE )) {
             len = tlen * qn.lower;
-            len += (OPSize.PUSH + tlen) * (qn.upper - qn.lower);
+            len += (OPSize.PUSH + modTLen) * (qn.upper - qn.lower);
         } else if (!qn.greedy && qn.upper == 1 && qn.lower == 0) { /* '??' */
-            len = OPSize.PUSH + OPSize.JUMP + tlen;
+            len = OPSize.PUSH + OPSize.JUMP + modTLen;
         } else {
             len = OPSize.REPEAT_INC + modTLen + OPSize.OPCODE + OPSize.RELADDR + OPSize.MEMNUM;
         }
@@ -490,14 +490,17 @@ final class ArrayCompiler extends Compiler {
             final int n = qn.upper - qn.lower;
             compileTreeNTimes(qn.target, qn.lower);
 
+            // the copies past the lower bound are the ones a zero-length match
+            // must fail, so they carry the empty check and the mandatory ones
+            // above do not
             for (int i=0; i<n; i++) {
-                addOpcodeRelAddr(OPCode.PUSH, (n - i) * tlen + (n - i - 1) * OPSize.PUSH);
-                compileTree(qn.target);
+                addOpcodeRelAddr(OPCode.PUSH, (n - i) * modTLen + (n - i - 1) * OPSize.PUSH);
+                compileTreeEmptyCheck(qn.target, emptyInfo);
             }
         } else if (!qn.greedy && qn.upper == 1 && qn.lower == 0) { /* '??' */
             addOpcodeRelAddr(OPCode.PUSH, OPSize.JUMP);
-            addOpcodeRelAddr(OPCode.JUMP, tlen);
-            compileTree(qn.target);
+            addOpcodeRelAddr(OPCode.JUMP, modTLen);
+            compileTreeEmptyCheck(qn.target, emptyInfo);
         } else {
             compileRangeRepeatNode(qn, modTLen, emptyInfo);
         }

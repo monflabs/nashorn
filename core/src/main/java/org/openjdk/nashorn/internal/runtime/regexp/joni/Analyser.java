@@ -1037,7 +1037,10 @@ final class Analyser extends Parser {
                 qn.setInRepeat();
             }
 
-            if (isRepeatInfinite(qn.upper) || qn.lower >= 1) {
+            // 22.2.2.3 fails an iteration that matched nothing whenever the
+            // quantifier allows zero of them, which is every quantifier: the
+            // check is needed for "(?:x)?" as much as for "(?:x)*"
+            {
                 final int d = getMinMatchLength(target);
                 if (d == 0) {
                     qn.targetEmptyInfo = TargetInfo.IS_EMPTY;

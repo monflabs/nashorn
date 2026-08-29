@@ -1,6 +1,4 @@
 # test262 ES2017 slice: known failures. Every line is work to do.
 # Regenerate with -Dtest262.write.expectations=true.
 # Reasons for the current run are written to target/test262-failures.txt.
-test/built-ins/RegExp/lookahead-quantifier-match-groups.js (sloppy)
-test/built-ins/RegExp/lookahead-quantifier-match-groups.js (strict)
 test/language/statements/for-in/head-lhs-let.js (sloppy)

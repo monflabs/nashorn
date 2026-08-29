@@ -1000,10 +1000,13 @@ class ByteCodeMachine extends StackMachine {
 
         if (isNull != 0) {
             if (Config.DEBUG_MATCH) {
-                Config.log.println("NULL_CHECK_END: skip  id:" + mem + ", s:" + s);
+                Config.log.println("NULL_CHECK_END: fail  id:" + mem + ", s:" + s);
             }
 
-            nullCheckFound();
+            // 22.2.2.3 returns failure for the iteration rather than ending the
+            // repetition where it stands, so what it captured is given back and
+            // the match continues from before it
+            opFail();
         }
     }
 
