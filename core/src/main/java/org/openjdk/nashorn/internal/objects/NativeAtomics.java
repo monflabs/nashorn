@@ -271,7 +271,7 @@ public final class NativeAtomics extends ScriptObject {
         final Object index = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object count = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
 
-        final Access at = access(array, index, false, true);
+        final Access at = access(array, index, false, true, true);
         final double howMany = count == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
                 : Math.max(JSType.toInteger(count), 0);
         if (!at.shared) {
@@ -382,7 +382,12 @@ public final class NativeAtomics extends ScriptObject {
     }
 
     private static Access access(final Object array, final Object index) {
-        return access(array, index, false, false);
+        return access(array, index, false, false, false);
+    }
+
+    private static Access access(final Object array, final Object index, final boolean mustBeShared,
+            final boolean mustBeInt32) {
+        return access(array, index, mustBeShared, mustBeInt32, false);
     }
 
     /**
@@ -390,7 +395,7 @@ public final class NativeAtomics extends ScriptObject {
      * ValidateAtomicAccess: what the operations may be given, and where in it.
      */
     private static Access access(final Object array, final Object index, final boolean mustBeShared,
-            final boolean mustBeInt32) {
+            final boolean mustBeInt32, final boolean answersWhenDetached) {
         if (!(array instanceof ArrayBufferView view)) {
             throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
         }
@@ -417,9 +422,22 @@ public final class NativeAtomics extends ScriptObject {
             throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
         }
 
-        final double asIndex = JSType.toInteger(index);
-        if (asIndex < 0 || asIndex >= view.getElementLength()) {
+        // 24.4.1.2 ValidateAtomicAccess reads the length before it converts the
+        // index, so an index whose conversion detaches the buffer is measured
+        // against the array as it stood
+        final long length = view.getElementLength();
+        final long asIndex = ArrayBufferView.toIndexLong(index);
+        if (asIndex >= length) {
             throw rangeError("inappropriate.array.index", ScriptRuntime.safeToString(index));
+        }
+        if (view.isDetached()) {
+            // the conversion detached it. There is nothing left to read or
+            // write; notify answers for memory nobody else can see, and
+            // everything else says so
+            if (!answersWhenDetached) {
+                throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
+            }
+            return new Access(null, 0, width, signed, null, 0, false);
         }
         return new Access(view.viewedBytes(), (int)asIndex * width, width, signed,
                 // the storage rather than the wrapper: every realm sharing a

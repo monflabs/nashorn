@@ -240,6 +240,13 @@ public final class Test262Selector {
             return true;
         }
 
+        // A test flagged CanBlockIsFalse is for a host whose main agent cannot
+        // be suspended, and says so instead of asking: this one blocks, so what
+        // the test pins down is not what this engine does.
+        if (frontmatter.hasFlag("CanBlockIsFalse")) {
+            return false;
+        }
+
         return FEATURES.containsAll(frontmatter.getFeatures());
     }
 
