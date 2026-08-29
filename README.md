@@ -70,10 +70,12 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2017 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2017. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. That file is now empty - every one of the ~51,000 selected
-executions passes - so any failure at all fails the build. Four things are
-excluded, all of them outside ECMA-262 8th edition proper: Annex B, proper tail
-calls, ECMA-402 (`intl402`), and the non-normative `staging` directory.
+moves forwards. That file is now empty - all 48,970 selected executions pass -
+so any failure at all fails the build. Four things are excluded, all of them
+outside ECMA-262 8th edition proper: Annex B, proper tail calls, ECMA-402
+(`intl402`), and the non-normative `staging` directory.
+[doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
+Annex B would cost.
 
 Other profiles: `-Pbenchmark` and `-Psunspider` for the benchmarks,
 `-Pcoverage` for a JaCoCo report, `-Prun` to execute a sample script through

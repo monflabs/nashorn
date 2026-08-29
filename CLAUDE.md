@@ -150,6 +150,14 @@ which this one can, so it is not selected either.
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,
   because the suite is written for a host where "i" grows no dot.
 
+`doc/CONFORMANCE.md` records what the four exclusions actually contain, measured rather than assumed:
+Annex B is 1,086 files of which 336 already pass, and 635 of the 750 failures are the one B.3.3 rule -
+a block-level function declaration leaking a var binding into the enclosing scope - which this fork
+deliberately does not do. Tail calls are 35 files and nothing else depends on them. Regenerate any of
+those numbers by taking the entry out of `EXCLUDED_DIRS` (or putting `tail-call-optimization` into
+`FEATURES`), running with `-Dnashorn.test262.include=`, then restoring the selector **and rebuilding the
+test classes** - a patched selector left in `core/target/test/classes` silently widens the next run.
+
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
 
