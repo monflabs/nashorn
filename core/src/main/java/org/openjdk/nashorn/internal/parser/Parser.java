@@ -5662,7 +5662,10 @@ public class Parser extends AbstractParser implements Loggable {
         if (isAssignmentOperator(type)) {
             final boolean isAssign = type == ASSIGN;
             if (isAssign) {
-                defaultNames.push(exprLhs);
+                // 12.15.4 names the function after the target only when the
+                // target is written as a plain reference: "(f) = function(){}"
+                // assigns a function that has no name
+                defaultNames.push(exprLhs == parenthesized ? "" : exprLhs);
             }
             try {
                 final long assignToken = token;

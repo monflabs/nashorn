@@ -183,6 +183,7 @@ public final class Test262Selector {
             "built-ins/Object/seal/seal-bigint64array.js",
             "built-ins/Object/seal/seal-biguint64array.js",
             "built-ins/TypedArrayConstructors/BigUint64Array/is-a-constructor.js",
+            "built-ins/BigInt/prototype/toString/radix-tointegerorinfinity-throws-symbol.js",
             // ES2021 String.prototype.replaceAll
             "built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js",
             "built-ins/String/prototype/replaceAll/not-a-constructor.js");
