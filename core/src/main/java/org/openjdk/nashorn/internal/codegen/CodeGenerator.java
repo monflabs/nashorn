@@ -2443,12 +2443,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.dup();
             storeBinding(published);
         }
-        method.load(binding, Type.OBJECT);
+        loadBinding(binding);
         method.swap();
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "BIND_THIS",
                 new FunctionSignature(false, false, Type.OBJECT, 2).toString());
         method.dup();
-        method.store(binding, Type.OBJECT);
+        storeBinding(binding);
     }
 
     /**
@@ -2462,8 +2462,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      */
     private void loadThisReceiver() {
         final Symbol binding = thisBinding();
-        if (binding != null && binding.hasSlot()) {
-            method.load(binding, Type.OBJECT);
+        if (binding != null && (binding.hasSlot() || binding.isScope())) {
+            loadBinding(binding);
         } else {
             method.loadCompilerConstant(THIS);
         }
@@ -2479,7 +2479,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         if (binding == null) {
             return;
         }
-        method.load(binding, Type.OBJECT);
+        loadBinding(binding);
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "REQUIRE_THIS_INITIALIZED",
                 new FunctionSignature(false, false, Type.OBJECT, 1).toString());
         method.pop();
@@ -2499,6 +2499,23 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
         }
         return null;
+    }
+
+    /**
+     * Pushes a variable's value, wherever it is kept.
+     *
+     * The variable an arrow reads is in a scope object rather than a slot,
+     * which is the whole point of it, and a slot load of one pushes nothing at
+     * all - leaving whatever was to be done with it to be done to the stack
+     * beneath.
+     */
+    private void loadBinding(final Symbol symbol) {
+        if (!symbol.isScope()) {
+            method.load(symbol, Type.OBJECT);
+            return;
+        }
+        method.loadCompilerConstant(SCOPE);
+        method.dynamicGet(Type.OBJECT, symbol.getName(), getScopeCallSiteFlags(symbol), false, false);
     }
 
     /**
