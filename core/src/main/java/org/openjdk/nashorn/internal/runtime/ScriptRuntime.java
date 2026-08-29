@@ -2085,15 +2085,11 @@ public final class ScriptRuntime {
      */
     public static Object SCOPE_BASE(final Object scope, final Object name) {
         for (ScriptObject current = (ScriptObject)scope; current != null; current = current.getProto()) {
-            if (current instanceof WithObject with) {
+            if (current instanceof WithObject) {
                 // the with block answers for the object it was given, and for
-                // nothing of its own, so a hit here is a hit on that object.
-                // The object itself is what the reference is based on, not the
-                // block: 8.1.1.2.1 reads @@unscopables to answer HasBinding,
-                // and the read and the write that follow are a plain Get and
-                // Set of the binding object, which must not ask again
-                if (with.findProperty(name, false) != null) {
-                    return with.getExpression();
+                // nothing of its own, so a hit here is a hit on that object
+                if (current.findProperty(name, false) != null) {
+                    return current;
                 }
                 continue;
             }
@@ -2106,7 +2102,7 @@ public final class ScriptRuntime {
                 }
                 // the global ends the scope chain and has a prototype chain of
                 // its own; every link before it is asked about itself alone
-                return current.findProperty(name, true) != null ? current : Context.getGlobal();
+                return current.findProperty(name, true) != null ? current : UNRESOLVABLE;
             }
             if (current.findProperty(name, false) != null) {
                 return current;
@@ -2114,17 +2110,31 @@ public final class ScriptRuntime {
         }
         // an unresolvable reference: the read that follows is a ReferenceError,
         // and where it is not, 8.1.1.4.9 writes the name on the global
-        return Context.getGlobal();
+        return UNRESOLVABLE;
     }
 
     /**
-     * Asks the object a reference is based on whether it still has the name,
-     * for the read that follows.
+     * What {@link #SCOPE_BASE} answers for a name nothing declared.
      *
-     * 8.1.1.2.6 step 2 is a HasProperty on the binding object of a with block,
-     * before the Get of step 4, and a proxy is told about both. A scope object
-     * answers for itself and is asked nothing extra: the read that follows is a
-     * scope read, which resolves the name for itself.
+     * A reference is unresolvable or it is not, and 6.2.4.9 decides what that
+     * means when the value is written rather than when the name is looked up:
+     * strict code throws, and sloppy code writes the name on the global. The
+     * global itself cannot stand in for the answer, because the assignment's own
+     * right hand side may have declared the name in between - and the reference
+     * was already made by then.
+     */
+    private static final Object UNRESOLVABLE = new Object();
+
+    /**
+     * The object to read a reference through, once {@link #SCOPE_BASE} has made
+     * it.
+     *
+     * A with block's reference is based on the object the block was given, not
+     * on the block: 8.1.1.2.1 read @@unscopables to answer HasBinding, and the
+     * read is a plain Get of the binding object, which must not ask again. The
+     * HasProperty 8.1.1.2.6 makes before that Get is made here, where a proxy
+     * binding object can see it. Anything else is a scope, which the read
+     * resolves the name in for itself.
      *
      * A binding that has gone between the two - deleted by the @@unscopables
      * getter that resolved it - is read anyway, which is one Get more than the
@@ -2133,12 +2143,20 @@ public final class ScriptRuntime {
      *
      * @param base the object the reference named
      * @param name the name being read
+     * @return the object to read the name from
      */
-    public static void CHECK_BINDING(final Object base, final Object name) {
-        if (base instanceof Scope) {
-            return;
+    public static Object READ_BASE(final Object base, final Object name) {
+        if (base == UNRESOLVABLE) {
+            // 6.2.4.8 GetValue of an unresolvable reference, in either mode
+            throw referenceError("not.defined", JSType.toString(name));
         }
-        ((ScriptObject)base).has(name);
+        if (base instanceof WithObject with) {
+            final ScriptObject bindings = with.getExpression();
+            // 8.1.1.2.6 step 2, which a proxy binding object is told about
+            bindings.has(name);
+            return bindings;
+        }
+        return base;
     }
 
     /**
@@ -2156,9 +2174,18 @@ public final class ScriptRuntime {
      */
     public static void SCOPE_PUT(final Object base, final Object name, final Object value, final boolean strict) {
         final int strictFlag = strict ? NashornCallSiteDescriptor.CALLSITE_STRICT : 0;
-        if (!(base instanceof Scope)) {
-            // not a scope object, so this is the binding object of a with block
-            final ScriptObject bindings = (ScriptObject)base;
+        if (base == UNRESOLVABLE) {
+            // 6.2.4.9 PutValue, which is where the reference being unresolvable
+            // is answered for - not where it was made, so a right hand side that
+            // declared the name in the meantime does not save the assignment
+            if (strict) {
+                throw referenceError("not.defined", JSType.toString(name));
+            }
+            Context.getGlobal().set(name, value, NashornCallSiteDescriptor.CALLSITE_SCOPE);
+            return;
+        }
+        if (base instanceof WithObject with) {
+            final ScriptObject bindings = with.getExpression();
             // 8.1.1.2.5 step 2 asks whether the binding is still there whatever
             // the mode - the object is told it is being asked - and step 3 tells
             // strict code when it is not, which a getter deleting the property
@@ -2172,8 +2199,9 @@ public final class ScriptRuntime {
             return;
         }
         if (strict && base instanceof Global global && !global.has(name)) {
-            // SCOPE_BASE answers with the global for a name nothing declared,
-            // and strict code may not make one by assigning to it
+            // 8.1.1.2.5 step 3: the binding was there when the reference was
+            // made and is not there now - the right hand side deleted it - and
+            // strict code is told rather than making it again
             throw referenceError("not.defined", JSType.toString(name));
         }
         ((ScriptObject)base).set(name, value, NashornCallSiteDescriptor.CALLSITE_SCOPE | strictFlag);

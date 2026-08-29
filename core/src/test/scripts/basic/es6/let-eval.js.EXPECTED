@@ -9,7 +9,7 @@ a: 1
 b: 1
 assignment to b succeeded
 b: 1
-TypeError: "c" is not a writable property of [object Object]
+TypeError: Assignment to constant "c"
 c: 0
 2 1 0
 2 1 0 undefined

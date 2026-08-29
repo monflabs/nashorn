@@ -901,12 +901,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         @Override
                         void loadStack() {
                             assert method.peekType().isObject();
-                            // 8.1.1.2.6 asks the binding object whether it still
-                            // has the name before reading it, which a proxy sees
-                            method.dup();
+                            // the copy the prologue left is what the reference
+                            // named; the read goes to the object that stands for
+                            // it, which for a with block is the object the block
+                            // was given, asked first whether it still has the name
                             method.load(identNode.getName());
                             method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
-                                    "CHECK_BINDING", "(Ljava/lang/Object;Ljava/lang/Object;)V");
+                                    "READ_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
                         }
                         @Override
                         void consumeStack() {
@@ -4257,12 +4258,36 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * @return true if the read goes through the resolved base
      */
     private boolean readsThroughResolvedBase(final IdentNode ident) {
-        final Symbol symbol = ident.getSymbol();
         // Outside a dynamic scope the reference cannot move between the read and
         // the write, and nothing the resolution does is observable, so the read
         // stays an ordinary scope call site - which is the fast one
-        return symbol != null && symbol.isScope() && !isFastScope(symbol) && !ident.isDeclaredHere()
-                && lc.inDynamicScope();
+        return lc.inDynamicScope() && resolvesReferenceFirst(ident);
+    }
+
+    /**
+     * Whether a store to this name resolves it before the right hand side runs,
+     * rather than where the value is written.
+     *
+     * A dynamic scope is the usual reason: what the name resolves to can change
+     * while the value is being computed, and 12.15.4 writes through the
+     * reference the assignment began with. The other is a free name in strict
+     * code, where 6.2.4.9 turns an unresolvable reference into a ReferenceError
+     * - the reference is unresolvable or not before the right hand side runs,
+     * and a right hand side that declares the name does not make it resolvable
+     * after the fact.
+     *
+     * A declaration makes no reference at all: it binds where it stands.
+     *
+     * @param ident the target of the store
+     * @return true if the reference is made before the value
+     */
+    private boolean resolvesReferenceFirst(final IdentNode ident) {
+        final Symbol symbol = ident.getSymbol();
+        if (symbol == null || !symbol.isScope() || ident.isDeclaredHere()) {
+            return false;
+        }
+        return !isFastScope(symbol)
+                || (symbol.isGlobal() && org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.isStrictFlag(getCallSiteFlags()));
     }
 
     private void loadAndDiscard(final Expression expr) {
@@ -5074,7 +5099,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 public boolean enterIdentNode(final IdentNode node) {
                     if (node.getSymbol().isScope()) {
                         method.loadCompilerConstant(SCOPE);
-                        if (!isFastScope(node.getSymbol()) && !node.isDeclaredHere()) {
+                        if (resolvesReferenceFirst(node)) {
                             // 12.15.4 makes the reference once, before the read
                             // and the right-hand side, and writes back through
                             // it - which in a dynamic scope is not where the
@@ -5084,7 +5109,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                             method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
                                     "SCOPE_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
                             resolvedBase = true;
-                            if (isSelfModifying()) {
+                            if (isSelfModifying() && readsThroughResolvedBase(node)) {
                                 // the read goes through the same reference, so
                                 // it takes a copy of what the name resolved to
                                 method.dup();
