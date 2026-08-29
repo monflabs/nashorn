@@ -4584,8 +4584,14 @@ public class Parser extends AbstractParser implements Loggable {
             // always legal, so --function-statement-error/-warning no longer have
             // anything to report here.
             functionNode.setFlag(FunctionNode.IS_DECLARED);
-            if (isArguments(name)) {
-               lc.getCurrentFunction().setFlag(FunctionNode.DEFINES_ARGUMENTS);
+            final ParserContextFunctionNode enclosing = lc.getCurrentFunction();
+            // 9.2.12 step 18: a declaration named "arguments" stands in place of
+            // the arguments object only where there is no parameter scope for
+            // that object to live in. Where there is one - which a parameter
+            // expression makes - the object is made there, and the declaration
+            // shadows it in the body without taking its place
+            if (isArguments(name) && !enclosing.hasParameterExpressions()) {
+               enclosing.setFlag(FunctionNode.DEFINES_ARGUMENTS);
             }
         }
 
@@ -4675,6 +4681,7 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private void appendParameterStatement(final ParserContextFunctionNode currentFunction,
             final Statement statement) {
+        currentFunction.setHasParameterExpressions();
         if (reparsedFunction != null && currentFunction.getId() > reparsedFunction.getFunctionNodeId()) {
             return;
         }

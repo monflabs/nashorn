@@ -183,6 +183,21 @@ class ParserContextFunctionNode extends ParserContextBaseNode {
         return parameterExpressions;
     }
 
+    /**
+     * Whether the parameter list holds an expression, which 9.2.12 gives a
+     * scope of its own: a default value or a destructuring pattern, each of
+     * which is compiled to a statement in front of the body.
+     */
+    private boolean hasParameterExpressions;
+
+    void setHasParameterExpressions() {
+        hasParameterExpressions = true;
+    }
+
+    boolean hasParameterExpressions() {
+        return hasParameterExpressions;
+    }
+
     void addParameterExpression(final IdentNode ident, final Expression node) {
         if (parameterExpressions == null) {
             parameterExpressions = new HashMap<>();
