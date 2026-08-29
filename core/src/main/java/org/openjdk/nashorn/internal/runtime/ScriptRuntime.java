@@ -1860,7 +1860,7 @@ public final class ScriptRuntime {
      * all callable and none of them is one; a proxy is one exactly when what it
      * proxies is.
      */
-    private static boolean isClassHeritage(final Object heritage) {
+    static boolean isClassHeritage(final Object heritage) {
         if (heritage instanceof ScriptFunction function) {
             return function.isConstructor();
         }
@@ -2305,7 +2305,10 @@ public final class ScriptRuntime {
             // Function.prototype, which is callable and is not a constructor
             throw typeError("not.a.constructor", safeToString(parent));
         }
-        if (!(thiz instanceof ScriptFunction newTarget)) {
+        // the this of a derived constructor is the new.target it was called
+        // with - which is a constructor, and is a proxy over one as readily as
+        // it is a function. Anything else means it was not called as one
+        if (!(thiz instanceof ScriptObject newTarget) || !isClassHeritage(newTarget)) {
             throw typeError("no.super");
         }
         try {
@@ -2352,8 +2355,8 @@ public final class ScriptRuntime {
     public static Object NEW_TARGET(final Object callee, final Object thiz) {
         if (callee instanceof ScriptFunction running && running.isSubclassConstructor()) {
             // a derived constructor allocated nothing, so its this slot is
-            // new.target itself
-            return thiz instanceof ScriptFunction ? thiz : UNDEFINED;
+            // new.target itself - a constructor, of whichever kind
+            return isClassHeritage(thiz) ? thiz : UNDEFINED;
         }
         // A construction for a new.target that is not the constructor itself
         // says so where it began: the object it made carries the other one's

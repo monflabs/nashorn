@@ -110,7 +110,7 @@ public final class NativeReflect extends ScriptObject {
                     args.length > 2 ? args[2] : target);
         }
         final Object given = args.length > 2 ? args[2] : constructor;
-        final ScriptFunction newTarget = given instanceof ScriptFunction function ? function : constructor;
+        final ScriptObject newTarget = given instanceof ScriptObject object ? object : constructor;
 
         // ES2015 26.1.2 builds the object for newTarget, which is what decides
         // its prototype and what new.target reads as inside it

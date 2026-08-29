@@ -981,7 +981,9 @@ public final class NativeProxy extends ScriptObject {
             }
             if (target instanceof ScriptFunction function) {
                 try {
-                    return function.construct(newTarget instanceof ScriptFunction as ? as : function, args);
+                    // a proxy is a constructor as much as a function is, and
+                    // what 9.1.13 asks it for - its prototype - is a property
+                    return function.construct(newTarget instanceof ScriptObject as ? as : function, args);
                 } catch (final RuntimeException | Error e) {
                     throw e;
                 } catch (final Throwable t) {

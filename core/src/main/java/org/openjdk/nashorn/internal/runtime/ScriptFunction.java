@@ -660,12 +660,14 @@ public class ScriptFunction extends ScriptObject {
      * cannot tell apart, though a built-in that reads new.target while it runs
      * still sees itself.
      *
-     * @param newTarget the constructor the object is being built for
+     * @param newTarget the constructor the object is being built for, which
+     *                  need not be a function: a proxy over one is a
+     *                  constructor, and is what Reflect.construct hands on
      * @param args      the arguments
      * @return the object
      * @throws Throwable if the constructor throws
      */
-    public Object construct(final ScriptFunction newTarget, final Object[] args) throws Throwable {
+    public Object construct(final ScriptObject newTarget, final Object[] args) throws Throwable {
         if (data.isSubclassConstructor()) {
             // ES2015 9.2.2 step 13: a derived constructor answers with an object
             // or with nothing, and the check is made here rather than where it
