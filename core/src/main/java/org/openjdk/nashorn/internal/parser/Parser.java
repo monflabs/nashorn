@@ -5165,7 +5165,19 @@ public class Parser extends AbstractParser implements Loggable {
             rejectExponentiationOfUnary();
             return new UnaryNode(Token.recast(unaryToken, (opType == TokenType.ADD) ? TokenType.POS : TokenType.NEG), expr);
         }
-        case DELETE:
+        case DELETE: {
+            next();
+            final Expression operand = unaryExpression();
+            rejectExponentiationOfUnary();
+            // ES2015 12.5.3.1: strict code may not delete a binding, which is
+            // what an identifier of its own names - parentheses around it make
+            // no difference, and "this" and "new.target" are not bindings
+            if (isStrictMode && operand instanceof IdentNode ident && !isReservedTarget(operand)) {
+                throw error(AbstractParser.message("strict.cant.delete.ident", ident.getName()),
+                        ident.getToken());
+            }
+            return new UnaryNode(unaryToken, operand);
+        }
         case VOID:
         case TYPEOF:
         case BIT_NOT:

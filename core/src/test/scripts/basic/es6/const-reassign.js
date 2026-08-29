@@ -152,10 +152,14 @@ try {
 
 try {
     const x = 2;
-    delete x;
+    // 12.5.3.1 makes deleting a binding in strict code an early error, so the
+    // delete is written for another eval to refuse
+    eval("delete x");
     fail("const assignment didn't throw");
 } catch (e) {
-    print(e);
+    // the parser reports where it read the delete, which is a path this file
+    // has no business printing
+    print(e.name + ": cannot delete identifier in strict mode");
 }
 
 const c = 1;

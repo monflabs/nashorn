@@ -38,7 +38,9 @@ e.eval(<<EOF
 'use strict';
 
 try {
-    delete context;
+    // 12.5.3.1 makes this an early error, so it is written for one eval to
+    // read and the next to refuse - which is where the error can be caught
+    eval("delete context");
     fail("FAILED!! context delete should have thrown error");
 } catch (e) {
     if (! (e instanceof SyntaxError)) {
@@ -47,7 +49,7 @@ try {
 }
 
 try {
-    delete engine;
+    eval("delete engine");
     fail("FAILED!! engine delete should have thrown error");
 } catch (e) {
     if (! (e instanceof SyntaxError)) {

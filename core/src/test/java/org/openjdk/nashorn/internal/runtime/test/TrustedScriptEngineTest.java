@@ -114,11 +114,12 @@ public class TrustedScriptEngineTest {
                 }
 
                 try {
-                    // strict mode - delete of a var should throw SyntaxError
+                    // strict mode - deleting a var is an early error, so the
+                    // eval does not run at all and the parser says why
                     e.eval("var d = 2; delete d;");
+                    fail("delete of a var in strict mode should have thrown");
                 } catch (final ScriptException se) {
-                    // check that the error message contains "SyntaxError"
-                    assertTrue(se.getMessage().contains("SyntaxError"));
+                    assertTrue(se.getMessage().contains("cannot delete identifier"), se.getMessage());
                 }
 
                 return;
