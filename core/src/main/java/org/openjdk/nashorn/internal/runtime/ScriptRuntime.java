@@ -2085,11 +2085,15 @@ public final class ScriptRuntime {
      */
     public static Object SCOPE_BASE(final Object scope, final Object name) {
         for (ScriptObject current = (ScriptObject)scope; current != null; current = current.getProto()) {
-            if (current instanceof WithObject) {
+            if (current instanceof WithObject with) {
                 // the with block answers for the object it was given, and for
-                // nothing of its own, so a hit here is a hit on that object
-                if (current.findProperty(name, false) != null) {
-                    return current;
+                // nothing of its own, so a hit here is a hit on that object.
+                // The object itself is what the reference is based on, not the
+                // block: 8.1.1.2.1 reads @@unscopables to answer HasBinding,
+                // and the read and the write that follow are a plain Get and
+                // Set of the binding object, which must not ask again
+                if (with.findProperty(name, false) != null) {
+                    return with.getExpression();
                 }
                 continue;
             }
@@ -2114,6 +2118,30 @@ public final class ScriptRuntime {
     }
 
     /**
+     * Asks the object a reference is based on whether it still has the name,
+     * for the read that follows.
+     *
+     * 8.1.1.2.6 step 2 is a HasProperty on the binding object of a with block,
+     * before the Get of step 4, and a proxy is told about both. A scope object
+     * answers for itself and is asked nothing extra: the read that follows is a
+     * scope read, which resolves the name for itself.
+     *
+     * A binding that has gone between the two - deleted by the @@unscopables
+     * getter that resolved it - is read anyway, which is one Get more than the
+     * specification makes and answers undefined either way. A with block cannot
+     * appear in strict code, so there is no ReferenceError to make here.
+     *
+     * @param base the object the reference named
+     * @param name the name being read
+     */
+    public static void CHECK_BINDING(final Object base, final Object name) {
+        if (base instanceof Scope) {
+            return;
+        }
+        ((ScriptObject)base).has(name);
+    }
+
+    /**
      * Writes through the reference {@link #SCOPE_BASE} made.
      *
      * What the write means depends on what the reference named: a scope object
@@ -2128,8 +2156,9 @@ public final class ScriptRuntime {
      */
     public static void SCOPE_PUT(final Object base, final Object name, final Object value, final boolean strict) {
         final int strictFlag = strict ? NashornCallSiteDescriptor.CALLSITE_STRICT : 0;
-        if (base instanceof WithObject with) {
-            final ScriptObject bindings = with.getExpression();
+        if (!(base instanceof Scope)) {
+            // not a scope object, so this is the binding object of a with block
+            final ScriptObject bindings = (ScriptObject)base;
             // 8.1.1.2.5 step 2 asks whether the binding is still there whatever
             // the mode - the object is told it is being asked - and step 3 tells
             // strict code when it is not, which a getter deleting the property

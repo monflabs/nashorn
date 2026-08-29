@@ -891,6 +891,31 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         expr.accept(new NodeOperatorVisitor<>(new LexicalContext()) {
             @Override
             public boolean enterIdentNode(final IdentNode identNode) {
+                if (baseAlreadyOnStack && readsThroughResolvedBase(identNode)) {
+                    // a self modifying store resolved the name already, and
+                    // 6.2.4.8 reads through the reference it made rather than
+                    // resolving the name a second time - which in a dynamic
+                    // scope would run a with block's @@unscopables, or a
+                    // proxy's traps, once more than the specification says
+                    new OptimisticOperation(identNode, resultBounds) {
+                        @Override
+                        void loadStack() {
+                            assert method.peekType().isObject();
+                            // 8.1.1.2.6 asks the binding object whether it still
+                            // has the name before reading it, which a proxy sees
+                            method.dup();
+                            method.load(identNode.getName());
+                            method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                                    "CHECK_BINDING", "(Ljava/lang/Object;Ljava/lang/Object;)V");
+                        }
+                        @Override
+                        void consumeStack() {
+                            dynamicGet(identNode.getName(), getScopeCallSiteFlags(identNode.getSymbol()),
+                                    identNode.isFunction(), false);
+                        }
+                    }.emit(1);
+                    return false;
+                }
                 loadIdent(identNode, resultBounds);
                 return false;
             }
@@ -4213,8 +4238,31 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }.store();
     }
 
-    private static int getOptimisticIgnoreCountForSelfModifyingExpression(final Expression target) {
+    private int getOptimisticIgnoreCountForSelfModifyingExpression(final Expression target) {
+        if (target instanceof IdentNode ident) {
+            return readsThroughResolvedBase(ident) ? 1 : 0;
+        }
         return target instanceof AccessNode ? 1 : target instanceof IndexNode ? 2 : 0;
+    }
+
+    /**
+     * Whether a self modifying store to this name reads through the object the
+     * name resolved to, rather than resolving it again.
+     *
+     * It is the same condition the store's prologue resolves the base under, and
+     * the two have to agree: the prologue leaves a copy of the base on the stack
+     * for exactly the reads that consume one.
+     *
+     * @param ident the target of the store
+     * @return true if the read goes through the resolved base
+     */
+    private boolean readsThroughResolvedBase(final IdentNode ident) {
+        final Symbol symbol = ident.getSymbol();
+        // Outside a dynamic scope the reference cannot move between the read and
+        // the write, and nothing the resolution does is observable, so the read
+        // stays an ordinary scope call site - which is the fast one
+        return symbol != null && symbol.isScope() && !isFastScope(symbol) && !ident.isDeclaredHere()
+                && lc.inDynamicScope();
     }
 
     private void loadAndDiscard(final Expression expr) {
@@ -5036,6 +5084,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                             method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
                                     "SCOPE_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
                             resolvedBase = true;
+                            if (isSelfModifying()) {
+                                // the read goes through the same reference, so
+                                // it takes a copy of what the name resolved to
+                                method.dup();
+                            }
                         }
                         depth += Type.SCOPE.getSlots();
                         assert depth == 1;
