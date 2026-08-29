@@ -3500,6 +3500,15 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             // Setting a property should not modify the property in prototype unless this is a scope callsite
             // and the owner is a scope object as well (with the exception of 'with' statement handled above).
             if (!isScope || !f.getOwner().isScope()) {
+                // 9.1.9.1 step 3.c: an inherited data property that is not
+                // writable refuses the write, rather than being shadowed by an
+                // own property of the receiver
+                if (!f.getProperty().isWritable() && !NashornCallSiteDescriptor.isDeclaration(callSiteFlags)) {
+                    if (isStrictFlag(callSiteFlags)) {
+                        throw typeError("property.not.writable", key.toString(), ScriptRuntime.safeToString(this));
+                    }
+                    return;
+                }
                 f = null;
             }
         }
