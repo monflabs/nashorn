@@ -688,7 +688,17 @@ public class ScriptFunction extends ScriptObject {
                 final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
                 if (allocated != null) {
                     allocated.setInitialProto(prototype);
-                    final Object result = ScriptRuntime.apply(this, allocated, args);
+                    // the object was built from another constructor's prototype,
+                    // so nothing about it says which one: what this constructor
+                    // answers new.target with is recorded here instead
+                    final Global global = Global.instance();
+                    final Object outer = global.setConstruction(allocated, this, newTarget);
+                    final Object result;
+                    try {
+                        result = ScriptRuntime.apply(this, allocated, args);
+                    } finally {
+                        global.restoreConstruction(outer);
+                    }
                     return result instanceof ScriptObject ? result : allocated;
                 }
             }

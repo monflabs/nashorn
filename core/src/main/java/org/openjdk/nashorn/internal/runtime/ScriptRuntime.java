@@ -2355,6 +2355,14 @@ public final class ScriptRuntime {
             // new.target itself
             return thiz instanceof ScriptFunction ? thiz : UNDEFINED;
         }
+        // A construction for a new.target that is not the constructor itself
+        // says so where it began: the object it made carries the other one's
+        // prototype, and the walk below would find nothing.
+        final Object recorded = Global.instance().recordedNewTarget(callee, thiz);
+        if (recorded != null) {
+            return recorded;
+        }
+
         if (!(callee instanceof ScriptFunction function) || !(thiz instanceof ScriptObject receiver)) {
             return UNDEFINED;
         }

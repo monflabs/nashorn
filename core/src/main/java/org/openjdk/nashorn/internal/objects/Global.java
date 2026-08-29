@@ -1648,6 +1648,57 @@ public final class Global extends Scope {
     }
 
     /**
+     * A construction under way for a new.target that is not the constructor
+     * running: the object that was allocated, the constructor it was handed to,
+     * and what to answer new.target with.
+     *
+     * Nothing about the object says which constructor asked for it - a
+     * constructor reading new.target works it out from the object's prototype,
+     * which is the new.target's rather than its own - so the answer is recorded
+     * where it is known.
+     */
+    private record Construction(Object object, Object callee, Object newTarget) {
+    }
+
+    private Construction construction;
+
+    /**
+     * Records what a constructor being run for another new.target should answer
+     * new.target with.
+     *
+     * @param object    the object that was allocated for it
+     * @param callee    the constructor it is being handed to
+     * @param newTarget what it answers new.target with
+     * @return what was recorded before, to be put back afterwards
+     */
+    public Object setConstruction(final Object object, final Object callee, final Object newTarget) {
+        final Object previous = construction;
+        construction = new Construction(object, callee, newTarget);
+        return previous;
+    }
+
+    /**
+     * Puts back what {@link #setConstruction} answered with.
+     *
+     * @param previous the construction that was under way before
+     */
+    public void restoreConstruction(final Object previous) {
+        construction = (Construction)previous;
+    }
+
+    /**
+     * What new.target answers in a constructor that is being run for another.
+     *
+     * @param callee the function asking
+     * @param thiz   its receiver
+     * @return the new.target, or null if this is not that construction
+     */
+    public Object recordedNewTarget(final Object callee, final Object thiz) {
+        return construction != null && construction.object() == thiz && construction.callee() == callee
+                ? construction.newTarget() : null;
+    }
+
+    /**
      * The new.target a built-in constructor is being run for, or null when it
      * is being run for itself. See {@link #takeNewTargetPrototype()}.
      */
