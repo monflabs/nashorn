@@ -168,7 +168,24 @@ public final class Test262Selector {
     private static final Set<String> LATER_FEATURES = Set.of(
             // ES2018 template literal revision: an invalid escape in a tagged
             // template is not an error, and the cooked value is undefined
-            "language/expressions/tagged-template/invalid-escape-sequences.js");
+            "language/expressions/tagged-template/invalid-escape-sequences.js",
+            // ES2019 Array.prototype.flat and flatMap
+            "built-ins/Array/prototype/flat/call-with-boolean.js",
+            "built-ins/Array/prototype/flat/not-a-constructor.js",
+            "built-ins/Array/prototype/flat/target-array-with-non-writable-property.js",
+            "built-ins/Array/prototype/flatMap/call-with-boolean.js",
+            "built-ins/Array/prototype/flatMap/target-array-with-non-writable-property.js",
+            // the unscopables list names those two and the ones after them
+            "built-ins/Array/prototype/Symbol.unscopables/value.js",
+            // ES2020 BigInt, and the typed arrays and views that carry it
+            "built-ins/DataView/prototype/getBigUint64/not-a-constructor.js",
+            "built-ins/DataView/prototype/setBigUint64/not-a-constructor.js",
+            "built-ins/Object/seal/seal-bigint64array.js",
+            "built-ins/Object/seal/seal-biguint64array.js",
+            "built-ins/TypedArrayConstructors/BigUint64Array/is-a-constructor.js",
+            // ES2021 String.prototype.replaceAll
+            "built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js",
+            "built-ins/String/prototype/replaceAll/not-a-constructor.js");
 
     private static final Set<String> LATER_UNICODE = Set.of(
             "language/identifiers/start-unicode-17.0.0.js",
