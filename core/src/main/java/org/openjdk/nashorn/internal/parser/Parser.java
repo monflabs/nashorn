@@ -1833,6 +1833,18 @@ public class Parser extends AbstractParser implements Loggable {
      * themselves; spelled with an escape they are ordinary identifiers, and an
      * ordinary identifier cannot stand where one of those two does.
      */
+    /**
+     * Whether what is being read is the given contextual keyword, spelled as
+     * itself.
+     *
+     * A keyword that is not reserved is recognised by its text, and 11.6.2
+     * makes a spelling with an escape in it an ordinary identifier - which is
+     * not what the production holding the keyword accepts.
+     */
+    private boolean isUnescaped(final String keyword) {
+        return type == IDENT && keyword.equals(getValue()) && Token.descLength(token) == keyword.length();
+    }
+
     private void checkEscapedAccessor(final long propertyToken, final String ident) {
         if (Token.descLength(propertyToken) != ident.length()) {
             throw error(AbstractParser.message("keyword.escaped.character"), propertyToken);
@@ -4044,7 +4056,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         if (type == PERIOD) {
             next();
-            if (type == IDENT && "target".equals(getValue())) {
+            if (isUnescaped("target")) {
                 // an arrow has no new.target of its own and reads the one of
                 // the function that made it, so what says whether this is
                 // legal is the nearest function that is not an arrow. On an
@@ -6255,7 +6267,7 @@ public class Parser extends AbstractParser implements Loggable {
         next();
         final long asToken = token;
         final String as = (String) expectValue(IDENT);
-        if (!"as".equals(as)) {
+        if (!"as".equals(as) || Token.descLength(asToken) != as.length()) {
             throw error(AbstractParser.message("expected.as"), asToken);
         }
         final IdentNode localNameSpace = bindingIdentifier("ImportedBinding");
@@ -6284,7 +6296,7 @@ public class Parser extends AbstractParser implements Loggable {
             final boolean bindingIdentifier = isBindingIdentifier();
             final long nameToken = token;
             final IdentNode importName = getIdentifierName();
-            if (type == IDENT && "as".equals(getValue())) {
+            if (isUnescaped("as")) {
                 next();
                 final IdentNode localName = bindingIdentifier("ImportedBinding");
                 importEntries.add(Module.ImportEntry.importSpecifier(importName, localName, startPosition, finish));
@@ -6313,7 +6325,7 @@ public class Parser extends AbstractParser implements Loggable {
     private IdentNode fromClause() {
         final long fromToken = token;
         final String name = (String) expectValue(IDENT);
-        if (!"from".equals(name)) {
+        if (!"from".equals(name) || Token.descLength(fromToken) != name.length()) {
             throw error(AbstractParser.message("expected.from"), fromToken);
         }
         if (type == STRING || type == ESCSTRING) {
@@ -6354,7 +6366,7 @@ public class Parser extends AbstractParser implements Loggable {
             }
             case LBRACE: {
                 final List<Module.ExportEntry> exportEntries = exportClause(startPosition);
-                if (type == IDENT && "from".equals(getValue())) {
+                if (isUnescaped("from")) {
                     final IdentNode moduleRequest = fromClause();
                     module.addModuleRequest(moduleRequest);
                     for (final Module.ExportEntry exportEntry : exportEntries) {
@@ -6498,7 +6510,7 @@ public class Parser extends AbstractParser implements Loggable {
         final List<Module.ExportEntry> exports = new ArrayList<>();
         while (type != RBRACE) {
             final IdentNode localName = getIdentifierName();
-            if (type == IDENT && "as".equals(getValue())) {
+            if (isUnescaped("as")) {
                 next();
                 final IdentNode exportName = getIdentifierName();
                 exports.add(Module.ExportEntry.exportSpecifier(exportName, localName, startPosition, finish));
