@@ -2886,6 +2886,33 @@ public final class Global extends Scope {
     }
 
     /**
+     * One template object per site, which is what 12.2.9.3 keeps per realm.
+     *
+     * The key is where the template was written - the source the code was
+     * compiled from and the position in it - rather than anything about the
+     * function it ended up in: two closures made from the same source share
+     * the object, and a loop that evaluates the same template twice hands out
+     * the same one both times.
+     */
+    private final java.util.Map<TemplateSite, ScriptObject> templateObjects = new java.util.HashMap<>();
+
+    private record TemplateSite(Object source, int position) {
+    }
+
+    /**
+     * The template object for a site, made once and kept.
+     *
+     * @param source   what the code was compiled from
+     * @param position where in it the template was written
+     * @param make     builds the object the first time it is asked for
+     * @return the object for that site
+     */
+    public ScriptObject templateObject(final Object source, final int position,
+            final java.util.function.Supplier<ScriptObject> make) {
+        return templateObjects.computeIfAbsent(new TemplateSite(source, position), site -> make.get());
+    }
+
+    /**
      * Return the ES6 global scope for lexically declared bindings.
      * @return the ES6 lexical global scope.
      */

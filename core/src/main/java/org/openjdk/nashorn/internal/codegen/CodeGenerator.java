@@ -132,6 +132,7 @@ import org.openjdk.nashorn.internal.ir.visitor.NodeOperatorVisitor;
 import org.openjdk.nashorn.internal.ir.visitor.SimpleNodeVisitor;
 import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.parser.Lexer.RegexToken;
+import org.openjdk.nashorn.internal.parser.Token;
 import org.openjdk.nashorn.internal.parser.TokenType;
 import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.Debug;
@@ -3296,6 +3297,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(SCOPE);
         }
 
+        // 12.2.9.3 hands out one template object per site per realm, and the
+        // site is where it was written: the source and the position in it
+        final boolean pushesSite = request == Request.GET_TEMPLATE_OBJECT;
+        if (pushesSite) {
+            method.loadSource();
+            method.load(Token.descPosition(runtimeNode.getToken()));
+            method.convert(Type.OBJECT);
+        }
+
         for (final Expression arg : args) {
             loadExpression(arg, TypeBounds.OBJECT);
         }
@@ -3308,7 +3318,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     false,
                     newRuntimeNode.getType(),
                     args.size() + (pushesVarargs ? 1 : 0) + (pushesFrame ? 3 : 0)
-                        + (pushesCallee ? 2 : 0) + (pushesScope ? 1 : 0)).toString());
+                        + (pushesCallee ? 2 : 0) + (pushesScope ? 1 : 0)
+                        + (pushesSite ? 2 : 0)).toString());
 
         method.convert(newRuntimeNode.getType());
     }

@@ -27,6 +27,7 @@ package org.openjdk.nashorn.internal.codegen;
 
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.ARGUMENTS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.CONSTANTS;
+import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SOURCE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.SCOPE;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.THIS;
 import static org.openjdk.nashorn.internal.codegen.CompilerConstants.THIS_DEBUGGER;
@@ -724,6 +725,15 @@ public class MethodEmitter {
     MethodEmitter loadConstants() {
         getStatic(classEmitter.getUnitClassName(), CONSTANTS.symbolName(), CONSTANTS.descriptor());
         assert peekType().isArray() : peekType();
+        return this;
+    }
+
+    /**
+     * Load the source the unit was compiled from
+     * @return this method emitter
+     */
+    MethodEmitter loadSource() {
+        getStatic(classEmitter.getUnitClassName(), SOURCE.symbolName(), SOURCE.descriptor());
         return this;
     }
 

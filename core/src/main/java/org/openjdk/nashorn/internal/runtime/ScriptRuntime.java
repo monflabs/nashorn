@@ -1442,13 +1442,19 @@ public final class ScriptRuntime {
      * @param cookedStrings array of template values
      * @return template object
      */
-    public static ScriptObject GET_TEMPLATE_OBJECT(final Object rawStrings, final Object cookedStrings) {
-        final ScriptObject template = (ScriptObject)cookedStrings;
-        final ScriptObject rawObj = (ScriptObject)rawStrings;
-        assert rawObj.getArray().length() == template.getArray().length();
-        template.addOwnProperty("raw", Property.NOT_WRITABLE | Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, rawObj.freeze());
-        template.freeze();
-        return template;
+    public static ScriptObject GET_TEMPLATE_OBJECT(final Object source, final Object position,
+            final Object rawStrings, final Object cookedStrings) {
+        // 12.2.9.3 hands out one object per site per realm: a tagged template
+        // evaluated twice is the same object both times, which is what lets a
+        // tag remember what it was called with
+        return Global.instance().templateObject(source, ((Number)position).intValue(), () -> {
+            final ScriptObject template = (ScriptObject)cookedStrings;
+            final ScriptObject rawObj = (ScriptObject)rawStrings;
+            assert rawObj.getArray().length() == template.getArray().length();
+            template.addOwnProperty("raw", Property.NOT_WRITABLE | Property.NOT_ENUMERABLE | Property.NOT_CONFIGURABLE, rawObj.freeze());
+            template.freeze();
+            return template;
+        });
     }
 
     /**
