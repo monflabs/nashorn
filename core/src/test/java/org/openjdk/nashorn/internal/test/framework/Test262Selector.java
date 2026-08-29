@@ -132,6 +132,8 @@ public final class Test262Selector {
             "built-ins/RegExp/prototype/source/this-val-non-obj.js",
             "built-ins/RegExp/prototype/sticky/this-val-non-obj.js",
             "built-ins/RegExp/prototype/unicode/this-val-non-obj.js",
+            "language/expressions/assignment/destructuring/default-expr-throws-iterator-return-is-not-callable.js",
+            "language/expressions/assignment/destructuring/target-assign-throws-iterator-return-is-not-callable.js",
             "built-ins/String/prototype/match/cstm-matcher-on-bigint-primitive.js",
             "built-ins/String/prototype/replace/cstm-replace-on-bigint-primitive.js",
             "built-ins/String/prototype/search/cstm-search-on-bigint-primitive.js",
@@ -155,6 +157,19 @@ public final class Test262Selector {
      * engine can answer for one, so these move when the JDK does rather than
      * when Nashorn does.
      */
+    /**
+     * Tests about a feature that postdates ES2017 and says so nowhere.
+     *
+     * The deny rule reads {@code features:}, and a test written before that
+     * convention - or one whose author saw no feature worth naming - declares
+     * nothing to deny. These are named one by one for the same reason the
+     * async-generator directories are.
+     */
+    private static final Set<String> LATER_FEATURES = Set.of(
+            // ES2018 template literal revision: an invalid escape in a tagged
+            // template is not an error, and the cooked value is undefined
+            "language/expressions/tagged-template/invalid-escape-sequences.js");
+
     private static final Set<String> LATER_UNICODE = Set.of(
             "language/identifiers/start-unicode-17.0.0.js",
             "language/identifiers/start-unicode-17.0.0-escaped.js",
@@ -188,6 +203,11 @@ public final class Test262Selector {
         // the relative path carries the suite's own "test/" in front of it
         final String path = relative.toString().replace(java.io.File.separatorChar, '/');
         for (final String excluded : LATER_SYNTAX) {
+            if (path.endsWith(excluded)) {
+                return false;
+            }
+        }
+        for (final String excluded : LATER_FEATURES) {
             if (path.endsWith(excluded)) {
                 return false;
             }
