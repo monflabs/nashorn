@@ -3848,13 +3848,33 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         if (needsScope) {
             method.loadCompilerConstant(SCOPE);
+            // a var's initialiser is an ordinary assignment to a name that was
+            // declared elsewhere - at the top of the function - so 12.15.4 makes
+            // the reference before the value, which in a dynamic scope is not
+            // where the name resolves to afterwards. A let or a const binds
+            // where it stands and has no reference to make.
+            final boolean resolveFirst = !isFastScope(identSymbol)
+                    && !varNode.isBlockScoped() && !identSymbol.isFunctionSelf();
+            if (resolveFirst) {
+                method.load(identNode.getName());
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                        "SCOPE_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+            }
             loadExpressionUnbounded(init);
             // block scoped variables need a DECLARE flag to signal end of temporal dead zone (TDZ)
             // the binding a named function expression makes of its own name is
             // immutable, and this is the declaration that gives it its value
             final int flags = getScopeCallSiteFlags(identSymbol)
                     | (varNode.isBlockScoped() || identSymbol.isFunctionSelf() ? CALLSITE_DECLARE : 0);
-            if (isFastScope(identSymbol)) {
+            if (resolveFirst) {
+                method.convert(Type.OBJECT);
+                // (base, value) -> (base, name, value, strict)
+                method.load(identNode.getName());
+                method.swap();
+                method.load(org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.isStrictFlag(getCallSiteFlags()));
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SCOPE_PUT",
+                        "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Z)V");
+            } else if (isFastScope(identSymbol)) {
                 storeFastScopeVar(identSymbol, flags);
             } else {
                 method.dynamicSet(identNode.getName(), flags, false);
