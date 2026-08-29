@@ -1613,7 +1613,17 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 runtime(at, RuntimeNode.Request.REQUIRE_OBJECT_COERCIBLE, value)));
 
         for (final PropertyNode property : pattern.getElements()) {
-            final Expression key = property.getKey();
+            Expression key = property.getKey();
+            if (property.isComputed()) {
+                // 12.15.5.3 evaluates the property name, and makes a property
+                // key of it, before the target it will be read into is
+                // evaluated: both are observable, and the target's own key is
+                // read after this one
+                final String held = newTemporary();
+                statements.add(temporaryFor(at, held,
+                        runtime(at, RuntimeNode.Request.TO_PROPERTY_KEY, key)));
+                key = ref(at, held);
+            }
             final Expression read = property.isComputed() || !(key instanceof LiteralNode<?> || key instanceof IdentNode)
                     ? new IndexNode(Token.recast(at.getToken(), TokenType.LBRACKET), at.getFinish(), ref(at, source), key)
                     : new AccessOrIndex(at, ref(at, source), key).build();

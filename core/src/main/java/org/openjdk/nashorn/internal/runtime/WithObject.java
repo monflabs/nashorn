@@ -114,7 +114,7 @@ public final class WithObject extends Scope {
         // ES2015 8.1.1.2.1 HasBinding asks whether the object has the name
         // before it asks whether the name is unscopable, and the second question
         // is not asked at all when the answer to the first is no
-        FindProperty find = expression.findProperty(name, true);
+        FindProperty find = isInternalName(name) ? null : expression.findProperty(name, true);
         if (find != null && (!find.getOwner().answersForName(name) || unscopable(name))) {
             find = null;
         }
@@ -197,6 +197,12 @@ public final class WithObject extends Scope {
      */
     @Override
     protected FindProperty findProperty(final Object key, final boolean deep, final boolean isScope, final ScriptObject start) {
+        if (isInternalName(key)) {
+            // a name the compiler made for itself - a destructuring temporary,
+            // an iterator - is not one a program can write, so a with block
+            // never binds it and is never asked about it
+            return super.findProperty(key, deep, isScope, start);
+        }
         // We call findProperty on 'expression' with 'expression' itself as start parameter.
         // This way in ScriptObject.setObject we can tell the property is from a 'with' expression
         // (as opposed from another non-scope object in the proto chain such as Object.prototype).
@@ -205,6 +211,11 @@ public final class WithObject extends Scope {
             return exprProperty;
         }
         return super.findProperty(key, deep, isScope, start);
+    }
+
+    /** Whether a name is one the compiler made rather than one a program wrote. */
+    private static boolean isInternalName(final Object key) {
+        return key instanceof String name && !name.isEmpty() && name.charAt(0) == ':';
     }
 
     /**

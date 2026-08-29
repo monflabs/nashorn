@@ -82,6 +82,8 @@ public class RuntimeNode extends Expression {
         GET_TEMPLATE_OBJECT(TokenType.TEMPLATE, Type.SCRIPT_OBJECT, 2),
         /** ES2015 7.1.12 ToString, which a template literal's substitutions go through. */
         TO_STRING(TokenType.VOID, Type.STRING, 1),
+        /** ES2015 7.1.14 ToPropertyKey, for a pattern's computed key. */
+        TO_PROPERTY_KEY(TokenType.VOID, Type.OBJECT, 1),
         /** ES6 7.4.1 GetIterator, for array destructuring and spread. */
         GET_ITERATOR(TokenType.VOID, Type.OBJECT, 1),
         /** One element of an array destructuring pattern; undefined when exhausted. */
