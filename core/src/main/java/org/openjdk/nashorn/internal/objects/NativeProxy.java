@@ -522,6 +522,13 @@ public final class NativeProxy extends ScriptObject {
             return ScriptRuntime.UNDEFINED;
         }
 
+        if (onTarget == null && !target.isExtensible()) {
+            // step 15, IsCompatiblePropertyDescriptor over a target that has no
+            // such property: nothing is compatible with one that can take no
+            // more properties
+            throw typeError("proxy.descriptor.hidden", ScriptRuntime.safeToString(key));
+        }
+
         final PropertyDescriptor result = toPropertyDescriptor(Global.instance(), answered);
         if (!result.has(PropertyDescriptor.CONFIGURABLE) || !result.isConfigurable()) {
             // 9.5.5 step 16: only a property the target itself will not let go
@@ -542,6 +549,13 @@ public final class NativeProxy extends ScriptObject {
             return rx.delete(key, strict);
         }
         if (!JSType.toBoolean(call(trap, rx, key))) {
+            // 12.5.3.2: the delete operator turns a refusal into an error when
+            // the code that wrote it is strict, as it does for an ordinary
+            // object's non-configurable property
+            if (strict) {
+                throw typeError("cant.delete.property", ScriptRuntime.safeToString(key),
+                        ScriptRuntime.safeToString(this));
+            }
             return false;
         }
         // 9.5.10 step 11: a property the target will not let go of cannot be

@@ -234,13 +234,10 @@ public final class NativeReflect extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object ownKeys(final Object self, final Object target) {
-        final ScriptObject sobj = object(target, "ownKeys");
-        final Object[] strings = sobj.getOwnKeys(true);
-        final Symbol[] symbols = sobj.getOwnSymbols(true);
-        final Object[] keys = new Object[strings.length + symbols.length];
-        System.arraycopy(strings, 0, keys, 0, strings.length);
-        System.arraycopy(symbols, 0, keys, strings.length, symbols.length);
-        return new NativeArray(keys);
+        // the order is the object's own: an ordinary one answers with its
+        // indices, then its strings, then its symbols, while a proxy answers
+        // with whatever its ownKeys trap returned, which 9.5.11 does not sort
+        return new NativeArray(object(target, "ownKeys").getOwnKeysAndSymbols(true));
     }
 
     /**
