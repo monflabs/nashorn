@@ -111,6 +111,17 @@ public final class WithObject extends Scope {
         if (find != null && (!find.getOwner().answersForName(name) || unscopable(name))) {
             find = null;
         }
+        // 8.1.1.2.5 SetMutableBinding and 8.1.1.2.6 GetBindingValue each ask a
+        // second time whether the object has the name. It is not a repeat of
+        // what HasBinding asked: the @@unscopables read above runs script,
+        // which may have deleted the property in the meantime, and a proxy is
+        // entitled to be asked once for each of the two steps. Only strict code
+        // acts on the answer - the two of them throw a ReferenceError where
+        // sloppy code reads undefined and writes the property back.
+        if (find != null && !expression.hasProperty(name, true)
+                && NashornCallSiteDescriptor.isStrict(desc)) {
+            find = null;
+        }
 
         if (find != null) {
             link = expression.lookup(desc, request);
