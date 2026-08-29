@@ -32,9 +32,11 @@ import static org.openjdk.nashorn.internal.runtime.PropertyDescriptor.WRITABLE;
 import static org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex.isValidArrayIndex;
 import static org.openjdk.nashorn.internal.runtime.arrays.ArrayLikeIterator.arrayLikeIterator;
 import static org.openjdk.nashorn.internal.runtime.arrays.ArrayLikeIterator.reverseArrayLikeIterator;
+import static org.openjdk.nashorn.internal.lookup.Lookup.MH;
 import static org.openjdk.nashorn.internal.runtime.linker.NashornCallSiteDescriptor.CALLSITE_STRICT;
 
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -475,6 +477,51 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (isArray(self)) {
             ((ScriptObject)self).setLength(validLength(length));
         }
+    }
+
+    /**
+     * The same, for a write that strict code made.
+     *
+     * 9.4.2.4 converts the value and only then asks whether the length may be
+     * written, in that order and for a reason: converting it runs script, which
+     * may be what makes the length non-writable. A setter cannot see the mode
+     * it was called in, so a strict write is linked to this one.
+     *
+     * @param self   the array
+     * @param length the new length
+     */
+    public static void setLengthStrict(final Object self, final Object length) {
+        if (!isArray(self)) {
+            return;
+        }
+        final ScriptObject sobj = (ScriptObject)self;
+        final long value = validLength(length);
+        if (sobj.isLengthNotWritable()) {
+            throw typeError("property.not.writable", "length", ScriptRuntime.safeToString(self));
+        }
+        sobj.setLength(value);
+    }
+
+    private static final MethodHandle SET_LENGTH_STRICT = MH.findStatic(MethodHandles.lookup(),
+            NativeArray.class, "setLengthStrict", MH.type(void.class, Object.class, Object.class));
+
+    /**
+     * Links a strict write of "length" to the setter that can report what the
+     * conversion did; everything else is linked as it always was.
+     */
+    @Override
+    protected GuardedInvocation findSetMethod(final CallSiteDescriptor desc, final LinkRequest request) {
+        final GuardedInvocation inv = super.findSetMethod(desc, request);
+        if (request.isCallSiteUnstable()
+                || !NashornCallSiteDescriptor.isStrict(desc)
+                || !"length".equals(NashornCallSiteDescriptor.getOperand(desc))) {
+            return inv;
+        }
+        final MethodHandle target = inv.getInvocation();
+        if (target == null || target.type().returnType() != void.class || target.type().parameterCount() != 2) {
+            return inv;
+        }
+        return inv.replaceMethods(MH.asType(SET_LENGTH_STRICT, target.type()), inv.getGuard());
     }
 
     /**
