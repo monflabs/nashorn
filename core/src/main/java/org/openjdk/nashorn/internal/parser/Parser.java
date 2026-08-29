@@ -1948,6 +1948,16 @@ public class Parser extends AbstractParser implements Loggable {
 
             final String contextString = "variable name";
             final Expression binding = bindingIdentifierOrPattern(contextString);
+            // ES2015 13.3.1.1: what a lexical declaration binds may not be
+            // called "let", wherever it is written. Sloppy code may name a var
+            // that, and does, which is why "let" is an identifier at all.
+            if (varType == LET || varType == CONST) {
+                verifyDeclaredNames(binding, name -> {
+                    if ("let".equals(name.getName())) {
+                        throw error(AbstractParser.message("let.binding.lexical"), name.getToken());
+                    }
+                });
+            }
             final boolean isDestructuring = !(binding instanceof IdentNode);
             if (isDestructuring) {
                 // in a for-in or for-of head every name the pattern binds is
@@ -3027,6 +3037,41 @@ public class Parser extends AbstractParser implements Loggable {
                 return at == TokenType.FOR || at == WHILE || at == TokenType.DO;
             }
         }
+    }
+
+    /**
+     * Runs a check over every name a binding declares, pattern or plain name.
+     *
+     * @param binding the binding
+     * @param check   what to do with each name
+     */
+    private void verifyDeclaredNames(final Expression binding, final java.util.function.Consumer<IdentNode> check) {
+        if (binding instanceof IdentNode ident) {
+            check.accept(ident);
+            return;
+        }
+        binding.accept(new NodeVisitor<>(new LexicalContext()) {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                // an initializer's function binds nothing of the pattern's
+                return false;
+            }
+
+            @Override
+            public boolean enterIdentNode(final IdentNode identNode) {
+                check.accept(identNode);
+                return false;
+            }
+
+            @Override
+            public boolean enterPropertyNode(final PropertyNode propertyNode) {
+                // the key names the property, and the value names the binding
+                if (propertyNode.getValue() != null) {
+                    propertyNode.getValue().accept(this);
+                }
+                return false;
+            }
+        });
     }
 
     private void labelStatement() {
