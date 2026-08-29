@@ -194,6 +194,13 @@ public class Parser extends AbstractParser implements Loggable {
     private long coverInitializedName;
 
     /**
+     * Where a second {@code __proto__} was written, while it is still unknown
+     * whether the object literal holding it is a destructuring pattern. Zero
+     * when there is none outstanding. See {@link #verifyNoDuplicateProto}.
+     */
+    private long duplicateProtoKey;
+
+    /**
      * The expression parentheses were last read around, which is the one an
      * assignment operator met now would have on its left. See
      * {@link #verifyAssignment}.
@@ -815,8 +822,10 @@ public class Parser extends AbstractParser implements Loggable {
 
     private void verifyDestructuringAssignmentPattern(final Expression pattern, final String contextString) {
         // the object literal is a pattern after all, so a shorthand with an
-        // initializer in it is a property definition rather than an error
+        // initializer in it is a property definition rather than an error, and
+        // __proto__ written twice is two assignments rather than one
         coverInitializedName = 0L;
+        duplicateProtoKey = 0L;
         assert pattern instanceof ObjectNode || pattern instanceof LiteralNode.ArrayLiteralNode;
         pattern.accept(new VerifyDestructuringPatternNodeVisitor(new LexicalContext()) {
             @Override
@@ -2202,6 +2211,11 @@ public class Parser extends AbstractParser implements Loggable {
             coverInitializedName = 0L;
             throw error(AbstractParser.message("invalid.property.initializer"), where);
         }
+        if (duplicateProtoKey != 0L) {
+            final long where = duplicateProtoKey;
+            duplicateProtoKey = 0L;
+            throw error(AbstractParser.message("multiple.proto.key"), where);
+        }
     }
 
     private void verifyCatchParameterNames(final Expression parameter, final Block catchBody) {
@@ -2222,8 +2236,10 @@ public class Parser extends AbstractParser implements Loggable {
 
     private void verifyDestructuringBindingPattern(final Expression pattern, final Consumer<IdentNode> identifierCallback) {
         // the object literal is a pattern after all, so a shorthand with an
-        // initializer in it is a property definition rather than an error
+        // initializer in it is a property definition rather than an error, and
+        // __proto__ written twice is two assignments rather than one
         coverInitializedName = 0L;
+        duplicateProtoKey = 0L;
         assert (pattern instanceof BinaryNode && pattern.isTokenType(ASSIGN)) ||
                 pattern instanceof ObjectNode || pattern instanceof LiteralNode.ArrayLiteralNode;
         pattern.accept(new VerifyDestructuringPatternNodeVisitor(new LexicalContext()) {
@@ -3611,7 +3627,15 @@ public class Parser extends AbstractParser implements Loggable {
                     // a repeated __proto__ in an object literal is still an error.
                     if (property.getKey() instanceof IdentNode && ((IdentNode)property.getKey()).isProtoPropertyName() &&
                                     existingProperty.getKey() instanceof IdentNode && ((IdentNode)existingProperty.getKey()).isProtoPropertyName()) {
-                        throw error(AbstractParser.message("multiple.proto.key"), property.getToken());
+                        // 12.2.6.1: only an object literal may not name
+                        // __proto__ twice, and the cover grammar leaves it open
+                        // whether this is one. Where it was written is
+                        // remembered, and reported unless it turns out to be a
+                        // destructuring pattern - where the two are assignments
+                        // to two targets and nothing is defined twice.
+                        if (duplicateProtoKey == 0L) {
+                            duplicateProtoKey = property.getToken();
+                        }
                     }
 
                     if (value != null || prevValue != null) {
@@ -4900,8 +4924,10 @@ public class Parser extends AbstractParser implements Loggable {
 
     private void verifyDestructuringParameterBindingPattern(final Expression pattern, final long paramToken, final int paramLine, final String contextString) {
         // the object literal is a pattern after all, so a shorthand with an
-        // initializer in it is a property definition rather than an error
+        // initializer in it is a property definition rather than an error, and
+        // __proto__ written twice is two assignments rather than one
         coverInitializedName = 0L;
+        duplicateProtoKey = 0L;
         verifyDestructuringBindingPattern(pattern, identNode -> {
             verifyIdent(identNode, contextString);
 
@@ -4931,11 +4957,14 @@ public class Parser extends AbstractParser implements Loggable {
         // a body is statements of its own, and nothing in it answers the
         // question an expression outside it left open
         final long outerCoverInitializedName = coverInitializedName;
+        final long outerDuplicateProtoKey = duplicateProtoKey;
         coverInitializedName = 0L;
+        duplicateProtoKey = 0L;
         try {
             return functionBody0(functionNode);
         } finally {
             coverInitializedName = outerCoverInitializedName;
+            duplicateProtoKey = outerDuplicateProtoKey;
         }
     }
 
