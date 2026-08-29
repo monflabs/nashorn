@@ -687,7 +687,9 @@ public final class NativeObject {
         ScriptObject proto = (ScriptObject)v;
 
         do {
-            proto = proto.getProto();
+            // 19.1.3.3 walks with [[GetPrototypeOf]], which a proxy answers
+            // with its own trap rather than with the prototype it was made on
+            proto = proto.getPrototypeOf();
             if (proto == obj) {
                 return true;
             }
