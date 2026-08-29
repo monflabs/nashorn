@@ -3802,7 +3802,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(SCOPE);
             loadExpressionUnbounded(init);
             // block scoped variables need a DECLARE flag to signal end of temporal dead zone (TDZ)
-            final int flags = getScopeCallSiteFlags(identSymbol) | (varNode.isBlockScoped() ? CALLSITE_DECLARE : 0);
+            // the binding a named function expression makes of its own name is
+            // immutable, and this is the declaration that gives it its value
+            final int flags = getScopeCallSiteFlags(identSymbol)
+                    | (varNode.isBlockScoped() || identSymbol.isFunctionSelf() ? CALLSITE_DECLARE : 0);
             if (isFastScope(identSymbol)) {
                 storeFastScopeVar(identSymbol, flags);
             } else {

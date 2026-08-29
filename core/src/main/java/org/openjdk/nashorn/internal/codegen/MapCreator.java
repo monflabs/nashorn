@@ -151,6 +151,14 @@ public class MapCreator<T> {
             flags |= Property.NOT_CONFIGURABLE;
         }
 
+        // ES2015 14.1.20 binds the name of a named function expression in a
+        // scope of its own, immutably: what the body reads is the function
+        // however the name is assigned to, and only the declaration that makes
+        // the binding may write it
+        if (symbol.isFunctionSelf()) {
+            flags |= Property.NOT_WRITABLE;
+        }
+
         if (symbol.isFunctionDeclaration()) {
             flags |= Property.IS_FUNCTION_DECLARATION;
         }
