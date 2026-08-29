@@ -4319,8 +4319,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             final Symbol symbol = ident.getSymbol();
             final String name = ident.getName();
 
-            if (symbol.isThis()) {
-                // Can't delete "this", ignore and return true
+            if (NEW_TARGET_NAME.equals(name) || symbol.isThis()) {
+                // Neither "this" nor "new.target" is a binding, so there is
+                // nothing to delete and nothing to refuse: the answer is true
                 if (!lc.popDiscardIfCurrent(unaryNode)) {
                     method.load(true);
                 }

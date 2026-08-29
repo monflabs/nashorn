@@ -146,13 +146,16 @@ public final class Test262Runner {
     /**
      * How long one execution is given.
      *
-     * A test that starts agents waits for threads of its own, and a machine
-     * running a shard of these on every core takes far longer over one than it
-     * does over anything else - long enough to be taken for a wedged engine.
-     * They are given room rather than the whole run waiting on their pace.
+     * A test that starts agents waits for threads of its own, which takes
+     * longer than anything else here even with the machine to itself.
      */
     private static long timeoutFor(final Variant variant) {
-        return variant.frontmatter().getFeatures().contains("Atomics") ? TIMEOUT_SECONDS * 3 : TIMEOUT_SECONDS;
+        return startsAgents(variant) ? TIMEOUT_SECONDS * 3 : TIMEOUT_SECONDS;
+    }
+
+    /** Whether a test starts agents of its own, which are threads. */
+    private static boolean startsAgents(final Variant variant) {
+        return variant.frontmatter() != null && variant.frontmatter().getFeatures().contains("Atomics");
     }
 
     private record Variant(Path file, Test262Frontmatter frontmatter, boolean strict) {
@@ -195,7 +198,17 @@ public final class Test262Runner {
             System.out.printf("test262: %d executions from %s%n", mine.size(), suite);
         }
 
-        final Map<String, String> results = runner.runAll(mine, threads);
+        // A test that starts agents waits for them by spinning on a word they
+        // share, so it needs a core to spare: a pool of those starves the very
+        // agents they are waiting for, and one that took ten seconds on its own
+        // has taken two minutes in company. They go last, one at a time.
+        final List<Variant> spinners = mine.stream().filter(Test262Runner::startsAgents).toList();
+        final List<Variant> rest = mine.stream().filter(v -> !startsAgents(v)).toList();
+
+        final Map<String, String> results = new java.util.HashMap<>(runner.runAll(rest, threads));
+        if (!spinners.isEmpty()) {
+            results.putAll(runner.runAll(spinners, 1));
+        }
         if (shard >= 0) {
             // a shard reports its failures to the parent rather than judging them
             writeFailures(results, Path.of(required("test262.shard.output")));

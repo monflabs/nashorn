@@ -976,9 +976,12 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         final Expression rhs = unaryNode.getExpression();
 
         final List<Expression> args = new ArrayList<>();
-        if (rhs instanceof IdentNode && !isParamOrVar((IdentNode)rhs)) {
+        // "new.target" is written as an identifier and is not one: asking the
+        // scope for a property of that name finds nothing, where the answer is
+        // what the frame holds
+        if (rhs instanceof IdentNode ident && !isParamOrVar(ident) && !"new.target".equals(ident.getName())) {
             args.add(compilerConstantIdentifier(SCOPE));
-            args.add(LiteralNode.newInstance(rhs, ((IdentNode)rhs).getName())); //null
+            args.add(LiteralNode.newInstance(rhs, ident.getName())); //null
         } else {
             args.add(rhs);
             args.add(LiteralNode.newInstance(unaryNode)); //null, do not reuse token of identifier rhs, it can be e.g. 'this'

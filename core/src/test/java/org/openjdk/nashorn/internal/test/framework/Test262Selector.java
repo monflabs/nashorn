@@ -186,7 +186,9 @@ public final class Test262Selector {
             "built-ins/BigInt/prototype/toString/radix-tointegerorinfinity-throws-symbol.js",
             // ES2021 String.prototype.replaceAll
             "built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js",
-            "built-ins/String/prototype/replaceAll/not-a-constructor.js");
+            "built-ins/String/prototype/replaceAll/not-a-constructor.js",
+            // ES2022 Object.hasOwn, which the harness test is written with
+            "harness/asyncHelpers-asyncTest-without-async-flag.js");
 
     private static final Set<String> LATER_UNICODE = Set.of(
             "language/identifiers/start-unicode-17.0.0.js",

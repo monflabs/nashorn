@@ -6946,7 +6946,7 @@ public class Parser extends AbstractParser implements Loggable {
         if (!isUnescapedAsync()) {
             return false;
         }
-        switch (T(k + 1)) {
+        switch (T(k + past(1, COMMENT))) {
         case COLON:      // { async: 1 }
         case LPAREN:     // { async() {} }
         case COMMARIGHT: // { async, }
@@ -6969,15 +6969,16 @@ public class Parser extends AbstractParser implements Loggable {
             return false;
         }
         // async x => ...
-        if (T(k + 1) == IDENT && T(k + 2) == ARROW) {
+        final int first = past(1, COMMENT);
+        if (T(k + first) == IDENT && T(k + past(first + 1, COMMENT)) == ARROW) {
             return true;
         }
-        if (T(k + 1) != LPAREN) {
+        if (T(k + first) != LPAREN) {
             return false;
         }
         // async ( ... ) => ..., which needs the matching parenthesis found first
         int depth = 0;
-        for (int i = 1;; i++) {
+        for (int i = first;; i++) {
             final TokenType t = T(k + i);
             switch (t) {
             case LPAREN:
@@ -6985,7 +6986,7 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             case RPAREN:
                 if (--depth == 0) {
-                    return T(k + i + 1) == ARROW;
+                    return T(k + past(i + 1, COMMENT)) == ARROW;
                 }
                 break;
             case EOF:
@@ -6994,6 +6995,27 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             }
         }
+    }
+
+    /**
+     * The distance to the first token from {@code from} on that is not of the
+     * given type.
+     *
+     * A comment stands between two tokens without being one of them, and a
+     * lookahead is about what was written rather than about what was written
+     * around it: an async arrow may have one between the word and its
+     * parameter list.
+     *
+     * @param from  where to start looking, as a distance from the current token
+     * @param skipped the token type to look past
+     * @return the distance to the first token that is not of that type
+     */
+    private int past(final int from, final TokenType skipped) {
+        int at = from;
+        while (T(k + at) == skipped) {
+            at++;
+        }
+        return at;
     }
 
     /**
