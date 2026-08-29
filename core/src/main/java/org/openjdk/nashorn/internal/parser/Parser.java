@@ -2859,6 +2859,10 @@ public class Parser extends AbstractParser implements Loggable {
         case RPAREN:
         case RBRACKET:
         case COLON:
+        // the substitution a yield stands in ends with the text that follows
+        // it, which the lexer reads as one token with the closing brace in it
+        case TEMPLATE_MIDDLE:
+        case TEMPLATE_TAIL:
             if (!yieldAsterisk) {
                 // treat (yield) as (yield void 0)
                 expression = newUndefinedLiteral(yieldToken, finish);
@@ -6026,8 +6030,17 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private void endOfLine() {
         switch (type) {
-        case SEMICOLON:
         case EOL:
+            next();
+            // a semicolon on the next line is this statement's own: automatic
+            // insertion puts one where the grammar has none, and "continue"
+            // followed by a line terminator and a semicolon is a continue
+            // statement with its semicolon rather than two statements
+            if (type == SEMICOLON) {
+                next();
+            }
+            break;
+        case SEMICOLON:
             next();
             break;
         case RPAREN:
