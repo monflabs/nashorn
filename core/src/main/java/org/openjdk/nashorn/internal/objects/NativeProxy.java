@@ -235,7 +235,9 @@ public final class NativeProxy extends ScriptObject {
 
     @SuppressWarnings("unused")
     private static void trapSet(final NativeProxy proxy, final Object key, final Object self, final Object value) {
-        proxy.set(key, value, 0);
+        // the write began at self, which is where an ordinary object's own
+        // property would be made and what 9.5.9 hands the trap
+        proxy.setWithReceiver(key, value, self);
     }
 
     private static final MethodHandle TRAP_GET = find("trapGet",

@@ -3465,6 +3465,16 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             }
         }
 
+        if (f != null && f.getOwner() != this && f.getOwner().answersForEveryKey()) {
+            // a proxy found along the prototype chain answers 9.5.9 [[Set]] for
+            // the whole write, the receiver among the arguments its trap is
+            // handed, and what it answers is whether the write happened
+            if (!f.getOwner().setWithReceiver(key, value, this) && isStrictFlag(callSiteFlags)) {
+                throw typeError("property.not.writable", key.toString(), ScriptRuntime.safeToString(this));
+            }
+            return;
+        }
+
         if (f != null) {
             if ((!f.getProperty().isWritable() && !NashornCallSiteDescriptor.isDeclaration(callSiteFlags)) || !f.getProperty().hasNativeSetter()) {
                 if (isScopeFlag(callSiteFlags) && f.getProperty().isLexicalBinding()) {
