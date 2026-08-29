@@ -162,6 +162,11 @@ public class DateParser {
                         if (tokenLength != 6) {
                             return false;
                         }
+                        // and "-000000" names no year: there is no year minus
+                        // zero, so the string is not a date at all
+                        if (yearSign < 0 && numValue == 0) {
+                            return false;
+                        }
                         numValue *= yearSign;
                     } else if (!checkEcmaField(currentField, numValue)) {
                         return false;
