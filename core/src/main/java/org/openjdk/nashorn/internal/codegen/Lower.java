@@ -875,6 +875,17 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         if (finallyBody == null || !lc.getCurrentFunction().isProgram()) {
             return finallyBody;
         }
+        if (finallyBody.getStatementCount() > 0 && isTerminalFinally(finallyBody)) {
+            // ... unless the finally ends abruptly, in which case its completion
+            // is the try's - "do { try { 1 } finally { 2; break } } while (false)"
+            // is worth 2 - and what came before it never shows. UpdateEmpty makes
+            // that undefined for a finally that produced no value of its own, so
+            // the value is cleared in front of it rather than kept
+            final List<Statement> statements = new ArrayList<>(finallyBody.getStatementCount() + 1);
+            statements.add(completionValueReset(finallyBody.getStatements().get(0)));
+            statements.addAll(finallyBody.getStatements());
+            return finallyBody.setStatements(lc, statements);
+        }
         return (Block)finallyBody.accept(new SimpleNodeVisitor() {
             @Override
             public boolean enterFunctionNode(final FunctionNode functionNode) {
@@ -893,12 +904,17 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
 
     private void resetCompletionValue(final Statement statement) {
         if (lc.getCurrentFunction().isProgram()) {
-            final long token = statement.getToken();
-            addStatement(new ExpressionStatement(statement.getLineNumber(), token, statement.getFinish(),
-                    new BinaryNode(Token.recast(token, TokenType.ASSIGN), compilerConstant(RETURN),
-                            new UnaryNode(Token.recast(token, TokenType.VOID),
-                                    LiteralNode.newInstance(token, statement.getFinish(), 0)))));
+            addStatement(completionValueReset(statement));
         }
+    }
+
+    /** {@code :return = void 0}, at the position of a statement. */
+    private ExpressionStatement completionValueReset(final Statement statement) {
+        final long token = statement.getToken();
+        return new ExpressionStatement(statement.getLineNumber(), token, statement.getFinish(),
+                new BinaryNode(Token.recast(token, TokenType.ASSIGN), compilerConstant(RETURN),
+                        new UnaryNode(Token.recast(token, TokenType.VOID),
+                                LiteralNode.newInstance(token, statement.getFinish(), 0))));
     }
 
     private Node addResettingStatement(final Statement statement) {

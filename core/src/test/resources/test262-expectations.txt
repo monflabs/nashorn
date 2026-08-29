@@ -10,5 +10,3 @@ test/language/expressions/assignment/destructuring/keyed-destructuring-property-
 test/language/expressions/tagged-template/cache-eval-inner-function.js (sloppy)
 test/language/expressions/tagged-template/cache-eval-inner-function.js (strict)
 test/language/statements/for-in/head-lhs-let.js (sloppy)
-test/language/statements/try/completion-values.js (sloppy)
-test/language/statements/try/completion-values.js (strict)
