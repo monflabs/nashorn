@@ -63,7 +63,6 @@ import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.WellKnownSymbols;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
-import org.openjdk.nashorn.internal.runtime.Undefined;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayData;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.openjdk.nashorn.internal.runtime.arrays.ArrayLikeIterator;
@@ -209,7 +208,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
     private static MethodHandle getREDUCE_CALLBACK_INVOKER() {
         return Global.instance().getDynamicInvoker(REDUCE_CALLBACK_INVOKER, () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class,
-             Undefined.class, Object.class, Object.class, double.class, Object.class));
+             Object.class, Object.class, Object.class, double.class, Object.class));
     }
 
     private static MethodHandle getCALL_CMP() {
@@ -1963,8 +1962,9 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
             @Override
             protected boolean forEach(final Object val, final double i) throws Throwable {
-                // TODO: why can't I declare the second arg as Undefined.class?
-                result = reduceInvoker.invokeExact(callbackfn, ScriptRuntime.UNDEFINED, result, val, i, self);
+                // the this a callback with none of its own is called with,
+                // which a non-strict one reads as the global object
+                result = reduceInvoker.invokeExact(callbackfn, thisArg, result, val, i, self);
                 return true;
             }
         }.apply();

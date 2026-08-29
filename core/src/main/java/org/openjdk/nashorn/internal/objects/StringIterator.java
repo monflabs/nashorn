@@ -64,7 +64,7 @@ public class StringIterator extends AbstractIterator {
      */
     // 22.1.5.2.1 and its siblings declare no parameter: what the value would
     // be is not read, and length says so
-    @Function(arity = 0)
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
     public static Object next(final Object self, final Object arg) {
         if (!(self instanceof StringIterator)) {
             throw typeError("not.a.string.iterator", ScriptRuntime.safeToString(self));
