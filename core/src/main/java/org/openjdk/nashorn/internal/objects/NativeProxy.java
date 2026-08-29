@@ -258,13 +258,14 @@ public final class NativeProxy extends ScriptObject {
      * chain - which is what the trap is handed either way.
      */
     @Override
-    public Object getWithReceiver(final Object key, final Object receiver) {
+    public Object getWithReceiver(final Object rawKey, final Object receiver) {
+        final Object key = propertyKey(rawKey);
         final ScriptFunction trap = trap("get");
         final ScriptObject rx = target();
         if (trap == null) {
             return rx.getWithReceiver(key, receiver);
         }
-        final Object answered = call(trap, rx, propertyKey(key), receiver);
+        final Object answered = call(trap, rx, key, receiver);
 
         // ES2015 9.5.8 steps 10 and 11: a property the target has fixed - one
         // that can be neither reconfigured nor written - reads as what the
@@ -293,6 +294,85 @@ public final class NativeProxy extends ScriptObject {
     @Override
     public Object get(final int key) {
         return get((Object)Integer.valueOf(key));
+    }
+
+    /*
+     * Every typed read and write goes through the untyped one. A proxy has
+     * nothing of its own to read or write - what it has is what its traps say -
+     * so the specialisations an ordinary object answers from its array data
+     * would answer from an array that is always empty, and the trap would never
+     * run. An optimistic call site still gets its exception, from the
+     * conversion of what the trap returned.
+     */
+
+    @Override
+    public int getInt(final Object key, final int programPoint) {
+        return JSType.toInt32MaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public int getInt(final double key, final int programPoint) {
+        return JSType.toInt32MaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public int getInt(final int key, final int programPoint) {
+        return JSType.toInt32MaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public double getDouble(final Object key, final int programPoint) {
+        return JSType.toNumberMaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public double getDouble(final double key, final int programPoint) {
+        return JSType.toNumberMaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public double getDouble(final int key, final int programPoint) {
+        return JSType.toNumberMaybeOptimistic(get(key), programPoint);
+    }
+
+    @Override
+    public void set(final Object key, final int value, final int flags) {
+        set(key, (Object)Integer.valueOf(value), flags);
+    }
+
+    @Override
+    public void set(final Object key, final double value, final int flags) {
+        set(key, (Object)Double.valueOf(value), flags);
+    }
+
+    @Override
+    public void set(final double key, final int value, final int flags) {
+        set((Object)JSType.toObject(key), (Object)Integer.valueOf(value), flags);
+    }
+
+    @Override
+    public void set(final double key, final double value, final int flags) {
+        set((Object)JSType.toObject(key), (Object)Double.valueOf(value), flags);
+    }
+
+    @Override
+    public void set(final int key, final int value, final int flags) {
+        set((Object)Integer.valueOf(key), (Object)Integer.valueOf(value), flags);
+    }
+
+    @Override
+    public void set(final int key, final double value, final int flags) {
+        set((Object)Integer.valueOf(key), (Object)Double.valueOf(value), flags);
+    }
+
+    @Override
+    public boolean hasOwnProperty(final int key) {
+        return hasOwnProperty((Object)Integer.valueOf(key));
+    }
+
+    @Override
+    public boolean hasOwnProperty(final double key) {
+        return hasOwnProperty((Object)JSType.toObject(key));
     }
 
     @Override
@@ -341,13 +421,14 @@ public final class NativeProxy extends ScriptObject {
      * turns into a TypeError.
      */
     @Override
-    public boolean setWithReceiver(final Object key, final Object value, final Object receiver) {
+    public boolean setWithReceiver(final Object rawKey, final Object value, final Object receiver) {
+        final Object key = propertyKey(rawKey);
         final ScriptFunction trap = trap("set");
         final ScriptObject rx = target();
         if (trap == null) {
             return rx.setWithReceiver(key, value, receiver);
         }
-        if (!JSType.toBoolean(call(trap, rx, propertyKey(key), value, receiver))) {
+        if (!JSType.toBoolean(call(trap, rx, key, value, receiver))) {
             return false;
         }
 
@@ -368,13 +449,14 @@ public final class NativeProxy extends ScriptObject {
     }
 
     @Override
-    public boolean has(final Object key) {
+    public boolean has(final Object rawKey) {
+        final Object key = propertyKey(rawKey);
         final ScriptFunction trap = trap("has");
         final ScriptObject rx = target();
         if (trap == null) {
             return rx.has(key);
         }
-        final boolean answered = JSType.toBoolean(call(trap, rx, propertyKey(key)));
+        final boolean answered = JSType.toBoolean(call(trap, rx, key));
 
         // ES2015 9.5.7 step 9: a property the target will not give up cannot be
         // denied, and neither can any of them once the target can take no more
@@ -452,13 +534,14 @@ public final class NativeProxy extends ScriptObject {
     }
 
     @Override
-    public boolean delete(final Object key, final boolean strict) {
+    public boolean delete(final Object rawKey, final boolean strict) {
+        final Object key = propertyKey(rawKey);
         final ScriptFunction trap = trap("deleteProperty");
         final ScriptObject rx = target();
         if (trap == null) {
             return rx.delete(key, strict);
         }
-        if (!JSType.toBoolean(call(trap, rx, propertyKey(key)))) {
+        if (!JSType.toBoolean(call(trap, rx, key))) {
             return false;
         }
         // 9.5.10 step 11: a property the target will not let go of cannot be
