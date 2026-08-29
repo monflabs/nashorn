@@ -7,8 +7,6 @@ test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-li
 test/built-ins/Array/prototype/splice/create-species-length-exceeding-integer-limit.js (strict)
 test/built-ins/Atomics/wait/nan-for-timeout.js (sloppy)
 test/built-ins/Atomics/wait/nan-for-timeout.js (strict)
-test/built-ins/DataView/prototype/getInt32/return-values-custom-offset-sab.js (sloppy)
-test/built-ins/DataView/prototype/getInt32/return-values-custom-offset-sab.js (strict)
 test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js (sloppy)
 test/built-ins/Function/internals/Construct/base-ctor-revoked-proxy.js (strict)
 test/built-ins/Function/prototype/toString/async-arrow-function.js (sloppy)

@@ -380,11 +380,10 @@ public class NativeArrayBuffer extends ScriptObject {
        return nb;
     }
 
-    ByteBuffer getBuffer(final int offset) {
-        return nb.duplicate().position(offset);
-    }
-
     ByteBuffer getBuffer(final int offset, final int length) {
-        return getBuffer(offset).limit(length);
+        // a slice rather than a duplicate that has been positioned: what reads
+        // it reads by absolute index, which counts from the start of the buffer
+        // and takes no notice of where a position was left
+        return nb.duplicate().position(offset).limit(offset + length).slice();
     }
 }
