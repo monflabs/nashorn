@@ -619,7 +619,14 @@ public enum JSType {
      * @return property key
      */
     public static Object toPropertyKey(final Object obj) {
-        return obj instanceof Symbol ? obj : toStringImpl(obj, false);
+        if (obj instanceof Symbol) {
+            return obj;
+        }
+        // ES2015 7.1.14 converts to a primitive first, and what comes back may
+        // be a symbol - which is a property key already, and the one thing
+        // ToString refuses to make a string of
+        final Object primitive = toPrimitive(obj, String.class);
+        return primitive instanceof Symbol ? primitive : toStringImpl(primitive, false);
     }
 
     /**
