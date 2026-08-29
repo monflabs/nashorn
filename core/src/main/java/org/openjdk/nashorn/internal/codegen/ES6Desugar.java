@@ -1277,11 +1277,16 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> statements = new ArrayList<>();
         declareBoundNames(catchNode, exception, statements);
         destructure(catchNode, exception, ref(catchNode, caught), statements);
-        statements.addAll(body.getStatements());
+        // ES2015 13.15.7 gives the catch parameter an environment of its own
+        // and runs the body in one inside it, so the body's own declarations
+        // are not what a default in the pattern reads. The body stays a block
+        // of its own rather than being taken apart into these statements.
+        statements.add(new BlockStatement(body.getFirstStatementLineNumber(), body));
 
         return super.leaveCatchNode(catchNode
                 .setException(ref(catchNode, caught))
-                .setBody(body.setStatements(lc, statements)));
+                .setBody(new Block(body.getToken(), body.getFinish(),
+                        body.getFlags() | Block.IS_SYNTHETIC, statements)));
     }
 
     /**
