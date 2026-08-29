@@ -663,12 +663,14 @@ public abstract class ArrayBufferView extends ScriptObject {
             throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
         }
         for (int i = 0; i < length; i++) {
-            // ToNumber first, because reading the source can detach the target
+            // ToNumber first, because reading the source can detach the target -
+            // and the write that follows is then dropped, the way a write to any
+            // index a typed array does not have is, rather than reported. The
+            // reading goes on to the end either way
             final Object value = JSType.toNumber(source.get(i));
-            if (dest.isDetached()) {
-                throw typeError("detached.array.buffer");
+            if (!dest.isDetached()) {
+                dest.set((int)offset + i, value, 0);
             }
-            dest.set((int)offset + i, value, 0);
         }
 
         return ScriptRuntime.UNDEFINED;
