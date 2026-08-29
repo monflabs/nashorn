@@ -144,7 +144,8 @@ public class DateParser {
      * <pre>  [('-'|'+')yy]yyyy[-MM[-dd]][Thh:mm[:ss[.sss]][Z|(+|-)hh:mm]] </pre>
      *
      * <p>If the string does not contain a time zone offset, the <code>TIMEZONE</code> field
-     * is set to <code>0</code> (GMT).</p>
+     * is set to <code>0</code> (GMT) for a date, and left undefined - meaning the local time
+     * zone - for a date and time, which is what ES2016 20.3.1.16 asks for.</p>
      * @return true if string represents a valid ES5 date string.
      */
     public boolean parseEcmaDate() {
@@ -639,13 +640,17 @@ public class DateParser {
         if (isSet(HOUR) && !isSet(MINUTE)) {
             return false;
         }
+        // ES2016 20.3.1.16 reads a date-time form that carries no offset as a
+        // local time, and only a date-only form as UTC - ES5.1 had both as UTC
+        final boolean dateOnly = !isSet(HOUR);
+
         // fill in default values for unset fields except timezone
         for (int field = YEAR; field <= TIMEZONE; field++) {
             if (get(field) == null) {
-                if (field == TIMEZONE && !strict) {
-                    // We only use UTC as default timezone for dates parsed complying with
-                    // the format specified in ES5 15.9.1.15. Otherwise the slot is left empty
-                    // and local timezone is used.
+                if (field == TIMEZONE && (!strict || !dateOnly)) {
+                    // The slot is left empty and the local timezone is used:
+                    // for anything not in the format the specification gives,
+                    // and for a date-time in it that named no offset.
                     continue;
                 }
                 final int value = getDefaultValue(field);

@@ -99,7 +99,7 @@ public final class NativeDate extends ScriptObject {
 
     private static InvokeByName getTO_ISO_STRING() {
         return Global.instance().getInvokeByName(TO_ISO_STRING,
-            () -> new InvokeByName("toISOString", ScriptObject.class, Object.class, Object.class)
+            () -> new InvokeByName("toISOString", ScriptObject.class, Object.class)
         );
     }
 
@@ -182,11 +182,19 @@ public final class NativeDate extends ScriptObject {
 
         case 1:
             double num;
-            final Object arg = JSType.toPrimitive(args[0]);
-            if (JSType.isString(arg)) {
-                num = parseDateString(arg.toString());
+            if (args[0] instanceof NativeDate date) {
+                // 20.3.2.2 step 3: a Date is taken by its time value, without
+                // the conversion anything else goes through
+                num = timeClip(date.getTime());
             } else {
-                num = timeClip(JSType.toNumber(args[0]));
+                // and the conversion happens once - what it answers is what is
+                // read as a string or as a number, not the object again
+                final Object arg = JSType.toPrimitive(args[0]);
+                if (JSType.isString(arg)) {
+                    num = parseDateString(arg.toString());
+                } else {
+                    num = timeClip(JSType.toNumber(arg));
+                }
             }
             result = new NativeDate(num);
             break;
@@ -877,7 +885,9 @@ public final class NativeDate extends ScriptObject {
             return null;
         }
         final ScriptObject sobj  = (ScriptObject)selfObj;
-        final Object       value = sobj.getDefaultValue(Number.class);
+        // 20.3.4.37 step 2 is a ToPrimitive, which an object with its own
+        // Symbol.toPrimitive answers rather than with valueOf
+        final Object       value = JSType.toPrimitive(sobj, Number.class);
         if (value instanceof Number) {
             final double num = ((Number)value).doubleValue();
             if (isInfinite(num) || isNaN(num)) {
@@ -889,7 +899,9 @@ public final class NativeDate extends ScriptObject {
             final InvokeByName toIsoString = getTO_ISO_STRING();
             final Object func = toIsoString.getGetter().invokeExact(sobj);
             if (Bootstrap.isCallable(func)) {
-                return toIsoString.getInvoker().invokeExact(func, sobj, key);
+                // step 4 invokes it with no arguments: the key JSON.stringify
+                // passes in is not forwarded
+                return toIsoString.getInvoker().invokeExact(func, sobj);
             }
             throw typeError("not.a.function", ScriptRuntime.safeToString(func));
         } catch (final RuntimeException | Error e) {
@@ -920,12 +932,18 @@ public final class NativeDate extends ScriptObject {
     }
 
     private static void zeroPad(final StringBuilder sb, final int n, final int length) {
+        // the sign stands in front of the padding rather than in the middle of
+        // it, so the year -1 is written -0001
+        final int magnitude = Math.abs(n);
+        if (n < 0) {
+            sb.append('-');
+        }
         for (int l = 1, d = 10; l < length; l++, d *= 10) {
-            if (n < d) {
+            if (magnitude < d) {
                 sb.append('0');
             }
         }
-        sb.append(n);
+        sb.append(magnitude);
     }
 
     @SuppressWarnings("fallthrough")
@@ -1028,7 +1046,9 @@ public final class NativeDate extends ScriptObject {
             return sb.toString();
         }
 
-        throw rangeError("invalid.date");
+        // 20.3.4.43 answers with the same string toString does, where
+        // toISOString throws
+        return INVALID_DATE;
     }
 
     private static String toISOStringImpl(final Object self) {
@@ -1037,8 +1057,15 @@ public final class NativeDate extends ScriptObject {
         if (nd != null && nd.isValidDate()) {
             final StringBuilder sb = new StringBuilder(24);
             final double t = nd.getTime();
-            // yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
-            zeroPad(sb, yearFromTime(t), 4);
+            // yyyy-MM-dd'T'HH:mm:ss.SSS'Z', with the expanded year form of
+            // 20.3.1.15 - six digits behind a sign - outside 0000 to 9999
+            final int year = yearFromTime(t);
+            if (year < 0 || year > 9999) {
+                sb.append(year < 0 ? '-' : '+');
+                zeroPad(sb, Math.abs(year), 6);
+            } else {
+                zeroPad(sb, year, 4);
+            }
             sb.append('-');
             zeroPad(sb, monthFromTime(t) + 1, 2);
             sb.append('-');
@@ -1235,7 +1262,14 @@ public final class NativeDate extends ScriptObject {
                     nullReturn = true;
                 }
 
-                d[i] = (long)darg;
+                // ToInteger, which truncates towards zero but keeps the
+                // magnitude: a long cannot hold every value that reaches here,
+                // and clamping to one loses the precision MakeDate needs
+                d[i] = darg < 0 ? Math.ceil(darg) : Math.floor(darg);
+            } else if (i == 0) {
+                // 20.3.3.4: the year is the one argument that is not optional,
+                // and a missing one is NaN rather than a default
+                nullReturn = true;
             } else {
                 d[i] = i == 2 ? 1 : 0; // day in month defaults to 1
             }
