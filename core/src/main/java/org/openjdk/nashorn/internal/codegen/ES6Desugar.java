@@ -399,7 +399,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         Expression chain = new BinaryNode(Token.recast(token, TokenType.ASSIGN),
                 ref(at, value), assignment.rhs());
         for (final Statement statement : work) {
-            chain = comma(token, chain, asExpression(statement));
+            final Expression step = asExpression(statement);
+            if (step != null) {
+                chain = comma(token, chain, step);
+            }
         }
         return comma(token, chain, ref(at, value));
     }
@@ -446,7 +449,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         return guardExpressionIterators((Statement)super.leaveExpressionStatement(expressionStatement));
     }
 
-    /** One step of the sequence, as an expression rather than a statement. */
+    /**
+     * One step of the sequence, as an expression rather than a statement, or
+     * null for a step that is only a declaration and evaluates nothing.
+     */
     private Expression asExpression(final Statement statement) {
         if (statement instanceof ExpressionStatement expressionStatement) {
             return expressionStatement.getExpression();
@@ -454,6 +460,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final VarNode declaration = (VarNode)statement;
         // the name is declared at the top of the block; here it is only assigned
         pendingDeclarations.add(declaration.setInit(null));
+        if (declaration.getInit() == null) {
+            // a temporary a later step assigns: there is nothing to evaluate
+            return null;
+        }
         return new BinaryNode(Token.recast(declaration.getToken(), TokenType.ASSIGN),
                 declaration.getName(), declaration.getInit());
     }

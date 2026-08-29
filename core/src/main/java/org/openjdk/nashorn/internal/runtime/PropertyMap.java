@@ -45,6 +45,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.LongAdder;
+import org.openjdk.nashorn.internal.runtime.arrays.IndexedPrototypes;
 import org.openjdk.nashorn.internal.runtime.options.Options;
 import org.openjdk.nashorn.internal.scripts.JO;
 
@@ -341,7 +342,18 @@ public class PropertyMap implements Iterable<Object>, Serializable {
     }
 
     private int newFlags(final Property newProperty) {
-        return isValidArrayIndex(getArrayIndex(newProperty.getKey())) ? flags | CONTAINS_ARRAY_KEYS : flags;
+        if (!isValidArrayIndex(getArrayIndex(newProperty.getKey()))) {
+            return flags;
+        }
+        if (newProperty.isAccessorProperty() || !newProperty.isWritable()) {
+            // an object that holds a property at an index may be a prototype,
+            // and a write to that index of something below it has to be allowed
+            // to find this one: 9.1.9.1 hands the write to an accessor and
+            // refuses it for a property that is not writable. An ordinary
+            // writable one it can shadow, which is what a write does anyway
+            IndexedPrototypes.note();
+        }
+        return flags | CONTAINS_ARRAY_KEYS;
     }
 
     // Update the free slots bitmap for a property that has been deleted and/or added. This method is not synchronized
