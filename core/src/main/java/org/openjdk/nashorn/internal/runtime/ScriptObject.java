@@ -3444,6 +3444,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         FindProperty f = find;
 
         invalidateGlobalConstant(key);
+        // a well-known symbol is installed here too when what is written to is
+        // a property that already exists - which is what a script replacing
+        // one of the built-in symbol methods does
+        WellKnownSymbols.note(key);
 
         if (f != null && f.isInheritedOrdinaryProperty()) {
             final boolean isScope = isScopeFlag(callSiteFlags);

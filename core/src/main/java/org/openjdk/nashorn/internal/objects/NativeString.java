@@ -692,6 +692,11 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             nativeRegExp = Global.toRegExp(regexp);
         }
 
+        final Object matched = viaSymbol(nativeRegExp, NativeSymbol.match, str);
+        if (matched != NOT_DELEGATED) {
+            return matched;
+        }
+
         if (!nativeRegExp.getGlobal()) {
             return nativeRegExp.exec(str);
         }
@@ -743,6 +748,11 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             nativeRegExp = NativeRegExp.flatRegExp(JSType.toString(string));
         }
 
+        final Object replaced = viaSymbol(nativeRegExp, NativeSymbol.replace, str, replacement);
+        if (replaced != NOT_DELEGATED) {
+            return replaced;
+        }
+
         if (Bootstrap.isCallable(replacement)) {
             return nativeRegExp.replace(str, "", replacement);
         }
@@ -767,6 +777,11 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
 
         final String       str          = checkObjectToString(self);
         final NativeRegExp nativeRegExp = Global.toRegExp(string == UNDEFINED ? "" : string);
+
+        final Object searched = viaSymbol(nativeRegExp, NativeSymbol.search, str);
+        if (searched != NOT_DELEGATED) {
+            return searched;
+        }
 
         return nativeRegExp.search(str);
     }
@@ -871,8 +886,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             return lim == 0 ? new NativeArray() : new NativeArray(new Object[]{str});
         }
 
-        if (separator instanceof NativeRegExp) {
-            return ((NativeRegExp) separator).split(str, lim);
+        if (separator instanceof NativeRegExp regexpSeparator) {
+            final Object splitted = viaSymbol(regexpSeparator, NativeSymbol.split, str, limit);
+            return splitted != NOT_DELEGATED ? splitted : regexpSeparator.split(str, lim);
         }
 
         // when separator is a string, it is treated as a literal search string to be used for splitting.
@@ -881,6 +897,25 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
 
     /** Distinguishes "the argument had no such method" from a method that returned null. */
     private static final Object NOT_DELEGATED = new Object();
+
+    /**
+     * ES2015 21.1.3.11 step 5 and its three siblings: the matching itself is
+     * done by the regular expression's own @@match, @@replace, @@search or
+     * @@split, so a script that replaces one of those on RegExp.prototype
+     * changes what these four do with an argument that is not a regexp.
+     *
+     * As with the delegation above, the lookup happens only once some script
+     * has installed one of the four symbols somewhere: until then the only one
+     * to be found is the built-in, and calling it arrives where the direct path
+     * starts.
+     */
+    private static Object viaSymbol(final NativeRegExp regexp, final Symbol symbol, final Object... arguments) {
+        if (!WellKnownSymbols.stringMethodsInstalled()
+                || !(regexp.get(symbol) instanceof ScriptFunction method)) {
+            return NOT_DELEGATED;
+        }
+        return ScriptRuntime.apply(method, regexp, arguments);
+    }
 
     /**
      * ES2015 21.1.3.11, .14, .15 and .17: match, replace, search and split each
@@ -909,9 +944,11 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         }
 
         // RequireObjectCoercible on the receiver happens before the symbol is
-        // called, and the string it becomes is the argument
+        // looked for; what the method is handed is the receiver itself, and
+        // making a string of it is the method's business rather than this one's
+        Global.checkObjectCoercible(self);
         final Object[] arguments = new Object[rest.length + 1];
-        arguments[0] = checkObjectToString(self);
+        arguments[0] = self;
         System.arraycopy(rest, 0, arguments, 1, rest.length);
         return ScriptRuntime.apply(method, argument, arguments);
     }
