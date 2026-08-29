@@ -1148,72 +1148,58 @@
       "startPosition": "1116"
     },
     {
-      "endPosition": "1187",
+      "endPosition": "1183",
       "kind": "LABELED_STATEMENT",
       "statement": {
-        "endPosition": "1187",
-        "kind": "BLOCK",
-        "statements": [
-          {
-            "condition": {
-              "endPosition": "1164",
-              "kind": "BOOLEAN_LITERAL",
-              "value": "true",
-              "startPosition": "1160"
-            },
-            "endPosition": "1185",
-            "kind": "WHILE_LOOP",
-            "statement": {
-              "endPosition": "1185",
-              "kind": "BLOCK",
-              "statements": [
-                {
-                  "endPosition": "1183",
-                  "kind": "CONTINUE",
-                  "label": "begin",
-                  "startPosition": "1168"
-                }
-              ],
+        "condition": {
+          "endPosition": "1162",
+          "kind": "BOOLEAN_LITERAL",
+          "value": "true",
+          "startPosition": "1158"
+        },
+        "endPosition": "1183",
+        "kind": "WHILE_LOOP",
+        "statement": {
+          "endPosition": "1183",
+          "kind": "BLOCK",
+          "statements": [
+            {
+              "endPosition": "1181",
+              "kind": "CONTINUE",
+              "label": "begin",
               "startPosition": "1166"
-            },
-            "startPosition": "1153"
-          }
-        ],
+            }
+          ],
+          "startPosition": "1164"
+        },
         "startPosition": "1151"
       },
       "label": "begin",
       "startPosition": "1144"
     },
     {
-      "endPosition": "1227",
+      "endPosition": "1219",
       "kind": "LABELED_STATEMENT",
       "statement": {
-        "endPosition": "1227",
-        "kind": "BLOCK",
-        "statements": [
-          {
-            "endPosition": "1225",
-            "kind": "FOR_LOOP",
-            "statement": {
-              "endPosition": "1225",
-              "kind": "BLOCK",
-              "statements": [
-                {
-                  "endPosition": "1223",
-                  "kind": "CONTINUE",
-                  "label": "start",
-                  "startPosition": "1208"
-                }
-              ],
-              "startPosition": "1206"
-            },
-            "startPosition": "1198"
-          }
-        ],
-        "startPosition": "1196"
+        "endPosition": "1219",
+        "kind": "FOR_LOOP",
+        "statement": {
+          "endPosition": "1219",
+          "kind": "BLOCK",
+          "statements": [
+            {
+              "endPosition": "1217",
+              "kind": "CONTINUE",
+              "label": "start",
+              "startPosition": "1202"
+            }
+          ],
+          "startPosition": "1200"
+        },
+        "startPosition": "1192"
       },
       "label": "start",
-      "startPosition": "1189"
+      "startPosition": "1185"
     }
   ],
   "sourceName": "parsertests/continueStat.js",

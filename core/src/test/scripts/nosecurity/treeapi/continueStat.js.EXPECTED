@@ -6,27 +6,27 @@
     "startPosition": "16"
   },
   {
-    "endPosition": "68",
+    "endPosition": "66",
     "kind": "CONTINUE",
     "label": "begin",
-    "startPosition": "53"
+    "startPosition": "51"
   },
   {
-    "endPosition": "108",
+    "endPosition": "102",
     "kind": "CONTINUE",
     "label": "start",
-    "startPosition": "93"
+    "startPosition": "87"
   },
   {
-    "endPosition": "126",
+    "endPosition": "118",
     "kind": "CONTINUE",
     "label": "null",
-    "startPosition": "117"
+    "startPosition": "109"
   },
   {
-    "endPosition": "164",
+    "endPosition": "156",
     "kind": "CONTINUE",
     "label": "label",
-    "startPosition": "149"
+    "startPosition": "141"
   }
 ]

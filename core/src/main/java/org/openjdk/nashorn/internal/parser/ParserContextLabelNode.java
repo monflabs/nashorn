@@ -33,13 +33,31 @@ class ParserContextLabelNode extends ParserContextBaseNode {
     /** Name for label */
     private final String name;
 
+    /** Whether what this labels is an iteration statement, which continue needs. */
+    private final boolean labelsIterationStatement;
+
     /**
      * Constructor
      *
      * @param name The name of the label
+     * @param labelsIterationStatement whether the statement it labels is one continue may name
      */
-    public ParserContextLabelNode(final String name) {
+    public ParserContextLabelNode(final String name, final boolean labelsIterationStatement) {
         this.name = name;
+        this.labelsIterationStatement = labelsIterationStatement;
+    }
+
+    /**
+     * Whether the statement this labels is an iteration statement.
+     *
+     * 13.8.1 lets continue name a label of one of those and of nothing else,
+     * which is a question about what the label was written in front of rather
+     * than about what turned out to be inside it.
+     *
+     * @return true if it labels an iteration statement
+     */
+    public boolean labelsIterationStatement() {
+        return labelsIterationStatement;
     }
 
     /**

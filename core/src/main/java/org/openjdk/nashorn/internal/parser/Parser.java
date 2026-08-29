@@ -3006,6 +3006,29 @@ public class Parser extends AbstractParser implements Loggable {
      *
      * Parse label statement.
      */
+    /**
+     * Whether the statement about to be read is an iteration statement, past
+     * any further labels of its own.
+     *
+     * 13.8.1 lets continue name a label of an iteration statement and of
+     * nothing else, and 13.13.1 passes a label set down through the labels of
+     * one statement to the statement itself - so what a label is written in
+     * front of is what decides, and not what turns out to be inside it.
+     */
+    private boolean labelsIterationStatement() {
+        int i = 0;
+        for (;;) {
+            final TokenType at = T(k + i);
+            if (at == EOL || at == COMMENT) {
+                i++;
+            } else if (at == IDENT && T(k + i + 1) == COLON) {
+                i += 2;
+            } else {
+                return at == TokenType.FOR || at == WHILE || at == TokenType.DO;
+            }
+        }
+    }
+
     private void labelStatement() {
         // Capture label token.
         final long labelToken = token;
@@ -3025,7 +3048,8 @@ public class Parser extends AbstractParser implements Loggable {
             throw error(AbstractParser.message("duplicate.label", ident.getName()), labelToken);
         }
 
-        final ParserContextLabelNode labelNode = new ParserContextLabelNode(ident.getName());
+        final ParserContextLabelNode labelNode = new ParserContextLabelNode(ident.getName(),
+                labelsIterationStatement());
         final Block body;
         try {
             lc.push(labelNode);

@@ -35,8 +35,8 @@ load(__DIR__ + "utils.js")
 var code = <<EOF
 
 while (true) { continue; };
-begin: { while (true) { continue begin; } };
-start: { for(;;) { continue start; } };
+begin: while (true) { continue begin; };
+start: for(;;) { continue start; };
 do continue; while(false)
 label:do continue label; while(true)
 

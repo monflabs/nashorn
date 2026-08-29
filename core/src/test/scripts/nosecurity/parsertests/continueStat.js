@@ -28,5 +28,5 @@
  */
 
 while (true) { continue; };
-begin: { while (true) { continue begin; } };
-start: { for(;;) { continue start; } };
+begin: while (true) { continue begin; };
+start: for(;;) { continue start; };

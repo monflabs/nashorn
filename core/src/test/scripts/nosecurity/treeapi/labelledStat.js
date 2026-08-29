@@ -37,9 +37,9 @@ var code = <<EOF
 
 begin: { for (;;) break begin };
 begin: { while (true) break begin };
-begin: { while (false) continue begin };
-begin: { for (;;) continue begin };
-begin: { do continue begin; while(false);};
+begin: while (false) continue begin;
+begin: for (;;) continue begin;
+begin: do continue begin; while(false);
 begin: { do break begin; while(true);};
 
 EOF

@@ -167,7 +167,8 @@ class ParserContext {
     public ParserContextLoopNode getContinueTo(final String labelName) {
         if (labelName != null) {
             final ParserContextLabelNode foundLabel = findLabel(labelName);
-            if (foundLabel != null) {
+            // 13.8.1: continue names a label of an iteration statement
+            if (foundLabel != null && foundLabel.labelsIterationStatement()) {
                 // iterate to the nearest loop to the foundLabel
                 ParserContextLoopNode loop = null;
                 for (final NodeIterator<ParserContextLoopNode> iter = new NodeIterator<>(ParserContextLoopNode.class, foundLabel); iter.hasNext(); ) {

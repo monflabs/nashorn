@@ -57,120 +57,99 @@
     "startPosition": "34"
   },
   {
-    "endPosition": "110",
+    "endPosition": "107",
     "kind": "LABELED_STATEMENT",
     "statement": {
-      "endPosition": "110",
-      "kind": "BLOCK",
-      "statements": [
-        {
-          "condition": {
-            "endPosition": "92",
-            "kind": "BOOLEAN_LITERAL",
-            "value": "false",
-            "startPosition": "87"
-          },
-          "endPosition": "108",
-          "kind": "WHILE_LOOP",
-          "statement": {
-            "endPosition": "108",
-            "kind": "CONTINUE",
-            "label": "begin",
-            "startPosition": "94"
-          },
-          "startPosition": "80"
-        }
-      ],
+      "condition": {
+        "endPosition": "90",
+        "kind": "BOOLEAN_LITERAL",
+        "value": "false",
+        "startPosition": "85"
+      },
+      "endPosition": "107",
+      "kind": "WHILE_LOOP",
+      "statement": {
+        "endPosition": "107",
+        "kind": "CONTINUE",
+        "label": "begin",
+        "startPosition": "92"
+      },
       "startPosition": "78"
     },
     "label": "begin",
     "startPosition": "71"
   },
   {
-    "endPosition": "146",
+    "endPosition": "139",
     "kind": "LABELED_STATEMENT",
     "statement": {
-      "endPosition": "146",
-      "kind": "BLOCK",
-      "statements": [
-        {
-          "condition": "null",
-          "endPosition": "144",
-          "kind": "FOR_LOOP",
-          "statement": {
-            "endPosition": "144",
-            "kind": "CONTINUE",
-            "label": "begin",
-            "startPosition": "130"
-          },
-          "update": "null",
-          "startPosition": "121",
-          "initializer": "null"
-        }
-      ],
-      "startPosition": "119"
+      "condition": "null",
+      "endPosition": "139",
+      "kind": "FOR_LOOP",
+      "statement": {
+        "endPosition": "139",
+        "kind": "CONTINUE",
+        "label": "begin",
+        "startPosition": "124"
+      },
+      "update": "null",
+      "startPosition": "115",
+      "initializer": "null"
     },
     "label": "begin",
-    "startPosition": "112"
+    "startPosition": "108"
   },
   {
-    "endPosition": "190",
+    "endPosition": "179",
     "kind": "LABELED_STATEMENT",
     "statement": {
-      "endPosition": "190",
+      "condition": {
+        "endPosition": "177",
+        "kind": "BOOLEAN_LITERAL",
+        "value": "false",
+        "startPosition": "172"
+      },
+      "endPosition": "179",
+      "kind": "DO_WHILE_LOOP",
+      "statement": {
+        "endPosition": "165",
+        "kind": "CONTINUE",
+        "label": "begin",
+        "startPosition": "150"
+      },
+      "startPosition": "147"
+    },
+    "label": "begin",
+    "startPosition": "140"
+  },
+  {
+    "endPosition": "218",
+    "kind": "LABELED_STATEMENT",
+    "statement": {
+      "endPosition": "218",
       "kind": "BLOCK",
       "statements": [
         {
           "condition": {
-            "endPosition": "187",
-            "kind": "BOOLEAN_LITERAL",
-            "value": "false",
-            "startPosition": "182"
-          },
-          "endPosition": "189",
-          "kind": "DO_WHILE_LOOP",
-          "statement": {
-            "endPosition": "175",
-            "kind": "CONTINUE",
-            "label": "begin",
-            "startPosition": "160"
-          },
-          "startPosition": "157"
-        }
-      ],
-      "startPosition": "155"
-    },
-    "label": "begin",
-    "startPosition": "148"
-  },
-  {
-    "endPosition": "230",
-    "kind": "LABELED_STATEMENT",
-    "statement": {
-      "endPosition": "230",
-      "kind": "BLOCK",
-      "statements": [
-        {
-          "condition": {
-            "endPosition": "227",
+            "endPosition": "215",
             "kind": "BOOLEAN_LITERAL",
             "value": "true",
-            "startPosition": "223"
+            "startPosition": "211"
           },
-          "endPosition": "229",
+          "endPosition": "217",
           "kind": "DO_WHILE_LOOP",
           "statement": {
-            "endPosition": "216",
+            "endPosition": "204",
             "kind": "BREAK",
             "label": "begin",
-            "startPosition": "204"
+            "startPosition": "192"
           },
-          "startPosition": "201"
+          "startPosition": "189"
         }
       ],
-      "startPosition": "199"
+      "startPosition": "187"
     },
     "label": "begin",
-    "startPosition": "192"
+    "startPosition": "180"
   }
 ]

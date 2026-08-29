@@ -31,5 +31,5 @@
 load(__DIR__ + "util.js");
 
 printParse("while (true) { continue; }");
-printParse("begin: { while (true) { continue begin; } }");
-printParse("start: { for(;;) { continue start; } }");
+printParse("begin: while (true) { continue begin; }");
+printParse("start: for(;;) { continue start; }");

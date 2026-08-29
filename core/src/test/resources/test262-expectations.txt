@@ -379,8 +379,6 @@ test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-call-err.js (s
 test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-get-err.js (sloppy)
 test/language/expressions/yield/star-rhs-iter-thrw-violation-rtrn-get-err.js (strict)
 test/language/identifier-resolution/assign-to-global-undefined.js (strict)
-test/language/statements/block/labeled-continue.js (sloppy)
-test/language/statements/block/labeled-continue.js (strict)
 test/language/statements/const/syntax/const-declaring-let-split-across-two-lines.js (sloppy)
 test/language/statements/continue/12.7-1.js (sloppy)
 test/language/statements/continue/12.7-1.js (strict)
