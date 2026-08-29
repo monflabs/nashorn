@@ -2,15 +2,16 @@ Nashorn Engine
 ==============
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2015 Language Specification](https://262.ecma-international.org/6.0/)
-(ECMAScript 6). It is written in Java and runs on the Java Virtual Machine.
+[ECMAScript 2017 Language Specification](https://262.ecma-international.org/8.0/)
+(ECMAScript 8). It is written in Java and runs on the Java Virtual Machine.
 
-This fork is working towards full ES2015 conformance; see the
+This fork is working towards full ES2017 conformance; see the
 [change log](CHANGELOG.md) for what has landed. There is no ES5-only mode:
-`let`, `const`, arrow functions, `for..of`, template literals, symbols and the
-`Map`/`Set` family, which upstream hid behind `--language=es6`, are simply the
-language. Proper tail calls are a documented exclusion, as are Annex B and
-ECMA-402.
+`let`, `const`, arrow functions, `for..of`, template literals, symbols, the
+`Map`/`Set` family, which upstream hid behind `--language=es6`, and the
+editions after them - `**`, `Object.values`, `String.prototype.padStart`,
+async functions, `SharedArrayBuffer` and `Atomics` - are simply the language.
+Proper tail calls are a documented exclusion, as are Annex B and ECMA-402.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.
@@ -65,9 +66,9 @@ mvn -Pfetch-externals -pl core generate-test-resources
 mvn -Ptest262 -DskipTests verify
 ```
 
-test262 has no ES2015 branch, so the suite is pinned by commit and the ES2015
-slice is selected out of it: a test counts unless it needs a feature that
-postdates ES2015. The run is compared against a checked-in expectations file and
+test262 has no branch for any edition, so the suite is pinned by commit and the
+ES2017 slice is selected out of it: a test counts unless it needs a feature that
+postdates ES2017. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
 moves forwards.
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Standalone OpenJDK Nashorn — a JavaScript engine written in Java that compiles JS to JVM bytecode and links call sites with `invokedynamic` via Dynalink (`jdk.dynalink`).
 
-This fork targets **ECMAScript 2015, as the only language mode**. There is no ES5 mode and no `isES6()` gating: `--language` is still accepted (`es6` only) purely so existing command lines keep working. Classes, generators, destructuring, rest/spread, `super`, `new.target`, Proxy, Reflect, Promise, the well-known symbols, the `%TypedArray%` hierarchy and modules are all implemented; what remains of `Lower.throwNotImplementedYet` is a destructuring assignment written somewhere the desugaring does not reach. Two deliberate exclusions: proper tail calls, and Annex B (so a block-level function declaration is scoped to its block and is *not* hoisted the way browsers do). Async functions and trailing commas in parameter lists are ECMAScript 2017 and are out of the current target, not removed - the suite's selector says so explicitly, because the tests for them predate the `features:` convention it keys on. The `-scripting` backquote exec extension and `$EXEC` were removed when ES2015 claimed the backquote for template literals. It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
+This fork targets **ECMAScript 2017, as the only language mode**. There is no ES5 mode and no `isES6()` gating: `--language` is still accepted (`es6` only) purely so existing command lines keep working. Classes, generators, destructuring, rest/spread, `super`, `new.target`, Proxy, Reflect, Promise, the well-known symbols, the `%TypedArray%` hierarchy and modules are all implemented; what remains of `Lower.throwNotImplementedYet` is a destructuring assignment written somewhere the desugaring does not reach. So are the two editions after ES2015: `**`, `Array.prototype.includes`, `Object.values`/`entries`/`getOwnPropertyDescriptors`, `String.prototype.padStart`/`padEnd`, trailing commas in parameter and argument lists, async functions, `SharedArrayBuffer` and `Atomics`. Two deliberate exclusions: proper tail calls, and Annex B (so a block-level function declaration is scoped to its block and is *not* hoisted the way browsers do). The `-scripting` backquote exec extension and `$EXEC` were removed when ES2015 claimed the backquote for template literals. It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
 
 This fork (`monflabs/nashorn`) has migrated from the original Ant build to Maven; the Ant files and the leftover in-JDK make/jtreg trees are gone. That means merges from upstream `openjdk/nashorn` no longer apply cleanly to build files.
 
@@ -97,7 +97,7 @@ Only `api.scripting` and `api.tree` are unconditionally exported by `module-info
 ## Test suites
 
 - **Java/TestNG tests** in `core/src/test/java`, mirroring the main packages with a `test` sub-package.
-- **test262 (ES2015 slice)** — `mvn -Ptest262 verify`, driven by `Test262Runner`, not by `TestFinder`/`ParallelTestRunner`. Read the note below before touching it.
+- **test262 (ES2017 slice)** — `mvn -Ptest262 verify`, driven by `Test262Runner`, not by `TestFinder`/`ParallelTestRunner`. Read the note below before touching it.
 - **Script tests** in `core/src/test/scripts/**`. Each `.js` opts in through a comment-header annotation parsed by `TestFinder`: `@test`, `@test/fail`, `@test/compile-error`, `@run`, `@run/fail`, `@subtest`, `@option`, `@argument`, `@fork`, `@runif`. An unannotated file under a test root is reported as an "orphan" and fails the suite.
 - A test with a sibling `<name>.js.EXPECTED` has its stdout diffed against it.
 
@@ -109,18 +109,23 @@ Three things about the test setup are easy to break:
 
 The two script tests that assert on the shell module's own descriptor live in `shell/src/test/scripts/basic` and run in the `shell` module — core cannot resolve the shell module without a dependency cycle. That module reuses core's test framework straight off disk (`core/target/test/classes`).
 
-## test262 and the ES2015 conformance target
+## test262 and the ES2017 conformance target
 
-test262 has **no ES2015 branch or tag** — only the frozen `es5-tests` branch and `main`, which tracks the
-current draft spec. So the suite is **pinned by commit** (`nashorn.test262.commit` in `core/pom.xml`) and
-the ES2015 slice is selected out of it at runtime.
+test262 has **no branch or tag for any edition** — only the frozen `es5-tests` branch and `main`, which
+tracks the current draft spec. So the suite is **pinned by commit** (`nashorn.test262.commit` in
+`core/pom.xml`) and the ES2017 slice is selected out of it at runtime.
 
 The selector (`Test262Selector`) is a **deny** rule: a test is in scope unless its `features:` name
-something that postdates ES2015. That is deliberate — an allow rule keyed on ES2015 feature tags selects
-~10,600 tests and drops the ~15,000 untagged ones covering the ES5.1 core as ES2015 amended it. ES2015
-contains all of ES5.1, so those count. The deny rule selects ~25,000. `es6id:` alone and `features:` alone
-each miss thousands of tests in opposite directions, which is why neither is used as the primary rule.
-`tail-call-optimization` is excluded by decision; `intl402`, `staging` and `annexB` by directory.
+something that postdates ES2017. That is deliberate — an allow rule keyed on feature tags drops the
+~15,000 untagged tests covering the ES5.1 core as the later editions amended it, and those count.
+`es6id:` alone and `features:` alone each miss thousands of tests in opposite directions, which is why
+neither is used as the primary rule. `tail-call-optimization` is excluded by decision; `intl402`,
+`staging`, `annexB` and the async-generator directories (ECMAScript 2018) by directory. Three lists name
+the rest one file at a time - `LATER_SYNTAX` for a test in scope whose body is written with syntax that
+is not, `LATER_FEATURES` for one about something later that declares nothing, `LATER_UNICODE` for one
+keyed to a Unicode version newer than the JDK's - because a rule that skipped anything unparseable would
+hide real failures. A test flagged `CanBlockIsFalse` is for a host whose main agent cannot be suspended,
+which this one can, so it is not selected either.
 
 `Test262Runner` differs from the old runner in ways that matter:
 
@@ -129,15 +134,17 @@ each miss thousands of tests in opposite directions, which is why neither is use
 - `negative: {phase, type}` is **verified**, both the phase and the error constructor. The old runner read
   an expected-error regex and never checked it, so negative tests passed on the wrong error.
 - `includes:` actually loads harness files. The old `test262.js` shim's `$INCLUDE` was dead code.
-- Each execution gets a **fresh Global** and a **15s timeout** on its own thread. The timeout is not
-  optional: some tests hand Map/Set an adversarial iterator that Nashorn never terminates, and without it
-  a wedged worker hangs the whole run.
+- Each execution gets a **fresh Global** and a **40s timeout** on its own thread - three times that for a
+  test that starts agents, which waits on threads of its own. The timeout is not optional: some tests hand
+  Map/Set an adversarial iterator that Nashorn never terminates, and without it a wedged worker hangs the
+  whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with
   `-Dnashorn.test262.include=/built-ins/Math/`. Regenerate through Maven, never by running
   `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, and expectations
-  recorded without it disagree with the gate on ten `toLocale*Case` tests.
+  recorded without it disagree with the gate on the `toLocale*Case` tests, which are eight of the
+  expectations that remain.
 
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
