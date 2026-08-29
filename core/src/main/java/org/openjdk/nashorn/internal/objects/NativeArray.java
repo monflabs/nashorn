@@ -1153,10 +1153,13 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
         for (long lower = 0; lower != middle; lower++) {
             final long    upper       = len - lower - 1;
-            final Object  lowerValue  = sobj.get(lower);
-            final Object  upperValue  = sobj.get(upper);
+            // 22.1.3.21 asks whether each element is there and reads it before
+            // going on to the other, so a getter that removes the other one is
+            // seen to have done so
             final boolean lowerExists = sobj.has(lower);
+            final Object  lowerValue  = lowerExists ? sobj.get(lower) : ScriptRuntime.UNDEFINED;
             final boolean upperExists = sobj.has(upper);
+            final Object  upperValue  = upperExists ? sobj.get(upper) : ScriptRuntime.UNDEFINED;
 
             if (lowerExists && upperExists) {
                 sobj.set(lower, upperValue, CALLSITE_STRICT);

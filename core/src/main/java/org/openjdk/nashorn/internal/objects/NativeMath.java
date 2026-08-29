@@ -648,7 +648,11 @@ public final class NativeMath extends ScriptObject {
         if (Math.getExponent(d) >= 52) {
             return d;
         }
-        return Math.copySign(Math.floor(d + 0.5), d);
+        // 20.2.2.28 is floor(x + 0.5) in exact arithmetic. Adding a half in
+        // doubles rounds a value just below one half up to the next integer -
+        // 0.5 - ulp/2 answers 1 - so the fraction is what is compared instead
+        final double floor = Math.floor(d);
+        return Math.copySign(d - floor >= 0.5 ? floor + 1 : floor, d);
     }
 
     /**
