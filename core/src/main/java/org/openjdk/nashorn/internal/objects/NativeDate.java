@@ -40,6 +40,7 @@ import org.openjdk.nashorn.internal.objects.annotations.ScriptClass;
 import org.openjdk.nashorn.internal.objects.annotations.SpecializedFunction;
 import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.parser.DateParser;
+import org.openjdk.nashorn.internal.runtime.ConsString;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptEnvironment;
@@ -845,7 +846,11 @@ public final class NativeDate extends ScriptObject {
         if (!(self instanceof ScriptObject sobj)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final String kind = JSType.toString(hint);
+        // 20.3.4.45 compares the hint with the three it knows and makes a
+        // string of nothing: a String object that reads as "number" is not the
+        // string "number", and neither is anything else that could be made into
+        // one
+        final Object kind = hint instanceof ConsString ? hint.toString() : hint;
         if ("string".equals(kind) || "default".equals(kind)) {
             return sobj.getDefaultValue(String.class);
         }

@@ -250,6 +250,96 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         return JSType.toNumberMaybeOptimistic(get(key), programPoint);
     }
 
+    /*
+     * ES2015 9.4.3 makes each character of the string an own property that is
+     * not writable, so a write to one does nothing - and says so where the code
+     * that wrote it is strict. Without this the write reaches the array data
+     * underneath, where it is never read from again, and no one is told.
+     */
+
+    /** Whether a write is to a character of the string, and so is refused. */
+    private boolean refuseCharacterWrite(final Object key, final int callSiteFlags) {
+        final Object primitiveKey = JSType.toPrimitive(key, String.class);
+        return refuseCharacterWrite(ArrayIndex.getArrayIndex(primitiveKey), callSiteFlags);
+    }
+
+    private boolean refuseCharacterWrite(final double key, final int callSiteFlags) {
+        return refuseCharacterWrite(ArrayIndex.getArrayIndex(key), callSiteFlags);
+    }
+
+    private boolean refuseCharacterWrite(final int key, final int callSiteFlags) {
+        if (!isValidStringIndex(key)) {
+            return false;
+        }
+        if (NashornCallSiteDescriptor.isStrictFlag(callSiteFlags)) {
+            throw typeError("property.not.writable", String.valueOf(key), ScriptRuntime.safeToString(this));
+        }
+        return true;
+    }
+
+    @Override
+    public void set(final Object key, final Object value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final Object key, final int value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final Object key, final double value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final Object value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final int value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final double key, final double value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final Object value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final int value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
+    @Override
+    public void set(final int key, final double value, final int callSiteFlags) {
+        if (!refuseCharacterWrite(key, callSiteFlags)) {
+            super.set(key, value, callSiteFlags);
+        }
+    }
+
     @Override
     public boolean has(final Object key) {
         final Object primitiveKey = JSType.toPrimitive(key, String.class);
