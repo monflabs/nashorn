@@ -61,6 +61,7 @@ import org.openjdk.nashorn.internal.runtime.AccessorProperty;
 import org.openjdk.nashorn.internal.runtime.ECMAException;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.Property;
+import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
@@ -496,7 +497,10 @@ public final class NativeObject {
             throw notAnObject(obj);
         }
         final List<Object> collected = new ArrayList<>();
-        for (final String key : sobj.getOwnKeys(false)) {
+        // the descriptor below is what says whether a property is enumerable,
+        // so an object that has to be asked for one is asked once rather than
+        // twice: what it reports here is every key it has
+        for (final String key : sobj.getOwnKeys(sobj.answersForEveryKey())) {
             final Object descriptor = sobj.getOwnPropertyDescriptor(key);
             if (!(descriptor instanceof ScriptObject own) || !JSType.toBoolean(own.get("enumerable"))) {
                 continue;
@@ -1005,6 +1009,19 @@ public final class NativeObject {
             // Own enumerable keys, strings and symbols alike - getOwnKeys covers
             // only the strings, and skipping the symbols means a frozen target
             // with a symbol-keyed property is written to without complaint.
+            if (sourceObject.answersForEveryKey()) {
+                // 19.1.2.1 asks the source for its keys once and then asks it
+                // about each of them in that order, which is what a proxy's
+                // traps are entitled to see. An ordinary object's map answers
+                // the same thing without the descriptor for every property.
+                for (final Object key : sourceObject.getOwnKeysAndSymbols(true)) {
+                    if (sourceObject.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor described
+                            && described.isEnumerable()) {
+                        targetObject.set(key, sourceObject.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
+                    }
+                }
+                continue;
+            }
             for (final Object key : sourceObject.getOwnKeys(false)) {
                 targetObject.set(key, sourceObject.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
             }

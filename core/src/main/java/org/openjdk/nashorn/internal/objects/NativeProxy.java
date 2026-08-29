@@ -748,9 +748,18 @@ public final class NativeProxy extends ScriptObject {
     protected <T> T[] getOwnKeys(final Class<T> type, final boolean all, final java.util.Set<T> nonEnumerable) {
         final java.util.List<T> wanted = new java.util.ArrayList<>();
         for (final Object key : getOwnKeysAndSymbols(all)) {
-            if (type.isInstance(key)) {
-                wanted.add((T)key);
+            if (!type.isInstance(key)) {
+                continue;
             }
+            // ES2015 7.3.21 EnumerableOwnNames asks the object about each key
+            // it was given, which for a proxy is a call to its
+            // getOwnPropertyDescriptor trap - the only way to learn whether it
+            // considers the property enumerable
+            if (!all && !(getOwnPropertyDescriptor(key) instanceof PropertyDescriptor described
+                    && described.isEnumerable())) {
+                continue;
+            }
+            wanted.add((T)key);
         }
         return wanted.toArray((T[])java.lang.reflect.Array.newInstance(type, wanted.size()));
     }
