@@ -58,6 +58,7 @@ import org.openjdk.nashorn.internal.runtime.Debug;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.OptimisticBuiltins;
 import org.openjdk.nashorn.internal.runtime.PropertyDescriptor;
+import org.openjdk.nashorn.internal.runtime.Property;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
@@ -421,6 +422,13 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     public void setIsLengthNotWritable() {
         super.setIsLengthNotWritable();
         setArray(ArrayData.setIsLengthNotWritable(getArray()));
+        // the write path asks the property whether it may be written, and the
+        // length is an accessor whose setter would otherwise be called and
+        // quietly do nothing - where a strict assignment is an error
+        final Property length = getMap().findProperty("length");
+        if (length != null && length.isWritable()) {
+            modifyOwnProperty(length, length.getFlags() | Property.NOT_WRITABLE);
+        }
     }
 
     /**
