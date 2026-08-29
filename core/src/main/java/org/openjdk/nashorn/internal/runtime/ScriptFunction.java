@@ -494,19 +494,22 @@ public class ScriptFunction extends ScriptObject {
         // ES2015 7.3.19 OrdinaryHasInstance walks the chain through
         // [[GetPrototypeOf]], which only a proxy answers differently. Asking
         // every object on the way costs a virtual call per step and made this a
-        // quarter slower; the class check is free and a proxy further along the
-        // chain is the case the property lookup does not honour either.
-        ScriptObject proto = instance instanceof NativeProxy
-                ? instance.getPrototypeOf()
-                : instance.getProto();
+        // quarter slower, so each step asks whether it is a proxy instead - a
+        // class check, which costs nothing to speak of.
+        ScriptObject proto = protoOf(instance);
         while (proto != null) {
             if (proto == basePrototype) {
                 return true;
             }
-            proto = proto.getProto();
+            proto = protoOf(proto);
         }
 
         return false;
+    }
+
+    /** The prototype of an object as 7.3.19 reads it, which a proxy answers for itself. */
+    private static ScriptObject protoOf(final ScriptObject object) {
+        return object instanceof NativeProxy proxy ? proxy.getPrototypeOf() : object.getProto();
     }
 
     /**
