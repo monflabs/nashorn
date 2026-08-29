@@ -58,6 +58,7 @@ import org.openjdk.nashorn.internal.ir.ObjectNode;
 import org.openjdk.nashorn.internal.ir.PropertyNode;
 import org.openjdk.nashorn.internal.ir.RuntimeNode;
 import org.openjdk.nashorn.internal.ir.Statement;
+import org.openjdk.nashorn.internal.ir.SwitchNode;
 import org.openjdk.nashorn.internal.ir.TernaryNode;
 import org.openjdk.nashorn.internal.ir.TryNode;
 import org.openjdk.nashorn.internal.ir.UnaryNode;
@@ -114,6 +115,9 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * reads through the scope it already captures.
      */
     static final String ARROW_THIS = ":arrowThis";
+
+    /** The name of the temporary a switch holds its discriminant in. */
+    private static final String SWITCH_HELD = ":switch";
 
     /** The name of the variable an arrow reads its new.target from. */
     static final String ARROW_NEW_TARGET = ":arrowNewTarget";
@@ -459,6 +463,40 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     /**
+     * Takes a switch's discriminant out of the block its clauses share.
+     *
+     * 13.12.11 evaluates the discriminant before that block is entered, so what
+     * the clauses declare is not in scope while it runs. The parser draws the
+     * block around the whole statement, discriminant included, and holding the
+     * value in a temporary in front of the block is what puts it back outside.
+     */
+    private List<Statement> hoistSwitchDiscriminant(final BlockStatement blockStatement) {
+        final Block block = blockStatement.getBlock();
+        if (!block.isSwitchBlock() || block.getStatements().size() != 1
+                || !(block.getStatements().get(0) instanceof SwitchNode switchNode)) {
+            return null;
+        }
+        final Expression discriminant = switchNode.getExpression();
+        if (discriminant instanceof LiteralNode) {
+            // there is nothing in it that could tell which scope it ran in, and
+            // the temporary would only stand between the switch and its tag
+            return null;
+        }
+
+        final long token = Token.recast(switchNode.getToken(), TokenType.VAR);
+        final int finish = switchNode.getFinish();
+        // the position makes the name, so that two switches in one block do not
+        // share a temporary and a recompilation names it what the first pass did
+        final IdentNode held = new IdentNode(token, finish,
+                SWITCH_HELD + Token.descPosition(switchNode.getToken()));
+        return List.of(
+                new VarNode(switchNode.getLineNumber(), token, finish, held, discriminant,
+                        VarNode.IS_LET | VarNode.IS_TEMPORARY),
+                blockStatement.setBlock(block.setStatements(lc,
+                        List.of(switchNode.setExpression(lc, held)))));
+    }
+
+    /**
      * Expands the destructuring statements of a block in place.
      *
      * The expansion has to become part of <em>this</em> block rather than being
@@ -506,6 +544,9 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * destructuring statement and should be left alone.
      */
     private List<Statement> expand(final Statement statement) {
+        if (statement instanceof BlockStatement blockStatement) {
+            return hoistSwitchDiscriminant(blockStatement);
+        }
         if (statement instanceof ForNode forNode) {
             return forNode.isForInOrOf() ? expandForInOrOf(forNode) : expandForInitialiser(forNode);
         }
