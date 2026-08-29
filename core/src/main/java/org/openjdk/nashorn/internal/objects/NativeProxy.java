@@ -747,7 +747,11 @@ public final class NativeProxy extends ScriptObject {
     @SuppressWarnings("unchecked")
     protected <T> T[] getOwnKeys(final Class<T> type, final boolean all, final java.util.Set<T> nonEnumerable) {
         final java.util.List<T> wanted = new java.util.ArrayList<>();
-        for (final Object key : getOwnKeysAndSymbols(all)) {
+        // 9.5.11 answers with every own key there is, enumerable or not: which
+        // of them are enumerable is the separate question asked below, and a
+        // proxy that has no ownKeys trap of its own must not let the target
+        // answer it instead
+        for (final Object key : getOwnKeysAndSymbols(true)) {
             if (!type.isInstance(key)) {
                 continue;
             }

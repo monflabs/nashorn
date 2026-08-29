@@ -806,6 +806,16 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object concat(final Object self, final Object... args) {
+        // ES2015 22.1.3.1 step 2: the result is made before anything is put in
+        // it, and before anything is read - the constructor it asks for is read
+        // ahead of the first Symbol.isConcatSpreadable - by the species, and an
+        // element goes in with CreateDataProperty, which a species that refuses
+        // to take one turns into a TypeError
+        final Global global = Global.instance();
+        final boolean ordinary = !(self instanceof ScriptObject sobj)
+                || !isArrayThroughProxies(sobj) || hasDefaultSpecies(sobj, global);
+        final ScriptObject result = ordinary ? null : speciesCreate(self, 0);
+
         final ArrayList<Object> list = new ArrayList<>();
 
         concatToList(list, Global.toObject(self));
@@ -814,15 +824,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             concatToList(list, obj);
         }
 
-        // ES2015 22.1.3.1 step 2: the result is made before anything is put in
-        // it, by the species, and an element goes in with CreateDataProperty -
-        // which a species that refuses to take one turns into a TypeError
-        final Global global = Global.instance();
-        if (!(self instanceof ScriptObject sobj) || !isArrayThroughProxies(sobj) || hasDefaultSpecies(sobj, global)) {
+        if (ordinary) {
             return new NativeArray(list.toArray());
         }
 
-        final ScriptObject result = speciesCreate(self, 0);
         long index = 0;
         for (final Object value : list) {
             if (value != ScriptRuntime.EMPTY) {
