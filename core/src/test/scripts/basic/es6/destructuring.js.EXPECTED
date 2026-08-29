@@ -1,13 +1,17 @@
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
+SyntaxError: src/test/scripts/basic/es6/destructuring.js#35:6<eval>:1:1 Invalid left hand side for assignment
+({ x: y }) = obj;
+ ^
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
-ReferenceError: "obj" is not defined
-ReferenceError: "obj" is not defined
+SyntaxError: src/test/scripts/basic/es6/destructuring.js#35:6<eval>:1:1 Invalid left hand side for assignment
+({ x, y }) = obj;
+ ^
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined
 ReferenceError: "obj" is not defined

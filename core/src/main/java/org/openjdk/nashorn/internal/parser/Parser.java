@@ -193,6 +193,13 @@ public class Parser extends AbstractParser implements Loggable {
      */
     private long coverInitializedName;
 
+    /**
+     * The expression parentheses were last read around, which is the one an
+     * assignment operator met now would have on its left. See
+     * {@link #verifyAssignment}.
+     */
+    private Expression parenthesized;
+
     private static final String ASYNC_NAME = "async";
     private static final String AWAIT_NAME = "await";
     private static final String YIELD_NAME = "yield";
@@ -785,7 +792,7 @@ public class Parser extends AbstractParser implements Loggable {
                 break;
             } else if (lhs instanceof AccessNode || lhs instanceof IndexNode) {
                 break;
-            } else if (opType == ASSIGN && isDestructuringLhs(lhs)) {
+            } else if (opType == ASSIGN && isDestructuringLhs(lhs) && lhs != parenthesized) {
                 verifyDestructuringAssignmentPattern(lhs, "assignment");
                 break;
             } else {
@@ -3320,6 +3327,13 @@ public class Parser extends AbstractParser implements Loggable {
 
             expect(RPAREN);
 
+            // 12.15.1: what parentheses hold has the assignment target type of
+            // what is inside them, and an object or array literal has one only
+            // when it stands as a pattern - which, held in parentheses, it does
+            // not. The node is remembered rather than flagged: what follows it
+            // is the operator that has to be told, and nothing is parsed in
+            // between.
+            parenthesized = expression;
             return expression;
         case TEMPLATE:
         case TEMPLATE_HEAD:
