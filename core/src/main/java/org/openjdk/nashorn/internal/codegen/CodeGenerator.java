@@ -1812,6 +1812,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if (init != null) {
                 loadAndDiscard(init);
             }
+            // 13.7.4.7 makes the first copy before the first test rather than
+            // at the end of the first iteration, so what the init expression
+            // captured is left as the init left it
+            copyPerIterationScope(forNode);
             enterForOrWhile(forNode, forNode.getModify());
         }
 
@@ -3946,12 +3950,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             emitContinueLabel(continueLabel, liveLocalsOnContinue);
         }
 
-        if (loopNode.hasPerIterationScope() && lc.getCurrentBlock().needsScope()) {
-            // ES6 for loops with LET init need a new scope for each iteration. We just create a shallow copy here.
-            method.loadCompilerConstant(SCOPE);
-            method.invoke(virtualCallNoLookup(ScriptObject.class, "copy", ScriptObject.class));
-            method.storeCompilerConstant(SCOPE);
-        }
+        copyPerIterationScope(loopNode);
 
         if(method.isReachable()) {
             if(modify != null) {
@@ -3963,6 +3962,17 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         method.breakLabel(breakLabel, liveLocalsOnBreak);
+    }
+
+    /**
+     * ES6 for loops with LET init need a new scope for each iteration. We just create a shallow copy here.
+     */
+    private void copyPerIterationScope(final LoopNode loopNode) {
+        if (loopNode.hasPerIterationScope() && lc.getCurrentBlock().needsScope()) {
+            method.loadCompilerConstant(SCOPE);
+            method.invoke(virtualCallNoLookup(ScriptObject.class, "copy", ScriptObject.class));
+            method.storeCompilerConstant(SCOPE);
+        }
     }
 
     private void emitContinueLabel(final Label continueLabel, final int liveLocals) {
