@@ -3490,7 +3490,9 @@ public final class Global extends Scope {
         anon.deleteOwnProperty(anon.getMap().findProperty("prototype"));
 
         // use "getter" so that [[ThrowTypeError]] function's arity is 0 - as specified in step 10 of section 13.2.3
-        this.typeErrorThrower = ScriptFunction.createBuiltin("TypeErrorThrower", Lookup.TYPE_ERROR_THROWER);
+        // 9.2.7.1 gives %ThrowTypeError% the empty string for a name, which is
+        // what a caller reading it off the accessor it stands behind sees
+        this.typeErrorThrower = ScriptFunction.createBuiltin("", Lookup.TYPE_ERROR_THROWER);
         // ES2015 9.2.7.1: %ThrowTypeError% is frozen, and is the one function
         // whose length stays non-configurable now that every other function's is.
         typeErrorThrower.freeze();

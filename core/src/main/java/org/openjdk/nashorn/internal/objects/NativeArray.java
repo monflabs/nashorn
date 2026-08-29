@@ -851,6 +851,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     /** Spreads an object into a concat result by asking it for each element. */
     private static void spreadThroughProperties(final ArrayList<Object> list, final ScriptObject sobj) {
         final long length = toLength(sobj.get("length"));
+        // 22.1.3.1 step 5.c.iv: the result cannot hold more than an index can
+        // name, and says so before spreading rather than on reaching the end
+        if (list.size() + length > MAX_SAFE_INTEGER) {
+            throw typeError("array.length.exceeded", JSType.toString((double)(list.size() + length)));
+        }
         for (long i = 0; i < length; i++) {
             list.add(sobj.has(i) ? sobj.get(i) : ScriptRuntime.EMPTY);
         }

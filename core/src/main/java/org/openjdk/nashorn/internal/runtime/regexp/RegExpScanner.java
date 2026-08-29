@@ -173,7 +173,14 @@ final class RegExpScanner extends Scanner {
             throw new PatternSyntaxException(string, p, p.length() + 1);
         }
 
-        scanner.processForwardReferences();
+        // A forward reference is only known to be one once the whole pattern has
+        // been read, so this waits for the scan to finish - but what it rejects
+        // it rejects as a syntax error, like everything the scan itself rejects
+        try {
+            scanner.processForwardReferences();
+        } catch (final RuntimeException e) {
+            throw new PatternSyntaxException(e.getMessage(), string, scanner.position);
+        }
 
         return scanner;
     }
@@ -724,6 +731,12 @@ final class RegExpScanner extends Scanner {
         final int startOut = sb.length();
 
         if (ch0 == '0' && !isOctalDigit(ch1)) {
+            if (unicode && isDecimalDigit(ch1)) {
+                // 21.2.1 CharacterEscape :: 0 [lookahead not DecimalDigit]: the
+                // unicode grammar has \0 standing alone, so \08 is not a NUL
+                // followed by an eight the way the web-compatible grammar has it
+                throw new RuntimeException("\\0 followed by a digit in unicode pattern");
+            }
             skip(1);
             //  DecimalEscape :: 0. If i is zero, return the EscapeValue consisting of a <NUL> character (Unicodevalue0000);
             sb.append("\u0000");
