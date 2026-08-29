@@ -686,6 +686,13 @@ public class ScriptFunction extends ScriptObject {
         // runs once. getPrototype() would read the internal field past it.
         if (!data.isBuiltin()) {
             final Object newProto = newTarget.get("prototype");
+            if (!(newProto instanceof ScriptObject) && newTarget instanceof NativeProxy proxy) {
+                // 9.1.13 takes the intrinsic prototype from the constructor's
+                // realm when it has no prototype of its own, and 7.3.22 asks a
+                // proxy for the realm of what it proxies - which a revoked one
+                // has nothing to ask
+                proxy.unwrap();
+            }
             if (newProto instanceof ScriptObject prototype) {
                 final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
                 if (allocated != null) {

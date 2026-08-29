@@ -650,8 +650,14 @@ public final class NativeProxy extends ScriptObject {
         return true;
     }
 
-    /** Whether the object behind however many proxies is an array (ES2015 7.2.2). */
-    ScriptObject unwrap() {
+    /**
+     * The object behind however many proxies, which is what 7.2.2 asks about
+     * for an array and 7.3.22 for a realm - and what a revoked proxy has none
+     * of, which either of them then reports.
+     *
+     * @return the object at the end of the chain
+     */
+    public ScriptObject unwrap() {
         final ScriptObject rx = target();
         return rx instanceof NativeProxy proxy ? proxy.unwrap() : rx;
     }

@@ -252,8 +252,11 @@ public final class NativeAtomics extends ScriptObject {
 
         final Access at = access(array, index, true, true);
         final int want = JSType.toInt32(value);
-        final double millis = timeout == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
-                : Math.max(JSType.toNumber(timeout), 0);
+        // 24.4.11 step 6: a timeout that is not a number at all is forever, the
+        // same as none, rather than none at all
+        final double asNumber = timeout == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
+                : JSType.toNumber(timeout);
+        final double millis = Double.isNaN(asNumber) ? Double.POSITIVE_INFINITY : Math.max(asNumber, 0);
         return SharedMemory.wait(at.storage, at.absoluteOffset, want, millis, at::get);
     }
 
