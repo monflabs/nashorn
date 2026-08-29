@@ -2664,7 +2664,9 @@ public final class ScriptRuntime {
                 final Object thrower = iterator.get("throw");
                 if (thrower == UNDEFINED || thrower == null) {
                     // 14.4.14 step 6.b.iii: nothing to hand the throw to, and the
-                    // iterator is told the delegation is over before it is reported
+                    // iterator is told the delegation is over before it is
+                    // reported. Closing it is not a courtesy: what it throws on
+                    // the way is the error that gets out, in place of this one
                     closeDelegate(iterator);
                     throw typeError("not.a.function", "throw");
                 }
@@ -2712,13 +2714,9 @@ public final class ScriptRuntime {
 
     /** Tells an iterator the delegation is over, without letting that be reported. */
     private static void closeDelegate(final ScriptObject iterator) {
-        try {
-            final Object close = iterator.get("return");
-            if (Bootstrap.isCallable(close)) {
-                call(close, iterator, new Object[0]);
-            }
-        } catch (final RuntimeException ignored) {
-            // the error on its way out is the one worth reporting
+        final Object close = iterator.get("return");
+        if (Bootstrap.isCallable(close)) {
+            iterationResult(call(close, iterator, new Object[0]));
         }
     }
 
