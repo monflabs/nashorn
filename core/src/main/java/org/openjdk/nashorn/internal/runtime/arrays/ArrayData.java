@@ -394,6 +394,19 @@ public abstract class ArrayData {
     }
 
     /**
+     * The data this stands for.
+     *
+     * A filter - the one preventExtensions puts around an array, say - stands
+     * for the data it wraps, which is what anything asking about the array
+     * itself rather than about what may be done to it is after.
+     *
+     * @return the data behind any filters
+     */
+    public ArrayData getUnderlyingData() {
+        return this;
+    }
+
+    /**
      * Return the length of the array data. This may differ from the actual
      * length of the array this wraps as length may be set or gotten as any
      * other JavaScript Property

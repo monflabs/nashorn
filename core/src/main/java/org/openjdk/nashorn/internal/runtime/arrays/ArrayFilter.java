@@ -52,6 +52,11 @@ abstract class ArrayFilter extends ArrayData {
     }
 
     @Override
+    public ArrayData getUnderlyingData() {
+        return underlying.getUnderlyingData();
+    }
+
+    @Override
     public void setLength(final long length) {
         super.setLength(length);
         underlying.setLength(length);

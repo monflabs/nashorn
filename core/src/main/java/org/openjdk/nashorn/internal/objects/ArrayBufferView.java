@@ -162,7 +162,9 @@ public abstract class ArrayBufferView extends ScriptObject {
     }
 
     private int elementLength() {
-        return ((TypedArrayData<?>)getArray()).getElementLength();
+        // preventExtensions wraps the data in a filter, and what holds the
+        // elements is what it wraps
+        return ((TypedArrayData<?>)getArray().getUnderlyingData()).getElementLength();
     }
 
     /**
