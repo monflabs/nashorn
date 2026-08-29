@@ -22,20 +22,22 @@
  */
 
 /**
- * NASHORN-446 : Should be able to set full year using Date.prototype.setFullYear on invalid Date objects
+ * NASHORN-446 : Date.prototype has no time value to set the full year of.
+ *
+ * ES2015 20.3.4 made it an ordinary object, where ES5.1 made it a Date whose
+ * value was NaN - so what this once checked could be done is now a TypeError.
  *
  * @test
  * @run
  */
 
-var oldFullYear = Date.prototype.getFullYear();
 try {
     Date.prototype.setFullYear(2012);
-    if (Date.prototype.getFullYear() !== 2012) {
-        fail("Can't set full year on Date.prototype");
+    fail("setting the full year of Date.prototype should have thrown");
+} catch (e) {
+    if (!(e instanceof TypeError)) {
+        fail("TypeError expected but got " + e);
     }
-} finally {
-    Date.prototype.setFullYear(oldFullYear);
 }
 
 var d = new Date(NaN);

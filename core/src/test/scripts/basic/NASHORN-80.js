@@ -32,4 +32,11 @@ print(Boolean.prototype);
 print(Number.prototype);
 print(String.prototype);
 print(RegExp.prototype);
-print(Date.prototype);
+// ES2015 20.3.4 made Date.prototype an ordinary object, so it has no time
+// value to print: converting it calls a Date method that has nothing to read
+try {
+    print(Date.prototype);
+    print("Date.prototype should not have converted");
+} catch (e) {
+    print(e.name);
+}

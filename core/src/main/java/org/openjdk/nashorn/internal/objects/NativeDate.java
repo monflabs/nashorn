@@ -1290,11 +1290,11 @@ public final class NativeDate extends ScriptObject {
     private static NativeDate getNativeDate(final Object self) {
         if (self instanceof NativeDate) {
             return (NativeDate)self;
-        } else if (self != null && self == Global.instance().getDatePrototype()) {
-            return Global.instance().getDefaultDate();
-        } else {
-            throw typeError("not.a.date", ScriptRuntime.safeToString(self));
         }
+        // ES2015 20.3.4: Date.prototype is an ordinary object and has no time
+        // value of its own, where ES5.1 made it a Date whose value was NaN -
+        // so a method called on it has nothing to work from and says so
+        throw typeError("not.a.date", ScriptRuntime.safeToString(self));
     }
 
     private static double getField(final Object self, final int field) {

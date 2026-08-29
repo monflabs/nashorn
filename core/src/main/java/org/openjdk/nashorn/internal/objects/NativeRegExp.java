@@ -728,14 +728,22 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
-     * ECMA 15.10.6.4 RegExp.prototype.toString()
+     * ECMAScript 2015 21.2.5.14 RegExp.prototype.toString()
+     *
+     * It reads source and flags from whatever it was called on rather than
+     * from a pattern of its own, so a subclass that answers either of them
+     * differently is honoured - and the prototype, which answers "(?:)" and
+     * "", reads as an expression that matches nothing.
      *
      * @param self self reference
      * @return string version of regexp
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toString(final Object self) {
-        return checkRegExp(self).toString();
+        if (!(self instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        return "/" + JSType.toString(sobj.get("source")) + "/" + JSType.toString(sobj.get("flags"));
     }
 
     /**
@@ -1416,11 +1424,11 @@ public final class NativeRegExp extends ScriptObject {
     private static NativeRegExp checkRegExp(final Object self) {
         if (self instanceof NativeRegExp) {
             return (NativeRegExp)self;
-        } else if (self != null && self == Global.instance().getRegExpPrototype()) {
-            return Global.instance().getDefaultRegExp();
-        } else {
-            throw typeError("not.a.regexp", ScriptRuntime.safeToString(self));
         }
+        // ES2015 21.2.5: RegExp.prototype is an ordinary object and matches
+        // nothing, where ES5.1 made it a RegExp of its own - so a method
+        // called on it has no pattern to work from and says so
+        throw typeError("not.a.regexp", ScriptRuntime.safeToString(self));
     }
 
     boolean getGlobal() {
