@@ -1667,9 +1667,25 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * cannot silently change what they search for.
      */
     private static String rejectRegExp(final Object search, final String name) {
-        if (search instanceof NativeRegExp) {
+        if (isRegExp(search)) {
             throw typeError("cant.use.regexp", name);
         }
         return JSType.toString(search);
+    }
+
+    /**
+     * ES2015 7.2.8 IsRegExp, which the three searching methods ask before they
+     * make a string of what they were given.
+     *
+     * What an object says through @@match is the answer, whatever it is: an
+     * ordinary object that carries the symbol is a regular expression as far as
+     * this question goes, and one that answers false is not one even if it is.
+     */
+    private static boolean isRegExp(final Object value) {
+        if (!(value instanceof ScriptObject sobj)) {
+            return false;
+        }
+        final Object matcher = sobj.get(NativeSymbol.match);
+        return matcher != UNDEFINED ? JSType.toBoolean(matcher) : value instanceof NativeRegExp;
     }
 }
