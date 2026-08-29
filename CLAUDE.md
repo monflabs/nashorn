@@ -150,6 +150,11 @@ which this one can, so it is not selected either.
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,
   because the suite is written for a host where "i" grows no dot.
 
+Two of the four exclusions are **permanent** and are not work items: proper tail calls (a calling
+convention this engine will not pay for on every call - and still normative, so a deliberate divergence),
+and `staging` (proposals, which are the business of a later edition target rather than of a wider
+selector). `doc/CONFORMANCE.md` argues both. The other two - Annex B and `intl402` - are open questions.
+
 `doc/CONFORMANCE.md` records what the four exclusions actually contain, measured rather than assumed:
 Annex B is 1,086 files of which 336 already pass, and 635 of the 750 failures are the one B.3.3 rule -
 a block-level function declaration leaking a var binding into the enclosing scope - which this fork

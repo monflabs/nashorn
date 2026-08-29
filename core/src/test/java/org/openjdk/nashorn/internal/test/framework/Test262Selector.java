@@ -56,10 +56,16 @@ public final class Test262Selector {
      * Every {@code features:} tag that ES2015, ES2016 or ES2017 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
-     * Deliberately absent: {@code tail-call-optimization}. Proper tail calls are
-     * normative from ES2015 on, but implementing them on the JVM costs a
-     * trampoline in tail position, so they are an explicit, documented
-     * exclusion - as they are in every engine but JavaScriptCore.
+     * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
+     * Proper tail calls are normative from ES2015 on and have not been removed
+     * from the specification, so this is a divergence rather than a technicality
+     * - and it is a settled one, not a task waiting for a volunteer. A tail
+     * position cannot be recognised at runtime, so honouring the rule costs a
+     * trampoline in every tail-shaped function, which is most of them; the
+     * performance gate exists to refuse exactly that kind of tax. The ecosystem
+     * did not follow the specification either - JavaScriptCore is the only
+     * engine that ships them, V8 withdrew its implementation, and the syntactic
+     * replacement TC39 spent years on never advanced. See doc/CONFORMANCE.md.
      */
     private static final Set<String> FEATURES = Set.of(
         // syntax
@@ -86,9 +92,17 @@ public final class Test262Selector {
     /**
      * Suite directories that are out of scope regardless of tags.
      *
-     * {@code intl402} is ECMA-402, a separate standard. {@code staging} is not
-     * normative. {@code annexB} is normative-optional and aimed at browser
-     * hosts, which Nashorn is not.
+     * {@code intl402} is ECMA-402, a separate standard. {@code annexB} is
+     * normative-optional and aimed at browser hosts, which Nashorn is not.
+     *
+     * {@code staging} is <b>permanently</b> out of scope: it holds tests for
+     * Stage 3 proposals and normative pull requests, written to lower standards
+     * than the main suite and not counting towards a proposal's Stage 4
+     * coverage. This engine implements the latest approved edition, so a
+     * proposal becomes its business when the proposal becomes a standard - at
+     * which point its tests leave staging for the main suite of their own
+     * accord. Widening this set would mean chasing semantics nobody has
+     * ratified.
      *
      * The async-generator directories are ECMAScript 2018 - async iteration,
      * not async functions. They are named here rather than caught by the feature

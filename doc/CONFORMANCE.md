@@ -25,12 +25,12 @@ most of it is about editions this engine does not claim. Four things are
 excluded by decision; everything else outside the slice is simply later than
 ECMAScript 2017.
 
-| Excluded | Files | Reason |
-| --- | --- | --- |
-| `annexB/` | 1,086 | Normative-optional, and written for browser hosts |
-| `tail-call-optimization` | 35 | Proper tail calls, excluded by decision |
-| `intl402/` | 3,357 | ECMA-402, a separate standard |
-| `staging/` | 1,491 | Not normative |
+| Excluded | Files | Reason | Revisit? |
+| --- | --- | --- | --- |
+| `annexB/` | 1,086 | Normative-optional, and written for browser hosts | Open. A host that wants browser semantics could implement it; the cost is measured below |
+| `tail-call-optimization` | 35 | Proper tail calls | **Never.** A settled decision, not a task - see below |
+| `intl402/` | 3,357 | ECMA-402, a separate standard | Open, but it is a different standard and a different body of work |
+| `staging/` | 1,491 | Proposals and unreviewed tests, not part of any edition | **Never.** This engine targets the approved standard - see below |
 
 Everything else the selector leaves out is a later edition: the
 `async-generator` directories (1,054 files, ECMAScript 2018) and every test whose
@@ -97,14 +97,68 @@ Implementing it would mean a second hoisting pass in symbol assignment and
 lowering, on top of the block scoping the ES2015 work rebuilt, observable only
 for code the modern specification says is block-local.
 
-### Tail calls
+Tail calls: never
+-----------------
+
+**Proper tail calls are not to be implemented in this engine, now or later.**
+This is a settled decision rather than an item of work, and anyone reading the
+35 failing tests as a to-do list should stop here.
 
 The 35 tail-call tests are the whole of that exclusion, and nothing else depends
 on it. Putting `tail-call-optimization` back in scope and running
 `/language/statements/` gives 18 failures out of 8,232 executions, every one of
-them a `tco-*` test. Proper tail calls are normative from ES2015 on, but a
-trampoline in tail position costs every call in a tail-shaped function; no engine
-but JavaScriptCore ships them.
+them a `tco-*` test.
+
+Be clear about the standing of the feature, because the decision is a deliberate
+divergence and should not be dressed up as anything else. Proper tail calls have
+been normative since ES2015 and remain in the specification: test262 still lists
+`tail-call-optimization` among its standard language features, unmarked and
+undeprecated. The reasons not to implement them are practical and permanent:
+
+* **The cost lands on every call, not on recursive ones.** A tail position
+  cannot be recognised at runtime, so honouring the rule means a trampoline in
+  every tail-shaped function - which is most of them. This engine compiles to
+  JVM bytecode and links call sites with `invokedynamic`; there is no cheap way
+  to discard the caller's frame, and the performance gate exists precisely to
+  refuse changes that tax every call for the benefit of a few.
+* **The ecosystem did not follow the specification.** JavaScriptCore is the only
+  engine that ships proper tail calls. V8 implemented them and withdrew them;
+  SpiderMonkey and ChakraCore declined on security and compatibility grounds.
+  TC39 spent years on a replacement - explicit syntax, the "syntactic tail
+  calls" proposal - which never advanced. Code that depends on the guarantee is
+  therefore already unportable, and nothing here would make it portable.
+* **Nothing else depends on it.** The exclusion is 35 files that cite no other
+  behaviour; leaving it out costs no conformance elsewhere.
+
+If a future maintainer disagrees, the change to make is not a small one: it is a
+calling convention, and it should be argued on its merits against the gate, not
+adopted because a row in a table looked unfinished.
+
+Staging: never
+--------------
+
+**The `staging/` directory is not a conformance target and will not become
+one.** This engine implements the latest *approved* edition of ECMA-262 - today
+that is the 8th, ECMAScript 2017 - and staging tests things that no edition has
+approved.
+
+test262's own contributing guide is explicit about what the directory is for:
+getting tests "running across more than one implementation as early as
+possible", covering "a Stage 3 TC39 proposal, or a normative pull request".
+Tests there are held to lower standards than the main suite - they "are not
+required to be split up into one test per file, or to conform to any particular
+style as long as they are runnable", and mechanically converted implementation
+tests are welcome. They "do not count towards the test262 coverage requirement
+for a TC39 proposal to reach Stage 4", and are meant to move out of staging once
+the feature settles.
+
+So a staging test measures agreement with a proposal that may still change, be
+renamed, or be abandoned. Passing it would say nothing about conformance, and
+chasing it would mean implementing semantics that the committee has not
+ratified. When a proposal is approved into an edition, its tests leave staging
+for the main suite, and that is the point at which they become this engine's
+business - by moving the edition target forwards, deliberately, not by widening
+the selector.
 
 Reproducing these numbers
 -------------------------
