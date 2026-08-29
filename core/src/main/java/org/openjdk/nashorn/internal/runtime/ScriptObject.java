@@ -1052,7 +1052,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @return true if the write happened
      */
     public boolean setWithReceiver(final Object key, final Object value, final Object receiver) {
-        final FindProperty found = findProperty(key, true);
+        // 9.1.9.1 asks this object for an own property before it asks what is
+        // above it: an index held in the array data is one, though the map does
+        // not hold it, and a property of the same name further up has no say
+        final FindProperty found = hasOwnArrayElement(key) ? null : findProperty(key, true);
         if (found != null && found.getProperty().isAccessorProperty()) {
             final Property property = found.getProperty();
             if (property instanceof UserAccessorProperty accessor) {
@@ -3405,6 +3408,12 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             }
         }
         return false;
+    }
+
+    /** Whether an index is one this object holds in its array data. */
+    private boolean hasOwnArrayElement(final Object key) {
+        final int index = ArrayIndex.getArrayIndex(key);
+        return ArrayIndex.isValidArrayIndex(index) && getArray().has(index);
     }
 
     private boolean hasDefinedArrayProperties() {

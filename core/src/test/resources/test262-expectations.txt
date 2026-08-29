@@ -183,8 +183,6 @@ test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receive
 test/built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-proto.js (strict)
 test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-prototype-chain-set.js (sloppy)
 test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-prototype-chain-set.js (strict)
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js (sloppy)
-test/built-ins/TypedArrayConstructors/internals/Set/key-is-valid-index-reflect-set.js (strict)
 test/harness/asyncHelpers-asyncTest-without-async-flag.js (sloppy)
 test/harness/asyncHelpers-asyncTest-without-async-flag.js (strict)
 test/language/computed-property-names/object/method/super.js (sloppy)
