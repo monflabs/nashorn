@@ -5006,11 +5006,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 public boolean enterIdentNode(final IdentNode node) {
                     if (node.getSymbol().isScope()) {
                         method.loadCompilerConstant(SCOPE);
-                        if (isSelfModifying() && !isFastScope(node.getSymbol())) {
+                        if (!isFastScope(node.getSymbol()) && !node.isDeclaredHere()) {
                             // 12.15.4 makes the reference once, before the read
                             // and the right-hand side, and writes back through
                             // it - which in a dynamic scope is not where the
-                            // name would resolve to by then
+                            // name would resolve to by then. A declaration is
+                            // not a reference at all: it binds where it stands
                             method.load(node.getName());
                             method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
                                     "SCOPE_BASE", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");

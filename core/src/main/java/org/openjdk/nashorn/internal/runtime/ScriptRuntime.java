@@ -2130,16 +2130,22 @@ public final class ScriptRuntime {
         final int strictFlag = strict ? NashornCallSiteDescriptor.CALLSITE_STRICT : 0;
         if (base instanceof WithObject with) {
             final ScriptObject bindings = with.getExpression();
-            if (strict && !bindings.has(name)) {
-                // 8.1.1.2.5 step 3: strict code is told when the binding it
-                // resolved to has gone in the meantime, which a getter deleting
-                // the property it was read through is how it happens
+            // 8.1.1.2.5 step 2 asks whether the binding is still there whatever
+            // the mode - the object is told it is being asked - and step 3 tells
+            // strict code when it is not, which a getter deleting the property
+            // it was read through is how it happens
+            if (!bindings.has(name) && strict) {
                 throw referenceError("not.defined", JSType.toString(name));
             }
             // otherwise an ordinary property write on the object the with block
             // was given, whether or not it still has one under that name
             bindings.set(name, value, strictFlag);
             return;
+        }
+        if (strict && base instanceof Global global && !global.has(name)) {
+            // SCOPE_BASE answers with the global for a name nothing declared,
+            // and strict code may not make one by assigning to it
+            throw referenceError("not.defined", JSType.toString(name));
         }
         ((ScriptObject)base).set(name, value, NashornCallSiteDescriptor.CALLSITE_SCOPE | strictFlag);
     }
