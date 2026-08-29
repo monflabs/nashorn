@@ -6131,7 +6131,14 @@ public class Parser extends AbstractParser implements Loggable {
                 if (type != TEMPLATE_MIDDLE && type != TEMPLATE_TAIL) {
                     throw error(AbstractParser.message("unterminated.template.expression"), token);
                 }
-                concat = new BinaryNode(Token.recast(lastLiteralToken, TokenType.ADD), concat, expression);
+                // 12.2.9.5 converts each substitution with ToString, which is
+                // not what the addition this is compiled to would do: that asks
+                // an object for no particular kind of primitive and takes
+                // whatever its valueOf answers
+                concat = new BinaryNode(Token.recast(lastLiteralToken, TokenType.ADD), concat,
+                        expression instanceof LiteralNode ? expression
+                                : new RuntimeNode(expression.getToken(), expression.getFinish(),
+                                        RuntimeNode.Request.TO_STRING, expression));
                 lastLiteralType = type;
                 lastLiteralToken = token;
                 literal = getLiteral();

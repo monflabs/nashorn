@@ -684,6 +684,12 @@ public final class JSONWriter extends SimpleNodeVisitor {
 
     @Override
     public boolean enterRuntimeNode(final RuntimeNode runtimeNode) {
+        if (runtimeNode.getRequest() == RuntimeNode.Request.TO_STRING) {
+            // the conversion a template literal's substitutions go through is
+            // not part of what was written, so the tree shows the substitution
+            runtimeNode.getArgs().get(0).accept(this);
+            return false;
+        }
         assert false : "should not reach here: RuntimeNode";
         return false;
     }

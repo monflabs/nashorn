@@ -807,7 +807,9 @@ public enum JSType {
     public static double toNumberForEq(final Object obj) {
         // we are not able to detect Symbol objects from codegen, so we need to
         // handle them here to avoid throwing an error in toNumber conversion.
-        if (obj == null || obj instanceof Symbol || obj instanceof NativeSymbol) {
+        // a symbol is equal to no number; a wrapper around one is an ordinary
+        // object, and what it converts to is what the comparison reads
+        if (obj == null || obj instanceof Symbol) {
             return Double.NaN;
         }
         // 7.2.12 converts an object here with no hint at all, where ToNumber

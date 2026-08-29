@@ -1619,6 +1619,22 @@ public final class ScriptRuntime {
      * @param value the value being destructured
      * @return the value itself, when it can be coerced to an object
      */
+    /**
+     * ES2015 7.1.12 ToString, as a template literal's substitutions are
+     * converted.
+     *
+     * A template is not a concatenation: 12.2.9.5 converts each substitution
+     * with ToString, which asks an object for a string, where the addition it
+     * would otherwise be compiled to asks for no particular kind and takes
+     * whatever valueOf answers.
+     *
+     * @param value the substitution
+     * @return its string
+     */
+    public static String TO_STRING(final Object value) {
+        return JSType.toString(value);
+    }
+
     public static Object REQUIRE_OBJECT_COERCIBLE(final Object value) {
         if (value == null || value == UNDEFINED) {
             throw typeError("cant.get.property", "of", safeToString(value));

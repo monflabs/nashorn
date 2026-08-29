@@ -43,6 +43,7 @@ import org.openjdk.nashorn.internal.objects.annotations.Where;
 import org.openjdk.nashorn.internal.runtime.JSType;
 import org.openjdk.nashorn.internal.runtime.PropertyMap;
 import org.openjdk.nashorn.internal.runtime.ScriptObject;
+import org.openjdk.nashorn.internal.runtime.ScriptFunction;
 import org.openjdk.nashorn.internal.runtime.ScriptRuntime;
 import org.openjdk.nashorn.internal.runtime.Symbol;
 import org.openjdk.nashorn.internal.runtime.Undefined;
@@ -147,11 +148,19 @@ public final class NativeSymbol extends ScriptObject {
         return PrimitiveLookup.lookupPrimitive(request, Symbol.class, new NativeSymbol((Symbol)receiver), WRAPFILTER, PROTOFILTER);
     }
 
-    // ECMA 6 19.4.3.4 Symbol.prototype [ @@toPrimitive ] ( hint )
     @Override
     public Object getDefaultValue(final Class<?> typeHint) {
-        // Just return the symbol value.
-        return symbol;
+        // 19.4.3.4 answers with the symbol itself whatever the hint, which is
+        // what stops a coercion from turning a symbol into a string behind the
+        // program's back. It is read as a property rather than assumed: a
+        // program that removes or replaces it means the ordinary algorithm,
+        // and the valueOf and toString it finds.
+        final Object exotic = get(toPrimitive);
+        if (exotic instanceof ScriptFunction handler) {
+            return ScriptRuntime.apply(handler, this,
+                    typeHint == null ? "default" : typeHint == String.class ? "string" : "number");
+        }
+        return super.getDefaultValue(typeHint);
     }
 
     /**

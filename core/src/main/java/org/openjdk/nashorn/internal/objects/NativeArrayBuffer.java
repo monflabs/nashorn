@@ -254,7 +254,9 @@ public class NativeArrayBuffer extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object slice(final Object self, final Object begin0, final Object end0) {
-        if (!(self instanceof NativeArrayBuffer source)) {
+        if (!(self instanceof NativeArrayBuffer source) || source.isShared()) {
+            // 24.1.4.3 step 3: a shared buffer has its own slice, and this one
+            // is not it
             throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
         }
         if (source.isDetached()) {
