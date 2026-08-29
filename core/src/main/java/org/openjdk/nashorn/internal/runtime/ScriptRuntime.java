@@ -1866,7 +1866,10 @@ public final class ScriptRuntime {
         final NativeArray flattened = (NativeArray)elements;
         final int length = (int)flattened.getArray().length();
         for (int i = 0; i < length; i += 3) {
-            final Object key = flattened.get(i);
+            // 14.5.14 makes a property key of what the element was written with
+            // once, where naming the method and defining it would each ask an
+            // object for its string
+            final Object key = TO_PROPERTY_KEY(flattened.get(i));
             final int flags = JSType.toInt32(flattened.get(i + 1));
             final Object value = flattened.get(i + 2);
             final ScriptObject target = (flags & CLASS_ELEMENT_STATIC) != 0 ? ctor : prototype;
@@ -1943,6 +1946,11 @@ public final class ScriptRuntime {
             } else {
                 makeMethod(literal.get(property.getKey()), literal);
             }
+        }
+        // a method written under a key that is an index lives in the array
+        // part, which the property map says nothing about
+        for (final Iterator<Long> indices = literal.getArray().indexIterator(); indices.hasNext(); ) {
+            makeMethod(literal.get(indices.next().longValue()), literal);
         }
         return literal;
     }
