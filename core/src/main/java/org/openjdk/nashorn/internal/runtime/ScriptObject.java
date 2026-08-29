@@ -1062,7 +1062,17 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         // 9.1.9.1 asks this object for an own property before it asks what is
         // above it: an index held in the array data is one, though the map does
         // not hold it, and a property of the same name further up has no say
-        final FindProperty found = hasOwnArrayElement(key) ? null : findProperty(key, true);
+        final ScriptObject answering = integerIndexedAnswering(key);
+        if (answering != null) {
+            if (answering == receiver) {
+                // 10.4.5.5 step 1.a: the typed array is the receiver as well as
+                // what was reached, so the value is converted before the index
+                // is found to be out of range
+                JSType.toNumber(value);
+            }
+            return true;
+        }
+        final FindProperty found = findPropertyPastElements(key);
         if (found != null && found.getProperty().isAccessorProperty()) {
             final Property property = found.getProperty();
             if (property instanceof UserAccessorProperty accessor) {
@@ -3411,7 +3421,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private boolean doesNotHaveCheckArrayKeys(final long longIndex, final int value, final int callSiteFlags) {
         if (hasDefinedArrayProperties()) {
             final String       key  = JSType.toString(longIndex);
-            final FindProperty find = findProperty(key, true);
+            if (integerIndexedAnswering(key) != null) {
+                return true;
+            }
+            final FindProperty find = findPropertyPastElements(key);
             if (find != null) {
                 setObject(find, callSiteFlags, key, value);
                 return true;
@@ -3423,7 +3436,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private boolean doesNotHaveCheckArrayKeys(final long longIndex, final double value, final int callSiteFlags) {
          if (hasDefinedArrayProperties()) {
             final String       key  = JSType.toString(longIndex);
-            final FindProperty find = findProperty(key, true);
+            if (integerIndexedAnswering(key) != null) {
+                return true;
+            }
+            final FindProperty find = findPropertyPastElements(key);
             if (find != null) {
                 setObject(find, callSiteFlags, key, value);
                 return true;
@@ -3435,7 +3451,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private boolean doesNotHaveCheckArrayKeys(final long longIndex, final Object value, final int callSiteFlags) {
         if (hasDefinedArrayProperties()) {
             final String       key  = JSType.toString(longIndex);
-            final FindProperty find = findProperty(key, true);
+            if (integerIndexedAnswering(key) != null) {
+                return true;
+            }
+            final FindProperty find = findPropertyPastElements(key);
             if (find != null) {
                 setObject(find, callSiteFlags, key, value);
                 return true;
@@ -3448,6 +3467,94 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private boolean hasOwnArrayElement(final Object key) {
         final int index = ArrayIndex.getArrayIndex(key);
         return ArrayIndex.isValidArrayIndex(index) && getArray().has(index);
+    }
+
+    /**
+     * Whether a typed array along the prototype chain answers for this key.
+     *
+     * 10.4.5.5 has an integer indexed exotic object answer for every canonical
+     * numeric index, in range or not: one that is out of range is dropped, and
+     * neither is anything above it in the chain consulted nor is a property
+     * made on the receiver.
+     *
+     * @param key the property key
+     * @return the typed array that answers, or null
+     */
+    private ScriptObject integerIndexedAnswering(final Object key) {
+        if (!isCanonicalNumericIndexString(key)) {
+            return null;
+        }
+        for (ScriptObject object = this; object != null; object = object.getProto()) {
+            if (object.isIntegerIndexed()) {
+                // an index it has is an ordinary data property, and the write
+                // goes on to be made on the receiver; one it does not have is
+                // out of range, and answered by doing nothing
+                return object.hasOwnArrayElement(key) ? null : object;
+            }
+            if (object.hasOwnArrayElement(key) || object.getMap().findProperty(key) != null) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * ES2015 7.1.16: whether a key is the canonical string form of a number,
+     * which is what a typed array answers for.
+     */
+    private static boolean isCanonicalNumericIndexString(final Object key) {
+        if (!(key instanceof String string) || string.isEmpty()) {
+            return false;
+        }
+        final char first = string.charAt(0);
+        // a name that cannot be a number's is most of them, and this is the
+        // whole of the test for those
+        if ((first < '0' || first > '9') && first != '-' && first != 'N' && first != 'I') {
+            return false;
+        }
+        return "-0".equals(string) || JSType.toString(JSType.toNumber(string)).equals(string);
+    }
+
+    /**
+     * Whether this is an integer indexed exotic object - a typed array - which
+     * answers for every canonical numeric index rather than holding properties
+     * at some of them.
+     *
+     * @return true for a typed array
+     */
+    public boolean isIntegerIndexed() {
+        return false;
+    }
+
+    /**
+     * The property a write goes through, or null when this object or one of its
+     * prototypes holds an element at that key.
+     *
+     * An element is a writable data property, so 9.1.9.1 step 3.e has the write
+     * make an own property of the receiver rather than pass it on. The walk
+     * that reads property maps would go straight past it - array data is not a
+     * map entry - and find whatever stands above it, an accessor among the
+     * possibilities.
+     *
+     * @param key the property key
+     * @return the property the write goes through, or null
+     */
+    private FindProperty findPropertyPastElements(final Object key) {
+        for (ScriptObject object = this; object != null; object = object.getProto()) {
+            if (object.hasOwnArrayElement(key)) {
+                return null;
+            }
+            if (object.answersForEveryKey()) {
+                // a proxy holds nothing in its map and answers for every name,
+                // so the ordinary walk is the one that asks it
+                return findProperty(key, true);
+            }
+            final Property property = object.getMap().findProperty(key);
+            if (property != null) {
+                return new FindProperty(this, object, property);
+            }
+        }
+        return null;
     }
 
     private boolean hasDefinedArrayProperties() {
@@ -3517,6 +3624,12 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         // a property that already exists - which is what a script replacing
         // one of the built-in symbol methods does
         WellKnownSymbols.note(key);
+
+        if (integerIndexedAnswering(key) != null) {
+            // a typed array in the chain has answered for the key, whatever
+            // stands above it
+            return;
+        }
 
         if (f != null && f.isInheritedOrdinaryProperty()) {
             final boolean isScope = isScopeFlag(callSiteFlags);

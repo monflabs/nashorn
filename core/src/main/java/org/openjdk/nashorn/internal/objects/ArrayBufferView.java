@@ -64,6 +64,11 @@ public abstract class ArrayBufferView extends ScriptObject {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
+    @Override
+    public boolean isIntegerIndexed() {
+        return true;
+    }
+
     private ArrayBufferView(final NativeArrayBuffer buffer, final int byteOffset, final int elementLength, final Global global) {
         super($nasgenmap$);
 
