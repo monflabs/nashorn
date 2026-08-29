@@ -546,8 +546,11 @@ public class Lexer extends Scanner {
         // Skip /.
         skip(1);
 
-        // Options as string.
-        final String options = source.getString(position, scanIdentifier());
+        // Options as string: what the token holds after the pattern, which the
+        // scan that made the token has already bounded - scanning again for an
+        // identifier reads past the end of it, since Java counts a character
+        // ECMAScript reads as whitespace as part of a name
+        final String options = source.getString(position, start + length - position);
 
         reset(savePosition);
 
@@ -655,8 +658,12 @@ public class Lexer extends Scanner {
                 // Skip /.
                 skip(1);
 
-                // Skip over options.
-                while (!atEOF() && Character.isJavaIdentifierPart(ch0) || ch0 == '\\' && ch1 == 'u') {
+                // Skip over options. A flag is an identifier part, and what
+                // ECMAScript counts as one does not include the characters it
+                // reads as whitespace - the byte order mark among them, which
+                // Java's answer treats as ignorable and so as part of a name
+                while (!atEOF() && Character.isJavaIdentifierPart(ch0) && !isJSWhitespace(ch0)
+                        || ch0 == '\\' && ch1 == 'u') {
                     skip(1);
                 }
 
