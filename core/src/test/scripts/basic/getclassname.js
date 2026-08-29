@@ -58,17 +58,21 @@ checkClass(new SyntaxError(), "[object Error]");
 checkClass(new TypeError(), "[object Error]");
 checkClass(new URIError(), "[object Error]");
 
-// constructors and prototypes
+// constructors and prototypes. ES2015 19.1.3.6 names an object after the
+// internal slot it has rather than after a [[Class]] its prototype shared:
+// Error.prototype, Date.prototype and RegExp.prototype are ordinary objects
+// (19.5.3, 20.3.4, 21.2.5) and are named as such, while Array.prototype and
+// the wrapper prototypes are still instances of what they prototype.
 checkClass(Array, "[object Function]");
 checkClass(Array.prototype, "[object Array]");
 checkClass(Boolean, "[object Function]");
 checkClass(Boolean.prototype, "[object Boolean]");
 checkClass(Date, "[object Function]");
-checkClass(Date.prototype, "[object Date]");
+checkClass(Date.prototype, "[object Object]");
 checkClass(Error, "[object Function]");
-checkClass(Error.prototype, "[object Error]");
+checkClass(Error.prototype, "[object Object]");
 checkClass(EvalError, "[object Function]");
-checkClass(EvalError.prototype, "[object Error]");
+checkClass(EvalError.prototype, "[object Object]");
 checkClass(Function, "[object Function]");
 checkClass(Function.prototype, "[object Function]");
 if (typeof JSAdapter != 'undefined') {
@@ -84,19 +88,19 @@ checkClass(Number.prototype, "[object Number]");
 checkClass(Object, "[object Function]");
 checkClass(Object.prototype, "[object Object]");
 checkClass(RangeError, "[object Function]");
-checkClass(RangeError.prototype, "[object Error]");
+checkClass(RangeError.prototype, "[object Object]");
 checkClass(ReferenceError, "[object Function]");
-checkClass(ReferenceError.prototype, "[object Error]");
+checkClass(ReferenceError.prototype, "[object Object]");
 checkClass(RegExp, "[object Function]");
-checkClass(RegExp.prototype, "[object RegExp]");
+checkClass(RegExp.prototype, "[object Object]");
 checkClass(String, "[object Function]");
 checkClass(String.prototype, "[object String]");
 checkClass(SyntaxError, "[object Function]");
-checkClass(SyntaxError.prototype, "[object Error]");
+checkClass(SyntaxError.prototype, "[object Object]");
 checkClass(TypeError, "[object Function]");
-checkClass(TypeError.prototype, "[object Error]");
+checkClass(TypeError.prototype, "[object Object]");
 checkClass(URIError, "[object Function]");
-checkClass(URIError.prototype, "[object Error]");
+checkClass(URIError.prototype, "[object Object]");
 
 // misc. objects
 checkClass(this, "[object global]");

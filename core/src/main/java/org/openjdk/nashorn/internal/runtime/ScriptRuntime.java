@@ -270,6 +270,12 @@ public final class ScriptRuntime {
             case "Math", "JSON", "Symbol", "Map", "Set", "WeakMap", "WeakSet", "Promise",
                  "ArrayBuffer", "DataView", "Generator", "Iterator",
                  "ArrayIterator", "StringIterator", "MapIterator", "SetIterator" -> "Object";
+            // 19.1.3.6 asks for the internal slot rather than for the class,
+            // and the prototype of one of these three is an ordinary object
+            // that has none: 19.5.3, 20.3.4 and 21.2.5 all say so, where ES5.1
+            // gave each the class of what it prototypes. Only a prototype is
+            // named after a kind without being one.
+            case "Error", "Date", "RegExp" -> sobj instanceof PrototypeObject ? "Object" : className;
             default -> className;
         };
     }
