@@ -93,7 +93,7 @@ public final class NativeObject {
 
     private static InvokeByName getTO_STRING() {
         return Global.instance().getInvokeByName(TO_STRING, () ->
-            new InvokeByName("toString", ScriptObject.class));
+            new InvokeByName("toString", Object.class));
     }
 
     private static final Operation GET_METHOD   = GET.withNamespace(METHOD);
@@ -620,15 +620,16 @@ public final class NativeObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static Object toLocaleString(final Object self) {
-        final Object obj = JSType.toScriptObject(self);
-        if (obj instanceof ScriptObject) {
+        if (JSType.toScriptObject(self) instanceof ScriptObject) {
+            // 19.1.3.5 invokes toString on the this value itself: the lookup
+            // goes through a wrapper for a primitive, the call does not, which
+            // is the this a strict callee sees
             final InvokeByName toStringInvoker = getTO_STRING();
-            final ScriptObject sobj = (ScriptObject)obj;
             try {
-                final Object toString = toStringInvoker.getGetter().invokeExact(sobj);
+                final Object toString = toStringInvoker.getGetter().invokeExact(self);
 
                 if (Bootstrap.isCallable(toString)) {
-                    return toStringInvoker.getInvoker().invokeExact(toString, sobj);
+                    return toStringInvoker.getInvoker().invokeExact(toString, self);
                 }
             } catch (final RuntimeException | Error e) {
                 throw e;

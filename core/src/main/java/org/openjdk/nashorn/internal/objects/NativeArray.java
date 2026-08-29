@@ -218,7 +218,7 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     private static InvokeByName getTO_LOCALE_STRING() {
-        return Global.instance().getInvokeByName(TO_LOCALE_STRING, () -> new InvokeByName("toLocaleString", ScriptObject.class, String.class));
+        return Global.instance().getInvokeByName(TO_LOCALE_STRING, () -> new InvokeByName("toLocaleString", Object.class, String.class));
     }
 
     // initialized by nasgen
@@ -555,16 +555,16 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             final Object obj = iter.next();
 
             if (obj != null && obj != ScriptRuntime.UNDEFINED) {
-                final Object val = JSType.toScriptObject(obj);
-
                 try {
-                    if (val instanceof ScriptObject) {
+                    if (JSType.toScriptObject(obj) instanceof ScriptObject) {
+                        // 22.1.3.26 invokes the element itself: the lookup goes
+                        // through a wrapper for a primitive, the call does not,
+                        // which is the this a strict callee sees
                         final InvokeByName localeInvoker = getTO_LOCALE_STRING();
-                        final ScriptObject sobj           = (ScriptObject)val;
-                        final Object       toLocaleString = localeInvoker.getGetter().invokeExact(sobj);
+                        final Object       toLocaleString = localeInvoker.getGetter().invokeExact(obj);
 
                         if (Bootstrap.isCallable(toLocaleString)) {
-                            sb.append((String)localeInvoker.getInvoker().invokeExact(toLocaleString, sobj));
+                            sb.append((String)localeInvoker.getInvoker().invokeExact(toLocaleString, obj));
                         } else {
                             throw typeError("not.a.function", "toLocaleString");
                         }
@@ -1593,7 +1593,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             for (int j = 0; j < items.length; j++) {
                 sobj.setArray(sobj.getArray().set(j, items[j], true));
             }
-        } else {
+        } else if (items.length > 0) {
+            // nothing is inserted and so nothing moves when there are no items
+            // - 22.1.3.28 step 4 asks first, and a length near 2^53 makes the
+            // difference between returning and walking every index
             for (long k = len; k > 0; k--) {
                 final long from = k - 1;
                 final long to = k + items.length - 1;
@@ -2246,8 +2249,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (sobj == null) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final ScriptFunction callback = asFunction(predicate);
+        // 22.1.3.8 reads the length before it looks at the predicate, so an
+        // abrupt one is what the caller sees rather than the type error
         final long length = toLength(sobj.getLength());
+        final ScriptFunction callback = asFunction(predicate);
 
         for (long i = 0; i < length; i++) {
             final Object value = sobj.get(i);
@@ -2469,7 +2474,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (index == ScriptRuntime.UNDEFINED) {
             return whenUndefined;
         }
-        final double relative = JSType.toInteger(index);
+        // ToInteger, done in doubles: an index near 2^53 does not fit an int,
+        // and the one it would be clamped to is a different element
+        final double number = JSType.toNumber(index);
+        final double relative = Double.isNaN(number) ? 0
+                : number < 0 ? Math.ceil(number) : Math.floor(number);
         return relative < 0 ? (long)Math.max(length + relative, 0) : (long)Math.min(relative, length);
     }
 
