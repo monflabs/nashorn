@@ -759,7 +759,50 @@ public final class NativeRegExp extends ScriptObject {
     public static Object source(final Object self) {
         // ES2015 21.2.5.10: the prototype is an ordinary object now, and describes
         // the pattern that matches nothing rather than pretending to be one
-        return isRegExpPrototype(self) ? "(?:)" : checkRegExp(self).getRegExp().getSource();
+        return isRegExpPrototype(self) ? "(?:)" : escapePattern(checkRegExp(self).getRegExp().getSource());
+    }
+
+    /**
+     * EscapeRegExpPattern, ES2015 21.2.5.10.
+     *
+     * The source is what stands between the slashes of a literal, so a slash
+     * of its own would end it and a line terminator could not appear in it at
+     * all. Both are written as escapes, which leaves a string that can be put
+     * back between slashes and read as the same pattern.
+     */
+    private static String escapePattern(final String source) {
+        StringBuilder sb = null;
+        for (int i = 0; i < source.length(); i++) {
+            final char ch = source.charAt(i);
+            final String escape;
+            switch (ch) {
+                case '/':  escape = "\\/";      break;
+                case '\n': escape = "\\n";      break;
+                case '\r': escape = "\\r";      break;
+                case '\u2028': escape = "\\u2028"; break;
+                case '\u2029': escape = "\\u2029"; break;
+                case '\\':
+                    // an escape stands for whatever follows it, including a
+                    // slash that has already been written as one
+                    if (sb != null && i + 1 < source.length()) {
+                        sb.append(ch).append(source.charAt(i + 1));
+                    }
+                    i++;
+                    continue;
+                default:   escape = null;      break;
+            }
+            if (escape == null) {
+                if (sb != null) {
+                    sb.append(ch);
+                }
+            } else {
+                if (sb == null) {
+                    sb = new StringBuilder(source.length() + 8).append(source, 0, i);
+                }
+                sb.append(escape);
+            }
+        }
+        return sb == null ? source : sb.toString();
     }
 
     /**
@@ -1405,7 +1448,11 @@ public final class NativeRegExp extends ScriptObject {
      * @return last index property as int
      */
     public int getLastIndex() {
-        return JSType.toInteger(lastIndex);
+        // ES2015 21.2.5.2.2 step 4 is a ToLength: an index before the start of
+        // the string is the start of it, not a failure to match, and one past
+        // what an int can hold is past the end of any string
+        final double index = JSType.toNumber(lastIndex);
+        return Double.isNaN(index) || index < 0 ? 0 : (int)Math.min(index, Integer.MAX_VALUE);
     }
 
     /**

@@ -40,14 +40,18 @@ if (r.test("a")) {
     throw new Error("Expected no match");
 }
 
+// ES2015 21.2.5.2.2 reads lastIndex through ToLength, which answers zero for
+// anything below it: a negative index is the start of the string rather than a
+// position before it, so the match is found
+
 r.lastIndex = -0x100000000;
-if (r.test("a")) {
+if (!r.test("a")) {
     throw new Error("Expected match");
 }
 
 r.lastIndex = -0x100000000000000;
-if (r.test("a")) {
-    throw new Error("Expected no match");
+if (!r.test("a")) {
+    throw new Error("Expected match");
 }
 
 r.lastIndex = 1;
@@ -56,8 +60,8 @@ if (r.test("a")) {
 }
 
 r.lastIndex = -1;
-if (r.test("a")) {
-    throw new Error("Expected no match");
+if (!r.test("a")) {
+    throw new Error("Expected match");
 }
 
 r.lastIndex = 0;
