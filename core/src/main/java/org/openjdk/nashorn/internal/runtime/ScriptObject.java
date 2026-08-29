@@ -876,6 +876,21 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     }
 
     /**
+     * Whether this object answers a lookup for a key its map does not hold.
+     *
+     * A walk along a prototype chain for an array index reads maps and array
+     * data rather than asking each object, which is faster and is the same
+     * answer for every ordinary object. A proxy is not one: its map is empty
+     * and what it has is whatever its traps say, so a walk that reads the map
+     * would pass it by. One that says yes here is asked instead.
+     *
+     * @return true if the object has to be asked
+     */
+    public boolean answersForEveryKey() {
+        return false;
+    }
+
+    /**
      * Low level property API. This is similar to {@link #findProperty(Object, boolean)} but returns a
      * {@code boolean} value instead of a {@link FindProperty} object.
      * @param key  Property key.
@@ -3114,8 +3129,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private int getInt(final int index, final Object key, final int programPoint) {
         if (isValidArrayIndex(index)) {
             for (ScriptObject object = this; ; ) {
-                if (object.getMap().containsArrayKeys()) {
-                    final FindProperty find = object.findProperty(key, false);
+                if (object.getMap().containsArrayKeys() || object.answersForEveryKey()) {
+                    // the receiver is where the read began, not where the
+                    // property was found, which is what a getter - and a
+                    // proxy's trap - is handed
+                    final FindProperty find = object.findProperty(key, false, false, this);
 
                     if (find != null) {
                         return getIntValue(find, programPoint);
@@ -3185,8 +3203,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private double getDouble(final int index, final Object key, final int programPoint) {
         if (isValidArrayIndex(index)) {
             for (ScriptObject object = this; ; ) {
-                if (object.getMap().containsArrayKeys()) {
-                    final FindProperty find = object.findProperty(key, false);
+                if (object.getMap().containsArrayKeys() || object.answersForEveryKey()) {
+                    // the receiver is where the read began, not where the
+                    // property was found, which is what a getter - and a
+                    // proxy's trap - is handed
+                    final FindProperty find = object.findProperty(key, false, false, this);
                     if (find != null) {
                         return getDoubleValue(find, programPoint);
                     }
@@ -3255,8 +3276,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private Object get(final int index, final Object key) {
         if (isValidArrayIndex(index)) {
             for (ScriptObject object = this; ; ) {
-                if (object.getMap().containsArrayKeys()) {
-                    final FindProperty find = object.findProperty(key, false);
+                if (object.getMap().containsArrayKeys() || object.answersForEveryKey()) {
+                    // the receiver is where the read began, not where the
+                    // property was found, which is what a getter - and a
+                    // proxy's trap - is handed
+                    final FindProperty find = object.findProperty(key, false, false, this);
 
                     if (find != null) {
                         return find.getObjectValue();
@@ -3359,7 +3383,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
     private boolean hasDefinedArrayProperties() {
         for (ScriptObject obj = this; obj != null; obj = obj.getProto()) {
-            if (obj.getMap().containsArrayKeys()) {
+            if (obj.getMap().containsArrayKeys() || obj.answersForEveryKey()) {
                 return true;
             }
         }
@@ -3679,7 +3703,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             if (self.getArray().has(index)) {
                 return true;
             }
-            hasArrayKeys = hasArrayKeys || self.getMap().containsArrayKeys();
+            hasArrayKeys = hasArrayKeys || self.getMap().containsArrayKeys() || self.answersForEveryKey();
         }
 
         return hasArrayKeys && hasProperty(ArrayIndex.toKey(index), true);

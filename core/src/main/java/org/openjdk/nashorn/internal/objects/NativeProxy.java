@@ -217,6 +217,11 @@ public final class NativeProxy extends ScriptObject {
     }
 
     @Override
+    public boolean answersForEveryKey() {
+        return true;
+    }
+
+    @Override
     protected boolean answersForName(final Object key) {
         // 8.1.1.2.1 HasBinding: a with statement binds a name when the object
         // has it, which for a proxy is what its "has" trap says
