@@ -3770,6 +3770,12 @@ public class Parser extends AbstractParser implements Loggable {
                     FunctionNode.ES6_IS_METHOD, computed).functionNode;
         } else if (isIdentifier && (type == COMMARIGHT || type == RBRACE || type == ASSIGN)) {
             propertyValue = createIdentNode(propertyToken, finish, ((IdentNode) propertyName).getPropertyName());
+            // ES2015 12.2.6.1: what a shorthand property stands for is an
+            // identifier reference, which "yield" is not inside a generator -
+            // where it is the keyword, whatever it names as a property
+            if (YIELD_NAME.equals(((IdentNode) propertyValue).getName()) && inGeneratorFunction()) {
+                throw error(AbstractParser.message("strict.name", YIELD_NAME, "identifier"), propertyToken);
+            }
             if (type == ASSIGN) {
                 // ES2015 12.2.6.1: "{ a = 1 }" is only a property definition
                 // inside a destructuring pattern, and the cover grammar means
@@ -5702,7 +5708,38 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
+    /**
+     * ES2015 14.2.1: an arrow's parameters may not hold a yield expression.
+     *
+     * The parameters are recovered from a parenthesized expression, where a
+     * yield written inside a generator is an expression like any other - so
+     * what was read as one has to be refused once the arrow it belongs to
+     * turns up. An arrow is not a generator, and its parameters are not part
+     * of the one it is written in.
+     */
+    private void verifyNoYieldInParameters(final Expression paramListExpr) {
+        if (paramListExpr == null || !insideGenerator()) {
+            return;
+        }
+        paramListExpr.accept(new NodeVisitor<>(new LexicalContext()) {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                // a function written in a parameter has a yield of its own
+                return false;
+            }
+
+            @Override
+            public boolean enterUnaryNode(final UnaryNode unaryNode) {
+                if (unaryNode.isTokenType(YIELD) || unaryNode.isTokenType(YIELD_STAR)) {
+                    throw error(AbstractParser.message("yield.in.arrow.parameters"), unaryNode.getToken());
+                }
+                return true;
+            }
+        });
+    }
+
     private List<IdentNode> convertArrowFunctionParameterList(final Expression paramListExpr, final int functionLine) {
+        verifyNoYieldInParameters(paramListExpr);
         final List<IdentNode> parameters;
         if (paramListExpr == null) {
             // empty parameter list, i.e. () =>
