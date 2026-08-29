@@ -6800,7 +6800,7 @@ public class Parser extends AbstractParser implements Loggable {
                 if (throughArrow) {
                     // an arrow inside this function reads its this, so it has to
                     // be published where the arrow can capture it
-                    fn.setFlag(FunctionNode.ES6_ARROW_USES_THIS);
+                    fn.setFlag(FunctionNode.ES6_ARROW_CAPTURES);
                 }
                 break;
             }
@@ -6828,9 +6828,15 @@ public class Parser extends AbstractParser implements Loggable {
 
     private void markNewTarget(final ParserContext lc) {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        boolean throughArrow = false;
         while (iter.hasNext()) {
             final ParserContextFunctionNode fn = iter.next();
             if (!FunctionNode.isArrow(fn.getKind())) {
+                if (throughArrow) {
+                    // an arrow has no new.target of its own either, so the one
+                    // it reads is published beside the this it reads
+                    fn.setFlag(FunctionNode.ES6_ARROW_CAPTURES);
+                }
                 // an eval program reads the caller's new.target through its own
                 // callee, so it is marked too, which is what gives it one
                 if (!fn.isProgram() || evalNewTargetAllowed) {
@@ -6838,6 +6844,7 @@ public class Parser extends AbstractParser implements Loggable {
                 }
                 break;
             }
+            throughArrow = true;
         }
     }
 

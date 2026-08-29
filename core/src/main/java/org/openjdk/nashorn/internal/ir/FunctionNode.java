@@ -282,15 +282,16 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
 
     /**
      * Set on a function that is not itself an arrow but contains one reading
-     * {@code this}, so that it publishes its own into a variable the arrow can
-     * capture (ES2015 8.1.1.3).
+     * something the arrow has none of - {@code this} or {@code new.target} - so
+     * that it publishes its own into a variable the arrow can capture (ES2015
+     * 8.1.1.3).
      *
      * The parser records it, rather than the desugaring phase working it out,
      * because a function may be compiled on its own long after the one that
      * contains it, and the two compilations have to agree on whether it takes a
      * callee.
      */
-    public static final int ES6_ARROW_USES_THIS         = 1 << 29;
+    public static final int ES6_ARROW_CAPTURES          = 1 << 29;
 
     /**
      * Set on an anonymous function that ES2015 12.14.4 nevertheless gives a
@@ -797,12 +798,13 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
     }
 
     /**
-     * Whether an arrow function written inside this one reads {@code this}.
+     * Whether an arrow function written inside this one reads {@code this} or
+     * {@code new.target}.
      *
-     * @return true if this function has to publish its {@code this}
+     * @return true if this function has to publish them for the arrow
      */
-    public boolean arrowUsesThis() {
-        return getFlag(ES6_ARROW_USES_THIS);
+    public boolean arrowCaptures() {
+        return getFlag(ES6_ARROW_CAPTURES);
     }
 
     /**

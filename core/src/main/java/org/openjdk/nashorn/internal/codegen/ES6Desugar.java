@@ -115,6 +115,12 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     static final String ARROW_THIS = ":arrowThis";
 
+    /** The name of the variable an arrow reads its new.target from. */
+    static final String ARROW_NEW_TARGET = ":arrowNewTarget";
+
+    /** The name the parser gives the new.target meta-property. */
+    private static final String NEW_TARGET = "new.target";
+
     /**
      * Whether super() has run, in a derived class constructor.
      *
@@ -656,6 +662,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveIdentNode(final IdentNode identNode) {
+        if (NEW_TARGET.equals(identNode.getName())) {
+            // an arrow has no new.target of its own: it reads the one the
+            // function that made it published, the way it reads that one's this
+            return lc.getCurrentFunction().isArrow()
+                    ? new IdentNode(identNode.getToken(), identNode.getFinish(), ARROW_NEW_TARGET)
+                    : super.leaveIdentNode(identNode);
+        }
         if (!CompilerConstants.THIS.symbolName().equals(identNode.getName())) {
             return super.leaveIdentNode(identNode);
         }
@@ -683,8 +696,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                bindArrowThis(bindThis(publishThis(addAsyncPrologue(addGeneratorPrologue(addClassConstructorGuard(
-                        moduleEnvironment(rejectEarlyParameterReads(functionNode))))))));
+                bindArrowThis(bindThis(publishNewTarget(publishThis(addAsyncPrologue(addGeneratorPrologue(
+                        addClassConstructorGuard(moduleEnvironment(rejectEarlyParameterReads(functionNode)))))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);
@@ -931,6 +944,30 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     /**
+     * Publishes this function's new.target where an arrow written inside it can
+     * read it, for the same reason its this is published: 8.1.1.3 resolves the
+     * meta-property where the arrow stands, and the arrow's own frame is not
+     * the one that holds the answer.
+     */
+    private FunctionNode publishNewTarget(final FunctionNode functionNode) {
+        if (!functionNode.arrowCaptures() || !functionNode.usesNewTarget()) {
+            return functionNode;
+        }
+
+        final long token = Token.recast(functionNode.getToken(), TokenType.VAR);
+        final int finish = functionNode.getFinish();
+        final Block body = functionNode.getBody();
+
+        final List<Statement> statements = new ArrayList<>();
+        statements.add(new VarNode(functionNode.getLineNumber(), token, finish,
+                new IdentNode(token, finish, ARROW_NEW_TARGET),
+                new IdentNode(token, finish, NEW_TARGET)));
+        statements.addAll(body.getStatements());
+
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
+    }
+
+    /**
      * Puts the enclosing function's {@code this} into an arrow's own this slot,
      * for an arrow that uses super.
      *
@@ -963,7 +1000,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * function that contains one reading it.
      */
     private FunctionNode publishThis(final FunctionNode functionNode) {
-        if (!functionNode.arrowUsesThis()) {
+        if (!functionNode.arrowCaptures()) {
             return functionNode;
         }
 
