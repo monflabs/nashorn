@@ -2997,10 +2997,46 @@ public final class Global extends Scope {
      * function it ended up in: two closures made from the same source share
      * the object, and a loop that evaluates the same template twice hands out
      * the same one both times.
+     *
+     * The source counts as itself and not as its text. 12.2.9.3 keys on the
+     * parse node, and two evaluations of the same string parse it twice, so
+     * each is a site of its own - which is why an eval whose source holds a
+     * template is not put in the class cache.
+     *
+     * A source is held weakly: the template objects of code that has been
+     * collected are of no use to anyone, and a program that evaluates a string
+     * over and over would otherwise keep one per evaluation for ever.
      */
-    private final java.util.Map<TemplateSite, ScriptObject> templateObjects = new java.util.HashMap<>();
+    private final java.util.Map<SourceKey, java.util.Map<Integer, ScriptObject>> templateObjects =
+            new java.util.HashMap<>();
 
-    private record TemplateSite(Object source, int position) {
+    private final java.lang.ref.ReferenceQueue<Object> collectedSources = new java.lang.ref.ReferenceQueue<>();
+
+    /** A source, compared as itself, that does not keep the source alive. */
+    private static final class SourceKey extends java.lang.ref.WeakReference<Object> {
+        private final int hash;
+
+        SourceKey(final Object source, final java.lang.ref.ReferenceQueue<Object> queue) {
+            super(source, queue);
+            this.hash = System.identityHashCode(source);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+
+        @Override
+        public boolean equals(final Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof SourceKey key) || hash != key.hash) {
+                return false;
+            }
+            final Object source = get();
+            return source != null && source == key.get();
+        }
     }
 
     /**
@@ -3013,7 +3049,12 @@ public final class Global extends Scope {
      */
     public ScriptObject templateObject(final Object source, final int position,
             final java.util.function.Supplier<ScriptObject> make) {
-        return templateObjects.computeIfAbsent(new TemplateSite(source, position), site -> make.get());
+        for (java.lang.ref.Reference<?> collected; (collected = collectedSources.poll()) != null;) {
+            templateObjects.remove(collected);
+        }
+        return templateObjects
+                .computeIfAbsent(new SourceKey(source, collectedSources), key -> new java.util.HashMap<>())
+                .computeIfAbsent(position, at -> make.get());
     }
 
     /**

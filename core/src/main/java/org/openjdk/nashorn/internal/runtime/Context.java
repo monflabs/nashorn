@@ -1495,7 +1495,7 @@ public final class Context {
 
         // what the same text parses to depends on the eval it was written in,
         // so a class compiled for one is not the class another one wants
-        final boolean cacheable = !newTargetAllowed && !superAllowed;
+        final boolean cacheable = !newTargetAllowed && !superAllowed && !mayTagATemplate(source);
 
         Class<?> script = cacheable ? findCachedClass(source) : null;
         if (script != null) {
@@ -1585,6 +1585,30 @@ public final class Context {
             cacheClass(source, script);
         }
         return script;
+    }
+
+    /**
+     * Whether this is eval code that may hold a template literal.
+     *
+     * 12.2.9.3 hands out one template object per parse node, and evaluating the
+     * same string twice parses it twice, so the two are different sites and get
+     * different objects. Reusing the compiled class would make them one site,
+     * because the site is the source the class was compiled from. Code that
+     * holds no backquote cannot tag a template, and is cached as before.
+     *
+     * @param source the source about to be compiled
+     * @return true if the class must not be cached for it
+     */
+    private static boolean mayTagATemplate(final Source source) {
+        if (!source.isEvalCode()) {
+            return false;
+        }
+        for (final char c : source.getContent()) {
+            if (c == '`') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ScriptLoader createNewLoader() {
