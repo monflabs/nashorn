@@ -1692,6 +1692,35 @@ public final class ScriptRuntime {
     }
 
     /**
+     * A call to something named "eval" whose argument list contains a spread.
+     *
+     * ES2015 12.3.4.1 asks what the callee is and nothing about how the
+     * arguments were written, so this is a direct eval where the callee turns
+     * out to be the built-in one - the spread is collected first, and what it
+     * collected first is the code.
+     *
+     * @param function     the callee
+     * @param scope        the scope the eval would run in
+     * @param thiz         the this value
+     * @param location     where the call was written
+     * @param strict       whether the code around it is strict
+     * @param inParameters whether the call is in a parameter expression
+     * @param callee       the function the call was written in, or null
+     * @param argsArray    the collected arguments
+     * @return the call's result
+     */
+    public static Object SPREAD_EVAL_CALL(final Object function, final Object scope, final Object thiz,
+            final Object location, final boolean strict, final boolean inParameters, final Object callee,
+            final Object argsArray) {
+        final Object[] arguments = SPREAD_TO_ARGUMENTS(argsArray);
+        if (Global.isEval(function)) {
+            return Global.directEval(scope, arguments.length == 0 ? UNDEFINED : arguments[0], thiz,
+                    location, strict, inParameters, callee);
+        }
+        return call(function, UNDEFINED, arguments);
+    }
+
+    /**
      * Calls anything callable, whatever kind of callable it is.
      *
      * @param function the callable

@@ -2560,6 +2560,27 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             loadExpressionAsObject(index.getBase());
             loadExpressionAsObject(index.getIndex());
             helper = "SPREAD_CALL_METHOD";
+        } else if (callNode.getEvalArgs() != null) {
+            // 12.3.4.1 asks what the callee is and nothing about how the
+            // arguments were written, so a spread does not stop this being a
+            // direct eval - the runtime asks whether the callee is the
+            // built-in one, as it does for a call with plain arguments
+            loadExpressionAsObject(function);
+            method.loadCompilerConstant(SCOPE);
+            method.loadCompilerConstant(THIS);
+            method.load(callNode.getEvalArgs().getLocation());
+            method.load(lc.getCurrentFunction().isStrict());
+            method.load(inParameterExpression());
+            if (lc.getCurrentFunction().needsCallee()) {
+                method.loadCompilerConstant(CALLEE);
+            } else {
+                method.loadNull();
+            }
+            loadSpreadArray(callNode.getArgs());
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SPREAD_EVAL_CALL",
+                    methodDescriptor(Object.class, Object.class, Object.class, Object.class, Object.class,
+                            boolean.class, boolean.class, Object.class, Object.class));
+            return;
         } else {
             loadExpressionAsObject(function);
             method.loadUndefined(Type.OBJECT);
