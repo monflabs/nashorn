@@ -125,6 +125,9 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     /** Is this an internal object that should not be visible to scripts? */
     public static final int IS_INTERNAL            = 1 << 4;
 
+    /** Is this an object whose prototype may not be changed? See ES2015 9.4.7. */
+    public static final int IS_IMMUTABLE_PROTOTYPE = 1 << 5;
+
     /**
      * Spill growth rate - by how many elements does {@link ScriptObject#primitiveSpill} and
      * {@link ScriptObject#objectSpill} when full
@@ -1524,6 +1527,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      */
     public void setPrototypeOf(final Object newProto) {
         if (newProto == null || newProto instanceof ScriptObject) {
+            if ((flags & IS_IMMUTABLE_PROTOTYPE) != 0 && newProto != getProto()) {
+                // 9.4.7: the prototype it was made with is the one it keeps,
+                // and 19.1.2.18 turns the refusal into an error
+                throw typeError("__proto__.set.non.extensible", ScriptRuntime.safeToString(this));
+            }
             if (! isExtensible()) {
                 // okay to set same proto again - even if non-extensible
 
@@ -1890,6 +1898,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             // extensible or not
             return true;
         }
+        if ((flags & IS_IMMUTABLE_PROTOTYPE) != 0) {
+            // 9.4.7 SetImmutablePrototype: Object.prototype has the prototype
+            // it was made with and no other, whatever else is asked for
+            return false;
+        }
         if (!isExtensible()) {
             return false;
         }
@@ -1979,6 +1992,14 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     /**
      * Tag this script object as built in
      */
+    /**
+     * Flag this object as one whose prototype may not be changed, which ES2015
+     * 9.4.7 makes of Object.prototype alone.
+     */
+    public final void setIsImmutablePrototype() {
+        flags |= IS_IMMUTABLE_PROTOTYPE;
+    }
+
     public final void setIsBuiltin() {
         flags |= IS_BUILTIN;
     }

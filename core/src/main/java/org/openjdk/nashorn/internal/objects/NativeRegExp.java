@@ -611,7 +611,10 @@ public final class NativeRegExp extends ScriptObject {
         final Object exec = rx.get("exec");
         if (Bootstrap.isCallable(exec) && exec instanceof ScriptFunction function) {
             final Object result = ScriptRuntime.apply(function, rx, str);
-            if (result == null || result == UNDEFINED) {
+            // step 5: what exec answered is an object or it is null, and
+            // nothing else - undefined is not a way of saying it matched
+            // nothing, and neither is a number
+            if (result == null) {
                 return null;
             }
             if (result instanceof ScriptObject sobj) {

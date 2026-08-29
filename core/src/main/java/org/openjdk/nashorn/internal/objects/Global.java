@@ -3498,6 +3498,9 @@ public final class Global extends Scope {
 
         // now initialize Object
         this.builtinObject = initConstructor("Object", ScriptFunction.class);
+        // ES2015 9.4.7 and 19.1.3: Object.prototype keeps the prototype it was
+        // made with - null - whatever anything asks for
+        getObjectPrototype().setIsImmutablePrototype();
         final ScriptObject ObjectPrototype = getObjectPrototype();
         // Object.getPrototypeOf(Function.prototype) === Object.prototype
         anon.setInitialProto(ObjectPrototype);
