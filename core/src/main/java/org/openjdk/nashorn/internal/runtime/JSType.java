@@ -962,6 +962,7 @@ public enum JSType {
             end--;
         }
 
+        final int afterSpace = start;
         final boolean negative;
         if (f == '-') {
             if(++start == end) {
@@ -980,9 +981,15 @@ public enum JSType {
         }
 
         final double value;
-        if (start + 1 < end && f == '0' && Character.toLowerCase(str.charAt(start + 1)) == 'x') {
-            //decode hex string
-            value = parseRadix(str.toCharArray(), start + 2, end, 16);
+        // 7.1.3.1: only a decimal literal may carry a sign, so "-0x1" names no
+        // number at all
+        final char head = start == afterSpace && start + 1 < end && f == '0'
+                ? Character.toLowerCase(str.charAt(start + 1)) : 0;
+        if (head == 'x' || head == 'o' || head == 'b') {
+            // ES2015 7.1.3.1 reads a string that names a number the way the
+            // source does, and since ES2015 that includes the binary and octal
+            // heads beside the hexadecimal one
+            value = parseRadix(str.toCharArray(), start + 2, end, head == 'x' ? 16 : head == 'o' ? 8 : 2);
         } else if (f == 'I' && end - start == 8 && str.regionMatches(start, "Infinity", 0, 8)) {
             return negative ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         } else {
