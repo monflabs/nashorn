@@ -2941,20 +2941,31 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
         protected abstract void init();
 
+        /**
+         * Whether what was collected at the start is still there.
+         *
+         * The keys are taken once, and a property deleted before it comes up is
+         * not visited: 13.7.5.15 EnumerateObjectProperties leaves out anything
+         * the object no longer has when the iteration reaches it.
+         */
+        protected boolean stillThere(final T value) {
+            return true;
+        }
+
         @Override
         public boolean hasNext() {
             if (values == null) {
                 init();
+            }
+            while (index < values.length && !stillThere(values[index])) {
+                index++;
             }
             return index < values.length;
         }
 
         @Override
         public T next() {
-            if (values == null) {
-                init();
-            }
-            return values[index++];
+            return hasNext() ? values[index++] : null;
         }
 
     }
@@ -2962,6 +2973,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private static class KeyIterator extends ScriptObjectIterator<String> {
         KeyIterator(final ScriptObject object) {
             super(object);
+        }
+
+        @Override
+        protected boolean stillThere(final String key) {
+            return object.has(key);
         }
 
         @Override
