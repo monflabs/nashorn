@@ -1188,7 +1188,7 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toLowerCase(final Object self) {
-        return checkObjectToString(self).toLowerCase(Locale.ROOT);
+        return resolveFinalSigma(checkObjectToString(self)).toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -1198,8 +1198,93 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toLocaleLowerCase(final Object self) {
-        return checkObjectToString(self).toLowerCase(Global.getEnv()._locale);
+        return resolveFinalSigma(checkObjectToString(self)).toLowerCase(Global.getEnv()._locale);
     }
+
+    /**
+     * Lowers every capital sigma, which is the one mapping that depends on what
+     * stands around it: a sigma that ends a word becomes the final form, and
+     * any other one the ordinary form.
+     *
+     * The library answers this question by looking at the characters either
+     * side rather than at the code points, so a sigma next to a surrogate pair
+     * - a combining mark from the supplementary planes, say - is read as
+     * standing next to half of one, which is neither cased nor ignorable. Doing
+     * it here leaves nothing for it to decide.
+     */
+    private static String resolveFinalSigma(final String str) {
+        int at = str.indexOf('\u03A3');
+        if (at < 0) {
+            return str;
+        }
+
+        final StringBuilder sb = new StringBuilder(str);
+        do {
+            sb.setCharAt(at, endsWord(str, at) ? '\u03C2' : '\u03C3');
+            at = str.indexOf('\u03A3', at + 1);
+        } while (at >= 0);
+        return sb.toString();
+    }
+
+    /**
+     * The Final_Sigma condition of the Unicode SpecialCasing table: a cased
+     * character stands before the sigma, and none stands after it, with case
+     * ignorable characters counting for neither.
+     */
+    private static boolean endsWord(final String str, final int at) {
+        boolean cased = false;
+        for (int i = at; i > 0; ) {
+            final int cp = str.codePointBefore(i);
+            i -= Character.charCount(cp);
+            if (!isCaseIgnorable(cp)) {
+                cased = isCased(cp);
+                break;
+            }
+        }
+        if (!cased) {
+            return false;
+        }
+
+        for (int i = at + 1; i < str.length(); ) {
+            final int cp = str.codePointAt(i);
+            i += Character.charCount(cp);
+            if (!isCaseIgnorable(cp)) {
+                return !isCased(cp);
+            }
+        }
+        return true;
+    }
+
+    private static boolean isCased(final int cp) {
+        final int type = Character.getType(cp);
+        return type == Character.LOWERCASE_LETTER
+                || type == Character.UPPERCASE_LETTER
+                || type == Character.TITLECASE_LETTER
+                // Other_Lowercase and Other_Uppercase, which the library
+                // answers for through these two
+                || Character.isLowerCase(cp)
+                || Character.isUpperCase(cp);
+    }
+
+    private static boolean isCaseIgnorable(final int cp) {
+        switch (Character.getType(cp)) {
+            case Character.NON_SPACING_MARK:
+            case Character.ENCLOSING_MARK:
+            case Character.FORMAT:
+            case Character.MODIFIER_LETTER:
+            case Character.MODIFIER_SYMBOL:
+                return true;
+            default:
+                // the word break property values MidLetter, MidNumLet and
+                // Single_Quote, which are what is left of Case_Ignorable
+                return WORD_INTERIOR.indexOf(cp) >= 0;
+        }
+    }
+
+    /** MidLetter, MidNumLet and Single_Quote, in code point order. */
+    private static final String WORD_INTERIOR =
+            "\u0027\u002E\u003A\u00B7\u0387\u055F\u05F4\u2018\u2019\u2024\u2027"
+            + "\uFE13\uFE52\uFE55\uFF07\uFF0E\uFF1A";
 
     /**
      * ECMA 15.5.4.18 String.prototype.toUpperCase ( )
@@ -1739,7 +1824,11 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             throw typeError("not.an.object", ScriptRuntime.safeToString(rawValue));
         }
 
-        final long length = JSType.toUint32(raws.get("length"));
+        // ToLength, which answers zero for a length below it rather than the
+        // four billion an unsigned wrap makes of a negative one
+        final double rawLength = JSType.toNumber(raws.get("length"));
+        final long length = Double.isNaN(rawLength) ? 0
+                : (long)Math.min(Math.max(Math.floor(rawLength), 0), 9007199254740991d);
         final StringBuilder sb = new StringBuilder();
         for (long i = 0; i < length; i++) {
             sb.append(JSType.toString(raws.get(i)));
