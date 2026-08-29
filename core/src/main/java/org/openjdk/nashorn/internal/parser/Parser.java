@@ -2423,7 +2423,14 @@ public class Parser extends AbstractParser implements Loggable {
                     break;
                 }
 
-                init = expression(unaryExpression(), COMMARIGHT.getPrecedence(), true);
+                if (lookaheadIsAsyncArrow()) {
+                    // an async arrow is an assignment expression and nothing
+                    // narrower, so the head has to be read as one - "for (async
+                    // of => {}; ...)" is a loop over an arrow named of
+                    init = expression(assignmentExpression(true), COMMARIGHT.getPrecedence(), true);
+                } else {
+                    init = expression(unaryExpression(), COMMARIGHT.getPrecedence(), true);
+                }
                 break;
             }
 
