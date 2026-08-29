@@ -1,10 +1,6 @@
 # test262 ES2017 slice: known failures. Every line is work to do.
 # Regenerate with -Dtest262.write.expectations=true.
 # Reasons for the current run are written to target/test262-failures.txt.
-test/built-ins/Array/from/iter-map-fn-err.js (sloppy)
-test/built-ins/Array/from/iter-map-fn-err.js (strict)
-test/built-ins/Array/from/iter-set-elem-prop-err.js (sloppy)
-test/built-ins/Array/from/iter-set-elem-prop-err.js (strict)
 test/built-ins/Array/length/define-own-prop-length-coercion-order-set.js (sloppy)
 test/built-ins/Array/length/define-own-prop-length-coercion-order-set.js (strict)
 test/built-ins/Array/prototype/concat/arg-length-exceeding-integer-limit.js (sloppy)

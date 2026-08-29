@@ -2368,11 +2368,19 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             final ScriptObject target = create(self, null);
             final Iterator<?> iterator = ScriptRuntime.toES6Iterator(items);
             long index = 0;
-            while (iterator.hasNext()) {
-                final Object element = iterator.next();
-                define(target, index, mapper == null ? element
-                        : ScriptRuntime.apply(mapper, thisArg, element, (double)index));
-                index++;
+            try {
+                while (iterator.hasNext()) {
+                    final Object element = iterator.next();
+                    define(target, index, mapper == null ? element
+                            : ScriptRuntime.apply(mapper, thisArg, element, (double)index));
+                    index++;
+                }
+            } catch (final RuntimeException e) {
+                // steps 7.e and 7.g: what the mapper throws, or what defining
+                // the property throws, ends the walk - and 7.4.6 tells the
+                // iterator so, without reporting what it makes of that
+                ScriptRuntime.ITERATOR_CLOSE_QUIET(iterator);
+                throw e;
             }
             target.set("length", (double)index, CALLSITE_STRICT);
             return target;
