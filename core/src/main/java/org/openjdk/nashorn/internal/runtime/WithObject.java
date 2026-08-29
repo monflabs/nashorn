@@ -77,6 +77,13 @@ public final class WithObject extends Scope {
      * @return True if deleted.
      */
     @Override
+    public boolean isBlockScope() {
+        // the object a with names is not a variable environment either: a var
+        // an eval declares inside it belongs to the function around it
+        return true;
+    }
+
+    @Override
     public boolean delete(final Object key, final boolean strict) {
         final ScriptObject self = expression;
         final String propName = JSType.toString(key);

@@ -651,8 +651,27 @@ public final class ScriptRuntime {
      * @return the scope the eval code runs against
      */
     public static ScriptObject mergeEvalScope(final ScriptObject scope) {
-        final ScriptObject parentScope = scope.getProto();
+        // 18.2.1.3 puts the var declarations in the caller's variable
+        // environment, which the scope the eval was called from need not be:
+        // the blocks between the two hold lexical bindings only
         final Property[] all = scope.getMap().getProperties();
+        ScriptObject variableEnvironment = scope.getProto();
+        while (variableEnvironment.isBlockScope() && variableEnvironment.getProto() != null) {
+            // step 5.d: a var may not have the name of a lexical binding of any
+            // of the blocks it is passing on its way to the environment it
+            // belongs to
+            for (final Property property : all) {
+                if (property.isLexicalBinding()) {
+                    continue;
+                }
+                final Property existing = variableEnvironment.getMap().findProperty(property.getKey());
+                if (existing != null && existing.isLexicalBinding()) {
+                    throw syntaxError("redeclare.variable", property.getKey().toString());
+                }
+            }
+            variableEnvironment = variableEnvironment.getProto();
+        }
+        final ScriptObject parentScope = variableEnvironment;
         int lexicalCount = 0;
         for (final Property property : all) {
             if (property.isLexicalBinding()) {
@@ -663,7 +682,7 @@ public final class ScriptRuntime {
             // an eval that binds nothing lexically, which is most of them, is
             // the ordinary merge and pays nothing for this one being different
             parentScope.addBoundProperties(scope, all);
-            return parentScope;
+            return scope.getProto();
         }
 
         final List<Property> vars = new ArrayList<>(all.length - lexicalCount);
@@ -675,7 +694,8 @@ public final class ScriptRuntime {
         // the environment of the eval's own, holding what it bound lexically
         // and nothing else, so that what it bound with var is still read and
         // written where it was merged to
-        final ScriptObject lexicalScope = new Scope(parentScope, PropertyMap.newMap(Scope.class));
+        final ScriptObject lexicalScope = new Scope(scope.getProto(), PropertyMap.newMap(Scope.class));
+        lexicalScope.setIsBlockScope();
         lexicalScope.addBoundProperties(scope, lexical.toArray(new Property[0]));
         return lexicalScope;
     }

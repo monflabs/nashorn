@@ -129,6 +129,13 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     public static final int IS_IMMUTABLE_PROTOTYPE = 1 << 5;
 
     /**
+     * Is this the scope of a block rather than of a function? A block's is not
+     * a variable environment, so a var declaration reaching it - which only a
+     * direct eval can do - belongs further up (ES2015 18.2.1.3).
+     */
+    public static final int IS_BLOCK_SCOPE         = 1 << 6;
+
+    /**
      * Spill growth rate - by how many elements does {@link ScriptObject#primitiveSpill} and
      * {@link ScriptObject#objectSpill} when full
      */
@@ -2033,6 +2040,23 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      */
     public final boolean isInternal() {
         return (flags & IS_INTERNAL) != 0;
+    }
+
+    /**
+     * Marks this scope as belonging to a block rather than to a function.
+     */
+    public final void setIsBlockScope() {
+        flags |= IS_BLOCK_SCOPE;
+    }
+
+    /**
+     * Whether this scope belongs to a block rather than to a function, and so
+     * is not the variable environment a var declaration belongs to.
+     *
+     * @return true if this is a block's scope
+     */
+    public boolean isBlockScope() {
+        return (flags & IS_BLOCK_SCOPE) != 0;
     }
 
     /**

@@ -2034,6 +2034,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 }
             };
             creator.makeObject(method);
+            if (!isFunctionBody) {
+                // a block's scope is not a variable environment, which is what
+                // an eval called from inside it has to know
+                method.dup();
+                method.invoke(virtualCallNoLookup(ScriptObject.class, "setIsBlockScope", void.class));
+            }
             if (block.providesScopeCreator()) {
                 scopeObjectCreators.push(creator);
             }
