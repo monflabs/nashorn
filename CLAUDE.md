@@ -142,9 +142,10 @@ which this one can, so it is not selected either.
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with
   `-Dnashorn.test262.include=/built-ins/Math/`. Regenerate through Maven, never by running
-  `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, and expectations
-  recorded without it disagree with the gate on the `toLocale*Case` tests, which are eight of the
-  expectations that remain.
+  `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, to catch a case
+  conversion in the engine that forgot to name one. The locale a *script* sees is a separate
+  thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,
+  because the suite is written for a host where "i" grows no dot.
 
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".

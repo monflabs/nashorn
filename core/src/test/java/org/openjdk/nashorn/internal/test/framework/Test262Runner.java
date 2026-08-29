@@ -472,7 +472,13 @@ public final class Test262Runner {
             final PrintWriter outWriter = new PrintWriter(out, true);
             final PrintWriter errWriter = new PrintWriter(err, true);
             final Options options = new Options("nashorn", errWriter);
-            options.process(new String[] { "--language=es6", "--class-cache-size=50" });
+            // The run is made with a Turkish default locale on purpose, to
+            // catch a case conversion in the engine that forgot to name one.
+            // The locale a script sees is a different thing: toLocaleUpperCase
+            // answers for the host's, and the suite is written for a host whose
+            // is not one where "i" has a dot when it grows.
+            options.process(new String[] { "--language=es6", "--class-cache-size=50",
+                    "--locale=en-US" });
             this.errors = new ErrorManager(errWriter);
             // negative tests are expected to produce parse errors by the thousand;
             // the default limit of 100 would abort the run
