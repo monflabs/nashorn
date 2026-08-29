@@ -304,7 +304,7 @@ final class RegExpScanner extends Scanner {
         }
 
         if (atom()) {
-            quantifier();
+            quantifier(startOut);
             return true;
         }
 
@@ -375,15 +375,27 @@ final class RegExpScanner extends Scanner {
      *      QuantifierPrefix
      *      QuantifierPrefix ?
      */
-    private boolean quantifier() {
-        if (quantifierPrefix()) {
+    private boolean quantifier(final int atomStart) {
+        if (quantifierPrefix(atomStart)) {
             if (ch0 == '?') {
                 commit(1);
+            }
+            if (unmatchable) {
+                // the whole term, lazy marker and all: repeating something that
+                // is not nothing more times than a string can hold characters
+                // matches nothing at all, and the library will not take a count
+                // that large in any case
+                unmatchable = false;
+                sb.setLength(atomStart);
+                sb.append("(?!)");
             }
             return true;
         }
         return false;
     }
+
+    /** Set when the term being read cannot match, whatever follows the count. */
+    private boolean unmatchable;
 
     /*
      * QuantifierPrefix ::
@@ -394,7 +406,7 @@ final class RegExpScanner extends Scanner {
      *      { DecimalDigits , }
      *      { DecimalDigits , DecimalDigits }
      */
-    private boolean quantifierPrefix() {
+    private boolean quantifierPrefix(final int atomStart) {
         final int startIn  = position;
         final int startOut = sb.length();
 
@@ -407,19 +419,32 @@ final class RegExpScanner extends Scanner {
         case '{':
             commit(1);
 
+            final int lowerAt = sb.length();
             if (!decimalDigits()) {
                 break; // not a quantifier - back out
             }
+            final boolean unreachableLower = beyondAnyString(lowerAt);
             push('}');
 
+            int upperAt = -1;
             if (ch0 == ',') {
                 commit(1);
-                decimalDigits();
+                upperAt = sb.length();
+                if (!decimalDigits()) {
+                    upperAt = -1;
+                }
             }
 
             if (ch0 == '}') {
                 pop('}');
                 commit(1);
+                if (unreachableLower && cannotMatchEmpty(atomStart, startOut)) {
+                    unmatchable = true;
+                } else if (!unreachableLower && upperAt >= 0 && beyondAnyString(upperAt)) {
+                    // an upper bound no string can reach is no upper bound
+                    sb.setLength(upperAt);
+                    sb.append('}');
+                }
             } else {
                 if (unicode) {
                     throw new RuntimeException("Incomplete quantifier in unicode pattern");
@@ -530,8 +555,10 @@ final class RegExpScanner extends Scanner {
 
        case '{':
            // if not a valid quantifier escape curly brace to match itself
-           // this ensures compatibility with other JS implementations
-           if (!quantifierPrefix()) {
+           // this ensures compatibility with other JS implementations. There is
+           // no atom in front of it here, so nothing a count could be rewritten
+           // against: the position it would start at is the one it is at.
+           if (!quantifierPrefix(sb.length())) {
                if (unicode) {
                    throw new RuntimeException("Incomplete quantifier in unicode pattern");
                }
@@ -695,6 +722,37 @@ final class RegExpScanner extends Scanner {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Whether a repetition count written from {@code from} on is larger than
+     * the number of characters any string can hold.
+     *
+     * A count that large can be neither matched nor, in the library behind
+     * this, even compiled - it parses one into an int - so what a pattern
+     * carrying one means has to be worked out here.
+     */
+    private boolean beyondAnyString(final int from) {
+        int at = from;
+        while (at < sb.length() - 1 && sb.charAt(at) == '0') {
+            at++;
+        }
+        final String digits = sb.substring(at);
+        return digits.length() > 10
+                || digits.length() == 10 && digits.compareTo("2147483647") > 0;
+    }
+
+    /**
+     * Whether the atom written between the two positions matches at least one
+     * character.
+     *
+     * A group may match nothing at all, and repeating that any number of times
+     * still matches nothing; a character, an escape or a class always takes
+     * one, and repeating one of those past the length of any string matches
+     * nothing that could be written down.
+     */
+    private boolean cannotMatchEmpty(final int atomStart, final int atomEnd) {
+        return atomEnd > atomStart && sb.charAt(atomStart) != '(';
     }
 
     /*
