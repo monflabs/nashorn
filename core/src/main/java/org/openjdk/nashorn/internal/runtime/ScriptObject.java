@@ -3134,19 +3134,29 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
        // Check for numeric keys in property map and delete them or adjust length, depending on whether
        // they're defined as configurable. See ES5 #15.4.5.2
+       //
+       // What is looked at is the properties the map holds rather than every
+       // index between the two lengths: the range can be the whole of what an
+       // index can name, while the properties are as many as were defined.
        if (getMap().containsArrayKeys()) {
+           final List<Property> above = new ArrayList<>();
+           for (final Property property : getMap().getProperties()) {
+               final int index = ArrayIndex.getArrayIndex(property.getKey());
+               if (ArrayIndex.isValidArrayIndex(index) && ArrayIndex.toLongIndex(index) >= newLength) {
+                   above.add(property);
+               }
+           }
+           // deleting from the top down, because the length stops at the first
+           // one that will not go
+           above.sort(Comparator.comparingLong(
+                   (final Property property) -> ArrayIndex.toLongIndex(ArrayIndex.getArrayIndex(property.getKey()))).reversed());
 
-           for (long l = arrayLength - 1; l >= newLength; l--) {
-               final FindProperty find = findProperty(JSType.toString(l), false);
-
-               if (find != null) {
-
-                   if (find.getProperty().isConfigurable()) {
-                       deleteOwnProperty(find.getProperty());
-                   } else {
-                       actualLength = l + 1;
-                       break;
-                   }
+           for (final Property property : above) {
+               if (property.isConfigurable()) {
+                   deleteOwnProperty(property);
+               } else {
+                   actualLength = ArrayIndex.toLongIndex(ArrayIndex.getArrayIndex(property.getKey())) + 1;
+                   break;
                }
            }
        }
