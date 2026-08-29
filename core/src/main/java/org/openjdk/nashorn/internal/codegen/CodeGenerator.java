@@ -3136,6 +3136,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         // One must be a "undefined" identifier, otherwise we can't get here
         assert lhsSymbol != null || rhsSymbol != null;
 
+        if (isUndefinedLiteral(lhs) || isUndefinedLiteral(rhs)) {
+            // the value itself rather than the name for it, which the desugaring
+            // writes: nothing has to be looked up and nothing can shadow it
+            undefinedCheck(runtimeNode, isUndefinedLiteral(lhs) ? rhs : lhs, request == Request.IS_UNDEFINED);
+            return true;
+        }
+
         final Symbol undefinedSymbol;
         if (isUndefinedSymbol(lhsSymbol)) {
             undefinedSymbol = lhsSymbol;
@@ -3167,8 +3174,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             return false;
         }
 
-        final boolean isUndefinedCheck = request == Request.IS_UNDEFINED;
-        final Expression expr = undefinedSymbol == lhsSymbol ? rhs : lhs;
+        undefinedCheck(runtimeNode, undefinedSymbol == lhsSymbol ? rhs : lhs, request == Request.IS_UNDEFINED);
+        return true;
+    }
+
+    /** Emits the comparison itself, once the undefined side has been recognised. */
+    private void undefinedCheck(final RuntimeNode runtimeNode, final Expression expr, final boolean isUndefinedCheck) {
         if (expr.getType().isPrimitive()) {
             loadAndDiscard(expr); //throw away lhs, but it still needs to be evaluated for side effects, even if not in scope, as it can be optimistic
             method.load(!isUndefinedCheck);
@@ -3184,12 +3195,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.load(isUndefinedCheck);
             method.label(end);
         }
-
-        return true;
     }
 
     private static boolean isUndefinedSymbol(final Symbol symbol) {
         return symbol != null && "undefined".equals(symbol.getName());
+    }
+
+    private static boolean isUndefinedLiteral(final Expression expression) {
+        return expression instanceof LiteralNode<?> literal
+                && literal.getValue() == ScriptRuntime.UNDEFINED;
     }
 
     private static boolean isNullLiteral(final Node node) {
@@ -4283,7 +4297,13 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      */
     private boolean resolvesReferenceFirst(final IdentNode ident) {
         final Symbol symbol = ident.getSymbol();
-        if (symbol == null || !symbol.isScope() || ident.isDeclaredHere()) {
+        if (symbol == null || !symbol.isScope()) {
+            return false;
+        }
+        if (ident.isDeclaredHere() && symbol.isBlockScoped()) {
+            // a let or a const binds where it stands and makes no reference; a
+            // var's initialiser is an assignment to a name declared elsewhere,
+            // and 14.3.3.3 resolves that before it evaluates the value
             return false;
         }
         return !isFastScope(symbol)

@@ -1642,10 +1642,15 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             final List<Statement> statements) {
         if (element instanceof BinaryNode withDefault && withDefault.isTokenType(TokenType.ASSIGN)
                 && !isPattern(withDefault.lhs())) {
+            // 14.3.3.3 resolves the target before it reads the value, and both
+            // are observable, so the read goes inside the assignment rather than
+            // in front of it: what the temporary holds is what the assignment
+            // begins by evaluating
             final String holder = newTemporary();
-            statements.add(temporaryFor(at, holder, value));
+            statements.add(declareTemporary(at, holder));
             bind(at, withDefault.lhs(),
-                    defaulted(at, holder, withDefault.rhs()), statements);
+                    sequence(at, assignTemporary(at, holder, value), defaulted(at, holder, withDefault.rhs())),
+                    statements);
             return;
         }
 
@@ -1663,12 +1668,11 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
     /** {@code holder === undefined ? fallback : holder} */
     private Expression defaulted(final Statement at, final String holder, final Expression fallback) {
-        // The undefined side has to be the global "undefined" identifier rather
-        // than a literal: the code generator recognises an undefined check by
-        // finding that symbol, and falls back to a generic strict comparison -
-        // and then a null dereference - for anything else.
+        // The undefined side is the value, not the global name for it: reading
+        // the name is observable where the scope is dynamic - a with block's
+        // object is asked whether it has one - and 8.5.2 makes no such read
         final Expression isUndefined = runtime(at, RuntimeNode.Request.IS_UNDEFINED,
-                ref(at, holder), ref(at, UNDEFINED_NAME));
+                ref(at, holder), LiteralNode.newInstance(at.getToken(), at.getFinish(), ScriptRuntime.UNDEFINED));
         return new TernaryNode(Token.recast(at.getToken(), TokenType.TERNARY), isUndefined,
                 new JoinPredecessorExpression(fallback),
                 new JoinPredecessorExpression(ref(at, holder)));
@@ -1707,6 +1711,16 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     /** A fresh reference to a name. IdentNodes are immutable but not shareable across uses. */
     private static IdentNode ref(final Statement at, final String name) {
         return new IdentNode(at.getToken(), at.getFinish(), name);
+    }
+
+    /** {@code (first, second)}, evaluated in that order and worth the second. */
+    private static Expression sequence(final Statement at, final Expression first, final Expression second) {
+        return new BinaryNode(Token.recast(at.getToken(), TokenType.COMMARIGHT), first, second);
+    }
+
+    /** {@code :temp = value}, for a temporary already declared. */
+    private static Expression assignTemporary(final Statement at, final String name, final Expression value) {
+        return new BinaryNode(Token.recast(at.getToken(), TokenType.ASSIGN), ref(at, name), value);
     }
 
     /** An undefined-initialised declaration, for a temporary used by a later statement. */
