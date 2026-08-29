@@ -266,18 +266,6 @@ public abstract class ContinuousArrayData extends ArrayData {
             final Object[]        args  = request.getArguments();
             final int             index = (int)args[args.length - 2];
 
-            // An index the array already has is its own property and the write
-            // is its own business. One it has not is 9.1.9.1's walk of the
-            // prototype chain, where an accessor is entitled to the write - so
-            // that link stands only while nothing anywhere holds a property at
-            // an index. Asked before hasRoomFor, which grows the array to make
-            // the room and would answer that it has the index by then.
-            final boolean own = has(index);
-            final SwitchPoint pristine = own ? null : IndexedPrototypes.pristine();
-            if (!own && pristine == null) {
-                return null;
-            }
-
             if (hasRoomFor(index)) {
                 MethodHandle setElement = getElementSetter(elementType); //Z(continuousarraydata, int, int), return true if successful
                 if (setElement != null) {
@@ -286,7 +274,7 @@ public abstract class ContinuousArrayData extends ArrayData {
                     getArray   = MH.asType(getArray, getArray.type().changeReturnType(getClass()));
                     setElement = MH.filterArguments(setElement, 0, getArray);
                     final MethodHandle guard = MH.insertArguments(FAST_ACCESS_GUARD, 0, clazz);
-                    return new GuardedInvocation(setElement, guard, pristine, ClassCastException.class); //CCE if not a scriptObject anymore
+                    return new GuardedInvocation(setElement, guard, (SwitchPoint)null, ClassCastException.class); //CCE if not a scriptObject anymore
                 }
             }
         }

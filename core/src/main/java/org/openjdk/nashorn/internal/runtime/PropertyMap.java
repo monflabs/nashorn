@@ -341,13 +341,7 @@ public class PropertyMap implements Iterable<Object>, Serializable {
     }
 
     private int newFlags(final Property newProperty) {
-        if (!isValidArrayIndex(getArrayIndex(newProperty.getKey()))) {
-            return flags;
-        }
-        // an object that holds a property at an index may be a prototype, and a
-        // write to that index of something below it has to be allowed to find it
-        org.openjdk.nashorn.internal.runtime.arrays.IndexedPrototypes.note();
-        return flags | CONTAINS_ARRAY_KEYS;
+        return isValidArrayIndex(getArrayIndex(newProperty.getKey())) ? flags | CONTAINS_ARRAY_KEYS : flags;
     }
 
     // Update the free slots bitmap for a property that has been deleted and/or added. This method is not synchronized
