@@ -95,7 +95,7 @@ public final class DoubleConversion {
      * @return formatted number
      */
     public static String toFixed(final double value, final int requestedDigits) {
-        final DtoaBuffer buffer = new DtoaBuffer(BUFFER_LENGTH);
+        final DtoaBuffer buffer = new DtoaBuffer(BUFFER_LENGTH + requestedDigits);
         final double absValue = Math.abs(value);
 
         if (value < 0) {
@@ -111,6 +111,43 @@ public final class DoubleConversion {
         }
 
         return buffer.format(DtoaMode.FIXED, requestedDigits);
+    }
+
+    /**
+     * Converts a double number to a string representation in exponential
+     * notation with a fixed number of digits after the point.
+     *
+     * @param value number to convert
+     * @param requestedDigits number of digits after the point, or {@code -1}
+     *                        for as many as identify the value
+     * @return formatted number
+     */
+    public static String toExponential(final double value, final int requestedDigits) {
+        final DtoaBuffer buffer = new DtoaBuffer(Math.max(requestedDigits + 1, DtoaBuffer.kFastDtoaMaximalLength));
+        final double absValue = Math.abs(value);
+
+        if (value < 0) {
+            buffer.isNegative = true;
+        }
+
+        if (value == 0) {
+            buffer.append('0');
+            buffer.decimalPoint = 1;
+        } else if (requestedDigits < 0) {
+            if (!fastDtoaShortest(absValue, buffer)) {
+                buffer.reset();
+                bignumDtoa(absValue, DtoaMode.SHORTEST, 0, buffer);
+            }
+        } else {
+            // the digits before and after the point together are the precision
+            final int precision = requestedDigits + 1;
+            if (!fastDtoaCounted(absValue, precision, buffer)) {
+                buffer.reset();
+                bignumDtoa(absValue, DtoaMode.PRECISION, precision, buffer);
+            }
+        }
+
+        return buffer.formatExponential(requestedDigits);
     }
 
     /**

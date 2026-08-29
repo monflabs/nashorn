@@ -135,6 +135,23 @@ public class DtoaBuffer {
      * @param digitsAfterPoint number of digits after point
      * @return formatted string
      */
+    /**
+     * Returns the formatted buffer content as string, in exponential notation
+     * with a fixed number of digits after the point.
+     *
+     * @param digitsAfterPoint number of digits after the point, or {@code -1}
+     *                         for as many as the buffer holds
+     * @return formatted string
+     */
+    public String formatExponential(final int digitsAfterPoint) {
+        final StringBuilder buffer = new StringBuilder();
+        if (isNegative) {
+            buffer.append('-');
+        }
+        toExponentialFormat(buffer, digitsAfterPoint);
+        return buffer.toString();
+    }
+
     public String format(final DtoaMode mode, final int digitsAfterPoint) {
         final StringBuilder buffer = new StringBuilder();
         if (isNegative) {
@@ -145,7 +162,7 @@ public class DtoaBuffer {
         switch (mode) {
             case SHORTEST:
                 if (decimalPoint < -5 || decimalPoint > 21) {
-                    toExponentialFormat(buffer);
+                    toExponentialFormat(buffer, -1);
                 } else {
                     toFixedFormat(buffer, digitsAfterPoint);
                 }
@@ -155,7 +172,7 @@ public class DtoaBuffer {
                 break;
             case PRECISION:
                 if (decimalPoint < -5 || decimalPoint > length) {
-                    toExponentialFormat(buffer);
+                    toExponentialFormat(buffer, -1);
                 } else {
                     toFixedFormat(buffer, digitsAfterPoint);
                 }
@@ -198,16 +215,20 @@ public class DtoaBuffer {
         }
     }
 
-    private void toExponentialFormat(final StringBuilder buffer) {
+    private void toExponentialFormat(final StringBuilder buffer, final int digitsAfterPoint) {
         buffer.append(chars[0]);
-        if (length > 1) {
+        // a caller asking for a set number of digits gets exactly that many,
+        // padded with zeros where the shortest representation stopped earlier
+        final int fraction = digitsAfterPoint < 0 ? length - 1 : digitsAfterPoint;
+        if (fraction > 0) {
             // insert decimal decimalPoint if more than one digit was produced
             buffer.append('.');
-            buffer.append(chars, 1, length - 1);
+            buffer.append(chars, 1, Math.min(length - 1, fraction));
+            buffer.append("0".repeat(Math.max(0, fraction - (length - 1))));
         }
         buffer.append('e');
         final int exponent = decimalPoint - 1;
-        if (exponent > 0) {
+        if (exponent >= 0) {
             buffer.append('+');
         }
         buffer.append(exponent);

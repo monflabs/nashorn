@@ -47,11 +47,11 @@ if (new Number(1.2542).toFixed(3) !== "1.254") {
 }
 
 try {
-    453.334.toFixed(31);
-    fail("#5 toFixed(31) should have thrown RangeError");
+    453.334.toFixed(101);
+    fail("#5 toFixed(101) should have thrown RangeError");
 } catch (e) {
     if (! (e instanceof RangeError)) {
-        fail("#6 toFixed(31) should throw RangeError, got " + e);
+        fail("#6 toFixed(101) should throw RangeError, got " + e);
     }
 }
 
@@ -79,8 +79,8 @@ try {
 }
 
 try {
-    num.toPrecision(22);
-    fail("#11: num.toPrecision(22) should have been thrown RangeError");
+    num.toPrecision(101);
+    fail("#11: num.toPrecision(101) should have been thrown RangeError");
 } catch (e) {
     if (! (e instanceof RangeError)) {
         fail("#12: RangeError expected, got " + e);

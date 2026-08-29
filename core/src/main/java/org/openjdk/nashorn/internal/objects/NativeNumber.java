@@ -33,7 +33,6 @@ import static org.openjdk.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.util.Locale;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.LinkRequest;
 import org.openjdk.nashorn.internal.objects.annotations.Attribute;
@@ -172,7 +171,7 @@ public final class NativeNumber extends ScriptObject {
      */
     @SpecializedFunction
     public static String toFixed(final Object self, final int fractionDigits) {
-        if (fractionDigits < 0 || fractionDigits > 20) {
+        if (fractionDigits < 0 || fractionDigits > 100) {
             throw rangeError("invalid.fraction.digits", "toFixed");
         }
 
@@ -199,8 +198,9 @@ public final class NativeNumber extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toExponential(final Object self, final Object fractionDigits) {
         final double  x         = getNumberValue(self);
-        final boolean trimZeros = fractionDigits == UNDEFINED;
-        final int     f         = trimZeros ? 16 : JSType.toInteger(fractionDigits);
+        // undefined asks for as many digits as identify the value, which the
+        // conversion below is told by a negative count
+        final int     f         = fractionDigits == UNDEFINED ? -1 : JSType.toInteger(fractionDigits);
 
         if (Double.isNaN(x)) {
             return "NaN";
@@ -208,12 +208,11 @@ public final class NativeNumber extends ScriptObject {
             return x > 0? "Infinity" : "-Infinity";
         }
 
-        if (fractionDigits != UNDEFINED && (f < 0 || f > 20)) {
+        if (fractionDigits != UNDEFINED && (f < 0 || f > 100)) {
             throw rangeError("invalid.fraction.digits", "toExponential");
         }
 
-        final String res = String.format(Locale.US, "%1." + f + "e", x);
-        return fixExponent(res, trimZeros);
+        return DoubleConversion.toExponential(x, f);
     }
 
     /**
@@ -253,7 +252,7 @@ public final class NativeNumber extends ScriptObject {
             return x > 0? "Infinity" : "-Infinity";
         }
 
-        if (p < 1 || p > 21) {
+        if (p < 1 || p > 100) {
             throw rangeError("invalid.precision");
         }
 
@@ -340,42 +339,6 @@ public final class NativeNumber extends ScriptObject {
         } else {
             throw typeError("not.a.number", ScriptRuntime.safeToString(self));
         }
-    }
-
-    // Exponent of Java "e" or "E" formatter is always 2 digits and zero
-    // padded if needed (e+01, e+00, e+12 etc.) JS expects exponent to contain
-    // exact number of digits e+1, e+0, e+12 etc. Fix the exponent here.
-    //
-    // Additionally, if trimZeros is true, this cuts trailing zeros in the
-    // fraction part for calls to toExponential() with undefined fractionDigits
-    // argument.
-    private static String fixExponent(final String str, final boolean trimZeros) {
-        final int index = str.indexOf('e');
-        if (index < 1) {
-            // no exponent, do nothing..
-            return str;
-        }
-
-        // check if character after e+ or e- is 0
-        final int expPadding = str.charAt(index + 2) == '0' ? 3 : 2;
-        // check if there are any trailing zeroes we should remove
-
-        int fractionOffset = index;
-        if (trimZeros) {
-            assert fractionOffset > 0;
-            char c = str.charAt(fractionOffset - 1);
-            while (fractionOffset > 1 && (c == '0' || c == '.')) {
-                c = str.charAt(--fractionOffset - 1);
-            }
-
-        }
-        // if anything needs to be done compose a new string
-        if (fractionOffset < index || expPadding == 3) {
-            return str.substring(0, fractionOffset)
-                    + str.substring(index, index + 2)
-                    + str.substring(index + expPadding);
-        }
-        return str;
     }
 
     private static MethodHandle findOwnMH(final String name, final MethodType type) {
