@@ -483,9 +483,12 @@ public class ScriptFunction extends ScriptObject {
      */
     @Override
     public boolean isInstance(final ScriptObject instance) {
-        final Object basePrototype = getTargetFunction().getPrototype();
+        final ScriptFunction target = getTargetFunction();
+        // 7.3.19 step 4 reads "prototype" as a property, which is the field
+        // unless a script has defined something else over it
+        final Object basePrototype = prototypeRedefined ? target.get("prototype") : target.getPrototype();
         if (!(basePrototype instanceof ScriptObject)) {
-            throw typeError("prototype.not.an.object", ScriptRuntime.safeToString(getTargetFunction()), ScriptRuntime.safeToString(basePrototype));
+            throw typeError("prototype.not.an.object", ScriptRuntime.safeToString(target), ScriptRuntime.safeToString(basePrototype));
         }
 
         // ES2015 7.3.19 OrdinaryHasInstance walks the chain through
@@ -835,6 +838,29 @@ public class ScriptFunction extends ScriptObject {
 
     public final void setHomeObject(final ScriptObject homeObject) {
         this.homeObject = homeObject;
+    }
+
+    /**
+     * Whether any function's "prototype" has been redefined as something other
+     * than the ordinary property, which is what makes reading it observable.
+     *
+     * A function keeps its prototype in a field, and 7.3.19 step 4 reads it as
+     * a property - which is the same thing until a script defines an accessor
+     * over it. Watching for that is what lets instanceof keep reading the
+     * field, which is where the cost of the operation lives.
+     */
+    private static volatile boolean prototypeRedefined;
+
+    /**
+     * Records that some function's "prototype" has been redefined.
+     */
+    public static void notePrototypeRedefined() {
+        prototypeRedefined = true;
+    }
+
+    /** @return whether any function's "prototype" has been redefined */
+    public static boolean isPrototypeRedefined() {
+        return prototypeRedefined;
     }
 
     public final Object getPrototype() {

@@ -569,6 +569,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @return true if property was successfully defined
      */
     public boolean defineOwnProperty(final Object key, final Object propertyDesc, final boolean reject) {
+        if (this instanceof ScriptFunction && "prototype".equals(key)) {
+            // reading a function's prototype is observable from here on, so
+            // instanceof stops taking it from the field
+            ScriptFunction.notePrototypeRedefined();
+        }
         final Global             global  = Context.getGlobal();
         final PropertyDescriptor desc    = toPropertyDescriptor(global, propertyDesc);
         final Object             current = getOwnPropertyDescriptor(key);
