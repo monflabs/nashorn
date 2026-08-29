@@ -1648,6 +1648,59 @@ public final class Global extends Scope {
     }
 
     /**
+     * The new.target a built-in constructor is being run for, or null when it
+     * is being run for itself. See {@link #takeNewTargetPrototype()}.
+     */
+    private Object pendingNewTarget;
+
+    /**
+     * Records the new.target a built-in constructor is about to run for.
+     *
+     * @param newTarget the constructor the object is being built for
+     * @return what was recorded before, to be put back afterwards
+     */
+    public Object setPendingNewTarget(final Object newTarget) {
+        final Object previous = pendingNewTarget;
+        pendingNewTarget = newTarget;
+        return previous;
+    }
+
+    /**
+     * Whether a built-in constructor now running has still to be given the
+     * prototype of the new.target it is running for.
+     *
+     * @return true if nothing has taken it
+     */
+    public boolean hasPendingNewTarget() {
+        return pendingNewTarget != null;
+    }
+
+    /**
+     * The prototype an object being built for another constructor should get.
+     *
+     * 9.1.13 OrdinaryCreateFromConstructor reads new.target's prototype as part
+     * of making the object, which for most built-ins can wait until the object
+     * exists - the read cannot see the difference. It can where the constructor
+     * allocates something the read could change or refuse: a buffer that the
+     * read detaches, or one too large to allocate at all. Such a constructor
+     * takes the prototype from here, at the point the specification reads it,
+     * and applies it to what it builds; taking it is what tells the caller not
+     * to apply it again.
+     *
+     * @return the prototype, or null if there is none to apply
+     */
+    public ScriptObject takeNewTargetPrototype() {
+        if (!(pendingNewTarget instanceof ScriptFunction newTarget)) {
+            return null;
+        }
+        pendingNewTarget = null;
+        final Object prototype = newTarget.get("prototype");
+        // 9.1.13 falls back to the intrinsic one for anything that is not an
+        // object, which is the prototype the constructor gives it anyway
+        return prototype instanceof ScriptObject proto ? proto : null;
+    }
+
+    /**
      * Create a new ECMAScript AccessorPropertyDescriptor object.
      *
      * @param get getter function of the user accessor property

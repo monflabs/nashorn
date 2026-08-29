@@ -25,6 +25,7 @@
 
 package org.openjdk.nashorn.internal.objects;
 
+import static org.openjdk.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.nio.ByteBuffer;
@@ -106,8 +107,19 @@ public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
         if (!newObj) {
             throw typeError("constructor.requires.new", "SharedArrayBuffer");
         }
-        final int byteLength = args.length == 0 ? 0 : ArrayBufferView.toIndex(args[0]);
-        return new NativeSharedArrayBuffer(ByteBuffer.allocateDirect(byteLength), Global.instance());
+        final long byteLength = args.length == 0 ? 0 : ArrayBufferView.toIndexLong(args[0]);
+        // 24.2.1.1 reads new.target's prototype before it allocates the data,
+        // which is what a length there is no room for fails at
+        final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
+        if (byteLength > Integer.MAX_VALUE) {
+            throw rangeError("not.an.index", JSType.toString(args[0]));
+        }
+        final NativeSharedArrayBuffer buffer =
+                new NativeSharedArrayBuffer(ByteBuffer.allocateDirect((int)byteLength), Global.instance());
+        if (prototype != null) {
+            buffer.setInitialProto(prototype);
+        }
+        return buffer;
     }
 
     /**

@@ -434,6 +434,27 @@ public abstract class ArrayBufferView extends ScriptObject {
      * @param value the argument as written
      * @return the index it denotes
      */
+    /**
+     * ES2015 7.1.17 ToIndex, which reaches to 2^53-1: whether anything that
+     * long can be allocated is a separate question, asked where the allocation
+     * happens.
+     *
+     * @param value the argument as written
+     * @return the index
+     */
+    static long toIndexLong(final Object value) {
+        if (value == ScriptRuntime.UNDEFINED) {
+            return 0;
+        }
+        final double number = JSType.toNumber(value);
+        final double integer = Double.isNaN(number) ? 0
+                : number < 0 ? Math.ceil(number) : Math.floor(number);
+        if (integer < 0 || integer > 9007199254740991d) {
+            throw rangeError("not.an.index", JSType.toString(value));
+        }
+        return (long)integer;
+    }
+
     static int toIndex(final Object value) {
         if (value == ScriptRuntime.UNDEFINED) {
             return 0;

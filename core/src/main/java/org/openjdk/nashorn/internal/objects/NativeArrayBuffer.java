@@ -25,6 +25,7 @@
 
 package org.openjdk.nashorn.internal.objects;
 
+import static org.openjdk.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.nio.ByteBuffer;
@@ -152,16 +153,39 @@ public class NativeArrayBuffer extends ScriptObject {
         }
 
         if (args.length == 0) {
-            return new NativeArrayBuffer(0);
+            return withNewTargetPrototype(new NativeArrayBuffer(0));
         }
 
         final Object arg0 = args[0];
         if (arg0 instanceof ByteBuffer) {
-            return new NativeArrayBuffer((ByteBuffer)arg0);
+            return withNewTargetPrototype(new NativeArrayBuffer((ByteBuffer)arg0));
         }
         // ES2015 24.1.2.1: ToIndex, so a negative or excessive length is a
         // RangeError rather than something silently truncated to an int
-        return new NativeArrayBuffer(ArrayBufferView.toIndex(arg0));
+        final long byteLength = ArrayBufferView.toIndexLong(arg0);
+        // 24.1.1.1 reads new.target's prototype before it allocates the data,
+        // which is what a length there is no room for fails at
+        final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
+        if (byteLength > Integer.MAX_VALUE) {
+            throw rangeError("not.an.index", JSType.toString(arg0));
+        }
+        final NativeArrayBuffer buffer = new NativeArrayBuffer((int)byteLength);
+        if (prototype != null) {
+            buffer.setInitialProto(prototype);
+        }
+        return buffer;
+    }
+
+    /**
+     * Gives a buffer the prototype of the new.target it is being built for,
+     * where the length left nothing to fail on.
+     */
+    private static NativeArrayBuffer withNewTargetPrototype(final NativeArrayBuffer buffer) {
+        final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
+        if (prototype != null) {
+            buffer.setInitialProto(prototype);
+        }
+        return buffer;
     }
 
     private static ByteBuffer cloneBuffer(final ByteBuffer original, final int begin, final int end) {

@@ -705,9 +705,18 @@ public class ScriptFunction extends ScriptObject {
         // A built-in checks its arguments before it allocates anything, and the
         // prototype is read as part of allocating - so a constructor that is
         // going to reject what it was given rejects it before the read, which
-        // several tests pin down by making the read throw.
-        final Object built = construct(args);
-        return withProto(built, newTarget.get("prototype"));
+        // several tests pin down by making the read throw. One that allocates
+        // something the read could change takes the new.target while it runs
+        // instead, and applies the prototype where the specification reads it.
+        final Global global = Global.instance();
+        final Object outer = global.setPendingNewTarget(newTarget == this ? null : newTarget);
+        try {
+            final Object built = construct(args);
+            return global.hasPendingNewTarget() || newTarget == this
+                    ? withProto(built, newTarget.get("prototype")) : built;
+        } finally {
+            global.setPendingNewTarget(outer);
+        }
     }
 
     private static Object withProto(final Object built, final Object newProto) {

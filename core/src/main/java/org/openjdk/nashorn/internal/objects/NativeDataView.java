@@ -147,7 +147,19 @@ public class NativeDataView extends ScriptObject {
                 throw rangeError("dataview.constructor.offset");
             }
         }
-        return new NativeDataView(arrayBuffer, offset, length);
+        // 24.2.2.1 step 12 reads new.target's prototype once the offset and the
+        // length have been found to fit, and step 13 asks again whether the
+        // buffer is detached: reading it can have detached it
+        final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
+        if (arrayBuffer.isDetached()) {
+            throw typeError("detached.array.buffer");
+        }
+
+        final NativeDataView view = new NativeDataView(arrayBuffer, offset, length);
+        if (prototype != null) {
+            view.setInitialProto(prototype);
+        }
+        return view;
     }
 
     /**
