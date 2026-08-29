@@ -457,7 +457,24 @@ public class ScriptFunction extends ScriptObject {
      * @return a function with the specified self and parameters bound.
      */
     public final ScriptFunction createBound(final Object self, final Object[] args) {
-        return new Bound(data.makeBoundFunctionData(this, self, args), getTargetFunction());
+        final ScriptFunction bound = new Bound(data.makeBoundFunctionData(this, self, args), getTargetFunction());
+        // ES2015 19.2.3.2 steps 5 to 10 take the length from the target's own
+        // length property, which can hold anything a number can - infinity, or
+        // more than the arity behind the accessor can carry - rather than from
+        // the arity the target was written with
+        // step 5 asks for an own length: one inherited from a prototype is not
+        // the target's own and does not count
+        final Object targetLength = hasOwnProperty("length") ? get("length") : ScriptRuntime.UNDEFINED;
+        double length = 0;
+        if (targetLength instanceof Number number) {
+            final double value = number.doubleValue();
+            final double integral = Double.isNaN(value) ? 0
+                    : value < 0 ? Math.ceil(value) : Math.floor(value);
+            length = Math.max(0, integral - (args == null ? 0 : args.length));
+        }
+        bound.defineOwnProperty("length", Global.instance().newDataDescriptor(
+                length == (int)length ? (Object)(int)length : (Object)length, true, false, false), false);
+        return bound;
     }
 
     /**
