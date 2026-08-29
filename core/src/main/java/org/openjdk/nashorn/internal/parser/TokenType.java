@@ -180,6 +180,8 @@ public enum TokenType {
     DECIMAL        (LITERAL,  null),
     HEXADECIMAL    (LITERAL,  null),
     OCTAL_LEGACY   (LITERAL,  null),
+    /** "08" - a decimal literal written with a leading zero, which only Annex B has a production for. */
+    NON_OCTAL_DECIMAL (LITERAL, null),
     OCTAL          (LITERAL,  null),
     BINARY_NUMBER  (LITERAL,  null),
     FLOATING       (LITERAL,  null),

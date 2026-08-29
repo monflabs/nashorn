@@ -40,6 +40,7 @@ import static org.openjdk.nashorn.internal.parser.TokenType.HEXADECIMAL;
 import static org.openjdk.nashorn.internal.parser.TokenType.LBRACE;
 import static org.openjdk.nashorn.internal.parser.TokenType.LPAREN;
 import static org.openjdk.nashorn.internal.parser.TokenType.OCTAL;
+import static org.openjdk.nashorn.internal.parser.TokenType.NON_OCTAL_DECIMAL;
 import static org.openjdk.nashorn.internal.parser.TokenType.OCTAL_LEGACY;
 import static org.openjdk.nashorn.internal.parser.TokenType.RBRACE;
 import static org.openjdk.nashorn.internal.parser.TokenType.REGEX;
@@ -918,6 +919,16 @@ public class Lexer extends Scanner {
                     }
                     break;
                 }
+                case '8':
+                case '9':
+                    // ES2021 B.1.2 NonOctalDecimalEscapeSequence: the escape
+                    // stands for the digit itself, and only where the legacy
+                    // octal escapes above are also allowed
+                    if (strict) {
+                        error(Lexer.message("strict.no.legacy.escape"), STRING, position, limit);
+                    }
+                    sb.append(next);
+                    break;
                 case 'n':
                     sb.append('\n');
                     break;
@@ -1211,6 +1222,7 @@ public class Lexer extends Scanner {
         } else {
             // Check for possible octal constant.
             boolean octal = digit == 0;
+            final boolean leadingZero = digit == 0;
             // Skip first digit if not leading '.'.
             if (digit != -1) {
                 skip(1);
@@ -1226,6 +1238,11 @@ public class Lexer extends Scanner {
 
             if (octal && position - start > 1) {
                 type = OCTAL_LEGACY;
+            } else if (leadingZero && position - start > 1 && ch0 != '.' && ch0 != 'E' && ch0 != 'e') {
+                // "08" - a decimal written with a leading zero, which is what
+                // 11.8.3 has no production for outside Annex B and what strict
+                // code may not contain
+                type = NON_OCTAL_DECIMAL;
             } else if (ch0 == '.' || ch0 == 'E' || ch0 == 'e') {
                 // Must be a double.
                 if (ch0 == '.') {
@@ -1833,6 +1850,8 @@ public class Lexer extends Scanner {
             return Lexer.valueOf(source.getString(start + 2, len - 2), 16); // number
         case OCTAL_LEGACY:
             return Lexer.valueOf(source.getString(start, len), 8); // number
+        case NON_OCTAL_DECIMAL:
+            return Lexer.valueOf(source.getString(start, len), 10); // number
         case OCTAL:
             return Lexer.valueOf(source.getString(start + 2, len - 2), 8); // number
         case BINARY_NUMBER:

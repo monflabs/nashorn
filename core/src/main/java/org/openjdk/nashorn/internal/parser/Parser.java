@@ -3236,6 +3236,10 @@ public class Parser extends AbstractParser implements Loggable {
             if (isStrictMode) {
                throw error(AbstractParser.message("strict.no.octal"), token);
             }
+        case NON_OCTAL_DECIMAL:
+            if (isStrictMode) {
+               throw error(AbstractParser.message("strict.no.leading.zero"), token);
+            }
         case STRING:
         case ESCSTRING:
         case DECIMAL:
@@ -3571,6 +3575,10 @@ public class Parser extends AbstractParser implements Loggable {
         case OCTAL_LEGACY:
             if (isStrictMode) {
                 throw error(AbstractParser.message("strict.no.octal"), token);
+            }
+        case NON_OCTAL_DECIMAL:
+            if (isStrictMode) {
+                throw error(AbstractParser.message("strict.no.leading.zero"), token);
             }
         case STRING:
         case ESCSTRING:
