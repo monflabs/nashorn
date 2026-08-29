@@ -277,8 +277,6 @@ test/language/expressions/async-function/named-reassign-fn-name-in-body-in-arrow
 test/language/expressions/async-function/named-reassign-fn-name-in-body-in-eval.js (sloppy)
 test/language/expressions/async-function/named-strict-error-reassign-fn-name-in-body-in-arrow.js (strict)
 test/language/expressions/async-function/named-strict-error-reassign-fn-name-in-body-in-eval.js (strict)
-test/language/expressions/await/await-BindingIdentifier-in-global.js (sloppy)
-test/language/expressions/await/await-BindingIdentifier-in-global.js (strict)
 test/language/expressions/call/eval-spread-empty-leading.js (sloppy)
 test/language/expressions/call/eval-spread-empty-leading.js (strict)
 test/language/expressions/call/eval-spread-empty-trailing.js (sloppy)

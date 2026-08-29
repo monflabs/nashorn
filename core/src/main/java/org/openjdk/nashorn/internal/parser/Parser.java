@@ -4516,8 +4516,12 @@ public class Parser extends AbstractParser implements Loggable {
             }
             name = getIdent();
             verifyIdent(name, "function name");
-            // ES2017 14.6.1: an async function is not called await either
-            if (async && AWAIT_NAME.equals(name.getName())) {
+            // ES2017 14.6.1: the name of an async function expression is bound
+            // inside the function, where await is the keyword - so it may not
+            // be called await. A declaration's name is bound in the scope that
+            // holds the declaration, and is only refused where that scope has
+            // await for a keyword, which verifyIdent has just asked.
+            if (async && !isStatement && AWAIT_NAME.equals(name.getName())) {
                 throw error(AbstractParser.message("strict.name", name.getName(), "function name"), name.getToken());
             }
         } else if (isStatement) {
