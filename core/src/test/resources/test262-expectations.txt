@@ -3,6 +3,4 @@
 # Reasons for the current run are written to target/test262-failures.txt.
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (sloppy)
 test/built-ins/RegExp/lookahead-quantifier-match-groups.js (strict)
-test/built-ins/RegExp/unicode_full_case_folding.js (sloppy)
-test/built-ins/RegExp/unicode_full_case_folding.js (strict)
 test/language/statements/for-in/head-lhs-let.js (sloppy)
