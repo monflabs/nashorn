@@ -201,7 +201,8 @@ public final class NativeSymbol extends ScriptObject {
      * @param args   arguments
      * @return new symbol value
      */
-    @Constructor(arity = 1)
+    // 19.4.1 declares the description optional, so the length is zero
+    @Constructor(arity = 0)
     public static Object constructor(final boolean newObj, final Object self, final Object... args) {
         if (newObj) {
             throw typeError("symbol.as.constructor");

@@ -1421,7 +1421,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @param end    where to treat the string as ending, or undefined for its length
      * @return true if the string ends with the search string
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    // 21.1.3.6 declares one parameter fewer than this takes: the rest are optional,
+    // and length counts only those a caller has to pass
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean endsWith(final Object self, final Object search, final Object end) {
         final String str = checkObjectToString(self);
         final String searchString = rejectRegExp(search, "endsWith");
@@ -1440,7 +1442,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @param position where to start looking
      * @return true if the string contains the search string
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    // 21.1.3.7 declares one parameter fewer than this takes: the rest are optional,
+    // and length counts only those a caller has to pass
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean includes(final Object self, final Object search, final Object position) {
         final String str = checkObjectToString(self);
         final String searchString = rejectRegExp(search, "includes");
@@ -1456,7 +1460,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @param position where to start looking
      * @return true if the string starts with the search string at position
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    // 21.1.3.18 declares one parameter fewer than this takes: the rest are optional,
+    // and length counts only those a caller has to pass
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean startsWith(final Object self, final Object search, final Object position) {
         final String str = checkObjectToString(self);
         final String searchString = rejectRegExp(search, "startsWith");
@@ -1548,7 +1554,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      * @param form NFC, NFD, NFKC or NFKD; NFC when undefined
      * @return the normalized string
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    // 21.1.3.12 declares one parameter fewer than this takes: the rest are optional,
+    // and length counts only those a caller has to pass
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
     public static String normalize(final Object self, final Object form) {
         final String str = checkObjectToString(self);
         final String name = form == ScriptRuntime.UNDEFINED ? "NFC" : JSType.toString(form);

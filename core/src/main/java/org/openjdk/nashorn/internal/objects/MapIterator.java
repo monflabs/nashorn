@@ -71,7 +71,9 @@ public class MapIterator extends AbstractIterator {
      * @param arg the argument
      * @return the next result
      */
-    @Function
+    // 22.1.5.2.1 and its siblings declare no parameter: what the value would
+    // be is not read, and length says so
+    @Function(arity = 0)
     public static Object next(final Object self, final Object arg) {
         if (!(self instanceof MapIterator)) {
             throw typeError("not.a.map.iterator", ScriptRuntime.safeToString(self));
