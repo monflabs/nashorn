@@ -805,6 +805,20 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
 
         final int type = pdesc.type();
         if (type == PropertyDescriptor.DATA) {
+            final int index = getArrayIndex(key);
+            if (propFlags == 0 && isValidArrayIndex(index) && isArray()) {
+                // A writable, enumerable, configurable data property at a valid
+                // index of an array is exactly what element storage represents,
+                // so it goes there - CreateDataPropertyOrThrow makes only
+                // these, and an element the map held instead would be invisible
+                // to the bulk reads (Java.to, asObjectArray) that consult the
+                // data alone. Only for an array: an ordinary object's map is
+                // where every read path looks first, and a proxy's [[Get]]
+                // would miss an element its target kept in data it never
+                // consults.
+                defineOwnProperty(index, pdesc.getValue());
+                return;
+            }
             addOwnProperty(key, propFlags, pdesc.getValue());
         } else if (type == PropertyDescriptor.ACCESSOR) {
             addOwnProperty(key, propFlags,

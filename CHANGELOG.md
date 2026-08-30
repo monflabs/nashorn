@@ -134,3 +134,6 @@ Unreleased
 * Two things filed under Annex B by the suite are **not** Annex B and were left alone: `RegExp.$1` and the other legacy statics, which are a Stage 3 proposal of their own, and `[[IsHTMLDDA]]`, which only a web host can produce.
 
 `   ` `           ` Eight test262 executions fail, all of one shape - an indirect eval whose block-level function declaration has to update a `var` the global already had - and are named in the expectations file with the reason. `doc/CONFORMANCE.md` says what the annex covers on either side of the flag, and what it costs: seventeen more properties on two prototypes, which every global pays for, measured at 6.6% of the time it takes to build one.
+
+`   ` `           ` An element defined through a property descriptor with all three attributes true now lands in the array's element storage rather than in its property map. The map-held element answered script reads and looked right, but was invisible to the bulk reads that consult the array data alone - `Java.to` on the result of `Array.prototype.slice.call(arguments)` produced an array of undefineds, because the spec-conformant species path fills such a result with CreateDataPropertyOrThrow. Ordinary objects and descriptors with restricted attributes keep the map route. Found by running the new documentation's own samples.
+
