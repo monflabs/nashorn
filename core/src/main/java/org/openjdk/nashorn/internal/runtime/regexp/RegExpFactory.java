@@ -28,6 +28,7 @@ package org.openjdk.nashorn.internal.runtime.regexp;
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
+import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ParserException;
 import org.openjdk.nashorn.internal.runtime.options.Options;
 
@@ -73,6 +74,21 @@ public class RegExpFactory {
      * @return new RegExp
      * @throws ParserException if flags is invalid or pattern string has syntax error.
      */
+    /**
+     * Whether the engine compiling this pattern implements Annex B.
+     *
+     * The scanner is reached from static factory methods that carry no engine
+     * with them, so the question is asked of the context the thread is running
+     * in. Outside one - a pattern validated by a tool, say - Annex B applies,
+     * which is the default.
+     *
+     * @return true if Annex B's pattern grammar is in force
+     */
+    public static boolean annexBEnabled() {
+        final Context context = Context.getContextTrustedOrNull();
+        return context == null || context.getEnv()._annexB;
+    }
+
     public RegExp compile(final String pattern, final String flags) throws ParserException {
         return new JdkRegExp(pattern, flags);
     }
@@ -86,7 +102,9 @@ public class RegExpFactory {
      * @throws ParserException if invalid source or flags
      */
     public static RegExp create(final String pattern, final String flags) {
-        final String key = pattern + "/" + flags;
+        // the flag decides what the pattern means, so two engines that disagree
+        // about it must not be handed each other's compilations
+        final String key = pattern + "/" + flags + (annexBEnabled() ? "/b" : "");
         RegExp regexp = REGEXP_CACHE.get(key);
         if (regexp == null) {
             // The bundled Joni engine works in UTF-16 code units and has no

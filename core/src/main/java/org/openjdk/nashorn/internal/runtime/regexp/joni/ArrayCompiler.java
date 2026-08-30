@@ -404,7 +404,9 @@ final class ArrayCompiler extends Compiler {
         } else if (!qn.greedy && qn.upper == 1 && qn.lower == 0) { /* '??' */
             len = OPSize.PUSH + OPSize.JUMP + modTLen;
         } else {
-            len = OPSize.REPEAT_INC + modTLen + OPSize.OPCODE + OPSize.RELADDR + OPSize.MEMNUM;
+            final int rangeEmptyInfo = qn.lower == 0 || isRepeatInfinite(qn.upper) ? emptyInfo : 0;
+            len = OPSize.REPEAT_INC + (rangeEmptyInfo == 0 ? tlen : modTLen)
+                    + OPSize.OPCODE + OPSize.RELADDR + OPSize.MEMNUM;
         }
         return len;
     }
@@ -502,7 +504,13 @@ final class ArrayCompiler extends Compiler {
             addOpcodeRelAddr(OPCode.JUMP, modTLen);
             compileTreeEmptyCheck(qn.target, emptyInfo);
         } else {
-            compileRangeRepeatNode(qn, modTLen, emptyInfo);
+            // The counted-repeat opcodes run one copy of the body for every
+            // iteration, so an empty check there would fail the mandatory ones
+            // too - and 22.2.2.3 fails an iteration for matching nothing only
+            // once the minimum is met. A finite upper bound makes the loop
+            // terminate without one; an infinite one still needs it.
+            final int rangeEmptyInfo = qn.lower == 0 || isRepeatInfinite(qn.upper) ? emptyInfo : 0;
+            compileRangeRepeatNode(qn, rangeEmptyInfo == 0 ? tlen : modTLen, rangeEmptyInfo);
         }
     }
 

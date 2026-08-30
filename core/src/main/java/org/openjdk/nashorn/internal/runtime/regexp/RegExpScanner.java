@@ -110,9 +110,20 @@ final class RegExpScanner extends Scanner {
      */
     private final boolean unicode;
 
-    private RegExpScanner(final String string, final boolean unicode) {
+    /**
+     * Whether ECMA-262 Annex B's extensions to the pattern grammar are
+     * recognised: B.1.4 keeps the legacy octal escape, lets a character class
+     * hold a dash beside a class escape, and lets an assertion be quantified.
+     */
+    private final boolean annexB;
+
+    /** Whether the assertion just read was a lookahead, which B.1.4 lets a quantifier follow. */
+    private boolean quantifiableAssertion;
+
+    private RegExpScanner(final String string, final boolean unicode, final boolean annexB) {
         super(string);
         this.unicode = unicode;
+        this.annexB = annexB;
         sb = new StringBuilder(limit);
         reset(0);
         expected.put(']', 0);
@@ -148,7 +159,7 @@ final class RegExpScanner extends Scanner {
      * @return Java safe regex string.
      */
     public static RegExpScanner scan(final String string) {
-        return scan(string, false);
+        return scan(string, false, RegExpFactory.annexBEnabled());
     }
 
     /**
@@ -156,10 +167,11 @@ final class RegExpScanner extends Scanner {
      *
      * @param string  JavaScript regexp string.
      * @param unicode whether it was written with the unicode flag
+     * @param annexB  whether Annex B's extensions to the grammar are recognised
      * @return Java safe regex string.
      */
-    public static RegExpScanner scan(final String string, final boolean unicode) {
-        final RegExpScanner scanner = new RegExpScanner(string, unicode);
+    public static RegExpScanner scan(final String string, final boolean unicode, final boolean annexB) {
+        final RegExpScanner scanner = new RegExpScanner(string, unicode, annexB);
 
         try {
             scanner.disjunction();
@@ -300,6 +312,11 @@ final class RegExpScanner extends Scanner {
         final int startOut = sb.length();
 
         if (assertion()) {
+            if (annexB && !unicode && quantifiableAssertion) {
+                // Term :: QuantifiableAssertion Quantifier. The quantifier is
+                // optional here only because the assertion is a term on its own
+                quantifier(startOut);
+            }
             return true;
         }
 
@@ -324,6 +341,7 @@ final class RegExpScanner extends Scanner {
     private boolean assertion() {
         final int startIn  = position;
         final int startOut = sb.length();
+        quantifiableAssertion = false;
 
         switch (ch0) {
         case '^':
@@ -358,6 +376,9 @@ final class RegExpScanner extends Scanner {
             }
 
             if (ch0 == ')') {
+                // B.1.4's QuantifiableAssertion is the lookahead pair and
+                // nothing else: ^, $ and \b may not be quantified even there
+                quantifiableAssertion = true;
                 return commit(1);
             }
             break;
@@ -814,21 +835,24 @@ final class RegExpScanner extends Scanner {
             }
 
             if (ch0 == '0') {
-                // We know this is an octal escape.
-                if (inCharClass) {
-                    // Convert octal escape to unicode escape if inside character class.
-                    int octalValue = 0;
-                    while (isOctalDigit(ch0)) {
-                        octalValue = octalValue * 8 + ch0 - '0';
-                        skip(1);
-                    }
-
-                    unicode(octalValue, sb);
-
-                } else {
-                    // Copy decimal escape as-is
-                    decimalDigits();
+                if (!annexB) {
+                    // without B.1.4's LegacyOctalEscapeSequence, 21.2.1 has \0
+                    // standing alone and a digit may not follow it
+                    throw new RuntimeException("Octal escape in pattern");
                 }
+                // B.1.4 bounds the sequence at three octal digits, so \0111 is
+                // a tab and a one. Written out as a unicode escape either way:
+                // the backends do not agree about \00 as an octal escape, and
+                // one of them reads it as an empty backreference.
+                int octalValue = 0;
+                int digits = 0;
+                while (isOctalDigit(ch0) && digits < 3) {
+                    octalValue = octalValue * 8 + ch0 - '0';
+                    digits++;
+                    skip(1);
+                }
+
+                unicode(octalValue, sb);
             } else {
                 // This should be a backreference, but could also be an octal escape or even a literal string.
                 int decimalValue = 0;
@@ -1068,8 +1092,31 @@ final class RegExpScanner extends Scanner {
      * pattern.
      */
     private void verifyClassRange(final boolean lowerWasCharacterClass) {
-        if (unicode && (lowerWasCharacterClass || atomWasCharacterClass)) {
-            throw new RuntimeException("Character class as a range boundary in unicode pattern");
+        if (lowerWasCharacterClass || atomWasCharacterClass) {
+            if (unicode) {
+                throw new RuntimeException("Character class as a range boundary in unicode pattern");
+            }
+            // B.1.4.1.1 CharacterRangeOrUnion: a class escape cannot be the end
+            // of a range, so the three of them are a union instead and the dash
+            // is one of its members. The dash was committed as it stood, which
+            // Java would read as a range; escaping it makes it the member it is
+            escapeLastDash();
+        }
+    }
+
+    /**
+     * Turns the dash of what looked like a range into a literal member.
+     *
+     * The two atoms and the dash between them are already in the output, and
+     * the dash is the only one of the three that has to change - so it is found
+     * by walking back over what the upper atom emitted.
+     */
+    private void escapeLastDash() {
+        for (int i = sb.length() - 1; i >= 0; i--) {
+            if (sb.charAt(i) == '-' && (i == 0 || sb.charAt(i - 1) != '\\')) {
+                sb.insert(i, '\\');
+                return;
+            }
         }
     }
 

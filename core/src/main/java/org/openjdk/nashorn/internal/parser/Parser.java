@@ -395,7 +395,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, reparsedFunction != null);
+            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -431,7 +431,9 @@ public class Parser extends AbstractParser implements Loggable {
     public FunctionNode parseModule(final String moduleName, final int startPos, final int len) {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, reparsedFunction != null);
+            // B.1.1's HTML-like comments are for scripts: 11.4 has them in
+            // InputElementHashbangOrRegExp and not in a module's goal symbol
+            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, false, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -465,7 +467,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFormalParameterList() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions);
+            lexer  = new Lexer(source, 0, source.getLength(), stream, scripting && !env._no_syntax_extensions, env._annexB, false);
 
             scanFirstToken();
 
@@ -485,7 +487,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFunctionBody() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, stream, scripting && !env._no_syntax_extensions);
+            lexer  = new Lexer(source, 0, source.getLength(), stream, scripting && !env._no_syntax_extensions, env._annexB, false);
             final int functionLine = line;
 
             scanFirstToken();
@@ -707,13 +709,21 @@ public class Parser extends AbstractParser implements Loggable {
      */
 
     private Block getStatement() {
+        return getStatement(ANNEXB_FUNCTION_NONE);
+    }
+
+    /**
+     * @param annexBFunction which of B.3.2 and B.3.4's relaxations apply to the
+     *        statement this position holds
+     */
+    private Block getStatement(final int annexBFunction) {
         if (type == LBRACE) {
             return getBlock(true);
         }
         // Set up new block. Captures first token.
         final ParserContextBlockNode newBlock = newBlock();
         try {
-            statement(false, 0, true);
+            statement(false, 0, true, annexBFunction);
         } finally {
             restoreBlock(newBlock);
         }
@@ -771,6 +781,29 @@ public class Parser extends AbstractParser implements Loggable {
      * @param rhs Right hand side expression.
      * @return Verified expression.
      */
+    /**
+     * Whether B.3.4 makes this a valid assignment target after all.
+     *
+     * A call expression is a simple assignment target in sloppy code, which is
+     * what every browser does and what the specification writes down in Annex
+     * B. The assignment still fails - with a ReferenceError, when it runs,
+     * after the call has been made and before the right hand side is - so this
+     * only decides whether the failure is early or late.
+     */
+    private boolean isAnnexBAssignmentTarget(final Expression lhs) {
+        if (!env._annexB || isStrictMode || !(lhs instanceof CallNode call)) {
+            return false;
+        }
+        // A tagged template is a call in this IR and not one in the grammar:
+        // 13.3.11.1 leaves its AssignmentTargetType invalid, which Annex B does
+        // not take back, so it stays an early error. The template object it is
+        // given away identifies it.
+        final List<Expression> args = call.getArgs();
+        return args.isEmpty()
+                || !(args.get(0) instanceof RuntimeNode first)
+                || first.getRequest() != RuntimeNode.Request.GET_TEMPLATE_OBJECT;
+    }
+
     private Expression verifyAssignment(final long op, final Expression lhs, final Expression rhs) {
         final TokenType opType = Token.descType(op);
 
@@ -802,6 +835,10 @@ public class Parser extends AbstractParser implements Loggable {
             } else if (opType == ASSIGN && isDestructuringLhs(lhs) && lhs != parenthesized) {
                 verifyDestructuringAssignmentPattern(lhs, "assignment");
                 break;
+            } else if (isAnnexBAssignmentTarget(lhs)) {
+                // the right hand side is not evaluated: the reference is made
+                // first, and making it is what fails
+                return referenceError(lhs, null, false);
             } else {
                 return referenceError(lhs, rhs, env._early_lvalue_error);
             }
@@ -1108,8 +1145,15 @@ public class Parser extends AbstractParser implements Loggable {
      *     FunctionDeclaration
      *     GeneratorDeclaration
      */
+    /** No function declaration may stand in this single-statement position. */
+    private static final int ANNEXB_FUNCTION_NONE = 0;
+    /** B.3.4: an if clause takes a bare function declaration, but not one under a label. */
+    private static final int ANNEXB_FUNCTION_BARE = 1;
+    /** B.3.2: a label in statement-list position takes one, and so does a label under it. */
+    private static final int ANNEXB_FUNCTION_LABELLED = 2;
+
     private void statement() {
-        statement(false, 0, false);
+        statement(false, 0, false, ANNEXB_FUNCTION_NONE);
     }
 
     /**
@@ -1118,6 +1162,17 @@ public class Parser extends AbstractParser implements Loggable {
      * @param singleStatement are we in a single statement context?
      */
     private void statement(final boolean topLevel, final int reparseFlags, final boolean singleStatement) {
+        statement(topLevel, reparseFlags, singleStatement, ANNEXB_FUNCTION_NONE);
+    }
+
+    /**
+     * @param topLevel does this statement occur at the "top level" of a script or a function?
+     * @param reparseFlags reparse flags to decide whether to allow property "get" and "set" functions or ES6 methods.
+     * @param singleStatement are we in a single statement context?
+     * @param annexBFunction which of B.3.2 and B.3.4's relaxations apply here
+     */
+    private void statement(final boolean topLevel, final int reparseFlags, final boolean singleStatement,
+            final int annexBFunction) {
         if ((reparseFlags & ScriptFunctionData.IS_ES6_METHOD) != 0
                 && (reparseFlags & ScriptFunctionData.IS_PROPERTY_ACCESSOR) == 0) {
             // The recorded source range of a method starts at its name, so on a
@@ -1183,11 +1238,16 @@ public class Parser extends AbstractParser implements Loggable {
         case FUNCTION:
             // As per spec (ECMA section 12), function declarations as arbitrary statement
             // is not "portable". Implementation can issue a warning or disallow the same.
-            if (singleStatement) {
-                // ES2015 13.13.1: LabelledItem : FunctionDeclaration is a Syntax
-                // Error wherever it appears. Annex B B.3.2 takes it back for a
-                // label at the top of a statement list in sloppy code, and this
-                // engine does not implement Annex B.
+            // B.3.2 and B.3.4 name FunctionDeclaration, which a generator is
+            // not: "if (x) function* g() {}" stays the error 14.6.1 makes it,
+            // and so does an async function, whose case is below
+            if (singleStatement && (annexBFunction == ANNEXB_FUNCTION_NONE || T(k + 1) == MUL)) {
+                // ES2015 13.13.1 and 14.6.1 make a function declaration in a
+                // single-statement position a Syntax Error. B.3.2 takes that
+                // back for a label at the top of a statement list, and B.3.4 for
+                // a clause of an if - and for nothing else, so the body of a
+                // loop or a with is still an error, and so is a labelled
+                // function under either of them.
                 throw error(AbstractParser.message("expected.stmt", "function declaration"), token);
             }
             functionExpression(true, topLevel);
@@ -1229,7 +1289,12 @@ public class Parser extends AbstractParser implements Loggable {
 
             if (type == IDENT || isNonStrictModeIdent()) {
                 if (T(k + 1) == COLON) {
-                    labelStatement();
+                    // a label carries B.3.2's relaxation into its own statement
+                    // when it stands in a statement list, or when it is itself
+                    // under a label that did
+                    final boolean labelled = env._annexB && !isStrictMode
+                            && (!singleStatement || annexBFunction == ANNEXB_FUNCTION_LABELLED);
+                    labelStatement(labelled ? ANNEXB_FUNCTION_LABELLED : ANNEXB_FUNCTION_NONE);
                     return;
                 }
 
@@ -2337,12 +2402,14 @@ public class Parser extends AbstractParser implements Loggable {
         expect(LPAREN);
         final Expression test = expression();
         expect(RPAREN);
-        final Block pass = getStatement();
+        final int annexBFunction = env._annexB && !isStrictMode
+                ? ANNEXB_FUNCTION_BARE : ANNEXB_FUNCTION_NONE;
+        final Block pass = getStatement(annexBFunction);
 
         Block fail = null;
         if (type == ELSE) {
             next();
-            fail = getStatement();
+            fail = getStatement(annexBFunction);
         }
 
         appendStatement(new IfNode(ifLine, ifToken, fail != null ? fail.getFinish() : pass.getFinish(), test, pass, fail));
@@ -2518,7 +2585,12 @@ public class Parser extends AbstractParser implements Loggable {
 
                     // check if initial expression is a valid L-value
                     if (!checkValidLValue(init, isForOf ? "for-of iterator" : "for-in iterator")) {
-                        throw error(AbstractParser.message("not.lvalue.for.in.loop", isForOf ? "of" : "in"), init.getToken());
+                        if (!isAnnexBAssignmentTarget(init)) {
+                            throw error(AbstractParser.message("not.lvalue.for.in.loop", isForOf ? "of" : "in"), init.getToken());
+                        }
+                        // B.3.4 again: the head is evaluated and the assignment
+                        // it stands for is what fails, once, before the loop
+                        init = referenceError(init, null, false);
                     }
                 }
 
@@ -3101,7 +3173,7 @@ public class Parser extends AbstractParser implements Loggable {
         });
     }
 
-    private void labelStatement() {
+    private void labelStatement(final int annexBFunction) {
         // Capture label token.
         final long labelToken = token;
         // Get label ident.
@@ -3125,7 +3197,7 @@ public class Parser extends AbstractParser implements Loggable {
         final Block body;
         try {
             lc.push(labelNode);
-            body = getStatement();
+            body = getStatement(annexBFunction);
         } finally {
             assert lc.peek() instanceof ParserContextLabelNode;
             lc.pop(labelNode);
@@ -5137,7 +5209,7 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         stream.reset();
-        lexer = parserState.createLexer(source, lexer, stream, scripting && !env._no_syntax_extensions);
+        lexer = parserState.createLexer(source, lexer, stream, scripting && !env._no_syntax_extensions, env._annexB);
         line = parserState.line;
         linePosition = parserState.linePosition;
         // Doesn't really matter, but it's safe to treat it as if there were a semicolon before
@@ -5165,8 +5237,9 @@ public class Parser extends AbstractParser implements Loggable {
             this.linePosition = linePosition;
         }
 
-        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream, final boolean scripting) {
-            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, scripting, true);
+        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream, final boolean scripting,
+                final boolean annexB) {
+            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, scripting, annexB, true);
             newLexer.restoreState(new Lexer.State(position, Integer.MAX_VALUE, line, -1, linePosition, SEMICOLON));
             return newLexer;
         }
@@ -5358,7 +5431,7 @@ public class Parser extends AbstractParser implements Loggable {
               lhs instanceof IndexNode ||
               lhs instanceof IdentNode)
                 || isReservedTarget(lhs)) {
-            return referenceError(lhs, null, env._early_lvalue_error);
+            return referenceError(lhs, null, !isAnnexBAssignmentTarget(lhs) && env._early_lvalue_error);
         }
 
         if (lhs instanceof IdentNode) {

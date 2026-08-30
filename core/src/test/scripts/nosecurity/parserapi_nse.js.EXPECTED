@@ -13,9 +13,9 @@ anon_new.js:2:33 Expected ; but found {
 
 var r = new java.lang.Runnable() {
                                  ^
-anon_new.js:3:10 Expected statement but found function declaration
+anon_new.js:3:18 Expected ident but found (
      run: function() { print("hello") }
-          ^
+                  ^
 anon_new.js:4:0 Expected eof but found }
 };
 ^

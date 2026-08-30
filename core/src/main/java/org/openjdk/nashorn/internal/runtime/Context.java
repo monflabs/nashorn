@@ -1368,7 +1368,7 @@ public final class Context {
         return m;
     }
 
-    static Context getContextTrustedOrNull() {
+    public static Context getContextTrustedOrNull() {
         final Global global = Context.getGlobal();
         return global == null ? null : getContext(global);
     }

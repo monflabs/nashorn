@@ -1917,6 +1917,17 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.storeCompilerConstant(SCOPE);
         }
 
+        if (forNode.getInit() instanceof RuntimeNode runtime
+                && runtime.getRequest() == RuntimeNode.Request.REFERENCE_ERROR) {
+            // B.3.4 lets a call expression stand where the loop's binding goes,
+            // and every turn fails the same way: 13.7.5.13 takes the next value
+            // first, then evaluates the head, then assigns to it - which is the
+            // ReferenceError this node is
+            method.load(ITERATOR_TYPE, iterSlot);
+            method.invoke(interfaceCallNoLookup(ITERATOR_CLASS, "next", Object.class));
+            method.pop();
+            loadAndDiscard(forNode.getInit());
+        } else {
         new Store<Expression>(forNode.getInit()) {
             @Override
             protected void storeNonDiscard() {
@@ -1940,6 +1951,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 }.emit();
             }
         }.store();
+        }
         body.accept(this);
 
         if(method.isReachable()) {

@@ -79,6 +79,19 @@ public class Lexer extends Scanner {
     /** True if here and edit strings are supported. */
     private final boolean scripting;
 
+    /** True if ECMA-262 Annex B's HTML-like comments are recognised. */
+    private final boolean annexB;
+
+    /**
+     * Whether nothing but whitespace and same-line delimited comments has been
+     * seen since the last line terminator.
+     *
+     * B.1.1 lets {@code -->} begin a comment only there: the line it is on must
+     * hold nothing else in front of it, and a multi-line comment that contained
+     * a line terminator counts as one.
+     */
+    private boolean lineIsBlank = true;
+
     /** True if parsing in ECMAScript 6 mode. */
 
     /** True if a nested scan. (scan to completion, no EOF.) */
@@ -180,7 +193,7 @@ public class Lexer extends Scanner {
      * @param scripting are we in scripting mode
      */
     public Lexer(final Source source, final TokenStream stream, final boolean scripting) {
-        this(source, 0, source.getLength(), stream, scripting, false);
+        this(source, 0, source.getLength(), stream, scripting, true, false);
     }
 
     /**
@@ -191,15 +204,17 @@ public class Lexer extends Scanner {
      * @param len       length of source segment to lex
      * @param stream    token stream to lex
      * @param scripting are we in scripting mode
+     * @param annexB    are ECMA-262 Annex B's HTML-like comments recognised
      * @param pauseOnFunctionBody if true, lexer will return from {@link #lexify()} when it encounters a
      * function body. This is used with the feature where the parser is skipping nested function bodies to
      * avoid reading ahead unnecessarily when we skip the function bodies.
      */
-    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean scripting, final boolean pauseOnFunctionBody) {
+    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean scripting, final boolean annexB, final boolean pauseOnFunctionBody) {
         super(source.getContent(), 1, start, len);
         this.source      = source;
         this.stream      = stream;
         this.scripting   = scripting;
+        this.annexB      = annexB;
         this.nested      = false;
         this.pendingLine = 1;
         this.last        = EOL;
@@ -213,6 +228,7 @@ public class Lexer extends Scanner {
         source = lexer.source;
         stream = lexer.stream;
         scripting = lexer.scripting;
+        annexB = lexer.annexB;
         nested = true;
 
         pendingLine = state.pendingLine;
@@ -281,6 +297,16 @@ public class Lexer extends Scanner {
     protected void add(final TokenType type, final int start, final int end) {
         // Record last token.
         last = type;
+
+        // B.1.1's --> needs to know whether anything but whitespace and
+        // same-line comments has been on this line. A comment leaves the answer
+        // where it was - the multi-line case sets it in skipComments - and
+        // anything else settles it.
+        if (type == EOL) {
+            lineIsBlank = true;
+        } else if (type != COMMENT && type != DIRECTIVE_COMMENT) {
+            lineIsBlank = false;
+        }
 
         // Only emit the last EOL in a cluster.
         if (type == EOL) {
@@ -436,6 +462,36 @@ public class Lexer extends Scanner {
     }
 
     /**
+     * Skip over one of ECMA-262 B.1.1's HTML-like comments.
+     *
+     * {@code <!--} opens one wherever it appears. {@code -->} opens one only at
+     * the head of a line, where the grammar lets whitespace and delimited
+     * comments precede it but nothing else - so "a-->b" is a decrement and a
+     * comparison, as it has always been, and only a line that begins with the
+     * three characters is a comment.
+     *
+     * @return true if a comment was skipped
+     */
+    private boolean skipHTMLComment() {
+        final int start = position;
+
+        if (ch0 == '<' && ch1 == '!' && ch2 == '-' && ch3 == '-') {
+            skip(4);
+        } else if (ch0 == '-' && ch1 == '-' && ch2 == '>' && lineIsBlank) {
+            skip(3);
+        } else {
+            return false;
+        }
+
+        while (!atEOF() && !isEOL(ch0)) {
+            skip(1);
+        }
+
+        add(COMMENT, start);
+        return true;
+    }
+
+    /**
      * Skip over comments.
      *
      * @return True if a comment.
@@ -462,10 +518,12 @@ public class Lexer extends Scanner {
             } else if (ch1 == '*') {
                 // Skip over /*.
                 skip(2);
+                boolean multiLine = false;
                 // Scan for */.
                 while (!atEOF() && !(ch0 == '*' && ch1 == '/')) {
                     // If end of line handle else skip character.
                     if (isEOL(ch0)) {
+                        multiLine = true;
                         skipEOL(true);
                     } else {
                         skip(1);
@@ -479,6 +537,11 @@ public class Lexer extends Scanner {
                     // Skip */.
                     skip(2);
                 }
+
+                // B.1.1 lets --> follow a multi-line comment that held a line
+                // terminator, and a comment that held none leaves the line as
+                // it found it
+                lineIsBlank = lineIsBlank || multiLine;
 
                 // Did detect a comment.
                 add(COMMENT, start);
@@ -1783,6 +1846,13 @@ public class Lexer extends Scanner {
             }
 
             if (scripting && ch0 == '#' && skipComments()) {
+                continue;
+            }
+
+            // B.1.1's HTML-like comments. An open comment runs to the end of
+            // the line wherever it stands; a close comment only where nothing
+            // but whitespace and same-line comments precedes it.
+            if (annexB && (ch0 == '<' || ch0 == '-') && skipHTMLComment()) {
                 continue;
             }
 
