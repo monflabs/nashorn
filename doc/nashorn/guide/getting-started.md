@@ -37,8 +37,10 @@ rather than relying on discovery order.
 
 ## Hello, world
 
-The engine registers with `javax.script` under the names `nashorn`, `js`, `JavaScript` and
-`ECMAScript` (each in both cases):
+The engine registers with `javax.script` under the names `nashorn-monflabs`, `js`, `JavaScript`
+and `ECMAScript` (each in both cases). It deliberately does **not** register as plain `nashorn` —
+just as the packages are renamed so the jars can coexist, the engine name is the fork's own so a
+lookup never resolves to the wrong engine when the official Nashorn library is also present:
 
 ```java
 import javax.script.ScriptEngine;
@@ -49,7 +51,7 @@ public class EvalScript {
         // create a script engine manager
         final ScriptEngineManager factory = new ScriptEngineManager();
         // create a JavaScript engine
-        final ScriptEngine engine = factory.getEngineByName("nashorn");
+        final ScriptEngine engine = factory.getEngineByName("nashorn-monflabs");
         // evaluate JavaScript code from String
         engine.eval("print('Hello, World')");
     }

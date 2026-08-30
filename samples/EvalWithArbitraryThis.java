@@ -37,7 +37,7 @@ import javax.script.*;
 public class EvalWithArbitraryThis {
     public static void main(String[] args) throws Exception {
         ScriptEngineManager m = new ScriptEngineManager();
-        ScriptEngine e = m.getEngineByName("nashorn");
+        ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         Object sobj = e.eval("( { foo: 343, bar: 'hello' } )");
 
         // "this" bound to sobj in this eval.

@@ -59,7 +59,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void reflectionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         e.eval("var obj = { x: 344, y: 'nashorn' }");
 
@@ -140,7 +140,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void jsobjectTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             e.eval("var obj = { '1': 'world', func: function() { return this.bar; }, bar: 'hello' }");
             final ScriptObjectMirror obj = (ScriptObjectMirror) e.get("obj");
@@ -198,7 +198,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void scriptObjectMirrorToStringTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final Object obj = e.eval("new TypeError('wrong type')");
             assertEquals(obj.toString(), "TypeError: wrong type", "toString returns wrong value");
@@ -219,8 +219,8 @@ public class ScriptObjectMirrorTest {
     @Test
     public void mirrorNewObjectGlobalFunctionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
-        final ScriptEngine e2 = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e2 = m.getEngineByName("nashorn-monflabs");
 
         e.eval("function func() {}");
         e2.put("foo", e.get("func"));
@@ -232,8 +232,8 @@ public class ScriptObjectMirrorTest {
     @Test
     public void mirrorNewObjectInstanceFunctionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
-        final ScriptEngine e2 = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e2 = m.getEngineByName("nashorn-monflabs");
 
         e.eval("function func() {}");
         e2.put("func", e.get("func"));
@@ -245,7 +245,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void indexPropertiesExternalBufferTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptObjectMirror obj = (ScriptObjectMirror)e.eval("var obj = {}; obj");
         final ByteBuffer buf = ByteBuffer.allocate(5);
         int i;
@@ -268,7 +268,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void conversionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptObjectMirror arr = (ScriptObjectMirror)e.eval("[33, 45, 23]");
         final int[] intArr = arr.to(int[].class);
         assertEquals(intArr[0], 33);
@@ -293,7 +293,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void mapScriptObjectMirrorCallsiteTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine = m.getEngineByName("nashorn");
+        final ScriptEngine engine = m.getEngineByName("nashorn-monflabs");
         final String TEST_SCRIPT = "typeof obj.foo";
 
         final Bindings global = engine.getContext().getBindings(ScriptContext.ENGINE_SCOPE);
@@ -326,7 +326,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void checkMirrorToObject() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine engine = engineManager.getEngineByName("nashorn");
+        final ScriptEngine engine = engineManager.getEngineByName("nashorn-monflabs");
         final Invocable invocable = (Invocable)engine;
 
         engine.eval("function test1(arg) { return { arg: arg }; }");
@@ -359,7 +359,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void mirrorUnwrapInterfaceMethod() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine engine = engineManager.getEngineByName("nashorn");
+        final ScriptEngine engine = engineManager.getEngineByName("nashorn-monflabs");
         final Invocable invocable = (Invocable)engine;
         engine.eval("function apply(obj) { " +
             " return obj instanceof Packages.org.monflabs.nashorn.api.scripting.ScriptObjectMirror; " +
@@ -373,7 +373,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void checkThisForJSObjectEval() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine e = engineManager.getEngineByName("nashorn");
+        final ScriptEngine e = engineManager.getEngineByName("nashorn-monflabs");
         final JSObject jsobj = (JSObject)e.eval("({foo: 23, bar: 'hello' })");
         assertEquals(((Number)jsobj.eval("this.foo")).intValue(), 23);
         assertEquals(jsobj.eval("this.bar"), "hello");
@@ -385,7 +385,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void topLevelAnonFuncStatement() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine e = engineManager.getEngineByName("nashorn");
+        final ScriptEngine e = engineManager.getEngineByName("nashorn-monflabs");
         final JSObject func = (JSObject)e.eval("function(x) { return x + ' world' }");
         assertTrue(func.isFunction());
         assertEquals(func.call(e.eval("this"), "hello"), "hello world");
@@ -395,7 +395,7 @@ public class ScriptObjectMirrorTest {
     @Test
     public void jsObjectThisTest() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine e = engineManager.getEngineByName("nashorn");
+        final ScriptEngine e = engineManager.getEngineByName("nashorn-monflabs");
         e.put("func", new AbstractJSObject() {
             @Override
             public boolean isFunction() { return true; }

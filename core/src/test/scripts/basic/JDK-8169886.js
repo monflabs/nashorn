@@ -30,7 +30,7 @@
 
 
 var m = new javax.script.ScriptEngineManager();
-var e = m.getEngineByName("nashorn");
+var e = m.getEngineByName("nashorn-monflabs");
 
 e.eval("function f() { return 'ok' }");
 var f = e.get("f");

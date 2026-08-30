@@ -29,7 +29,7 @@
  */
 
 var m = new javax.script.ScriptEngineManager();
-var e = m.getEngineByName("nashorn");
+var e = m.getEngineByName("nashorn-monflabs");
 var jsobj = e.eval("({ foo: 33, valueOf: function() 42 })");
 
 print("foo =", jsobj['getMember(java.lang.String)']("foo"));

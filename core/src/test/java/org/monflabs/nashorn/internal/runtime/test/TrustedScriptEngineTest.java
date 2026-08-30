@@ -47,7 +47,7 @@ public class TrustedScriptEngineTest {
     @Test
     public void versionTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         assertEquals(e.getFactory().getEngineVersion(), Version.version());
     }
 

@@ -40,7 +40,7 @@
  * <pre>
 import javax.script.*;
 ...
-ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn");
+ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 </pre>
  *
  * and then use it just as you would any other JSR-223 script engine. See

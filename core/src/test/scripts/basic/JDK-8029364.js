@@ -29,7 +29,7 @@
  */
 
 var m = new javax.script.ScriptEngineManager();
-var e = m.getEngineByName("nashorn");
+var e = m.getEngineByName("nashorn-monflabs");
 var g = e.eval("this");
 try {
     e.eval("var e = new Error('foo'); e.bar = 33; throw e");

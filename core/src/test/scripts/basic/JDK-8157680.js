@@ -30,7 +30,7 @@
  */
 
 var SM = Java.type("javax.script.ScriptEngineManager")
-var engine = new SM().getEngineByName("nashorn")
+var engine = new SM().getEngineByName("nashorn-monflabs")
 
 engine.put("output", print);
 var reviver = engine.eval(<<EOF

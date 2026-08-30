@@ -97,7 +97,7 @@ public class PluggableJSObjectTest {
     // Named property access on a JSObject
     public void namedAccessTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final MapWrapperObject obj = new MapWrapperObject();
             e.put("obj", obj);
@@ -123,7 +123,7 @@ public class PluggableJSObjectTest {
     // ConsString attribute access on a JSObject
     public void consStringTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final MapWrapperObject obj = new MapWrapperObject();
             e.put("obj", obj);
@@ -188,7 +188,7 @@ public class PluggableJSObjectTest {
     // array-like indexed access for a JSObject
     public void indexedAccessTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final BufferObject buf = new BufferObject(2);
             e.put("buf", buf);
@@ -228,7 +228,7 @@ public class PluggableJSObjectTest {
     // a callable JSObject
     public void callableJSObjectTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             e.put("sum", new Adder());
             // check callability of Adder objects
@@ -257,7 +257,7 @@ public class PluggableJSObjectTest {
     // a factory JSObject
     public void factoryJSObjectTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             e.put("Factory", new Factory());
 
@@ -275,7 +275,7 @@ public class PluggableJSObjectTest {
     // iteration tests
     public void iteratingJSObjectTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final MapWrapperObject obj = new MapWrapperObject();
             obj.setMember("foo", "hello");
@@ -299,7 +299,7 @@ public class PluggableJSObjectTest {
     @Test
     public void hidingInternalObjectsForJSObjectTest() throws Exception {
         final ScriptEngineManager engineManager = new ScriptEngineManager();
-        final ScriptEngine e = engineManager.getEngineByName("nashorn");
+        final ScriptEngine e = engineManager.getEngineByName("nashorn-monflabs");
 
         final String code = "function func(obj) { obj.foo = [5, 5]; obj.bar = {} }";
         e.eval(code);

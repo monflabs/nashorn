@@ -32,7 +32,7 @@
 var ScriptContext = Java.type("javax.script.ScriptContext");
 var ScriptEngineManager = Java.type("javax.script.ScriptEngineManager");
 var m = new ScriptEngineManager();
-var e = m.getEngineByName("nashorn");
+var e = m.getEngineByName("nashorn-monflabs");
 
 var scope = e.getBindings(ScriptContext.ENGINE_SCOPE);
 var MYVAR = "myvar";

@@ -34,7 +34,7 @@ var ScriptEngineManager = Java.type("javax.script.ScriptEngineManager");
 var SecurityException = Java.type("java.lang.SecurityException");
 
 var m = new ScriptEngineManager();
-var e = m.getEngineByName("nashorn");
+var e = m.getEngineByName("nashorn-monflabs");
 
 
 // subtest script file

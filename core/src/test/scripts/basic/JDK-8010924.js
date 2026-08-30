@@ -47,7 +47,7 @@ try {
 // try the same via script engine
 
 var ScriptEngineManager = Java.type("javax.script.ScriptEngineManager");
-var engine = new ScriptEngineManager().getEngineByName("nashorn");
+var engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 
 engine.eval("load('nashorn:mozilla_compat.js')");
 

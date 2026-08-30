@@ -55,7 +55,7 @@ public class InvocableTest {
     @Test
     public void invokeMethodTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             e.eval("var Example = function() { this.hello = function() { return 'Hello World!'; };}; myExample = new Example();");
@@ -75,7 +75,7 @@ public class InvocableTest {
      */
     public void invokeMethodDifferentContextTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             // define an object with method on it
@@ -100,7 +100,7 @@ public class InvocableTest {
      */
     public void invokeMethodNullNameTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             final Object obj = e.eval("({})");
@@ -120,7 +120,7 @@ public class InvocableTest {
      */
     public void invokeMethodMissingTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             final Object obj = e.eval("({})");
@@ -141,7 +141,7 @@ public class InvocableTest {
      */
     public void invokeMethodNonScriptObjectThizTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable) e).invokeMethod(new Object(), "toString");
@@ -161,7 +161,7 @@ public class InvocableTest {
      */
     public void invokeMethodNullThizTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable) e).invokeMethod(null, "toString");
@@ -181,8 +181,8 @@ public class InvocableTest {
      */
     public void invokeMethodMixEnginesTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine1 = m.getEngineByName("nashorn");
-        final ScriptEngine engine2 = m.getEngineByName("nashorn");
+        final ScriptEngine engine1 = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine engine2 = m.getEngineByName("nashorn-monflabs");
 
         try {
             final Object obj = engine1.eval("({ run: function() {} })");
@@ -200,7 +200,7 @@ public class InvocableTest {
     @Test
     public void getInterfaceTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Invocable inv = (Invocable) e;
 
         // try to get interface from global functions
@@ -238,7 +238,7 @@ public class InvocableTest {
     @Test
     public void getInterfaceMissingTest() {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine engine = manager.getEngineByName("nashorn");
+        final ScriptEngine engine = manager.getEngineByName("nashorn-monflabs");
 
         // don't define any function.
         try {
@@ -295,7 +295,7 @@ public class InvocableTest {
      */
     public void getNonInterfaceGetInterfaceTest() {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine engine = manager.getEngineByName("nashorn");
+        final ScriptEngine engine = manager.getEngineByName("nashorn-monflabs");
         try {
             log(Objects.toString(((Invocable) engine).getInterface(Object.class)));
             fail("Should have thrown IllegalArgumentException");
@@ -313,7 +313,7 @@ public class InvocableTest {
      */
     public void getInterfaceDifferentContext() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             final Object obj = e.eval("({ run: function() { } })");
 
@@ -337,7 +337,7 @@ public class InvocableTest {
      */
     public void getInterfaceNonScriptObjectThizTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable) e).getInterface(new Object(), Runnable.class);
@@ -357,7 +357,7 @@ public class InvocableTest {
      */
     public void getInterfaceNullThizTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable) e).getInterface(null, Runnable.class);
@@ -377,8 +377,8 @@ public class InvocableTest {
      */
     public void getInterfaceMixEnginesTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine1 = m.getEngineByName("nashorn");
-        final ScriptEngine engine2 = m.getEngineByName("nashorn");
+        final ScriptEngine engine1 = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine engine2 = m.getEngineByName("nashorn-monflabs");
 
         try {
             final Object obj = engine1.eval("({ run: function() {} })");
@@ -399,7 +399,7 @@ public class InvocableTest {
      */
     public void invokeFunctionNullNameTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable)e).invokeFunction(null);
@@ -419,7 +419,7 @@ public class InvocableTest {
      */
     public void invokeFunctionMissingTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             ((Invocable)e).invokeFunction("NonExistentFunc");
@@ -439,7 +439,7 @@ public class InvocableTest {
      */
     public void invokeFunctionDifferentContextTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         try {
             // define an object with method on it
@@ -462,7 +462,7 @@ public class InvocableTest {
     @Test
     public void invokeFunctionExceptionTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             e.eval("function func() { throw new TypeError(); }");
         } catch (final Throwable t) {
@@ -485,7 +485,7 @@ public class InvocableTest {
     @Test
     public void invokeMethodExceptionTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         try {
             e.eval("var sobj = {}; sobj.foo = function func() { throw new TypeError(); }");
         } catch (final Throwable t) {
@@ -516,7 +516,7 @@ public class InvocableTest {
      */
     public void variableArityInterfaceTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         e.eval(
                 "function test1(i, strings) {"
                 + "    return 'i == ' + i + ', strings instanceof java.lang.String[] == ' + (strings instanceof Java.type('java.lang.String[]')) + ', strings == ' + java.util.Arrays.toString(strings)"
@@ -532,7 +532,7 @@ public class InvocableTest {
     @Test
     public void defaultMethodTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Invocable inv = (Invocable) e;
 
         final Object obj = e.eval("({ apply: function(arg) { return arg.toUpperCase(); }})");

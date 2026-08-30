@@ -44,7 +44,7 @@ function runScriptEngine(code) {
         try {
             // set new standard err
             System.setErr(newErr);
-            var engine = m.getEngineByName("nashorn");
+            var engine = m.getEngineByName("nashorn-monflabs");
             engine.eval(code);
             newErr.flush();
             return new java.lang.String(baos.toByteArray());

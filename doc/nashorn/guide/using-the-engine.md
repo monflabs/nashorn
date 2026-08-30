@@ -9,7 +9,7 @@ Everything on this page is plain `javax.script` — the engine implements `Scrip
 From a string, a `Reader`, or a URL:
 
 ```java
-ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 
 engine.eval("print('from a string')");
 engine.eval(new FileReader("script.js"));

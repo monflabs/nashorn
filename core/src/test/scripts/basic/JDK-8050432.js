@@ -30,7 +30,7 @@
 
 var ScriptEngine = javax.script.ScriptEngine;
 var m = new javax.script.ScriptEngineManager();
-var engine = m.getEngineByName("nashorn");
+var engine = m.getEngineByName("nashorn-monflabs");
 
 engine.put(ScriptEngine.FILENAME, "foo");
 var desc = engine.eval("Object.getOwnPropertyDescriptor(this, '"

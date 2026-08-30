@@ -31,11 +31,11 @@
 var ScriptContext = javax.script.ScriptContext;
 var manager = new javax.script.ScriptEngineManager();
 
-var engine1 = manager.getEngineByName("nashorn");
+var engine1 = manager.getEngineByName("nashorn-monflabs");
 engine1.eval("load('nashorn:mozilla_compat.js')");
 manager.setBindings(engine1.getBindings(ScriptContext.ENGINE_SCOPE));
 
-var engine2 = manager.getEngineByName("nashorn");
+var engine2 = manager.getEngineByName("nashorn-monflabs");
 engine2.eval("load('nashorn:mozilla_compat.js');");
 engine2.eval("importPackage(java.util);");
 

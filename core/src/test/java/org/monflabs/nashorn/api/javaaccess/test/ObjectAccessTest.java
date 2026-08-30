@@ -53,7 +53,7 @@ public class ObjectAccessTest {
     @BeforeClass
     public static void setUpClass() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        e = m.getEngineByName("nashorn");
+        e = m.getEngineByName("nashorn-monflabs");
         o = new SharedObject();
         e.put("o", o);
         e.eval("var SharedObject = Packages.org.monflabs.nashorn.api.javaaccess.test.SharedObject;");

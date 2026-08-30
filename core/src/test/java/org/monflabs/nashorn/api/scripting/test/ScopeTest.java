@@ -56,7 +56,7 @@ public class ScopeTest {
     @Test
     public void createBindingsTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         b.put("foo", 42.0);
         Object res = null;
@@ -73,7 +73,7 @@ public class ScopeTest {
     @Test
     public void engineScopeTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings engineScope = e.getBindings(ScriptContext.ENGINE_SCOPE);
 
         // check few ECMA standard built-in global properties
@@ -116,7 +116,7 @@ public class ScopeTest {
     @Test
     public void multiGlobalTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext newCtxt = new SimpleScriptContext();
         newCtxt.setBindings(b, ScriptContext.ENGINE_SCOPE);
@@ -165,7 +165,7 @@ public class ScopeTest {
     @Test
     public void userEngineScopeBindingsTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         e.eval("function func() {}");
 
         final ScriptContext newContext = new SimpleScriptContext();
@@ -178,7 +178,7 @@ public class ScopeTest {
     @Test
     public void userEngineScopeBindingsNoLeakTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptContext newContext = new SimpleScriptContext();
         newContext.setBindings(new SimpleBindings(), ScriptContext.ENGINE_SCOPE);
         e.eval("function foo() {}", newContext);
@@ -190,7 +190,7 @@ public class ScopeTest {
     @Test
     public void userEngineScopeBindingsRetentionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptContext newContext = new SimpleScriptContext();
         newContext.setBindings(new SimpleBindings(), ScriptContext.ENGINE_SCOPE);
         e.eval("function foo() {}", newContext);
@@ -212,7 +212,7 @@ public class ScopeTest {
     // check that engine.js definitions are visible in all new global instances
     public void checkBuiltinsInNewBindingsTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         // check default global instance has engine.js definitions
         final Bindings g = (Bindings) e.eval("this");
@@ -264,7 +264,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedVarTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -300,7 +300,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedGlobalTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -337,7 +337,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedIncTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -383,7 +383,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedPrimitiveTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -423,7 +423,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedAccessorTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -457,7 +457,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedPrimitiveAccessorTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -491,7 +491,7 @@ public class ScopeTest {
     @Test
     public static void multiThreadedFunctionTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -525,7 +525,7 @@ public class ScopeTest {
     @Test
     public static void getterSetterTest() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -561,7 +561,7 @@ public class ScopeTest {
     @Test
     public static void getterSetter2Test() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -595,7 +595,7 @@ public class ScopeTest {
     @Test
     public static void contextOverwriteTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = new SimpleBindings();
         b.put("context", "hello");
         b.put("foo", 32);
@@ -610,7 +610,7 @@ public class ScopeTest {
     @Test
     public static void contextOverwriteInScriptTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         e.put("foo", 32);
 
         assertEquals(((Number)e.eval("foo")).intValue(), 32);
@@ -622,7 +622,7 @@ public class ScopeTest {
     @Test
     public static void engineOverwriteTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final Bindings b = new SimpleBindings();
         b.put("engine", "hello");
         b.put("foo", 32);
@@ -637,7 +637,7 @@ public class ScopeTest {
     @Test
     public static void engineOverwriteInScriptTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         e.put("foo", 32);
 
         assertEquals(((Number)e.eval("foo")).intValue(), 32);
@@ -649,7 +649,7 @@ public class ScopeTest {
     @Test
     public static void testMegamorphicGetInGlobal() throws Exception {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine = m.getEngineByName("nashorn");
+        final ScriptEngine engine = m.getEngineByName("nashorn-monflabs");
         final String script = "foo";
         // "foo" is megamorphic because of different global scopes.
         // Make sure ScriptContext variable search works even after
@@ -670,7 +670,7 @@ public class ScopeTest {
     @Test
     public static void testSlowScope() throws ScriptException, InterruptedException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
 
         for (int i = 0; i < 100; i++) {
             final Bindings b = e.createBindings();
@@ -720,7 +720,7 @@ public class ScopeTest {
     @Test
     public void testGlobalScopeSearch() throws Exception {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptContext c = e.getContext();
         c.setAttribute("name1234", "value", ScriptContext.GLOBAL_SCOPE);
         assertEquals(c.getAttribute("name1234"), "value");
@@ -733,7 +733,7 @@ public class ScopeTest {
     @Test
     public void testScriptContext_NPE_IAE() throws Exception {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn");
+        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
         final ScriptContext c = e.getContext();
         try {
             c.getAttribute("");
@@ -863,7 +863,7 @@ public class ScopeTest {
     // @bug 8138616: invokeFunction fails if function calls a function defined in GLOBAL_SCOPE
     @Test
     public void invokeFunctionInGlobalScopeTest() throws Exception {
-         final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+         final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
          final ScriptContext ctxt = engine.getContext();
 
          // define a function called "func"
@@ -888,7 +888,7 @@ public class ScopeTest {
     // variant of above that replaces default ScriptContext of the engine with a fresh instance!
     @Test
     public void invokeFunctionInGlobalScopeTest2() throws Exception {
-         final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+         final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 
          // create a new ScriptContext instance
          final ScriptContext ctxt = new SimpleScriptContext();
@@ -920,7 +920,7 @@ public class ScopeTest {
     // ScriptContext associated with the Global so that invoke methods work as expected.
     @Test
     public void invokeFunctionWithCustomScriptContextTest() throws Exception {
-        final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 
         // create an engine and a ScriptContext, but don't set it as default
         final ScriptContext scriptContext = new SimpleScriptContext();

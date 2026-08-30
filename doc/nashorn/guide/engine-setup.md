@@ -1,6 +1,6 @@
 # Creating the engine
 
-`ScriptEngineManager.getEngineByName("nashorn")` is all most embedders need. When you want control —
+`ScriptEngineManager.getEngineByName("nashorn-monflabs")` is all most embedders need. When you want control —
 options, class loading, class filtering — instantiate the factory yourself:
 `org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory`.
 
@@ -46,9 +46,12 @@ configurations means two engines, and two engines coexist cleanly in one process
 
 ## Engine metadata
 
-The factory answers the standard JSR-223 queries: names `nashorn`/`Nashorn`, `js`/`JS`,
-`javascript`/`JavaScript`, `ecmascript`/`ECMAScript`; MIME types `application/javascript`,
-`application/ecmascript`, `text/javascript`, `text/ecmascript`; extension `js`. The
+The factory answers the standard JSR-223 queries: names `nashorn-monflabs`/`Nashorn-Monflabs`,
+`js`/`JS`, `javascript`/`JavaScript`, `ecmascript`/`ECMAScript`; MIME types
+`application/javascript`, `application/ecmascript`, `text/javascript`, `text/ecmascript`;
+extension `js`. The engine deliberately does **not** answer to plain `nashorn`: that name belongs
+to the official Nashorn library, and keeping the two lookups distinct means an application with
+both on its class path always gets the engine it asked for. The
 `THREADING` parameter returns `null` — the engine makes no thread-safety promise; see
 [Threads and concurrency](concurrency.md).
 

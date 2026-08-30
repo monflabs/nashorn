@@ -4,9 +4,11 @@ Nashorn is a JavaScript engine for the JVM: it compiles JavaScript to JVM byteco
 sites with `invokedynamic`. This fork — published as **`org.monflabs.nashorn:nashorn-core`**,
 version 20, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2017** (ECMA-262, 8th
 edition) together with its Annex B, measured continuously against the official `tc39/test262`
-conformance suite. It requires **JDK 25 or later**, has **no dependencies at all**, and carries its own
-Java package and module name, `org.monflabs.nashorn`, so it can sit beside an upstream
-`org.openjdk.nashorn` artifact anywhere - module path included.
+conformance suite. It requires **JDK 25 or later** and has **no dependencies at all**. To avoid colliding with the
+official Nashorn library, everything about it carries the fork's own name: the Java package and
+module are `org.monflabs.nashorn` rather than `org.openjdk.nashorn`, so the two jars can sit side
+by side anywhere - module path included - and the script engine registers as `nashorn-monflabs`
+rather than `nashorn`, so a `javax.script` lookup always finds the engine it named.
 
 ```java
 import javax.script.ScriptEngine;
@@ -14,7 +16,7 @@ import javax.script.ScriptEngineManager;
 
 public class Hello {
     public static void main(String[] args) throws Exception {
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
         engine.eval("print(`Nashorn speaks ${'ES' + 2017}`);");
     }
 }

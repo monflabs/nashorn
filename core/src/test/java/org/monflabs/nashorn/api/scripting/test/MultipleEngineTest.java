@@ -43,10 +43,10 @@ public class MultipleEngineTest {
     public void createAndUseManyEngine() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
 
-        final ScriptEngine e1 = m.getEngineByName("nashorn");
+        final ScriptEngine e1 = m.getEngineByName("nashorn-monflabs");
         e1.eval("var  x = 33; print(x);");
 
-        final ScriptEngine e2 = m.getEngineByName("nashorn");
+        final ScriptEngine e2 = m.getEngineByName("nashorn-monflabs");
         e2.eval("try { print(x) } catch(e) { print(e); }");
     }
 }

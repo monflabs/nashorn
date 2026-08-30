@@ -90,7 +90,7 @@ public class DynamicLinkerFactoryTest {
         final DynamicLinker linker = factory.createLinker();
 
         // check that the nashorn exported linker can be used for ScriptObjectMirror
-        final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
         final MethodType mt = MethodType.methodType(Object.class, Object.class);
         final Operation op = GET_PROPERTY.named("foo");
         final CallSite cs = linker.link(new SimpleRelinkableCallSite(new CallSiteDescriptor(
