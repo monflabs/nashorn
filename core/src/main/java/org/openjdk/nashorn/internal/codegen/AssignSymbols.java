@@ -38,6 +38,7 @@ import static org.openjdk.nashorn.internal.codegen.CompilerConstants.VARARGS;
 import static org.openjdk.nashorn.internal.ir.Symbol.HAS_OBJECT_VALUE;
 import static org.openjdk.nashorn.internal.ir.Symbol.IS_CONST;
 import static org.openjdk.nashorn.internal.ir.Symbol.IS_FUNCTION_SELF;
+import static org.openjdk.nashorn.internal.ir.Symbol.IS_PLAIN_FUNCTION_DECLARATION;
 import static org.openjdk.nashorn.internal.ir.Symbol.IS_GLOBAL;
 import static org.openjdk.nashorn.internal.ir.Symbol.IS_INTERNAL;
 import static org.openjdk.nashorn.internal.ir.Symbol.IS_LET;
@@ -213,7 +214,8 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
                 // pattern is taken apart with - belongs to the parameter
                 // list's environment, not the body's.
                 final Block target = blockScoped || !inNestedBody() ? null : variables;
-                final Symbol symbol = defineSymbol(block, ident.getName(), ident, varNode.getSymbolFlags(), target);
+                final int flags = varNode.getSymbolFlags() | plainFunctionDeclaration(varNode);
+                final Symbol symbol = defineSymbol(block, ident.getName(), ident, flags, target);
                 if (varNode.isFunctionDeclaration()) {
                     symbol.setIsFunctionDeclaration();
                 }
@@ -393,7 +395,7 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
             } else if (isVar) {
                 if (isBlockScope) {
                     // Check redeclaration in same block
-                    if (symbol.hasBeenDeclared()) {
+                    if (symbol.hasBeenDeclared() && !bothFunctionDeclarations(symbol, symbolFlags)) {
                         throwParserException(ECMAErrors.getMessage("syntax.error.redeclare.variable", name), origin);
                     } else {
                         symbol.setHasBeenDeclared();
@@ -601,7 +603,7 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         final Block switchBlock = varNode.isBlockScoped() ? lc.getSwitchBlock() : null;
         // the same block the declaration was hoisted into: see getSwitchBlock
         defineSymbol(switchBlock != null ? switchBlock : lc.getCurrentBlock(),
-                ident.getName(), ident, varNode.getSymbolFlags() | flags);
+                ident.getName(), ident, varNode.getSymbolFlags() | flags | plainFunctionDeclaration(varNode));
     }
 
     private Symbol exceptionSymbol() {
@@ -639,6 +641,33 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
      * @param name Symbol name.
      * @return Found symbol or null if not found.
      */
+    /**
+     * Whether B.3.3.4 lets these two declarations of a name stand together.
+     *
+     * Two function declarations of one name in one block are an early error in
+     * ES2015 and legal in sloppy code under Annex B, where the second simply
+     * takes the binding over from the first.
+     */
+    private boolean bothFunctionDeclarations(final Symbol symbol, final int symbolFlags) {
+        return compiler.getScriptEnvironment()._annexB
+                && !lc.getCurrentFunction().isStrict()
+                && symbol.isPlainFunctionDeclaration()
+                && (symbolFlags & IS_PLAIN_FUNCTION_DECLARATION) != 0;
+    }
+
+    /**
+     * B.3.3.4 names FunctionDeclaration, which a generator declaration and an
+     * async function declaration are not: either of those beside another
+     * declaration of the name is the error 14.2.1 makes it.
+     */
+    private static int plainFunctionDeclaration(final VarNode varNode) {
+        return varNode.isFunctionDeclaration()
+                && varNode.getInit() instanceof FunctionNode function
+                && function.getKind() == FunctionNode.Kind.NORMAL
+                && !function.isAsync()
+                ? IS_PLAIN_FUNCTION_DECLARATION : 0;
+    }
+
     private Symbol findSymbol(final Block block, final String name) {
         for (final Iterator<Block> blocks = lc.getBlocks(block); blocks.hasNext();) {
             final Symbol symbol = blocks.next().getExistingSymbol(name);
@@ -929,7 +958,12 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     }
 
     private Symbol nameIsUsed(final String name, final IdentNode origin) {
-        final Block block = lc.getCurrentBlock();
+        // B.3.3's assignment names the var-scoped binding, which the block
+        // binding of the same name would otherwise shadow: the search starts at
+        // the function body, so every block between here and it is passed over
+        final Block block = origin != null && origin.isAnnexBVarTarget()
+                ? lc.getFunctionBody(lc.getCurrentFunction())
+                : lc.getCurrentBlock();
 
         Symbol symbol = findSymbol(block, name);
 

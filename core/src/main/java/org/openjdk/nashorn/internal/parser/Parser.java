@@ -4662,7 +4662,11 @@ public class Parser extends AbstractParser implements Loggable {
             // that object to live in. Where there is one - which a parameter
             // expression makes - the object is made there, and the declaration
             // shadows it in the body without taking its place
-            if (isArguments(name) && !enclosing.hasParameterExpressions()) {
+            if (isArguments(name) && topLevel && !enclosing.hasParameterExpressions()) {
+               // 9.2.12 step 18 is about a declaration of the function's own
+               // body. One in a block is block scoped and takes nothing's place:
+               // the arguments object is still there, and is what the name means
+               // outside the block
                enclosing.setFlag(FunctionNode.DEFINES_ARGUMENTS);
             }
         }
@@ -4701,7 +4705,27 @@ public class Parser extends AbstractParser implements Loggable {
             if (topLevel) {
                 functionDeclarations.add(varNode);
             } else {
-                prependStatement(varNode); // Hoist to beginning of current block
+                // Hoist to the beginning of the current block, after the
+                // declarations already hoisted there: two of a name in one block
+                // are legal under B.3.3.4 and the last of them is the one that
+                // stands, which prepending each in turn would reverse
+                lc.prependHoistedStatementToCurrentNode(varNode);
+
+                if (env._annexB && !isStrictMode
+                        && function.getKind() == FunctionNode.Kind.NORMAL && !function.isAsync()) {
+                    // B.3.3 also gives the name a var-scoped binding, assigned
+                    // where the declaration stands - so a block that is never
+                    // entered leaves it undefined, and one that is leaves it the
+                    // function. The declaration itself stays where it is, and
+                    // stays block scoped. ES6Desugar decides whether this may
+                    // stand: the names it would collide with are not all known
+                    // yet. An anonymous declaration is not one at all - it has
+                    // no BindingIdentifier to bind - and returns above.
+                    final IdentNode target = new IdentNode(functionToken, finish, name.getName()).setIsAnnexBVarTarget();
+                    final IdentNode value  = new IdentNode(functionToken, finish, name.getName());
+                    appendStatement(new ExpressionStatement(functionLine, functionToken, finish,
+                            new BinaryNode(Token.recast(functionToken, TokenType.ASSIGN), target, value)));
+                }
             }
         }
 

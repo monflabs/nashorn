@@ -225,6 +225,16 @@ class ParserContext {
     }
 
     /**
+     * Prepends a statement to the current node, after any hoisted before it
+     *
+     * @param statement the statement to prepend
+     */
+    public void prependHoistedStatementToCurrentNode(final Statement statement) {
+        assert statement != null;
+        peek().prependHoistedStatement(statement);
+    }
+
+    /**
      * Appends a statement to the current Node.
      * @param statement The statement to append
      */

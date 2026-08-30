@@ -27,7 +27,10 @@ package org.openjdk.nashorn.internal.codegen;
 
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -51,6 +54,7 @@ import org.openjdk.nashorn.internal.ir.ReturnNode;
 import org.openjdk.nashorn.internal.ir.IndexNode;
 import org.openjdk.nashorn.internal.ir.JoinPredecessorExpression;
 import org.openjdk.nashorn.internal.ir.LexicalContext;
+import org.openjdk.nashorn.internal.ir.LexicalContextNode;
 import org.openjdk.nashorn.internal.ir.LiteralNode;
 import org.openjdk.nashorn.internal.ir.LiteralNode.ArrayLiteralNode;
 import org.openjdk.nashorn.internal.ir.Node;
@@ -150,6 +154,17 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
     /** Distinguishes the temporaries of one statement from the next. */
     private int temporaries;
+
+    /**
+     * The names B.3.3 gives a var-scoped binding, by the id of the function they
+     * belong to.
+     *
+     * The parser marks every block-level function declaration in sloppy code
+     * with an assignment to a name of its own; this pass decides which of those
+     * marks may stand - the answer needs the whole enclosing function, which the
+     * parser did not have - and declares the survivors at the top of the body.
+     */
+    private final Map<Integer, Set<String>> annexBVars = new HashMap<>();
 
     /**
      * Whether the statement being expanded is a let/const/var declaration
@@ -521,6 +536,23 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
         for (int i = 0; i < statements.size(); i++) {
             final Statement statement = statements.get(i);
+            final String annexBName = annexBMarkedName(statement);
+            if (annexBName != null) {
+                if (annexBApplies(block, annexBName)) {
+                    annexBVars.computeIfAbsent(lc.getCurrentFunction().getId(), id -> new LinkedHashSet<>())
+                            .add(annexBName);
+                    if (expanded != null) {
+                        expanded.add(statement);
+                    }
+                } else {
+                    // the name is spoken for: the declaration stays block scoped
+                    // and nothing of it is seen outside
+                    if (expanded == null) {
+                        expanded = new ArrayList<>(statements.subList(0, i));
+                    }
+                }
+                continue;
+            }
             final List<Statement> replacement = expand(statement);
             if (replacement == null) {
                 if (expanded != null) {
@@ -547,6 +579,128 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // which loses whatever an ExpressionStatement was carrying beside its
         // expression - a destructuring declaration's let or const, for one.
         return super.leaveBlock(expanded == null ? block : block.setStatements(lc, expanded));
+    }
+
+    /**
+     * The name a statement marks for B.3.3, or null if it is not one of the
+     * parser's marks.
+     */
+    private static String annexBMarkedName(final Statement statement) {
+        if (statement instanceof ExpressionStatement expressionStatement
+                && expressionStatement.getExpression() instanceof BinaryNode assignment
+                && assignment.isTokenType(TokenType.ASSIGN)
+                && assignment.lhs() instanceof IdentNode target
+                && target.isAnnexBVarTarget()) {
+            return target.getName();
+        }
+        return null;
+    }
+
+    /**
+     * Whether B.3.3 gives this block-level function declaration a var-scoped
+     * binding as well.
+     *
+     * The rule is that the extension applies where declaring a var of that name
+     * would not have been an error, so the answer is no when the name is a
+     * parameter, when it is the arguments object, or when anything between the
+     * declaration and the function body binds it lexically - a let, a const, a
+     * class, or another block's function declaration. A catch parameter is not
+     * one of those: B.3.5 lets a var shadow it, and the tests require the
+     * extension to reach through a catch block.
+     *
+     * The declaration's own block is not examined. A lexical binding of the name
+     * beside it is already an early error, and the block-scoped declaration
+     * itself is in there.
+     *
+     * @param block the block the declaration stands in
+     * @param name  the name it declares
+     * @return true if the name is also bound in the variable environment
+     */
+    private boolean annexBApplies(final Block block, final String name) {
+        final FunctionNode function = lc.getCurrentFunction();
+
+        if (!function.isProgram()) {
+            for (final IdentNode parameter : function.getParameters()) {
+                if (name.equals(parameter.getName())) {
+                    return false;
+                }
+            }
+            if ("arguments".equals(name)) {
+                return false;
+            }
+        }
+
+        final Block body = lc.getFunctionBody(function);
+        for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
+            final Block enclosing = blocks.next();
+            if (enclosing != block && bindsLexically(enclosing, name)) {
+                return false;
+            }
+            if (enclosing == body) {
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether a block declares this name with a let, a const, a class, a
+     * function, or a catch parameter that is a pattern.
+     *
+     * B.3.5 lets a var take the name of a *simple* catch parameter, and B.3.3
+     * has to reach through such a clause - the tests say so. A destructuring
+     * parameter is not covered by it, and the names its pattern binds stay
+     * lexical.
+     */
+    private static boolean bindsLexically(final Block block, final String name) {
+        for (final Statement statement : block.getStatements()) {
+            if (statement instanceof VarNode varNode
+                    && varNode.isBlockScoped()
+                    && name.equals(varNode.getName().getName())) {
+                return true;
+            }
+            if (statement instanceof CatchNode catchNode) {
+                final Expression parameter = catchNode.getException();
+                if (parameter != null && !(parameter instanceof IdentNode)) {
+                    final Set<String> bound = new HashSet<>();
+                    collectNames(parameter, bound);
+                    if (bound.contains(name)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Declares the names B.3.3 gave this function, at the top of its body.
+     *
+     * The declaration has no initialiser, so it does not overwrite a binding of
+     * that name the function already has - a parameter cannot be one, and a var
+     * or a function declaration of the same name is the same binding.
+     */
+    private FunctionNode declareAnnexBVars(final FunctionNode functionNode) {
+        final Set<String> names = annexBVars.remove(functionNode.getId());
+        if (names == null || names.isEmpty()) {
+            return functionNode;
+        }
+
+        // a var belongs to the body's environment, which is nested inside the
+        // parameter list's when the parameters have expressions in them
+        final Block body = functionNode.getBody();
+        final long token = Token.recast(functionNode.getToken(), TokenType.VAR);
+        final int finish = functionNode.getFinish();
+
+        final List<Statement> statements = new ArrayList<>();
+        for (final String name : names) {
+            statements.add(new VarNode(functionNode.getLineNumber(), token, finish,
+                    new IdentNode(token, finish, name), null));
+        }
+        statements.addAll(body.getStatements());
+
+        return functionNode.setBody(lc, body.setStatements(lc, statements));
     }
 
     /**
@@ -747,8 +901,8 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         }
 
         final FunctionNode withGenerator =
-                bindArrowThis(bindThis(publishNewTarget(publishThis(addAsyncPrologue(addGeneratorPrologue(
-                        addClassConstructorGuard(moduleEnvironment(rejectEarlyParameterReads(functionNode)))))))));
+                declareAnnexBVars(bindArrowThis(bindThis(publishNewTarget(publishThis(addAsyncPrologue(addGeneratorPrologue(
+                        addClassConstructorGuard(moduleEnvironment(rejectEarlyParameterReads(functionNode))))))))));
         final List<IdentNode> parameters = withGenerator.getParameters();
         if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).isRestParameter()) {
             return super.leaveFunctionNode(withGenerator);

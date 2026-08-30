@@ -27,6 +27,7 @@ package org.openjdk.nashorn.internal.parser;
 import java.util.ArrayList;
 import java.util.List;
 import org.openjdk.nashorn.internal.ir.Statement;
+import org.openjdk.nashorn.internal.ir.VarNode;
 
 /**
  * Base class for parser context nodes
@@ -105,5 +106,28 @@ abstract class ParserContextBaseNode implements ParserContextNode {
     @Override
     public void prependStatement(final Statement statement) {
         this.statements.add(0, statement);
+    }
+
+    /**
+     * Adds a statement to the head of the list, after any that are already
+     * there for the same reason.
+     *
+     * A block's function declarations are hoisted to its top and keep their
+     * order among themselves: the last of two declarations of one name is the
+     * one the block is left with, which prepending each in turn would reverse.
+     *
+     * @param statement the statement to add
+     */
+    @Override
+    public void prependHoistedStatement(final Statement statement) {
+        int at = 0;
+        while (at < statements.size() && isHoistedFunctionDeclaration(statements.get(at))) {
+            at++;
+        }
+        this.statements.add(at, statement);
+    }
+
+    private static boolean isHoistedFunctionDeclaration(final Statement statement) {
+        return statement instanceof VarNode varNode && varNode.isFunctionDeclaration();
     }
 }

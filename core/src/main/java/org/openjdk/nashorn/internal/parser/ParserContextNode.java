@@ -64,4 +64,10 @@ interface ParserContextNode {
      */
     public void prependStatement(final Statement statement);
 
+    /**
+     * Adds a statement to the head of the list, after any already hoisted there
+     * @param statement The statement to add
+     */
+    public void prependHoistedStatement(final Statement statement);
+
 }

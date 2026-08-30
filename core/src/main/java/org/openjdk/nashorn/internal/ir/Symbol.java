@@ -102,6 +102,13 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
      */
     public static final int IS_TEMPORARY            = 1 << 16;
 
+    /**
+     * Declared by a plain function declaration - not a generator, not an async
+     * function. B.3.3.4 lets two of those share a block, and nothing else may
+     * share it with them.
+     */
+    public static final int IS_PLAIN_FUNCTION_DECLARATION = 1 << 17;
+
     /** Null or name identifying symbol. */
     private final String name;
 
@@ -352,6 +359,16 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
      * Check if this symbol is a function declaration
      * @return true if a function declaration
      */
+    /**
+     * Whether this symbol was declared by a plain function declaration.
+     *
+     * @return true if a function declaration that is neither a generator nor an
+     *         async function declared it
+     */
+    public boolean isPlainFunctionDeclaration() {
+        return (flags & IS_PLAIN_FUNCTION_DECLARATION) != 0;
+    }
+
     public boolean isFunctionDeclaration() {
         return (flags & IS_FUNCTION_DECLARATION) != 0;
     }

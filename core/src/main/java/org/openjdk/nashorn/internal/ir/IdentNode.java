@@ -54,6 +54,7 @@ public final class IdentNode extends Expression implements PropertyKey, Function
     private static final int PROTO_PROPERTY    = 1 << 8;
     private static final int DEFAULT_PARAMETER = 1 << 9;
     private static final int DESTRUCTURED_PARAMETER = 1 << 10;
+    private static final int ANNEXB_VAR_TARGET = 1 << 11;
 
     /** Identifier. */
     private final String name;
@@ -290,6 +291,30 @@ public final class IdentNode extends Expression implements PropertyKey, Function
             return this;
         }
         return new IdentNode(this, name, type, flags | IS_DECLARED_HERE, programPoint, conversion);
+    }
+
+    /**
+     * Whether this name is the target of the assignment B.3.3 makes from a
+     * block's function declaration to the var-scoped binding of the same name.
+     *
+     * The two bindings are called the same thing, and a name resolves to the
+     * innermost of them, so this one says "resolve me in the function's
+     * variable environment instead" - which is where the var binding is.
+     *
+     * @return true if the name resolves past the blocks between it and the
+     *         function body
+     */
+    public boolean isAnnexBVarTarget() {
+        return (flags & ANNEXB_VAR_TARGET) != 0;
+    }
+
+    /**
+     * Marks this name as the target of B.3.3's assignment.
+     *
+     * @return a node so marked
+     */
+    public IdentNode setIsAnnexBVarTarget() {
+        return new IdentNode(this, name, type, flags | ANNEXB_VAR_TARGET, programPoint, conversion);
     }
 
     /**
