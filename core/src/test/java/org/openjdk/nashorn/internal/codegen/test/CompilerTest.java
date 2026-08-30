@@ -155,9 +155,6 @@ public class CompilerTest {
             log("Begin compiling " + file.getAbsolutePath());
         }
 
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
-
         try {
             final char[] buffer = readFully(file);
             boolean excluded = false;
@@ -175,27 +172,22 @@ public class CompilerTest {
                 return;
             }
 
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
-            final Source source = sourceFor(file.getAbsolutePath(), buffer);
-            final ScriptFunction script = context.compileScript(source, global);
-            if (script == null || context.getErrorManager().getNumberOfErrors() > 0) {
-                log("Compile failed: " + file.getAbsolutePath());
-                failed++;
-            } else {
-                passed++;
-            }
+            Context.runWithGlobal(global, () -> {
+                final Source source = sourceFor(file.getAbsolutePath(), buffer);
+                final ScriptFunction script = context.compileScript(source, global);
+                if (script == null || context.getErrorManager().getNumberOfErrors() > 0) {
+                    log("Compile failed: " + file.getAbsolutePath());
+                    failed++;
+                } else {
+                    passed++;
+                }
+            });
         } catch (final Throwable t) {
             log("Compile failed: " + file.getAbsolutePath() + " : " + t);
             if (VERBOSE) {
                 t.printStackTrace(System.out);
             }
             failed++;
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
 
         if (VERBOSE) {

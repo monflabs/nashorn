@@ -333,7 +333,17 @@ public final class Context {
     /** Is Context global debug mode enabled ? */
     public static final boolean DEBUG = Options.getBooleanProperty("nashorn.debug");
 
-    private static final ThreadLocal<Global> currentGlobal = new ThreadLocal<>();
+    /**
+     * The realm the current thread is running in.
+     *
+     * A scoped value rather than a thread local: a realm is only ever
+     * established for the duration of something - an evaluation, a mirror
+     * operation, a generator's body - and a binding that cannot outlive its
+     * scope cannot leak to the next task on a pooled thread either. Reads are
+     * also cheaper, which matters on the virtual threads generators and async
+     * functions run their bodies on.
+     */
+    private static final ScopedValue<Global> currentGlobal = ScopedValue.newInstance();
 
     // in-memory cache for loaded classes
     private ClassCache classCache;
@@ -356,41 +366,83 @@ public final class Context {
 
     /**
      * Get the current global scope
-     * @return the current global scope
+     * @return the current global scope, or null when no realm is established
      */
     public static Global getGlobal() {
         // This class in a package.access protected package.
         // Trusted code only can call this method.
-        return currentGlobal.get();
+        return currentGlobal.isBound() ? currentGlobal.get() : null;
     }
 
     /**
-     * Set the current global scope
-     * @param global the global scope
+     * A void operation to be run within a realm, permitted to throw anything.
+     *
+     * @param <X> what the operation throws
      */
-    public static void setGlobal(final ScriptObject global) {
-        if (global != null && !(global instanceof Global)) {
-            throw new IllegalArgumentException("not a global!");
+    @FunctionalInterface
+    public interface GlobalOp<X extends Throwable> {
+        /**
+         * Runs the operation.
+         * @throws X whatever the operation throws
+         */
+        void run() throws X;
+    }
+
+    /**
+     * Runs an operation with the given global as the current realm.
+     *
+     * The realm is bound for exactly the duration of the operation and the
+     * previous one - or none - resumes afterwards, however the operation ends.
+     * When the realm is already the current one the operation simply runs:
+     * nothing observes the difference, and the common nested case - a mirror
+     * used inside its own realm - costs a comparison.
+     *
+     * @param global the realm to run in
+     * @param op     what to run
+     * @param <X>    what the operation throws
+     * @throws X what the operation threw
+     */
+    public static <X extends Throwable> void runWithGlobal(final Global global, final GlobalOp<X> op) throws X {
+        callWithGlobal(global, () -> {
+            op.run();
+            return null;
+        });
+    }
+
+    /**
+     * Calls an operation with the given global as the current realm.
+     *
+     * @param global the realm to run in
+     * @param op     what to call
+     * @param <T>    what the operation returns
+     * @param <X>    what the operation throws
+     * @return what the operation returned
+     * @throws X what the operation threw
+     */
+    public static <T, X extends Throwable> T callWithGlobal(final Global global, final ScopedValue.CallableOp<T, X> op) throws X {
+        final Global current = getGlobal();
+        if (current == global) {
+            return op.call();
         }
-        setGlobal((Global)global);
+        // the same code can be cached between globals, so the method handle
+        // constants a switch would make stale are dropped - on the way in for
+        // the realm being entered, and on the way out for the one resumed,
+        // exactly as the imperative set-and-restore pair used to
+        invalidateConstants(global);
+        try {
+            return ScopedValue.where(currentGlobal, global).call(op);
+        } finally {
+            invalidateConstants(current);
+        }
     }
 
-    /**
-     * Set the current global scope
-     * @param global the global scope
-     */
-    public static void setGlobal(final Global global) {
-        // This class in a package.access protected package.
-        // Trusted code only can call this method.
-        assert getGlobal() != global;
-        //same code can be cached between globals, then we need to invalidate method handle constants
+    private static void invalidateConstants(final Global global) {
         if (global != null) {
             final GlobalConstants globalConstants = getContext(global).getGlobalConstants();
             if (globalConstants != null) {
                 globalConstants.invalidateAll();
             }
         }
-        currentGlobal.set(global);
     }
 
     /**
@@ -1102,18 +1154,14 @@ public final class Context {
         }
         // initialize newly created Global instance
         initGlobal(newGlobal);
-        setGlobal(newGlobal);
+        return callWithGlobal(newGlobal, () -> {
+            final Object[] wrapped = args == null? ScriptRuntime.EMPTY_ARRAY :  ScriptObjectMirror.wrapArray(args, oldGlobal);
+            newGlobal.put("arguments", newGlobal.wrapAsObject(wrapped), env._strict);
 
-        final Object[] wrapped = args == null? ScriptRuntime.EMPTY_ARRAY :  ScriptObjectMirror.wrapArray(args, oldGlobal);
-        newGlobal.put("arguments", newGlobal.wrapAsObject(wrapped), env._strict);
-
-        try {
             // wrap objects from newGlobal's world as mirrors - but if result
             // is from oldGlobal's world, unwrap it!
             return ScriptObjectMirror.unwrap(ScriptObjectMirror.wrap(load(newGlobal, from), newGlobal), oldGlobal);
-        } finally {
-            setGlobal(oldGlobal);
-        }
+        });
     }
 
     /**
@@ -1280,14 +1328,8 @@ public final class Context {
     public Global initGlobal(final Global global, final ScriptEngine engine) {
         // Need only minimal global object, if we are just compiling.
         if (!env._compile_only) {
-            final Global oldGlobal = Context.getGlobal();
-            try {
-                Context.setGlobal(global);
-                // initialize global scope with builtin global objects
-                global.initBuiltinObjects(engine);
-            } finally {
-                Context.setGlobal(oldGlobal);
-            }
+            // initialize global scope with builtin global objects
+            Context.runWithGlobal(global, () -> global.initBuiltinObjects(engine));
         }
 
         return global;

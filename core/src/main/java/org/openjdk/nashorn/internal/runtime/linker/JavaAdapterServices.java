@@ -29,6 +29,7 @@ import static org.openjdk.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
@@ -109,17 +110,33 @@ public final class JavaAdapterServices {
     }
 
     /**
-     * Set the current global scope to that of the adapter global
+     * Tells whether the adapter's global scope is already the current one.
+     * When it is - every invocation arriving from script - the adapter method
+     * can run its body directly; otherwise it goes through
+     * {@link #callInGlobal(ScriptObject, MethodHandle, Object[])}.
      * @param adapterGlobal the adapter's global scope
-     * @return a Runnable that when invoked restores the previous global
+     * @return true when the adapter's global is the current global
      */
-    public static Runnable setGlobal(final ScriptObject adapterGlobal) {
-        final Global currentGlobal = Context.getGlobal();
-        if (adapterGlobal != currentGlobal) {
-            Context.setGlobal(adapterGlobal);
-            return ()->Context.setGlobal(currentGlobal);
-        }
-        return ()->{};
+    public static boolean sameGlobal(final ScriptObject adapterGlobal) {
+        return adapterGlobal == Context.getGlobal();
+    }
+
+    /**
+     * Invokes an adapter method's implementation with the adapter's global
+     * scope established as the current one, for calls arriving from a thread -
+     * or a nesting - where some other realm (or none) is current. The
+     * arguments are the receiver and the boxed parameters gathered in an
+     * array - the shape of the generated dispatch bridge the handle points
+     * at - and the result is the boxed return value; anything the
+     * implementation throws comes through unchanged.
+     * @param adapterGlobal the adapter's global scope
+     * @param target the handle of the implementation's dispatch bridge
+     * @param args the receiver, then the invocation's arguments boxed in an array
+     * @return the implementation's return value, boxed
+     * @throws Throwable whatever the implementation threw
+     */
+    public static Object callInGlobal(final ScriptObject adapterGlobal, final MethodHandle target, final Object[] args) throws Throwable {
+        return Context.callWithGlobal((Global)adapterGlobal, () -> target.invokeWithArguments(args));
     }
 
     /**

@@ -55,20 +55,18 @@ import org.testng.annotations.Test;
  */
 public class JDK_8078414_Test {
     private static Context cx;
-    private static Global oldGlobal;
+    private static Global global;
 
     @BeforeClass
     public static void beforeClass() {
         // We must have a Context for the DynamicLinker that Bootstrap.getLinkerServices() will use
-        oldGlobal = Context.getGlobal();
         cx = new Context(new Options(""), new ErrorManager(), null);
-        Context.setGlobal(cx.createGlobal());
+        global = cx.createGlobal();
     }
 
     @AfterClass
     public static void afterClass() {
-        Context.setGlobal(oldGlobal);
-        oldGlobal = null;
+        global = null;
         cx = null;
     }
 
@@ -107,7 +105,7 @@ public class JDK_8078414_Test {
     }
 
     private static boolean canConvert(final Class<?> from, final Class<?> to) {
-        return Bootstrap.getLinkerServices().canConvert(from, to);
+        return Context.callWithGlobal(global, () -> Bootstrap.getLinkerServices().canConvert(from, to));
     }
 
     private static void assertCanConvert(final Class<?> from, final Class<?> to) {

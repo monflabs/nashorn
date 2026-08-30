@@ -494,12 +494,11 @@ public final class Test262Runner {
             out.setDelegate(stdout);
             err.setDelegate(stderr);
 
-            final Global oldGlobal = Context.getGlobal();
             final int errorsBefore = errors.getNumberOfErrors();
             // a fresh realm per execution: tests mutate the global freely
             final Global global = context.createGlobal();
             try {
-                Context.setGlobal(global);
+                return Context.callWithGlobal(global, () -> {
 
                 if (fm != null && !fm.isRaw()) {
                     installHostObject(global);
@@ -515,6 +514,7 @@ public final class Test262Runner {
                 }
 
                 return runTest(variant, global, errorsBefore, stdout, stderr);
+                });
             } finally {
                 context.getOut().flush();
                 context.getErr().flush();
@@ -522,7 +522,6 @@ public final class Test262Runner {
                 // through it this whole realm, so without this the run retains a
                 // realm for every generator it starts and eventually dies of it.
                 global.abandonGenerators();
-                Context.setGlobal(oldGlobal);
             }
         }
 

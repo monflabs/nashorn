@@ -68,9 +68,7 @@ public class ModuleTest {
     public void importsAndExports() throws Exception {
         final Context context = newContext();
         final Global global = context.createGlobal();
-        final ScriptObject old = Context.getGlobal();
-        Context.setGlobal(global);
-        try {
+        Context.runWithGlobal(global, () -> {
             final ModuleRecord main = evaluate(context, "main.js");
             final ScriptObject result = (ScriptObject)main.read("result");
 
@@ -82,42 +80,32 @@ public class ModuleTest {
             assertEquals(JSType.toString(result.get(4)), "after=2");
             assertEquals(JSType.toString(result.get(5)), "ns=NAME|bump|counter|default");
             assertEquals(JSType.toString(result.get(6)), "shared=true");
-        } finally {
-            Context.setGlobal(old);
-        }
+        });
     }
 
     @Test
     public void moduleBindingsAreNotGlobal() throws Exception {
         final Context context = newContext();
         final Global global = context.createGlobal();
-        final ScriptObject old = Context.getGlobal();
-        Context.setGlobal(global);
-        try {
+        Context.runWithGlobal(global, () -> {
             evaluate(context, "main.js");
             // a module's top level declarations belong to the module
             assertSame(global.get("counter"), ScriptRuntime.UNDEFINED);
             assertSame(global.get("result"), ScriptRuntime.UNDEFINED);
-        } finally {
-            Context.setGlobal(old);
-        }
+        });
     }
 
     @Test
     public void oneRecordPerModule() throws Exception {
         final Context context = newContext();
         final Global global = context.createGlobal();
-        final ScriptObject old = Context.getGlobal();
-        Context.setGlobal(global);
-        try {
+        Context.runWithGlobal(global, () -> {
             final ModuleRecord first = evaluate(context, "counter.js");
             final ModuleRecord again = evaluate(context, "counter.js");
             assertSame(first, again, "a module is loaded once per realm");
 
             final ModuleRecord other = evaluate(context, "reexport.js");
             assertNotSame(first, other);
-        } finally {
-            Context.setGlobal(old);
-        }
+        });
     }
 }

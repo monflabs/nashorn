@@ -31,8 +31,10 @@ function, and it is **dual-role**: called normally, it sees no marker, builds th
 `GeneratorSupport` + `NativeGenerator` pair and returns the generator object without running the
 body; called on the generator's own virtual thread (which sets a `ThreadLocal` marker first), it
 returns `undefined` and execution falls through into the body. One compiled function, both roles.
-The new thread's first act is `Context.setGlobal(global)` — the [realm is
-thread-local](contexts-globals.md), and the body must see its own.
+The new thread's first act is to bind its realm — `Context.runWithGlobal(global, …)` around the
+whole body, since the [realm is a scoped value](contexts-globals.md) that a plainly-started thread
+does not inherit, and the body must see its own. The binding lives as long as the body's thread,
+parked yields included.
 
 Parameter defaults are bound *before* the generator object exists (the spec orders it so), which a
 second entry marker handles: the body runs exactly through its parameter prologue, reports

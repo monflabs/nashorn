@@ -7,7 +7,7 @@ which is `javax.script` for "no thread-safety guarantee at all".
 ## What that means in practice
 
 Script objects are ordinary mutable Java objects with no internal locking; the engine additionally
-keeps the *current realm* in a thread-local. So:
+keeps the *current realm* in a per-thread scoped value, bound around each run of script. So:
 
 - **Do not** run scripts against one engine (or one `Bindings`, or one `ScriptObjectMirror`'s
   realm) from two threads concurrently. Nothing detects it; you get data races.

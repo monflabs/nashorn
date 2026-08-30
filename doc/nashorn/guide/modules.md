@@ -75,14 +75,11 @@ Context context = new Context(options, new ErrorManager(),
         Thread.currentThread().getContextClassLoader());
 
 Global global = context.createGlobal();
-Context.setGlobal(global);                      // the realm is thread-local
-try {
+Context.runWithGlobal(global, () -> {           // establishes the realm for the call
     ModuleRecord main = context.evaluateModule(
             Source.sourceFor("main.js", new File("main.js")));
     Object count = main.read("count");          // read an export from Java
-} finally {
-    Context.setGlobal(null);
-}
+});
 ```
 
 `evaluateModule` is `loadModule(...).link().evaluate()` — the record it returns also offers

@@ -1780,20 +1780,11 @@ public final class Global extends Scope {
             return obj;
         }
 
-        final Global oldGlobal = Context.getGlobal();
-        final boolean differentGlobal = oldGlobal != this;
-        try {
-            if (differentGlobal) {
-                Context.setGlobal(this);
-            }
+        return Context.callWithGlobal(this, () -> {
             final T newObj = creator.get();
             final T existingObj = map.putIfAbsent(key, newObj);
             return existingObj != null ? existingObj : newObj;
-        } finally {
-            if (differentGlobal) {
-                Context.setGlobal(oldGlobal);
-            }
-        }
+        });
     }
 
     private final Map<Object, InvokeByName> namedInvokers = new ConcurrentHashMap<>();

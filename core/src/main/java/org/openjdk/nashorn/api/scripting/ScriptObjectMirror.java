@@ -88,27 +88,21 @@ public final class ScriptObjectMirror extends AbstractJSObject implements Bindin
         final boolean globalChanged = (oldGlobal != global);
 
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
+            return Context.callWithGlobal(global, () -> {
+                if (sobj instanceof ScriptFunction) {
+                    final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
+                    final Object self = globalChanged? wrapLikeMe(thiz, oldGlobal) : thiz;
+                    return wrapLikeMe(ScriptRuntime.apply((ScriptFunction)sobj, unwrap(self, global), unwrapArray(modArgs, global)));
+                }
 
-            if (sobj instanceof ScriptFunction) {
-                final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
-                final Object self = globalChanged? wrapLikeMe(thiz, oldGlobal) : thiz;
-                return wrapLikeMe(ScriptRuntime.apply((ScriptFunction)sobj, unwrap(self, global), unwrapArray(modArgs, global)));
-            }
-
-            throw new RuntimeException("not a function: " + this);
+                throw new RuntimeException("not a function: " + this);
+            });
         } catch (final NashornException ne) {
             throw ne.initEcmaError(global);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
             throw new RuntimeException(t);
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
     }
 
@@ -118,26 +112,20 @@ public final class ScriptObjectMirror extends AbstractJSObject implements Bindin
         final boolean globalChanged = (oldGlobal != global);
 
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
+            return Context.callWithGlobal(global, () -> {
+                if (sobj instanceof ScriptFunction) {
+                    final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
+                    return wrapLikeMe(ScriptRuntime.construct((ScriptFunction)sobj, unwrapArray(modArgs, global)));
+                }
 
-            if (sobj instanceof ScriptFunction) {
-                final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
-                return wrapLikeMe(ScriptRuntime.construct((ScriptFunction)sobj, unwrapArray(modArgs, global)));
-            }
-
-            throw new RuntimeException("not a constructor: " + this);
+                throw new RuntimeException("not a constructor: " + this);
+            });
         } catch (final NashornException ne) {
             throw ne.initEcmaError(global);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
             throw new RuntimeException(t);
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
     }
 
@@ -158,29 +146,23 @@ public final class ScriptObjectMirror extends AbstractJSObject implements Bindin
         final boolean globalChanged = (oldGlobal != global);
 
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
+            return Context.callWithGlobal(global, () -> {
+                final Object val = sobj.get(functionName);
+                if (val instanceof ScriptFunction) {
+                    final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
+                    return wrapLikeMe(ScriptRuntime.apply((ScriptFunction)val, sobj, unwrapArray(modArgs, global)));
+                } else if (val instanceof JSObject && ((JSObject)val).isFunction()) {
+                    return ((JSObject)val).call(sobj, args);
+                }
 
-            final Object val = sobj.get(functionName);
-            if (val instanceof ScriptFunction) {
-                final Object[] modArgs = globalChanged? wrapArrayLikeMe(args, oldGlobal) : args;
-                return wrapLikeMe(ScriptRuntime.apply((ScriptFunction)val, sobj, unwrapArray(modArgs, global)));
-            } else if (val instanceof JSObject && ((JSObject)val).isFunction()) {
-                return ((JSObject)val).call(sobj, args);
-            }
-
-            throw new NoSuchMethodException("No such function " + functionName);
+                throw new NoSuchMethodException("No such function " + functionName);
+            });
         } catch (final NashornException ne) {
             throw ne.initEcmaError(global);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
             throw new RuntimeException(t);
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
     }
 
@@ -711,19 +693,10 @@ public final class ScriptObjectMirror extends AbstractJSObject implements Bindin
     }
 
     private <V> V inGlobal(final Supplier<V> s) {
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
-        if (globalChanged) {
-            Context.setGlobal(global);
-        }
         try {
-            return s.get();
+            return Context.callWithGlobal(global, s::get);
         } catch (final NashornException ne) {
             throw ne.initEcmaError(global);
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
     }
 

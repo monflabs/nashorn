@@ -110,13 +110,9 @@ public final class Main extends Shell {
         final String prompt = bundle.getString("shell.prompt");
         final String prompt2 = bundle.getString("shell.prompt2");
         final PrintWriter err = context.getErr();
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
         final PropertiesHelper propsHelper = new PropertiesHelper(context);
 
-        if (globalChanged) {
-            Context.setGlobal(global);
-        }
+        return Context.callWithGlobal(global, () -> {
 
         // jjs.js is read and evaluated. The result of the evaluation is an "exports" object. This is done
         // to avoid polluting javascript global scope. These are internal funtions are retrieved from the
@@ -176,21 +172,9 @@ public final class Main extends Shell {
                 }
             });
 
-            final Consumer<String> evaluator = str -> {
-                // could be called from different thread (GUI), we need to handle Context set/reset
-                final Global _oldGlobal = Context.getGlobal();
-                final boolean _globalChanged = (_oldGlobal != global);
-                if (_globalChanged) {
-                    Context.setGlobal(global);
-                }
-                try {
-                    evalImpl(context, global, str, err, env._dump_on_error);
-                } finally {
-                    if (_globalChanged) {
-                        Context.setGlobal(_oldGlobal);
-                    }
-                }
-            };
+            final Consumer<String> evaluator = str ->
+                // could be called from a different thread (GUI), which has no realm bound
+                Context.runWithGlobal(global, () -> evalImpl(context, global, str, err, env._dump_on_error));
 
             // expose history object for reflecting on command line history
             global.addOwnProperty("history", Property.NOT_ENUMERABLE, new HistoryObject(in.getHistory(), err, evaluator));
@@ -253,9 +237,6 @@ public final class Main extends Shell {
                 e.printStackTrace(err);
             }
         } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
             try {
                 propsHelper.close();
             } catch (final Exception exp) {
@@ -266,6 +247,7 @@ public final class Main extends Shell {
         }
 
         return SUCCESS;
+        });
     }
 
     static String getMessage(final String id) {

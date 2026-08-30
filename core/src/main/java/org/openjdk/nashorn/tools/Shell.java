@@ -359,13 +359,9 @@ public class Shell implements PartialParser {
      * @throws IOException when any script file read results in I/O error
      */
     private static int compileScripts(final Context context, final Global global, final List<String> files) throws IOException {
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
         final ScriptEnvironment env = context.getEnv();
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
+            return Context.callWithGlobal(global, () -> {
             final ErrorManager errors = context.getErrorManager();
 
             // For each file on the command line.
@@ -394,15 +390,12 @@ public class Shell implements PartialParser {
                     return COMPILATION_ERROR;
                 }
             }
+            return SUCCESS;
+            });
         } finally {
             env.getOut().flush();
             env.getErr().flush();
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
-
-        return SUCCESS;
     }
 
     /**
@@ -416,12 +409,8 @@ public class Shell implements PartialParser {
      * @throws IOException when any script file read results in I/O error
      */
     private int runScripts(final Context context, final Global global, final List<String> files) throws IOException {
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
+            return Context.callWithGlobal(global, () -> {
             final ErrorManager errors = context.getErrorManager();
 
             // For each file on the command line.
@@ -454,15 +443,12 @@ public class Shell implements PartialParser {
                     return RUNTIME_ERROR;
                 }
             }
+            return SUCCESS;
+            });
         } finally {
             context.getOut().flush();
             context.getErr().flush();
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
-
-        return SUCCESS;
     }
 
     /**
@@ -477,16 +463,12 @@ public class Shell implements PartialParser {
      * @throws IOException when any script file read results in I/O error
      */
     private static int runFXScripts(final Context context, final Global global, final List<String> files) throws IOException {
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
         try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
-
-            global.addOwnProperty("$GLOBAL", Property.NOT_ENUMERABLE, global);
-            global.addOwnProperty("$SCRIPTS", Property.NOT_ENUMERABLE, files);
-            context.load(global, "fx:bootstrap.js");
+            Context.runWithGlobal(global, () -> {
+                global.addOwnProperty("$GLOBAL", Property.NOT_ENUMERABLE, global);
+                global.addOwnProperty("$SCRIPTS", Property.NOT_ENUMERABLE, files);
+                context.load(global, "fx:bootstrap.js");
+            });
         } catch (final NashornException e) {
             context.getErrorManager().error(e.toString());
             if (context.getEnv()._dump_on_error) {
@@ -497,9 +479,6 @@ public class Shell implements PartialParser {
         } finally {
             context.getOut().flush();
             context.getErr().flush();
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
         }
 
         return SUCCESS;
@@ -565,15 +544,9 @@ public class Shell implements PartialParser {
         final String prompt = bundle.getString("shell.prompt");
         final BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         final PrintWriter err = context.getErr();
-        final Global oldGlobal = Context.getGlobal();
-        final boolean globalChanged = (oldGlobal != global);
         final ScriptEnvironment env = context.getEnv();
 
-        try {
-            if (globalChanged) {
-                Context.setGlobal(global);
-            }
-
+        Context.runWithGlobal(global, () -> {
             global.addShellBuiltins();
 
             while (true) {
@@ -607,11 +580,7 @@ public class Shell implements PartialParser {
                     }
                 }
             }
-        } finally {
-            if (globalChanged) {
-                Context.setGlobal(oldGlobal);
-            }
-        }
+        });
 
         return SUCCESS;
     }

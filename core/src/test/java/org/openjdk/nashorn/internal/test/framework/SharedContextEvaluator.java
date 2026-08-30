@@ -110,13 +110,12 @@ public final class SharedContextEvaluator implements ScriptEvaluator {
 
     @Override
     public int run(final OutputStream out, final OutputStream err, final String[] args) throws IOException {
-        final Global oldGlobal = Context.getGlobal();
         try {
             ctxOut.setDelegatee(out);
             ctxErr.setDelegatee(err);
             final ErrorManager errors = context.getErrorManager();
             final Global global = context.createGlobal();
-            Context.setGlobal(global);
+            return Context.callWithGlobal(global, () -> {
 
             // For each file on the command line.
             for (final String fileName : args) {
@@ -142,12 +141,11 @@ public final class SharedContextEvaluator implements ScriptEvaluator {
                     return RUNTIME_ERROR;
                 }
             }
+            return SUCCESS;
+            });
         } finally {
             context.getOut().flush();
             context.getErr().flush();
-            Context.setGlobal(oldGlobal);
         }
-
-        return SUCCESS;
     }
 }

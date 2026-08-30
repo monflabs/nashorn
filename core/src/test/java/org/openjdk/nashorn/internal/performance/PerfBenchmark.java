@@ -28,6 +28,10 @@ package org.openjdk.nashorn.internal.performance;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.util.function.Supplier;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -70,6 +74,58 @@ import org.openjdk.nashorn.internal.runtime.options.Options;
  * </pre>
  */
 public final class PerfBenchmark {
+
+    /**
+     * How a realm is established, resolved at run time. The harness always
+     * comes from the working tree but measures the base revision's engine too,
+     * and the two disagree: {@code Context.callWithGlobal} replaced
+     * {@code Context.setGlobal} when the realm moved from a thread local to a
+     * scoped value. One harness, both engines, so the newer entry point is
+     * looked up first and the imperative pair is the fallback.
+     */
+    private static final MethodHandle CALL_WITH_GLOBAL;
+    private static final MethodHandle GET_GLOBAL;
+    private static final MethodHandle SET_GLOBAL;
+    static {
+        final MethodHandles.Lookup lookup = MethodHandles.lookup();
+        MethodHandle call = null;
+        MethodHandle get = null;
+        MethodHandle set = null;
+        try {
+            call = lookup.findStatic(Context.class, "callWithGlobal",
+                    MethodType.methodType(Object.class, Global.class, ScopedValue.CallableOp.class));
+        } catch (final ReflectiveOperationException e) {
+            try {
+                get = lookup.findStatic(Context.class, "getGlobal", MethodType.methodType(Global.class));
+                set = lookup.findStatic(Context.class, "setGlobal", MethodType.methodType(void.class, Global.class));
+            } catch (final ReflectiveOperationException e2) {
+                throw new ExceptionInInitializerError(e2);
+            }
+        }
+        CALL_WITH_GLOBAL = call;
+        GET_GLOBAL = get;
+        SET_GLOBAL = set;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T inGlobal(final Global global, final Supplier<T> op) {
+        try {
+            if (CALL_WITH_GLOBAL != null) {
+                return (T)CALL_WITH_GLOBAL.invoke(global, (ScopedValue.CallableOp<Object, RuntimeException>)op::get);
+            }
+            final Global old = (Global)GET_GLOBAL.invoke();
+            SET_GLOBAL.invoke(global);
+            try {
+                return op.get();
+            } finally {
+                SET_GLOBAL.invoke(old);
+            }
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
     /**
      * How much each measurement may worsen before the comparison fails.
      *
@@ -282,15 +338,11 @@ public final class PerfBenchmark {
             results.put("compile.pdfjs.ms", best(() -> {
                 final Context context = newContext();
                 final Global global = context.createGlobal();
-                final Global old = Context.getGlobal();
-                Context.setGlobal(global);
-                try {
+                return inGlobal(global, () -> {
                     final long start = System.nanoTime();
                     context.compileScript(Source.sourceFor("pdfjs.js", source), global);
                     return (System.nanoTime() - start) / 1e6;
-                } finally {
-                    Context.setGlobal(old);
-                }
+                });
             }));
         }
 
@@ -315,14 +367,11 @@ public final class PerfBenchmark {
     private static boolean parses(final String source) {
         final Context context = newContext();
         final Global global = context.createGlobal();
-        final Global old = Context.getGlobal();
-        Context.setGlobal(global);
         try {
-            return context.compileScript(Source.sourceFor("<probe>", source), global) != null;
+            return inGlobal(global, () ->
+                context.compileScript(Source.sourceFor("<probe>", source), global) != null);
         } catch (final RuntimeException e) {
             return false;
-        } finally {
-            Context.setGlobal(old);
         }
     }
 
@@ -349,18 +398,14 @@ public final class PerfBenchmark {
     private static double timeScript(final String name, final String source) {
         final Context context = newContext();
         final Global global = context.createGlobal();
-        final Global old = Context.getGlobal();
-        Context.setGlobal(global);
-        try {
+        return inGlobal(global, () -> {
             final ScriptFunction script = context.compileScript(Source.sourceFor(name, source), global);
             return best(() -> {
                 final long start = System.nanoTime();
                 ScriptRuntime.apply(script, global);
                 return (System.nanoTime() - start) / 1e6;
             });
-        } finally {
-            Context.setGlobal(old);
-        }
+        });
     }
 
     private static Context newContext() {

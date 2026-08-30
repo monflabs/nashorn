@@ -174,16 +174,15 @@ public final class AsyncSupport {
         thread = Thread.ofVirtual().name("nashorn-async").unstarted(() -> {
             ENTERING.set(this);
             RUNNING.set(this);
-            // Context.getGlobal is a thread local, so the body's realm has to be
-            // established on this thread before anything script-visible runs.
-            final Global previous = Context.getGlobal();
-            Context.setGlobal(global);
+            // Context.getGlobal is scoped per thread, so the body's realm has to
+            // be established on this thread before anything script-visible runs -
+            // scoped values are not inherited by an unstructured thread start.
             try {
-                deliver(new Step.Returned(ScriptRuntime.apply(body, self, args)));
+                Context.runWithGlobal(global, () ->
+                    deliver(new Step.Returned(ScriptRuntime.apply(body, self, args))));
             } catch (final RuntimeException e) {
                 deliver(new Step.Failed(e));
             } finally {
-                Context.setGlobal(previous);
                 RUNNING.remove();
                 ENTERING.remove();
             }

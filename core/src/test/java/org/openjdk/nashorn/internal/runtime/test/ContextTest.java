@@ -30,7 +30,6 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import java.util.Map;
-import org.openjdk.nashorn.internal.objects.Global;
 import org.openjdk.nashorn.internal.runtime.Context;
 import org.openjdk.nashorn.internal.runtime.ErrorManager;
 import org.openjdk.nashorn.internal.runtime.ScriptFunction;
@@ -57,17 +56,13 @@ public class ContextTest {
         final Options options = new Options("");
         final ErrorManager errors = new ErrorManager();
         final Context cx = new Context(options, errors, Thread.currentThread().getContextClassLoader());
-        final Global oldGlobal = Context.getGlobal();
-        Context.setGlobal(cx.createGlobal());
-        try {
+        Context.runWithGlobal(cx.createGlobal(), () -> {
             String code = "22 + 10";
             assertTrue(32.0 == ((Number)(eval(cx, "<evalTest>", code))).doubleValue());
 
             code = "obj = { js: 'nashorn' }; obj.js";
             assertEquals(eval(cx, "<evalTest2>", code), "nashorn");
-        } finally {
-            Context.setGlobal(oldGlobal);
-        }
+        });
     }
 
     // Make sure trying to compile an invalid script returns null - see JDK-8046215.
@@ -76,9 +71,7 @@ public class ContextTest {
         final Options options = new Options("");
         final ErrorManager errors = new ErrorManager();
         final Context cx = new Context(options, errors, Thread.currentThread().getContextClassLoader());
-        final Global oldGlobal = Context.getGlobal();
-        Context.setGlobal(cx.createGlobal());
-        try {
+        Context.runWithGlobal(cx.createGlobal(), () -> {
             final ScriptFunction script = cx.compileScript(sourceFor("<evalCompileErrorTest>", "*/"), Context.getGlobal());
             if (script != null) {
                 fail("Invalid script compiled without errors");
@@ -86,9 +79,7 @@ public class ContextTest {
             if (errors.getNumberOfErrors() != 1) {
                 fail("Wrong number of errors: " + errors.getNumberOfErrors());
             }
-        } finally {
-            Context.setGlobal(oldGlobal);
-        }
+        });
     }
 
     // basic check for JS reflection access - java.util.Map-like access on ScriptObject
@@ -98,10 +89,7 @@ public class ContextTest {
         final ErrorManager errors = new ErrorManager();
         final Context cx = new Context(options, errors, Thread.currentThread().getContextClassLoader());
         final boolean strict = cx.getEnv()._strict;
-        final Global oldGlobal = Context.getGlobal();
-        Context.setGlobal(cx.createGlobal());
-
-        try {
+        Context.runWithGlobal(cx.createGlobal(), () -> {
             final String code = "var obj = { x: 344, y: 42 }";
             eval(cx, "<reflectionTest>", code);
 
@@ -132,10 +120,7 @@ public class ContextTest {
             sobj.put("zee", "hello", strict);
             assertEquals(sobj.get("zee"), "hello");
             assertEquals(sobj.size(), 3);
-
-        } finally {
-            Context.setGlobal(oldGlobal);
-        }
+        });
     }
 
     private static Object eval(final Context cx, final String name, final String code) {
