@@ -48,7 +48,7 @@ java --module-path nashorn-core-20.jar:nashorn-shell-20.jar \
 
 Wrapping that in a small `jjs` shell script is the practical move. In the REPL:
 
-```
+```text
 jjs> println("Hello, World!")
 Hello, World!
 jjs> arguments.join(", ")     // after: jjs -- a b c
