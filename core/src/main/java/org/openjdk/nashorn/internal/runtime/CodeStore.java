@@ -230,7 +230,13 @@ public abstract class CodeStore implements Loggable {
         private static String getVersionDir(final ScriptEnvironment env) throws IOException {
             try {
                 final String versionDir = OptimisticTypesPersistence.getVersionDirName();
-                return env._optimistic_types ? versionDir + "_opt" : versionDir;
+                // Annex B decides what a source means - where a function
+                // declared in a block is seen, whether "-->" begins a comment -
+                // so a class compiled with it is not one an engine without it
+                // may be given
+                return versionDir
+                        + (env._optimistic_types ? "_opt" : "")
+                        + (env._annexB ? "" : "_noannexb");
             } catch (final Exception e) {
                 throw new IOException(e);
             }

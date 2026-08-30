@@ -506,6 +506,13 @@ A short summary follows:
 
 	-D (-Dname=value. Set a system property. This option can be repeated.)
 
+	--annexB (Implement ECMA-262 Annex B, the additional features for web
+	         browsers. On by default; --annexB=false gives an engine with none
+	         of it - no escape/unescape, no String.prototype.anchor and its
+	         kin, no __proto__, no HTML-like comments, and a function declared
+	         in a block stays in the block.)
+		param: [true|false]   default: true
+
 	-ccs, --class-cache-size (Size of the Class cache size per global scope.)
 
 	-cp, -classpath (-cp path. Specify where to find user class files.)

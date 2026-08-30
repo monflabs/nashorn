@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Standalone OpenJDK Nashorn — a JavaScript engine written in Java that compiles JS to JVM bytecode and links call sites with `invokedynamic` via Dynalink (`jdk.dynalink`).
 
-This fork implements **ECMAScript 2017, as the only language mode**, and passes the ES2017 slice of
-`tc39/test262` in full - the expectations file is empty. There is no ES5 mode and no `isES6()` gating: `--language` is still accepted (`es6` only) purely so existing command lines keep working. Classes, generators, destructuring, rest/spread, `super`, `new.target`, Proxy, Reflect, Promise, the well-known symbols, the `%TypedArray%` hierarchy and modules are all implemented; what remains of `Lower.throwNotImplementedYet` is a destructuring assignment written somewhere the desugaring does not reach. So are the two editions after ES2015: `**`, `Array.prototype.includes`, `Object.values`/`entries`/`getOwnPropertyDescriptors`, `String.prototype.padStart`/`padEnd`, trailing commas in parameter and argument lists, async functions, `SharedArrayBuffer` and `Atomics`. Two deliberate exclusions: proper tail calls, and Annex B (so a block-level function declaration is scoped to its block and is *not* hoisted the way browsers do). The `-scripting` backquote exec extension and `$EXEC` were removed when ES2015 claimed the backquote for template literals. It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
+This fork implements **ECMAScript 2017, as the only language mode**, together with **Annex B behind
+`--annexB`** (on by default; `--annexB=false` removes all of it). Eight of the 50,339 selected
+`tc39/test262` executions fail, all of one shape, named in the expectations file with the reason. There is no ES5 mode and no `isES6()` gating: `--language` is still accepted (`es6` only) purely so existing command lines keep working. Classes, generators, destructuring, rest/spread, `super`, `new.target`, Proxy, Reflect, Promise, the well-known symbols, the `%TypedArray%` hierarchy and modules are all implemented; what remains of `Lower.throwNotImplementedYet` is a destructuring assignment written somewhere the desugaring does not reach. So are the two editions after ES2015: `**`, `Array.prototype.includes`, `Object.values`/`entries`/`getOwnPropertyDescriptors`, `String.prototype.padStart`/`padEnd`, trailing commas in parameter and argument lists, async functions, `SharedArrayBuffer` and `Atomics`. One deliberate exclusion: proper tail calls. Annex B *is* implemented - so by default a block-level function declaration is hoisted the way browsers do, `<!--` opens a comment, and `escape`, `String.prototype.anchor`, `__proto__` and their kin are present - and `--annexB=false` takes the whole of it away again. The `-scripting` backquote exec extension and `$EXEC` were removed when ES2015 claimed the backquote for template literals. It was extracted from the JDK (removed in Java 15) and is published to Maven Central as `org.openjdk.nashorn:nashorn-core`. Packages were renamed from `jdk.nashorn.*` to `org.openjdk.nashorn.*`, and the module from `jdk.scripting.nashorn` to `org.openjdk.nashorn` — old Oracle docs still use the old names.
 
 This fork (`monflabs/nashorn`) has migrated from the original Ant build to Maven; the Ant files and the leftover in-JDK make/jtreg trees are gone. That means merges from upstream `openjdk/nashorn` no longer apply cleanly to build files.
 
@@ -150,18 +151,29 @@ which this one can, so it is not selected either.
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,
   because the suite is written for a host where "i" grows no dot.
 
-Two of the four exclusions are **permanent** and are not work items: proper tail calls (a calling
-convention this engine will not pay for on every call - and still normative, so a deliberate divergence),
-and `staging` (proposals, which are the business of a later edition target rather than of a wider
-selector). `doc/CONFORMANCE.md` argues both. The other two - Annex B and `intl402` - are open questions.
+Two exclusions are **permanent** and are not work items: proper tail calls (a calling convention this
+engine will not pay for on every call - and still normative, so a deliberate divergence), and
+`staging` (proposals, which are the business of a later edition target rather than of a wider
+selector). The `legacy-regexp` proposal - `RegExp.$1` and its kin, which the suite files under
+`annexB/` - is out on staging's reasoning, though the properties themselves have always been present
+and are not gated. `intl402` is an open question. `doc/CONFORMANCE.md` argues all of it.
 
-`doc/CONFORMANCE.md` records what the four exclusions actually contain, measured rather than assumed:
-Annex B is 1,086 files of which 336 already pass, and 635 of the 750 failures are the one B.3.3 rule -
-a block-level function declaration leaking a var binding into the enclosing scope - which this fork
-deliberately does not do. Tail calls are 35 files and nothing else depends on them. Regenerate any of
-those numbers by taking the entry out of `EXCLUDED_DIRS` (or putting `tail-call-optimization` into
-`FEATURES`), running with `-Dnashorn.test262.include=`, then restoring the selector **and rebuilding the
-test classes** - a patched selector left in `core/target/test/classes` silently widens the next run.
+`doc/CONFORMANCE.md` records what the exclusions actually contain, measured rather than assumed, and
+what Annex B covers on either side of its flag. Tail calls are 35 files and nothing else depends on
+them. Regenerate any of those numbers by taking the entry out of `EXCLUDED_DIRS` (or putting a tag
+into `FEATURES`), running with `-Dnashorn.test262.include=`, then restoring the selector **and
+rebuilding the test classes** - a patched selector left in `core/target/test/classes` silently widens
+the next run.
+
+**The `annexB` flag reaches into five places**, and a sixth deliberately not. `Options.properties` and
+`ScriptEnvironment._annexB` declare it; `Global` deletes the built-ins when it is off, which must
+happen *before* `tagBuiltinProperties` or the switch point it invalidates is shared with every other
+global in the context; `Lexer` takes it as a constructor argument, since it has no environment;
+`RegExpScanner` gets it through `RegExpFactory.annexBEnabled()`, which asks the context rather than a
+JVM-global static, so two engines that disagree do not share a compiled pattern; and `Parser` and
+`ES6Desugar` read `env._annexB` directly for the syntax and the B.3.3 hoisting. B.3.5 - a `var` taking
+a simple catch parameter's name - is *not* gated: what allows it is also what makes an ordinary catch
+parameter visible.
 
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".

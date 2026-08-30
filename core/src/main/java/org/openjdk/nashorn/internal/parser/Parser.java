@@ -2570,10 +2570,11 @@ public class Parser extends AbstractParser implements Loggable {
                         // for (var i, j in obj) is invalid
                         throw error(AbstractParser.message("many.vars.in.for.in.loop", isForOf ? "of" : "in"), varDeclList.secondBinding.getToken());
                     }
-                    if (varDeclList.declarationWithInitializerToken != 0 && (isStrictMode || type != TokenType.IN || varType != VAR || varDeclList.init != null)) {
-                        // ES5 legacy: for (var i = AssignmentExpressionNoIn in Expression)
-                        // Invalid in ES6, but allow it in non-strict mode if no ES6 features used,
-                        // i.e., error if strict, for-of, let/const, or destructuring
+                    if (varDeclList.declarationWithInitializerToken != 0
+                            && (!env._annexB || isStrictMode || type != TokenType.IN || varType != VAR || varDeclList.init != null)) {
+                        // B.3.6: "for (var i = 0 in o)" is legal in sloppy code
+                        // and nowhere else - not with for-of, not with a let or
+                        // a const, not with a pattern, and not without Annex B
                         throw error(AbstractParser.message("for.in.loop.initializer", isForOf ? "of" : "in"), varDeclList.declarationWithInitializerToken);
                     }
                     init = varDeclList.firstBinding;

@@ -2,35 +2,42 @@ ECMAScript 2017 conformance
 ===========================
 
 This engine implements [ECMAScript 2017](https://262.ecma-international.org/8.0/)
-(ECMA-262, 8th edition) and is measured against a pinned commit of
-[tc39/test262](https://github.com/tc39/test262). The ES2017 slice of that suite
-is selected at runtime by `Test262Selector`, and **every selected execution
-passes**: `core/src/test/resources/test262-expectations.txt` is empty, and the
-run fails on an unexpected pass as well as an unexpected failure, so conformance
-can only move forwards.
+(ECMA-262, 8th edition) together with its **Annex B**, and is measured against a
+pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
+selected at runtime by `Test262Selector`, and of its 50,339 executions **eight
+fail**, all of one shape and named in
+`core/src/test/resources/test262-expectations.txt` with the reason. The run fails
+on an unexpected pass as well as an unexpected failure, so conformance can only
+move forwards.
+
+Annex B is normative-optional and lives behind `--annexB`, which is on by
+default. An engine built with `--annexB=false` has none of it.
 
 ```
 mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 48970 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 0   expected to fail: 0
+    test262: 50339 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 8   expected to fail: 8
 
 What is not measured, and why
 -----------------------------
 
 The suite holds 53,872 test files and tracks the current draft specification, so
-most of it is about editions this engine does not claim. Four things are
-excluded by decision; everything else outside the slice is simply later than
-ECMAScript 2017.
+most of it is about editions this engine does not claim. Three things are
+excluded by decision, and one proposal filed inside the Annex B directory;
+everything else outside the slice is simply later than ECMAScript 2017.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
-| `annexB/` | 1,086 | Normative-optional, and written for browser hosts | Open. A host that wants browser semantics could implement it; the cost is measured below |
 | `tail-call-optimization` | 35 | Proper tail calls | **Never.** A settled decision, not a task - see below |
 | `intl402/` | 3,357 | ECMA-402, a separate standard | Open, but it is a different standard and a different body of work |
 | `staging/` | 1,491 | Proposals and unreviewed tests, not part of any edition | **Never.** This engine targets the approved standard - see below |
+| `legacy-regexp` tagged | 24 | `RegExp.$1`, `lastMatch` and their kin - a separate Stage 3 proposal, `esid: pending`, filed under `annexB/` by the suite but not part of Annex B | **Never**, on staging's reasoning |
+
+`annexB/` is **no longer excluded**: Annex B is implemented, behind `--annexB`, and its
+directory is measured with the rest. See below.
 
 Everything else the selector leaves out is a later edition: the
 `async-generator` directories (1,054 files, ECMAScript 2018) and every test whose
@@ -40,62 +47,62 @@ spread, async iteration, lookbehind and named groups, optional catch binding,
 they are outside the target. Most would fail if run, because the features are
 not implemented.
 
-Annex B, measured
------------------
+ECMA-262 Annex B, behind `--annexB`
+-----------------------------------
 
-Annex B is excluded by decision rather than by capability, and the decision is
-not all-or-nothing: **336 of the 1,086 files already pass**, because the parts of
-Annex B that are not about browser semantics were implemented long ago -
-`escape`/`unescape` (35 files), `String.prototype.substr` (14) and
-`trimLeft`/`trimRight` (8), `Date.prototype.getYear`/`setYear` (20),
-`RegExp.prototype.compile` (19) and the RegExp legacy statics `input`,
-`lastMatch`, `leftContext`, `rightContext` and `lastParen` (20).
+Annex B is normative-optional: a host may implement it or not, and this one does,
+**by default**. `--annexB=false` gives an engine with none of it. The flag is per engine, fixed when
+the engine is built, and it covers the whole of Annex B - the built-ins it adds, the syntax it
+legalises, and the scoping it changes.
 
-The 750 files that fail are one decision and a small tail. Lifting the directory
-exclusion and running the slice gives:
+Of the 1,086 files in `annexB/`, **1,078 pass**. What the flag turns on:
 
-| Cluster | Files | What it is |
-| --- | --- | --- |
-| B.3.3 function-in-block hoisting | 635 | direct eval 253, indirect eval 133, function code 126, global code 123 |
-| `String.prototype` HTML methods | 82 | `anchor`, `big`, `blink`, `bold`, `fixed`, `fontcolor`, `fontsize`, `italics`, `link`, `small`, `strike`, `sub`, `sup` (B.2.3) - not implemented |
-| HTML-like comments | 13 | `<!--` and `-->` as comment syntax (B.1.1), including through `new Function` |
-| `CallExpression` as an assignment target | 7 | `f() = 1`, `f()++`, `for (f() in o)` |
-| Legacy regular expression syntax | 5 | Octal escapes, `[a-]`-style class ranges, quantified assertions (B.1.4) |
-| `RegExp.prototype.compile` | 4 | The `compile(regexp)` overload only |
-| `Date` | 2 | `toGMTString` must be the same function object as `toUTCString`; one `setYear` coercion order |
-| Labelled function declaration | 1 | `l: function f(){}` |
+| Clause | What it is |
+| --- | --- |
+| B.1.1 | HTML-like comments: `<!--` anywhere, `-->` at the head of a line. Not in modules |
+| B.1.4 | The legacy pattern grammar: octal escapes, a dash beside a class escape, a quantified lookahead |
+| B.2.1 | `escape` and `unescape` |
+| B.2.2 | `__proto__`, `__defineGetter__`, `__defineSetter__`, `__lookupGetter__`, `__lookupSetter__` |
+| B.2.3 | `String.prototype.substr` and the thirteen markup helpers - `anchor`, `big`, `blink`, `bold`, `fixed`, `fontcolor`, `fontsize`, `italics`, `link`, `small`, `strike`, `sub`, `sup` |
+| B.2.4 | `Date.prototype.getYear`, `setYear` and `toGMTString`, the last being the same function object as `toUTCString` |
+| B.2.5 | `RegExp.prototype.compile` |
+| B.3.2, B.3.4 | A function declaration under a label, and as a clause of an `if` |
+| B.3.3 | A function declared in a block also binds the name in the variable environment |
+| B.3.4 | A call expression as an assignment target: a runtime `ReferenceError` where the specification proper has an early `SyntaxError` |
+| B.3.5 | A `var` may take a simple catch parameter's name |
+| B.3.6 | `for (var a = 0 in o)` |
 
-### Why B.3.3 is a decision and not a gap
+Two things the flag does not cover, and one it cannot:
 
-B.3.3 says that in sloppy code a host also creates a *var*-scoped binding for a
-block-level function's name in the enclosing function or script, initialised to
-`undefined` on entry and assigned the function object when the block's
-declaration is evaluated. The name leaks out of the block, carrying a value only
-if the block ran.
+* **B.3.5 is not gated.** A `var` may take a simple catch parameter's name whether the flag is on or
+  off. What allows it in this engine is also what makes an ordinary catch parameter visible at all,
+  and separating the two is not worth what it would cost.
+* **The RegExp legacy statics are not Annex B.** `RegExp.$1`, `input`, `lastMatch`, `leftContext`
+  and the rest are a Stage 3 proposal of their own - test262 tags them `legacy-regexp` and gives them
+  `esid: pending` - and they are out of scope for the reason `staging` is. They remain present and
+  unflagged, as they have always been.
+* **`[[IsHTMLDDA]]` (B.3.7) cannot be implemented.** 35 files are tagged `IsHTMLDDA`; the object can
+  only come from a web host, and the feature rule drops them.
 
-```js
-function f() {
-    { function g() { return "inner"; } }
-    return g();          // Annex B: "inner".  Here: ReferenceError
-}
-```
+Eight files still fail, all of one shape: an indirect eval whose block-level function declaration has
+to update a `var` of that name the global already had. They pass on their own and under the runner
+when a neighbouring file is added or removed; what decides it is whether the outer program's `var`
+reached the global object directly or through the merge of its scope, which leaves the eval's binding
+aliased to it or orphaned beside it. That is this engine's eval scope merging rather than anything
+Annex B asks for.
 
-This fork made the opposite choice while implementing ES2015, and the change log
-records it: a function declaration inside a block is scoped to that block and is
-not visible after it ends, which is why `--function-statement-error` and
-`--function-statement-warning` were deleted. Implementing B.3.3 would take source
-that throws today and make it work.
+### The two halves are tested
 
-The extension is also conditional - the extra binding is suppressed where it
-would collide with a lexical declaration, with certain parameter or catch
-parameter names, or where an early error would result, and it never applies in
-strict mode. The 635 tests enumerate that matrix across the four places bindings
-are instantiated, and 146 of the B.3.3 files already pass here precisely because
-they assert the extension is *not* honoured.
+`core/src/test/scripts/basic/annexB-on.js` and `annexB-off.js` assert every part of the list above,
+present and absent; `AnnexBTest` builds two engines that disagree about the flag in one process and
+checks that they stay apart, which is the risk in taking built-ins off a shape that nasgen wrote at
+build time.
 
-Implementing it would mean a second hoisting pass in symbol assignment and
-lowering, on top of the block scoping the ES2015 work rebuilt, observable only
-for code the modern specification says is block-local.
+### What it costs
+
+Annex B's built-ins are seventeen more properties on two prototypes, and every global pays for them:
+`startup.50globals` measured 6.6% slower with them than without, in nine interleaved pairs. That is
+inside the metric's band and the gate passes with it.
 
 Tail calls: never
 -----------------
@@ -163,14 +170,19 @@ the selector.
 Reproducing these numbers
 -------------------------
 
-The exclusions live in `Test262Selector`: `EXCLUDED_DIRS` for the three
-directories, and the absence of `tail-call-optimization` from `FEATURES` for the
-fourth. Removing an entry puts that work back in scope, and
+The exclusions live in `Test262Selector`: `EXCLUDED_DIRS` for the two directories,
+and `FEATURES`, which a test's tags must all appear in - the absence of
+`tail-call-optimization` and `legacy-regexp` from it is what leaves those out.
+Removing an entry puts that work back in scope, and
 `-Dnashorn.test262.include=` narrows the run:
 
 ```
 mvn -pl core verify -Ptest262 -DskipTests -Dnashorn.test262.include=/annexB/
 ```
+
+The Annex B slice runs with the default engine, which has the flag on. The off
+state is not a second suite run - it is `annexB-off.js` and `AnnexBTest`, which
+name every part of it.
 
 Failures are listed in `core/target/test262-failures.txt`. Put the selector back
 afterwards - and rebuild the test classes, or the next run will quietly keep the

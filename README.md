@@ -5,13 +5,17 @@ Nashorn engine is an open source implementation of the
 [ECMAScript 2017 Language Specification](https://262.ecma-international.org/8.0/)
 (ECMAScript 8). It is written in Java and runs on the Java Virtual Machine.
 
-This fork passes every test of the ES2017 slice of `tc39/test262`; see the
-[change log](CHANGELOG.md) for what that took. There is no ES5-only mode:
+This fork implements ECMAScript 2017 together with its Annex B - the additional
+features for web browsers - and is measured against `tc39/test262`; see the
+[change log](CHANGELOG.md) for what that took. Annex B is on by default and
+`--annexB=false` removes all of it, for a host that wants the standard alone.
+There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols, the
 `Map`/`Set` family, which upstream hid behind `--language=es6`, and the
 editions after them - `**`, `Object.values`, `String.prototype.padStart`,
 async functions, `SharedArrayBuffer` and `Atomics` - are simply the language.
-Proper tail calls are a documented exclusion, as are Annex B and ECMA-402.
+Proper tail calls are a documented exclusion, as is ECMA-402. Annex B is
+implemented, behind `--annexB`.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.
@@ -70,12 +74,12 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2017 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2017. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. That file is now empty - all 48,970 selected executions pass -
-so any failure at all fails the build. Four things are excluded, all of them
-outside ECMA-262 8th edition proper: Annex B, proper tail calls, ECMA-402
+moves forwards. Eight of the 50,339 selected executions fail, all of one shape
+and named in the file with the reason; everything else passes. Three things are
+excluded, all outside ECMA-262 8th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
-Annex B would cost.
+Annex B covers on either side of its flag.
 
 Other profiles: `-Pbenchmark` and `-Psunspider` for the benchmarks,
 `-Pcoverage` for a JaCoCo report, `-Prun` to execute a sample script through

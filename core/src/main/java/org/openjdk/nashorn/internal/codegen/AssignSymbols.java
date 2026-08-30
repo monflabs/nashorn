@@ -521,6 +521,9 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         // IS_LET flag is required to make sure symbol is not visible outside catch block. However, we need to
         // clear the IS_LET flag after creation to allow redefinition of symbol inside the catch block.
         final Symbol symbol = defineSymbol(block, exname, catchNode, IS_VAR | IS_LET | (isInternal ? IS_INTERNAL : 0) | HAS_OBJECT_VALUE);
+        // Clearing the flag is also what B.3.5 needs - a var inside the block may
+        // take the parameter's name - and the flag is load-bearing for the
+        // ordinary case, so this one part of Annex B is not gated
         symbol.clearFlag(IS_LET);
 
         return true;

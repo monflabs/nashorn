@@ -2563,10 +2563,15 @@ public final class Global extends Scope {
         if (this.builtinDate == null) {
             this.builtinDate = initConstructorAndSwitchPoint("Date", ScriptFunction.class);
             final ScriptObject dateProto = ScriptFunction.getPrototype(builtinDate);
-            // B.2.4.3 says toGMTString is not merely the same code as
-            // toUTCString but the same function object, which an annotation
-            // cannot say - so the property is pointed at the other one here
-            dateProto.set("toGMTString", dateProto.get("toUTCString"), 0);
+            if (context.getEnv()._annexB) {
+                // B.2.4.3 says toGMTString is not merely the same code as
+                // toUTCString but the same function object, which an annotation
+                // cannot say - so the property is pointed at the other one here
+                dateProto.set("toGMTString", dateProto.get("toUTCString"), 0);
+            } else {
+                // B.2.4
+                removeAnnexB(dateProto, "getYear", "setYear", "toGMTString");
+            }
             // initialize default date
             this.DEFAULT_DATE = new NativeDate(NaN, dateProto);
         }
@@ -2733,6 +2738,12 @@ public final class Global extends Scope {
         if (this.builtinRegExp == null) {
             this.builtinRegExp = initConstructorAndSwitchPoint("RegExp", ScriptFunction.class);
             final ScriptObject regExpProto = ScriptFunction.getPrototype(builtinRegExp);
+            if (!context.getEnv()._annexB) {
+                // B.2.5. The legacy statics on the constructor - $1, lastMatch
+                // and the rest - are not Annex B but a proposal of their own,
+                // and are left where they are
+                removeAnnexB(regExpProto, "compile");
+            }
             // initialize default regexp object
             this.DEFAULT_REGEXP = new NativeRegExp("(?:)", "", this, regExpProto);
             // RegExp.prototype should behave like a RegExp object. So copy the
@@ -3326,6 +3337,10 @@ public final class Global extends Scope {
             this.delete("org", false);
         }
 
+        if (!env._annexB) {
+            removeAnnexB();
+        }
+
         if (! env._no_typed_arrays) {
             this.arrayBuffer       = LAZY_SENTINEL;
             this.sharedArrayBuffer = LAZY_SENTINEL;
@@ -3432,6 +3447,56 @@ public final class Global extends Scope {
         this.builtinJavafx = new NativeJavaPackage("javafx", objectProto);
         this.builtinJavax = new NativeJavaPackage("javax", objectProto);
         this.builtinOrg = new NativeJavaPackage("org", objectProto);
+    }
+
+    /**
+     * Takes ECMA-262 Annex B's built-ins off this global, for an engine that
+     * asked not to have them.
+     *
+     * nasgen writes a class's members into a property map at build time, so the
+     * shape every global starts from is the one with Annex B in it and this
+     * takes the difference away again. The maps are immutable and their
+     * derivations are remembered, so the shape without Annex B is computed once
+     * for the process rather than once per global.
+     *
+     * It runs before the builtins are tagged with their switch points: deleting
+     * a property afterwards would invalidate one that every global in the
+     * context shares.
+     */
+    private void removeAnnexB() {
+        // B.2.1
+        this.delete("escape", false);
+        this.delete("unescape", false);
+
+        final ScriptObject stringProto = getStringPrototype();
+        // B.2.3, and the two trims that are the same kind of thing
+        for (final String name : new String[] {
+                "substr", "trimLeft", "trimRight",
+                "anchor", "big", "blink", "bold", "fixed", "fontcolor", "fontsize",
+                "italics", "link", "small", "strike", "sub", "sup" }) {
+            stringProto.delete(name, false);
+        }
+
+        // B.2.2.2 to B.2.2.5. __proto__ is not installed at all when the flag is
+        // off, so there is nothing to take away here
+        final ScriptObject objectProto = getObjectPrototype();
+        for (final String name : new String[] {
+                "__defineGetter__", "__defineSetter__", "__lookupGetter__", "__lookupSetter__" }) {
+            objectProto.delete(name, false);
+        }
+    }
+
+    /**
+     * Takes Annex B's additions off a prototype that is built when it is first
+     * asked for, which is too late for {@link #removeAnnexB}.
+     *
+     * @param prototype the prototype
+     * @param names     what to take off it
+     */
+    private static void removeAnnexB(final ScriptObject prototype, final String... names) {
+        for (final String name : names) {
+            prototype.delete(name, false);
+        }
     }
 
     private void initScripting(final ScriptEnvironment scriptEnv) {
@@ -3658,11 +3723,14 @@ public final class Global extends Scope {
 
         // ES6 draft compliant __proto__ property of Object.prototype
         // accessors on Object.prototype for "__proto__"
-        // 17.5 names an accessor function after the half it is and the property
-        // it belongs to, which is what a descriptor of __proto__ has to show
-        final ScriptFunction getProto = ScriptFunction.createBuiltin("get __proto__", NativeObject.GET__PROTO__);
-        final ScriptFunction setProto = ScriptFunction.createBuiltin("set __proto__", NativeObject.SET__PROTO__);
-        ObjectPrototype.addOwnProperty("__proto__", Attribute.NOT_ENUMERABLE, getProto, setProto);
+        if (context.getEnv()._annexB) {
+            // B.2.2.1. 17.5 names an accessor function after the half it is and
+            // the property it belongs to, which is what a descriptor of
+            // __proto__ has to show
+            final ScriptFunction getProto = ScriptFunction.createBuiltin("get __proto__", NativeObject.GET__PROTO__);
+            final ScriptFunction setProto = ScriptFunction.createBuiltin("set __proto__", NativeObject.SET__PROTO__);
+            ObjectPrototype.addOwnProperty("__proto__", Attribute.NOT_ENUMERABLE, getProto, setProto);
+        }
 
         // ES2015 9.2.7: %FunctionPrototype% holds the one "caller" and
         // "arguments" pair, as accessors that throw, and every function reaches
