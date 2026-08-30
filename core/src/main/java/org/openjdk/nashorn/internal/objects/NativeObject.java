@@ -105,7 +105,9 @@ public final class NativeObject {
         // See ES6 draft spec: B.2.2.1.1 get Object.prototype.__proto__
         // Step 1 Let O be the result of calling ToObject passing the this.
         final ScriptObject sobj = Global.checkObject(Global.toObject(self));
-        return sobj.getProto();
+        // Step 2 is [[GetPrototypeOf]], which a proxy answers with its own trap
+        // rather than with the prototype it was made on - and which may throw
+        return sobj.getPrototypeOf();
     }
 
     @SuppressWarnings("unused")
@@ -652,6 +654,108 @@ public final class NativeObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static Object valueOf(final Object self) {
         return Global.toObject(self);
+    }
+
+    /**
+     * ECMA B.2.2.2 Object.prototype.__defineGetter__ ( P, getter )
+     *
+     * @param self   self reference
+     * @param prop   the property key
+     * @param getter the function to read it with
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object __defineGetter__(final Object self, final Object prop, final Object getter) {
+        return defineAccessor(self, prop, getter, true);
+    }
+
+    /**
+     * ECMA B.2.2.3 Object.prototype.__defineSetter__ ( P, setter )
+     *
+     * @param self   self reference
+     * @param prop   the property key
+     * @param setter the function to write it with
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object __defineSetter__(final Object self, final Object prop, final Object setter) {
+        return defineAccessor(self, prop, setter, false);
+    }
+
+    /**
+     * B.2.2.2 and B.2.2.3, which differ only in which half of the accessor they
+     * are given.
+     *
+     * The function is checked before the key is converted: 22.2.2.2 step 2
+     * comes before step 3, and a key whose toString has a side effect makes the
+     * order observable.
+     */
+    private static Object defineAccessor(final Object self, final Object prop, final Object accessor,
+            final boolean isGetter) {
+        final ScriptObject sobj = Global.checkObject(Global.toObject(self));
+
+        if (!Bootstrap.isCallable(accessor)) {
+            throw typeError(isGetter ? "not.a.function" : "not.a.function", ScriptRuntime.safeToString(accessor));
+        }
+
+        final Object key = JSType.toPropertyKey(prop);
+        final PropertyDescriptor desc = Global.instance().newAccessorDescriptor(
+                isGetter ? accessor : null, isGetter ? null : accessor, true, true);
+
+        sobj.defineOwnProperty(key, desc, true);
+        return UNDEFINED;
+    }
+
+    /**
+     * ECMA B.2.2.4 Object.prototype.__lookupGetter__ ( P )
+     *
+     * @param self self reference
+     * @param prop the property key
+     * @return the getter of the first own property of that name on the
+     *         prototype chain, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object __lookupGetter__(final Object self, final Object prop) {
+        return lookupAccessor(self, prop, true);
+    }
+
+    /**
+     * ECMA B.2.2.5 Object.prototype.__lookupSetter__ ( P )
+     *
+     * @param self self reference
+     * @param prop the property key
+     * @return the setter of the first own property of that name on the
+     *         prototype chain, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object __lookupSetter__(final Object self, final Object prop) {
+        return lookupAccessor(self, prop, false);
+    }
+
+    /**
+     * B.2.2.4 and B.2.2.5. The walk stops at the first object that owns the
+     * name, whether or not it is an accessor: a data property shadows an
+     * accessor above it, and answers undefined for both halves.
+     */
+    private static Object lookupAccessor(final Object self, final Object prop, final boolean isGetter) {
+        // the receiver is coerced before the key is, which a key whose toString
+        // has a side effect can tell apart
+        ScriptObject sobj = Global.checkObject(Global.toObject(self));
+        final Object key = JSType.toPropertyKey(prop);
+
+        while (sobj != null) {
+            final Object desc = sobj.getOwnPropertyDescriptor(key);
+            if (desc instanceof AccessorPropertyDescriptor accessor) {
+                final Object half = isGetter ? accessor.get : accessor.set;
+                return half == null ? UNDEFINED : half;
+            }
+            if (desc != UNDEFINED) {
+                return UNDEFINED;
+            }
+            sobj = sobj.getPrototypeOf();
+        }
+
+        return UNDEFINED;
     }
 
     /**

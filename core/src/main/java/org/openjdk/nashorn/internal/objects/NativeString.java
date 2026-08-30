@@ -1089,7 +1089,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String substr(final Object self, final Object start, final Object length) {
-        final String str       = JSType.toString(self);
+        // B.2.3.1 requires the receiver to be coercible, which JSType.toString
+        // does not ask: "undefined" is not an answer undefined should get
+        final String str       = checkObjectToString(self);
         final int    strLength = str.length();
 
         int intStart = JSType.toInteger(start);
@@ -1329,6 +1331,173 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         }
 
         return str.substring(start, end + 1);
+    }
+
+    /**
+     * ECMA B.2.3.2.1 CreateHTML ( string, tag, attribute, value )
+     *
+     * Annex B's markup helpers, which wrap the receiver in a tag and, for four
+     * of them, an attribute. Only the attribute value is escaped, and only the
+     * double quote in it - the string itself is copied as it stands, which is
+     * why these are of no use for producing safe markup.
+     *
+     * @param self      the receiver, which must be coercible
+     * @param tag       the tag name
+     * @param attribute the attribute name, or null for a tag without one
+     * @param value     the attribute value, coerced to a string
+     * @return the tagged string
+     */
+    private static String createHTML(final Object self, final String tag, final String attribute, final Object value) {
+        final String str = checkObjectToString(self);
+        final StringBuilder sb = new StringBuilder().append('<').append(tag);
+
+        if (attribute != null) {
+            sb.append(' ').append(attribute).append("=\"");
+            for (final char ch : JSType.toString(value).toCharArray()) {
+                if (ch == '"') {
+                    sb.append("&quot;");
+                } else {
+                    sb.append(ch);
+                }
+            }
+            sb.append('"');
+        }
+
+        return sb.append('>').append(str).append("</").append(tag).append('>').toString();
+    }
+
+    /**
+     * ECMA B.2.3.2 String.prototype.anchor ( name )
+     * @param self self reference
+     * @param name the value of the name attribute
+     * @return the receiver wrapped in a &lt;a&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String anchor(final Object self, final Object name) {
+        return createHTML(self, "a", "name", name);
+    }
+
+    /**
+     * ECMA B.2.3.3 String.prototype.big ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;big&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String big(final Object self) {
+        return createHTML(self, "big", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.4 String.prototype.blink ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;blink&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String blink(final Object self) {
+        return createHTML(self, "blink", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.5 String.prototype.bold ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;b&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String bold(final Object self) {
+        return createHTML(self, "b", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.6 String.prototype.fixed ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;tt&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String fixed(final Object self) {
+        return createHTML(self, "tt", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.7 String.prototype.fontcolor ( color )
+     * @param self self reference
+     * @param color the value of the color attribute
+     * @return the receiver wrapped in a &lt;font&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String fontcolor(final Object self, final Object color) {
+        return createHTML(self, "font", "color", color);
+    }
+
+    /**
+     * ECMA B.2.3.8 String.prototype.fontsize ( size )
+     * @param self self reference
+     * @param size the value of the size attribute
+     * @return the receiver wrapped in a &lt;font&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String fontsize(final Object self, final Object size) {
+        return createHTML(self, "font", "size", size);
+    }
+
+    /**
+     * ECMA B.2.3.9 String.prototype.italics ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;i&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String italics(final Object self) {
+        return createHTML(self, "i", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.10 String.prototype.link ( href )
+     * @param self self reference
+     * @param href the value of the href attribute
+     * @return the receiver wrapped in a &lt;a&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String link(final Object self, final Object href) {
+        return createHTML(self, "a", "href", href);
+    }
+
+    /**
+     * ECMA B.2.3.11 String.prototype.small ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;small&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String small(final Object self) {
+        return createHTML(self, "small", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.12 String.prototype.strike ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;strike&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String strike(final Object self) {
+        return createHTML(self, "strike", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.13 String.prototype.sub ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;sub&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String sub(final Object self) {
+        return createHTML(self, "sub", null, UNDEFINED);
+    }
+
+    /**
+     * ECMA B.2.3.14 String.prototype.sup ( )
+     * @param self self reference
+     * @return the receiver wrapped in a &lt;sup&gt; element
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String sup(final Object self) {
+        return createHTML(self, "sup", null, UNDEFINED);
     }
 
     /**

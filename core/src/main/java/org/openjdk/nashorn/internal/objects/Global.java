@@ -2563,6 +2563,10 @@ public final class Global extends Scope {
         if (this.builtinDate == null) {
             this.builtinDate = initConstructorAndSwitchPoint("Date", ScriptFunction.class);
             final ScriptObject dateProto = ScriptFunction.getPrototype(builtinDate);
+            // B.2.4.3 says toGMTString is not merely the same code as
+            // toUTCString but the same function object, which an annotation
+            // cannot say - so the property is pointed at the other one here
+            dateProto.set("toGMTString", dateProto.get("toUTCString"), 0);
             // initialize default date
             this.DEFAULT_DATE = new NativeDate(NaN, dateProto);
         }
@@ -3654,8 +3658,10 @@ public final class Global extends Scope {
 
         // ES6 draft compliant __proto__ property of Object.prototype
         // accessors on Object.prototype for "__proto__"
-        final ScriptFunction getProto = ScriptFunction.createBuiltin("getProto", NativeObject.GET__PROTO__);
-        final ScriptFunction setProto = ScriptFunction.createBuiltin("setProto", NativeObject.SET__PROTO__);
+        // 17.5 names an accessor function after the half it is and the property
+        // it belongs to, which is what a descriptor of __proto__ has to show
+        final ScriptFunction getProto = ScriptFunction.createBuiltin("get __proto__", NativeObject.GET__PROTO__);
+        final ScriptFunction setProto = ScriptFunction.createBuiltin("set __proto__", NativeObject.SET__PROTO__);
         ObjectPrototype.addOwnProperty("__proto__", Attribute.NOT_ENUMERABLE, getProto, setProto);
 
         // ES2015 9.2.7: %FunctionPrototype% holds the one "caller" and

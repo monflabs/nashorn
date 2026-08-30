@@ -350,14 +350,55 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static ScriptObject compile(final Object self, final Object pattern, final Object flags) {
-        final NativeRegExp regExp   = checkRegExp(self);
-        final NativeRegExp compiled = newRegExp(pattern, flags);
-        // copy over regexp to 'self'
+        final NativeRegExp regExp = checkRegExp(self);
+        final NativeRegExp compiled;
+
+        if (pattern instanceof NativeRegExp source) {
+            // B.2.5.1 step 1: this is not the constructor, and a pattern that is
+            // already a regexp brings its own flags - being given a second set
+            // is an error rather than an override
+            if (flags != UNDEFINED) {
+                throw typeError("regex.cant.supply.flags");
+            }
+            compiled = new NativeRegExp(source.getRegExp().getSource(), flagsOf(source.getRegExp()));
+        } else {
+            compiled = newRegExp(pattern, flags);
+        }
+
+        // the pattern is installed before lastIndex is reset, which is
+        // observable: a lastIndex that was made unwritable throws, and the
+        // pattern it throws over is the new one
         regExp.setRegExp(compiled.getRegExp());
+        regExp.set("lastIndex", 0, CALLSITE_STRICT);
 
         // Some implementations return undefined. Some return 'self'. Since return
         // value is most likely be ignored, we can play safe and return 'self'.
         return regExp;
+    }
+
+    /**
+     * The flags a compiled regexp was made with, read from it rather than from
+     * the properties that describe it: B.2.5.1 takes [[OriginalFlags]], and a
+     * subclass that overrides {@code global} does not get a say.
+     */
+    private static String flagsOf(final RegExp regexp) {
+        final StringBuilder sb = new StringBuilder(5);
+        if (regexp.isGlobal()) {
+            sb.append('g');
+        }
+        if (regexp.isIgnoreCase()) {
+            sb.append('i');
+        }
+        if (regexp.isMultiline()) {
+            sb.append('m');
+        }
+        if (regexp.isUnicode()) {
+            sb.append('u');
+        }
+        if (regexp.isSticky()) {
+            sb.append('y');
+        }
+        return sb.toString();
     }
 
     /**

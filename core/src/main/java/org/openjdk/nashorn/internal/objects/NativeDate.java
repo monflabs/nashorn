@@ -784,15 +784,17 @@ public final class NativeDate extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static double setYear(final Object self, final Object year) {
         final NativeDate nd = getNativeDate(self);
-        if (isNaN(nd.getTime())) {
-            nd.setTime(utc(0, nd.getTimeZone()));
-        }
+        // B.2.4.2 reads the date value before it coerces the argument and works
+        // from what it read, so an argument whose valueOf moves the date does
+        // not move the answer
+        final double time = isNaN(nd.getTime()) ? utc(0, nd.getTimeZone()) : nd.getTime();
 
         final double yearNum = JSType.toNumber(year);
         if (isNaN(yearNum)) {
             nd.setTime(NaN);
             return nd.getTime();
         }
+        nd.setTime(time);
         int yearInt = (int)yearNum;
         if (0 <= yearInt && yearInt <= 99) {
             yearInt += 1900;

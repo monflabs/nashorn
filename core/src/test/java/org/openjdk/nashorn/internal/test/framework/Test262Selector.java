@@ -87,7 +87,12 @@ public final class Test262Selector {
         "exponentiation", "Array.prototype.includes",
         // ES2017. The library additions of that edition carry no tag of their
         // own and are in scope by the deny rule alone.
-        "async-functions", "SharedArrayBuffer", "Atomics");
+        "async-functions", "SharedArrayBuffer", "Atomics",
+        // Annex B, which this engine implements behind --annexB. These three
+        // tag tests that live in the main tree rather than under annexB/ -
+        // B.2.2's accessors on Object.prototype - so without them the directory
+        // being in scope would still leave the feature untested.
+        "__proto__", "__getter__", "__setter__");
 
     /**
      * Suite directories that are out of scope regardless of tags.
