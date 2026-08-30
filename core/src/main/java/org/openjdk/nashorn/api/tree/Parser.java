@@ -124,6 +124,7 @@ public interface Parser {
      *         Currently the following options are supported:
      *
      * <dl>
+     * <dt>"--annexB" or "--annexB=false"</dt><dd>parse ECMA-262 Annex B syntax. On by default</dd>
      * <dt>"--const-as-var"</dt><dd>treat "const" declaration as "var"</dd>
      * <dt>"-dump-on-error" or "-doe"</dt><dd>dump stack trace on error</dd>
      * <dt>"--empty-statements"</dt><dd>include empty statement nodes</dd>
@@ -142,6 +143,9 @@ public interface Parser {
         options.getClass();
         for (final String opt : options) {
             switch (opt) {
+                case "--annexB":
+                case "--annexB=true":
+                case "--annexB=false":
                 case "--const-as-var":
                 case "-dump-on-error":
                 case "-doe":

@@ -92,8 +92,16 @@ public final class Test262Selector {
     /**
      * Suite directories that are out of scope regardless of tags.
      *
-     * {@code intl402} is ECMA-402, a separate standard. {@code annexB} is
-     * normative-optional and aimed at browser hosts, which Nashorn is not.
+     * {@code intl402} is ECMA-402, a separate standard.
+     *
+     * {@code annexB} is <b>not</b> among them any more. Annex B is
+     * normative-optional and written for browser hosts, and this engine
+     * implements it behind {@code --annexB}, which is on by default - so the
+     * directory is in scope and its tests are held to the same standard as the
+     * rest. The one part that cannot be implemented is {@code [[IsHTMLDDA]]},
+     * which only a web host can produce; those tests are tagged
+     * {@code IsHTMLDDA}, a feature this edition does not name, so the deny rule
+     * below drops them without anything being said here.
      *
      * {@code staging} is <b>permanently</b> out of scope: it holds tests for
      * Stage 3 proposals and normative pull requests, written to lower standards
@@ -109,7 +117,7 @@ public final class Test262Selector {
      * rule because the tests in them predate the {@code features:} convention
      * and declare nothing.
      */
-    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging", "annexB",
+    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging",
             "async-generator", "async-generators");
 
     /**

@@ -65,6 +65,14 @@ public final class ScriptEnvironment {
     /** Current Options object. */
     private final Options options;
 
+    /**
+     * Whether ECMA-262 Annex B - the additional features for web browsers - is
+     * implemented. On by default. Turning it off removes every part of it: the
+     * built-ins it adds, the syntax it legalises, and the way it lets a function
+     * declared in a block be seen outside it.
+     */
+    public final boolean _annexB;
+
     /** Size of the per-global Class cache size */
     public final int     _class_cache_size;
 
@@ -225,6 +233,7 @@ public final class ScriptEnvironment {
         this.namespace = new Namespace();
         this.options = options;
 
+        _annexB               = options.getBoolean("annexB");
         _class_cache_size     = options.getInteger("class.cache.size");
         _classpath            = options.getString("classpath");
         _compile_only         = options.getBoolean("compile.only");
