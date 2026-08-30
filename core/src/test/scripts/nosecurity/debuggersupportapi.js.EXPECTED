@@ -1,22 +1,22 @@
-class org.openjdk.nashorn.internal.runtime.DebuggerSupport
+class org.monflabs.nashorn.internal.runtime.DebuggerSupport
 
-static java.lang.Object org.openjdk.nashorn.internal.runtime.DebuggerSupport.eval(org.openjdk.nashorn.internal.runtime.ScriptObject,java.lang.Object,java.lang.String,boolean)
-static org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo org.openjdk.nashorn.internal.runtime.DebuggerSupport.getSourceInfo(java.lang.Class)
-static void org.openjdk.nashorn.internal.runtime.DebuggerSupport.notifyInvoke(java.lang.invoke.MethodHandle)
-static java.lang.String org.openjdk.nashorn.internal.runtime.DebuggerSupport.valueAsString(java.lang.Object)
-static org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc org.openjdk.nashorn.internal.runtime.DebuggerSupport.valueInfo(java.lang.String,java.lang.Object,boolean)
-static org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc[] org.openjdk.nashorn.internal.runtime.DebuggerSupport.valueInfos(java.lang.Object,boolean)
+static java.lang.Object org.monflabs.nashorn.internal.runtime.DebuggerSupport.eval(org.monflabs.nashorn.internal.runtime.ScriptObject,java.lang.Object,java.lang.String,boolean)
+static org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo org.monflabs.nashorn.internal.runtime.DebuggerSupport.getSourceInfo(java.lang.Class)
+static void org.monflabs.nashorn.internal.runtime.DebuggerSupport.notifyInvoke(java.lang.invoke.MethodHandle)
+static java.lang.String org.monflabs.nashorn.internal.runtime.DebuggerSupport.valueAsString(java.lang.Object)
+static org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc org.monflabs.nashorn.internal.runtime.DebuggerSupport.valueInfo(java.lang.String,java.lang.Object,boolean)
+static org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc[] org.monflabs.nashorn.internal.runtime.DebuggerSupport.valueInfos(java.lang.Object,boolean)
 
-class org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc
+class org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc
 
-final boolean org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.expandable
-final java.lang.String org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.key
-final java.lang.Object org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.valueAsObject
-final java.lang.String org.openjdk.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.valueAsString
+final boolean org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.expandable
+final java.lang.String org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.key
+final java.lang.Object org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.valueAsObject
+final java.lang.String org.monflabs.nashorn.internal.runtime.DebuggerSupport$DebuggerValueDesc.valueAsString
 
-class org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo
+class org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo
 
-final char[] org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo.content
-final int org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo.hash
-final java.lang.String org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo.name
-final java.net.URL org.openjdk.nashorn.internal.runtime.DebuggerSupport$SourceInfo.url
+final char[] org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo.content
+final int org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo.hash
+final java.lang.String org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo.name
+final java.net.URL org.monflabs.nashorn.internal.runtime.DebuggerSupport$SourceInfo.url

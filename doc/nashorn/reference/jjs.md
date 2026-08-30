@@ -1,8 +1,8 @@
 # jjs and the shell
 
-Nashorn ships two command-line entry points. The **shell** (`org.openjdk.nashorn.tools.Shell`, in
+Nashorn ships two command-line entry points. The **shell** (`org.monflabs.nashorn.tools.Shell`, in
 `nashorn-core`) runs scripts and is what most automation wants. **jjs**
-(`org.openjdk.nashorn.tools.jjs.Main`, in the unpublished `nashorn-shell` artifact) wraps the shell
+(`org.monflabs.nashorn.tools.jjs.Main`, in the unpublished `nashorn-shell` artifact) wraps the shell
 in an interactive REPL with line editing, history and tab completion.
 
 Both accept every [command-line option](options.md), and `--` separates engine options from script
@@ -13,8 +13,8 @@ arguments.
 The shell lives in `nashorn-core`, so this works with nothing but the published artifact:
 
 ```bash
-java -cp nashorn-core-20.jar org.openjdk.nashorn.tools.Shell script.js
-java -cp nashorn-core-20.jar org.openjdk.nashorn.tools.Shell -scripting script.js -- arg1 arg2
+java -cp nashorn-core-20.jar org.monflabs.nashorn.tools.Shell script.js
+java -cp nashorn-core-20.jar org.monflabs.nashorn.tools.Shell -scripting script.js -- arg1 arg2
 ```
 
 Exit codes: `0` success, `100` command-line error, `101` compilation error, `102` runtime error,
@@ -28,7 +28,7 @@ also why the interactive form needs `--add-exports`. Running a **script file** n
 
 ```bash
 java --module-path nashorn-core-20.jar:nashorn-shell-20.jar \
-     -m org.openjdk.nashorn.shell/org.openjdk.nashorn.tools.jjs.Main script.js
+     -m org.monflabs.nashorn.shell/org.monflabs.nashorn.tools.jjs.Main script.js
 ```
 
 The **interactive REPL** constructs a console on JDK-internal jline packages, so it needs the full
@@ -36,14 +36,14 @@ export list (this exact line is verified against JDK 25):
 
 ```bash
 java --module-path nashorn-core-20.jar:nashorn-shell-20.jar \
-     --add-exports jdk.internal.ed/jdk.internal.editor.spi=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.ed/jdk.internal.editor.external=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.le/jdk.internal.org.jline.reader=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.le/jdk.internal.org.jline.reader.impl=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.le/jdk.internal.org.jline.keymap=org.openjdk.nashorn.shell \
-     --add-exports jdk.internal.le/jdk.internal.org.jline.terminal=org.openjdk.nashorn.shell \
-     -m org.openjdk.nashorn.shell/org.openjdk.nashorn.tools.jjs.Main
+     --add-exports jdk.internal.ed/jdk.internal.editor.spi=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.ed/jdk.internal.editor.external=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.le/jdk.internal.org.jline.reader=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.le/jdk.internal.org.jline.reader.impl=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.le/jdk.internal.org.jline.keymap=org.monflabs.nashorn.shell \
+     --add-exports jdk.internal.le/jdk.internal.org.jline.terminal=org.monflabs.nashorn.shell \
+     -m org.monflabs.nashorn.shell/org.monflabs.nashorn.tools.jjs.Main
 ```
 
 Wrapping that in a small `jjs` shell script is the practical move. In the REPL:

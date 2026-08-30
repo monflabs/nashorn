@@ -43,16 +43,16 @@ if (! file.isFile()) {
 }
 
 // Java classes used
-var ArrayAccess = Java.type("org.openjdk.nashorn.api.tree.ArrayAccessTree");
-var Block = Java.type("org.openjdk.nashorn.api.tree.BlockTree");
-var FunctionDeclaration = Java.type("org.openjdk.nashorn.api.tree.FunctionDeclarationTree");
-var FunctionExpression = Java.type("org.openjdk.nashorn.api.tree.FunctionExpressionTree");
-var Identifier = Java.type("org.openjdk.nashorn.api.tree.IdentifierTree");
-var Kind = Java.type("org.openjdk.nashorn.api.tree.Tree.Kind");
-var MemberSelect = Java.type("org.openjdk.nashorn.api.tree.MemberSelectTree");
-var ObjectLiteral = Java.type("org.openjdk.nashorn.api.tree.ObjectLiteralTree");
-var Parser = Java.type("org.openjdk.nashorn.api.tree.Parser");
-var SimpleTreeVisitor = Java.type("org.openjdk.nashorn.api.tree.SimpleTreeVisitorES5_1");
+var ArrayAccess = Java.type("org.monflabs.nashorn.api.tree.ArrayAccessTree");
+var Block = Java.type("org.monflabs.nashorn.api.tree.BlockTree");
+var FunctionDeclaration = Java.type("org.monflabs.nashorn.api.tree.FunctionDeclarationTree");
+var FunctionExpression = Java.type("org.monflabs.nashorn.api.tree.FunctionExpressionTree");
+var Identifier = Java.type("org.monflabs.nashorn.api.tree.IdentifierTree");
+var Kind = Java.type("org.monflabs.nashorn.api.tree.Tree.Kind");
+var MemberSelect = Java.type("org.monflabs.nashorn.api.tree.MemberSelectTree");
+var ObjectLiteral = Java.type("org.monflabs.nashorn.api.tree.ObjectLiteralTree");
+var Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
+var SimpleTreeVisitor = Java.type("org.monflabs.nashorn.api.tree.SimpleTreeVisitorES5_1");
 var System = Java.type("java.lang.System");
 
 // make a nashorn parser

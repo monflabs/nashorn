@@ -35,7 +35,7 @@
 
 function runScriptEngine(opts, code) {
     var imports = new JavaImporter(
-        Packages.org.openjdk.nashorn.api.scripting,
+        Packages.org.monflabs.nashorn.api.scripting,
         java.io, java.lang, java.util);
 
     with(imports) {

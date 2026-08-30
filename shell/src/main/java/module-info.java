@@ -34,9 +34,9 @@
  * @moduleGraph
  * @since 9
  */
-module org.openjdk.nashorn.shell {
+module org.monflabs.nashorn.shell {
     requires static java.compiler;
     requires jdk.internal.le;
-    requires org.openjdk.nashorn;
+    requires org.monflabs.nashorn;
     requires jdk.internal.ed;
 }

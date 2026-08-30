@@ -16,22 +16,24 @@ implementation 'org.monflabs.nashorn:nashorn-core:20'
 
 It requires **JDK 25 or later**, at build and at run time. Releases up to 15.7 were published by the
 upstream project as `org.openjdk.nashorn:nashorn-core` and target Java 11 — this fork continues that
-line under new coordinates, with the same Java packages.
+line under new coordinates, with the Java packages renamed to match
+(`org.openjdk.nashorn.*` → `org.monflabs.nashorn.*`).
 
 ## Class path or module path
 
-The engine is a JPMS module named `org.openjdk.nashorn` with no dependencies of its own. Both
+The engine is a JPMS module named `org.monflabs.nashorn` with no dependencies of its own. Both
 placements work:
 
 - **Module path** (preferred): the module exports only its two API packages
-  (`org.openjdk.nashorn.api.scripting`, `org.openjdk.nashorn.api.tree`), so internals stay sealed
+  (`org.monflabs.nashorn.api.scripting`, `org.monflabs.nashorn.api.tree`), so internals stay sealed
   and the service registration flows through `provides javax.script.ScriptEngineFactory`.
 - **Class path**: the same registration is duplicated in `META-INF/services`, so
   `ScriptEngineManager` discovery works there too.
 
-?> Because the module keeps its upstream name, this artifact **cannot share a module path** with an
-upstream `org.openjdk.nashorn:nashorn-core` jar — two modules of one name. On the class path the
-two can coexist (whichever is first wins); on a module path, pick one.
+?> Because the module and packages carry this fork's own name, this artifact **can share a class
+path or a module path** with an upstream `org.openjdk.nashorn:nashorn-core` jar — different modules,
+different packages. Both register with `javax.script`, so when both are present pick by engine name
+rather than relying on discovery order.
 
 ## Hello, world
 

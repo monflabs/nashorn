@@ -4,5 +4,5 @@
 hello Runnable
 33
 I'm object
-java.lang.RuntimeException: java.lang.ClassNotFoundException: org.openjdk.nashorn.internal.runtime.Context
-java.lang.ClassNotFoundException: org.openjdk.nashorn.api.scripting.JSObject
+java.lang.RuntimeException: java.lang.ClassNotFoundException: org.monflabs.nashorn.internal.runtime.Context
+java.lang.ClassNotFoundException: org.monflabs.nashorn.api.scripting.JSObject

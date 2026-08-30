@@ -27,7 +27,7 @@ just like the JDK.
 Documentation
 =============
 
-[View the JavaDoc](https://www.javadoc.io/doc/org.openjdk.nashorn/nashorn-core).
+[View the JavaDoc](https://www.javadoc.io/doc/org.monflabs.nashorn/nashorn-core).
 
 Making Nashorn standalone is still a work in progress. There is no
 standalone user's guides for it yet. The best current guides are
@@ -36,7 +36,7 @@ Nashorn-related documents last published by Oracle with Java 14:
   * [Nashorn User's Guide](https://docs.oracle.com/en/java/javase/14/nashorn/)
   * [Java Scripting Programmer's Guide](https://docs.oracle.com/en/java/javase/14/scripting/index.html)
 
-(When browsing these guides, mentally substitute `org.openjdk.nashorn` in place of `jdk.scripting.nashorn` module name and `jdk.nashorn` package name.)
+(When browsing these guides, mentally substitute `org.monflabs.nashorn` in place of `jdk.scripting.nashorn` module name and `jdk.nashorn` package name.)
 
 
 Getting Started

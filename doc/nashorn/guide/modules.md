@@ -55,19 +55,19 @@ That said, here is exactly how it is done, because it is done — the engine's o
 The internal `Context` API is opened with `--add-exports`:
 
 ```text
---add-exports org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED
---add-exports org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.options=ALL-UNNAMED
---add-exports org.openjdk.nashorn/org.openjdk.nashorn.internal.objects=ALL-UNNAMED
+--add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED
+--add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.options=ALL-UNNAMED
+--add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.objects=ALL-UNNAMED
 ```
 
 ```java
 import java.io.File;
-import org.openjdk.nashorn.internal.objects.Global;
-import org.openjdk.nashorn.internal.runtime.Context;
-import org.openjdk.nashorn.internal.runtime.ErrorManager;
-import org.openjdk.nashorn.internal.runtime.ModuleRecord;
-import org.openjdk.nashorn.internal.runtime.Source;
-import org.openjdk.nashorn.internal.runtime.options.Options;
+import org.monflabs.nashorn.internal.objects.Global;
+import org.monflabs.nashorn.internal.runtime.Context;
+import org.monflabs.nashorn.internal.runtime.ErrorManager;
+import org.monflabs.nashorn.internal.runtime.ModuleRecord;
+import org.monflabs.nashorn.internal.runtime.Source;
+import org.monflabs.nashorn.internal.runtime.options.Options;
 
 Options options = new Options("nashorn");
 options.process(new String[0]);
@@ -85,7 +85,7 @@ Context.runWithGlobal(global, () -> {           // establishes the realm for the
 `evaluateModule` is `loadModule(...).link().evaluate()` — the record it returns also offers
 `exportNames()` and `namespace()` (the module's namespace object). Working fixtures live in
 `core/src/test/scripts/modules/`, driven by
-`core/src/test/java/org/openjdk/nashorn/internal/runtime/test/ModuleTest.java`.
+`core/src/test/java/org/monflabs/nashorn/internal/runtime/test/ModuleTest.java`.
 
 ## Meanwhile, in scripts
 

@@ -27,7 +27,7 @@
  */
 
 function model(n) {
-  return Java.type("org.openjdk.nashorn.test.models." + n)
+  return Java.type("org.monflabs.nashorn.test.models." + n)
 }
 
 // Can't extend a final class

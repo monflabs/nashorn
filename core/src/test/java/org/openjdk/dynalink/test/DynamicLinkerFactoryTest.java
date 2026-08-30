@@ -37,7 +37,7 @@ import jdk.dynalink.DynamicLinker;
 import jdk.dynalink.DynamicLinkerFactory;
 import jdk.dynalink.Operation;
 import jdk.dynalink.support.SimpleRelinkableCallSite;
-import org.openjdk.nashorn.api.scripting.AbstractJSObject;
+import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 

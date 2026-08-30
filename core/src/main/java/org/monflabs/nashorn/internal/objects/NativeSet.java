@@ -1,0 +1,243 @@
+/*
+ * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+package org.monflabs.nashorn.internal.objects;
+
+import java.lang.invoke.MethodHandle;
+import org.monflabs.nashorn.internal.objects.annotations.Attribute;
+import org.monflabs.nashorn.internal.objects.annotations.Constructor;
+import org.monflabs.nashorn.internal.objects.annotations.Function;
+import org.monflabs.nashorn.internal.objects.annotations.Getter;
+import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
+import org.monflabs.nashorn.internal.objects.annotations.Where;
+import org.monflabs.nashorn.internal.objects.annotations.Property;
+import org.monflabs.nashorn.internal.runtime.PropertyMap;
+import org.monflabs.nashorn.internal.runtime.Context;
+import org.monflabs.nashorn.internal.runtime.ScriptObject;
+import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
+import org.monflabs.nashorn.internal.runtime.Undefined;
+import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
+
+import static org.monflabs.nashorn.internal.objects.NativeMap.convertKey;
+import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
+
+/**
+ * This implements the ECMA6 Set object.
+ */
+@ScriptClass("Set")
+public class NativeSet extends ScriptObject {
+
+    // our set/map implementation
+    private final LinkedMap map = new LinkedMap();
+
+    // Invoker for the forEach callback
+    private final static Object FOREACH_INVOKER_KEY = new Object();
+
+    // initialized by nasgen
+    private static PropertyMap $nasgenmap$;
+
+    /**
+     * ES2015 23.2.2.2 get Set [ @@species ].
+     *
+     * The default species is the constructor itself; a subclass overrides it to
+     * say what its derived operations should build.
+     *
+     * @param self self reference
+     * @return the constructor it was read from
+     */
+    @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object species(final Object self) {
+        return self;
+    }
+
+    private NativeSet(final ScriptObject proto, final PropertyMap map) {
+        super(proto, map);
+    }
+
+    /**
+     * ECMA6 23.1 Set constructor
+     *
+     * @param isNew  whether the new operator used
+     * @param self self reference
+     * @param arg optional iterable argument
+     * @return a new Set object
+     */
+    @Constructor(arity = 0)
+    public static Object construct(final boolean isNew, final Object self, final Object arg){
+        if (!isNew) {
+            throw typeError("constructor.requires.new", "Set");
+        }
+        final Global global = Global.instance();
+        final NativeSet set = new NativeSet(global.getSetPrototype(), $nasgenmap$);
+        // 23.2.1.1 step 8: the values go in through the set's own "add"
+        AbstractIterator.fillFrom(set, "add", arg, global, value -> new Object[] { value });
+        return set;
+    }
+
+    /**
+     * ECMA6 23.2.3.1 Set.prototype.add ( value )
+     *
+     * @param self the self reference
+     * @param value the value to add
+     * @return this Set object
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object add(final Object self, final Object value) {
+        getNativeSet(self).map.set(convertKey(value), null);
+        return self;
+    }
+
+    /**
+     * ECMA6 23.2.3.7 Set.prototype.has ( value )
+     *
+     * @param self the self reference
+     * @param value the value
+     * @return true if value is contained
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean has(final Object self, final Object value) {
+        return getNativeSet(self).map.has(convertKey(value));
+    }
+
+    /**
+     * ECMA6 23.2.3.2 Set.prototype.clear ( )
+     *
+     * @param self the self reference
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static void clear(final Object self) {
+        getNativeSet(self).map.clear();
+    }
+
+    /**
+     * ECMA6 23.2.3.4 Set.prototype.delete ( value )
+     *
+     * @param self the self reference
+     * @param value the value
+     * @return true if value was deleted
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean delete(final Object self, final Object value) {
+        return getNativeSet(self).map.delete(convertKey(value));
+    }
+
+    /**
+     * ECMA6 23.2.3.9 get Set.prototype.size
+     *
+     * @param self the self reference
+     * @return the number of contained values
+     */
+    @Getter(attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR, where = Where.PROTOTYPE)
+    public static int size(final Object self) {
+        return getNativeSet(self).map.size();
+    }
+
+    /**
+     * ECMA6 23.2.3.5 Set.prototype.entries ( )
+     *
+     * @param self the self reference
+     * @return an iterator over the Set object's entries
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object entries(final Object self) {
+        return new SetIterator(getNativeSet(self), AbstractIterator.IterationKind.KEY_VALUE, Global.instance());
+    }
+
+    /**
+     * ECMA6 23.2.3.10 Set.prototype.values ( )
+     *
+     * @param self the self reference
+     * @return an iterator over the Set object's values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object values(final Object self) {
+        return new SetIterator(getNativeSet(self), AbstractIterator.IterationKind.VALUE, Global.instance());
+    }
+
+
+    /**
+     * ECMA6 23.2.3.6 Set.prototype.forEach ( callbackfn [ , thisArg ] )
+     *
+     * @param self the self reference
+     * @param callbackFn the callback function
+     * @param thisArg optional this object
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static void forEach(final Object self, final Object callbackFn, final Object thisArg) {
+        final NativeSet set = getNativeSet(self);
+        if (!Bootstrap.isCallable(callbackFn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(callbackFn));
+        }
+        // 23.1.3.5 step 5 calls the callback with what it was given, and a
+        // callback that is not strict is entered with the global where that is
+        // undefined - the coercion every other iteration helper makes
+        final Object callbackThis = thisArg == ScriptRuntime.UNDEFINED && !Bootstrap.isStrictCallable(callbackFn)
+                ? Context.getGlobal()
+                : thisArg;
+        final MethodHandle invoker = Global.instance().getDynamicInvoker(FOREACH_INVOKER_KEY,
+                () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class, Object.class, Object.class, Object.class));
+
+        final LinkedMap.LinkedMapIterator iterator = set.getJavaMap().getIterator();
+        for (;;) {
+            final LinkedMap.Node node = iterator.next();
+            if (node == null) {
+                break;
+            }
+
+            try {
+                final Object result = invoker.invokeExact(callbackFn, callbackThis, node.getKey(), node.getKey(), self);
+            } catch (final RuntimeException | Error e) {
+                throw e;
+            } catch (final Throwable t) {
+                throw new RuntimeException(t);
+            }
+        }
+    }
+
+    @Override
+    public String getClassName() {
+        return "Set";
+    }
+
+
+    LinkedMap getJavaMap() {
+        return map;
+    }
+
+    private static NativeSet getNativeSet(final Object self) {
+        if (self instanceof NativeSet) {
+            return (NativeSet) self;
+        } else {
+            throw typeError("not.a.set", ScriptRuntime.safeToString(self));
+        }
+    }
+
+    /**
+     * ES2015 23.2.3.12 Set.prototype [ @@toStringTag ].
+     */
+    @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
+    public static final String toStringTag = "Set";
+
+}

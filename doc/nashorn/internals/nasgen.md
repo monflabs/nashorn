@@ -1,7 +1,7 @@
 # nasgen
 
 nasgen is the build-time bytecode post-processor that turns the annotated Java classes in
-`org.openjdk.nashorn.internal.objects` into working JavaScript built-ins. It is the answer to a
+`org.monflabs.nashorn.internal.objects` into working JavaScript built-ins. It is the answer to a
 bootstrap problem: `Array.prototype.push` must be a JavaScript function object with the right
 `name`, `length` and attributes, living in a [property map](objects.md) — but you want to *write*
 it as a plain static Java method.
@@ -64,7 +64,7 @@ idempotent** — run over its own output it would corrupt the maps. Two practica
   run time. The sanity check after changing a built-in:
 
 ```bash
-javap -cp core/target/classes 'org.openjdk.nashorn.internal.objects.NativeArray$Constructor'
+javap -cp core/target/classes 'org.monflabs.nashorn.internal.objects.NativeArray$Constructor'
 ```
 
 If that class is missing, the pass did not run; `mvn -pl core process-classes` re-runs it.

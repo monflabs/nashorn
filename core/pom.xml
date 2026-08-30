@@ -119,7 +119,7 @@ questions.
       unnamed-module code that reaches into Nashorn internals. The Turkish
       locale is deliberate - it catches locale-sensitive case-conversion bugs.
     -->
-    <nashorn.test.jvmargs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.ir=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.codegen=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.parser=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.objects=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.doubleconv=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.linker=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.events=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.options=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.regexp=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.regexp.joni=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.tools=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime.doubleconv=ALL-UNNAMED -Xmx2G -esa -ea -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${project.build.directory} -Dfile.encoding=UTF-8 -Duser.language=tr -Duser.country=TR -Dnashorn.typeInfo.cacheDir=${project.build.directory}/test/type_info_cache -Dbuild.dir=target</nashorn.test.jvmargs>
+    <nashorn.test.jvmargs>--module-path=${nashorn.test.modulepath} --add-modules=org.monflabs.nashorn --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.ir=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.codegen=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.parser=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.objects=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.doubleconv=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.linker=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.events=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.options=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.regexp=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.regexp.joni=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.tools=ALL-UNNAMED --add-opens=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED --add-opens=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.doubleconv=ALL-UNNAMED -Xmx2G -esa -ea -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=${project.build.directory} -Dfile.encoding=UTF-8 -Duser.language=tr -Duser.country=TR -Dnashorn.typeInfo.cacheDir=${project.build.directory}/test/type_info_cache -Dbuild.dir=target</nashorn.test.jvmargs>
   </properties>
 
   <!-- No compile dependencies: the bytecode work is done with java.lang.classfile. -->
@@ -199,7 +199,7 @@ questions.
               <!--
                 Compile the tests as ordinary classpath code. Without this,
                 maven-compiler-plugin patches them into module
-                org.openjdk.nashorn, which then cannot read java.xml or
+                org.monflabs.nashorn, which then cannot read java.xml or
                 java.sql (module-info does not require them) and the test
                 framework fails to compile. The Ant build likewise kept the
                 tests in the unnamed module. Accessibility to Nashorn
@@ -282,7 +282,7 @@ questions.
           <execution>
             <!--
               THE critical build step. Without it the @ScriptClass classes in
-              org.openjdk.nashorn.internal.objects get no $Constructor or
+              org.monflabs.nashorn.internal.objects get no $Constructor or
               $Prototype, and every JavaScript built-in is missing at runtime -
               while the build still succeeds. See CLAUDE.md.
             -->
@@ -294,9 +294,9 @@ questions.
               <arguments>
                 <argument>-cp</argument>
                 <argument>${nashorn.nasgen.classes}${path.separator}${nashorn.modules.dir}/*</argument>
-                <argument>org.openjdk.nashorn.internal.tools.nasgen.Main</argument>
+                <argument>org.monflabs.nashorn.internal.tools.nasgen.Main</argument>
                 <argument>${nashorn.raw.classes}</argument>
-                <argument>org.openjdk.nashorn.internal.objects</argument>
+                <argument>org.monflabs.nashorn.internal.objects</argument>
                 <argument>${project.build.outputDirectory}</argument>
               </arguments>
             </configuration>
@@ -391,7 +391,7 @@ questions.
           <archive>
             <manifestSections>
               <manifestSection>
-                <name>org/openjdk/nashorn/</name>
+                <name>org/monflabs/nashorn/</name>
                 <manifestEntries>
                   <Implementation-Title>${nashorn.product.name}</Implementation-Title>
                   <Implementation-Version>${project.version}</Implementation-Version>
@@ -407,7 +407,7 @@ questions.
         <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
           <!-- only the two public API packages are documented, as before -->
-          <excludePackageNames>org.openjdk.nashorn.internal:org.openjdk.nashorn.internal.*:org.openjdk.nashorn.tools:org.openjdk.nashorn.tools.*:org.openjdk.nashorn.api.linker</excludePackageNames>
+          <excludePackageNames>org.monflabs.nashorn.internal:org.monflabs.nashorn.internal.*:org.monflabs.nashorn.tools:org.monflabs.nashorn.tools.*:org.monflabs.nashorn.api.linker</excludePackageNames>
           <tags>
             <tag><name>implSpec</name><placement>a</placement><head>Implementation Requirements:</head></tag>
             <tag><name>implNote</name><placement>a</placement><head>Implementation Note:</head></tag>
@@ -526,7 +526,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.default.shards=${nashorn.test262.shards} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.default.shards=${nashorn.test262.shards} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
@@ -550,7 +550,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Dtest.root.dir=src/test "-Dtest.js.roots=${nashorn.test.scripts}/basic ${nashorn.test.scripts}/maptests ${nashorn.test.scripts}/error ${nashorn.test.scripts}/sandbox ${nashorn.test.scripts}/trusted ${nashorn.test.scripts}/nosecurity" -Dtest.js.framework=${nashorn.test.scripts}/assert.js "-Dtest.js.exclude.dir=${nashorn.test.scripts}/currently-failing ${nashorn.test.scripts}/external" -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.internal.test.framework.ParallelTestRunner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Dtest.root.dir=src/test "-Dtest.js.roots=${nashorn.test.scripts}/basic ${nashorn.test.scripts}/maptests ${nashorn.test.scripts}/error ${nashorn.test.scripts}/sandbox ${nashorn.test.scripts}/trusted ${nashorn.test.scripts}/nosecurity" -Dtest.js.framework=${nashorn.test.scripts}/assert.js "-Dtest.js.exclude.dir=${nashorn.test.scripts}/currently-failing ${nashorn.test.scripts}/external" -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.ParallelTestRunner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
@@ -589,7 +589,7 @@ questions.
                   <executable>${java.home}/bin/java</executable>
                   <!-- TypeProfileLevel=222 was run.test.jvmargs.octane.main:
                        better type profiling produces much better JIT code for JS -->
-                  <commandlineArgs>${nashorn.test.jvmargs} -Xms2G -XX:TypeProfileLevel=222 -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.tools.Shell ${nashorn.test.scripts}/basic/run-octane.js -scripting -- ${octane.benchmarks} --runtime nashorn --verbose --iterations ${octane.iterations}</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xms2G -XX:TypeProfileLevel=222 -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.tools.Shell ${nashorn.test.scripts}/basic/run-octane.js -scripting -- ${octane.benchmarks} --runtime nashorn --verbose --iterations ${octane.iterations}</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
@@ -616,7 +616,7 @@ questions.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.openjdk.nashorn.tools.Shell -timezone=PST --class-cache-size=50 ${nashorn.test.scripts}/basic/runsunspider.js -- ${nashorn.test.scripts}/external/sunspider/tests/sunspider-1.0.2/ --verbose --times ${sunspider.iterations}</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.tools.Shell -timezone=PST --class-cache-size=50 ${nashorn.test.scripts}/basic/runsunspider.js -- ${nashorn.test.scripts}/external/sunspider/tests/sunspider-1.0.2/ --verbose --times ${sunspider.iterations}</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
@@ -645,7 +645,7 @@ questions.
               <excludes>
                 <!-- classes Nashorn generates at runtime for compiled scripts;
                      was cc.exclude in project.properties -->
-                <exclude>org/openjdk/nashorn/internal/scripts/**</exclude>
+                <exclude>org/monflabs/nashorn/internal/scripts/**</exclude>
               </excludes>
             </configuration>
             <executions>
@@ -683,7 +683,7 @@ questions.
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
                   <workingDirectory>${project.basedir}/../samples</workingDirectory>
-                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn -m org.openjdk.nashorn/org.openjdk.nashorn.tools.Shell -dump-on-error ${nashorn.run.script}</commandlineArgs>
+                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.monflabs.nashorn -m org.monflabs.nashorn/org.monflabs.nashorn.tools.Shell -dump-on-error ${nashorn.run.script}</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
@@ -711,7 +711,7 @@ questions.
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
                   <workingDirectory>${project.basedir}/../samples</workingDirectory>
-                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn -Dnashorn.codegen.debug=true -m org.openjdk.nashorn/org.openjdk.nashorn.tools.Shell --print-code --verify-code --print-symbols ${nashorn.run.script}</commandlineArgs>
+                  <commandlineArgs>--module-path=${nashorn.test.modulepath} --add-modules=org.monflabs.nashorn -Dnashorn.codegen.debug=true -m org.monflabs.nashorn/org.monflabs.nashorn.tools.Shell --print-code --verify-code --print-symbols ${nashorn.run.script}</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

@@ -1,5 +1,5 @@
 class javax.script.ScriptException
-class org.openjdk.nashorn.internal.runtime.ECMAException
+class org.monflabs.nashorn.internal.runtime.ECMAException
 Error: foo
 true
 Error

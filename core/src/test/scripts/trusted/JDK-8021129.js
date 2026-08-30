@@ -30,7 +30,7 @@
  * @run
  */
 
-var InternalRunnableSuperclass = Java.type("org.openjdk.nashorn.test.models.InternalRunnableSuperclass");
+var InternalRunnableSuperclass = Java.type("org.monflabs.nashorn.test.models.InternalRunnableSuperclass");
 var r1 = InternalRunnableSuperclass.makeInternalRunnable();
 r1.run() // Can execute method from an implemented non-restricted interface
 print(r1.toString()) // Can execute public method from a superclass

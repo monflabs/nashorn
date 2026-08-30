@@ -29,7 +29,7 @@
  * @run
  */
 
-var Factory = Java.type("org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory");
+var Factory = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory");
 var fac = new Factory();
 
 // This script has to be given RuntimePermission("nashorn.setConfig")
@@ -62,7 +62,7 @@ print(obj.toString());
 
 // should throw ClassNotFoundException!
 try {
-    e.eval("Java.type('org.openjdk.nashorn.internal.runtime.Context')");
+    e.eval("Java.type('org.monflabs.nashorn.internal.runtime.Context')");
 } catch (ex) {
     print(ex);
 }
@@ -71,7 +71,7 @@ try {
 // "app loader" [and not platform loader which loads nashorn]
 e.eval(<<EOF
 try {
-    Java.type('org.openjdk.nashorn.api.scripting.JSObject');
+    Java.type('org.monflabs.nashorn.api.scripting.JSObject');
 } catch (ex) {
     output(ex);
 }

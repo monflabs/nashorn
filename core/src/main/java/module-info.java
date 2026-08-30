@@ -44,7 +44,7 @@ ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn"
 </pre>
  *
  * and then use it just as you would any other JSR-223 script engine. See
- * {@link org.openjdk.nashorn.api.scripting} package for details.
+ * {@link org.monflabs.nashorn.api.scripting} package for details.
  * <h2>Compatibility</h2>
  * Nashorn is 100% compliant with the
  * <a href="http://www.ecma-international.org/publications/standards/Ecma-262.htm"
@@ -139,26 +139,26 @@ ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn"
  * @moduleGraph
  * @since 9
  */
-module org.openjdk.nashorn {
+module org.monflabs.nashorn {
     requires java.logging;
     requires jdk.dynalink;
     requires jdk.unsupported;
 
     requires transitive java.scripting;
 
-    exports org.openjdk.nashorn.api.scripting;
-    exports org.openjdk.nashorn.api.tree;
+    exports org.monflabs.nashorn.api.scripting;
+    exports org.monflabs.nashorn.api.tree;
 
-    exports org.openjdk.nashorn.internal.runtime to
-        org.openjdk.nashorn.shell;
-    exports org.openjdk.nashorn.internal.objects to
-        org.openjdk.nashorn.shell;
-    exports org.openjdk.nashorn.tools to
-        org.openjdk.nashorn.shell;
+    exports org.monflabs.nashorn.internal.runtime to
+        org.monflabs.nashorn.shell;
+    exports org.monflabs.nashorn.internal.objects to
+        org.monflabs.nashorn.shell;
+    exports org.monflabs.nashorn.tools to
+        org.monflabs.nashorn.shell;
 
     provides javax.script.ScriptEngineFactory with
-        org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory;
+        org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 
     provides jdk.dynalink.linker.GuardingDynamicLinkerExporter with
-        org.openjdk.nashorn.api.linker.NashornLinkerExporter;
+        org.monflabs.nashorn.api.linker.NashornLinkerExporter;
 }

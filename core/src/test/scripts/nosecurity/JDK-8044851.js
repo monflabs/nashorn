@@ -29,8 +29,8 @@
  * @fork
  */
 
-var Property = Java.type("org.openjdk.nashorn.internal.runtime.Property");
-var PropertyMap = Java.type("org.openjdk.nashorn.internal.runtime.PropertyMap");
+var Property = Java.type("org.monflabs.nashorn.internal.runtime.Property");
+var PropertyMap = Java.type("org.monflabs.nashorn.internal.runtime.PropertyMap");
 
 // Class objects
 var objectCls = Java.type("java.lang.Object").class;

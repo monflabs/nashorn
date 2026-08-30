@@ -28,6 +28,6 @@
  * @run
  */
 
-load("classpath:org/openjdk/nashorn/internal/runtime/test/resources/load_test.js")
+load("classpath:org/monflabs/nashorn/internal/runtime/test/resources/load_test.js")
 
 Assert.assertEquals(loadedFunc("hello"), "HELLO");

@@ -62,7 +62,7 @@ echo "perf-gate: building working tree"
 # classes differ between the two measurements.
 HARNESS="$ROOT/core/target/test/classes"
 LIBS="$ROOT/core/target/test-libs/*"
-MAIN=org.openjdk.nashorn.internal.performance.PerfBenchmark
+MAIN=org.monflabs.nashorn.internal.performance.PerfBenchmark
 
 cd "$ROOT/core"
 BASE_CP="$WORKTREE/core/target/classes:$HARNESS:$LIBS"

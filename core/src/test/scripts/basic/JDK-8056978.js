@@ -22,7 +22,7 @@
  */
 
 /**
- * JDK-8056978: ClassCastException: cannot cast org.openjdk.nashorn.internal.scripts.JO*
+ * JDK-8056978: ClassCastException: cannot cast org.monflabs.nashorn.internal.scripts.JO*
  *
  * @test
  * @run

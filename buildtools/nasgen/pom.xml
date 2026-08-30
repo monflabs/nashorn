@@ -40,7 +40,7 @@ questions.
   <name>OpenJDK-Monflabs nasgen</name>
   <description>
     Build-time bytecode post-processor. Rewrites the @ScriptClass-annotated
-    classes in org.openjdk.nashorn.internal.objects, adding the $Constructor
+    classes in org.monflabs.nashorn.internal.objects, adding the $Constructor
     and $Prototype classes and property maps that make them behave as
     JavaScript built-ins. Nashorn does not work without this step.
 
@@ -69,7 +69,7 @@ questions.
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.openjdk.nashorn.internal.tools.nasgen.Main</mainClass>
+              <mainClass>org.monflabs.nashorn.internal.tools.nasgen.Main</mainClass>
             </manifest>
           </archive>
         </configuration>

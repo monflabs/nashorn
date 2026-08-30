@@ -22,18 +22,18 @@
  */
 
 /**
- * JDK-8191468: org.openjdk.nashorn.shell (jjs) module should use optional dependency for java.compiler module
+ * JDK-8191468: org.monflabs.nashorn.shell (jjs) module should use optional dependency for java.compiler module
  *
  * @test
  * @run
  */
 
-var optJjsMod = java.lang.ModuleLayer.boot().findModule("org.openjdk.nashorn.shell");
+var optJjsMod = java.lang.ModuleLayer.boot().findModule("org.monflabs.nashorn.shell");
 
 // make sure that the module exists!
 Assert.assertTrue(optJjsMod.isPresent());
 
-// org.openjdk.nashorn.shell should use optional dependency for java.compiler
+// org.monflabs.nashorn.shell should use optional dependency for java.compiler
 var javaCompilerDependency = optJjsMod.get().
         descriptor.requires().
         stream().

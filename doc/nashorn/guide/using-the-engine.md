@@ -2,7 +2,7 @@
 
 Everything on this page is plain `javax.script` — the engine implements `ScriptEngine`,
 `Compilable` and `Invocable` — plus the Nashorn-specific types in
-`org.openjdk.nashorn.api.scripting` where the standard interfaces run out.
+`org.monflabs.nashorn.api.scripting` where the standard interfaces run out.
 
 ## Evaluating scripts
 
@@ -16,7 +16,7 @@ engine.eval(new FileReader("script.js"));
 engine.eval(new URLReader(new URL("https://example.com/lib.js")));
 ```
 
-`org.openjdk.nashorn.api.scripting.URLReader` is a small convenience: the URL becomes the script's
+`org.monflabs.nashorn.api.scripting.URLReader` is a small convenience: the URL becomes the script's
 name, so `__FILE__` and stack traces point at the right place. When evaluating a plain `Reader`, set
 the name yourself via `engine.put(ScriptEngine.FILENAME, "myscript.js")` first — anonymous sources
 make for unhelpful stack traces.
@@ -122,7 +122,7 @@ deliberately, reuse them, and prefer `CompiledScript` when running one script ag
 ## ScriptObjectMirror
 
 Whenever a script object crosses into Java, it arrives as an
-`org.openjdk.nashorn.api.scripting.ScriptObjectMirror` — a `Map<String,Object>` and `Bindings`
+`org.monflabs.nashorn.api.scripting.ScriptObjectMirror` — a `Map<String,Object>` and `Bindings`
 view of the live object, plus everything JavaScript can do with it:
 
 ```java
@@ -153,7 +153,7 @@ conversion using the engine's own rules).
 ## Errors
 
 Script failures surface as `javax.script.ScriptException`, usually wrapping a
-`org.openjdk.nashorn.api.scripting.NashornException`, which knows the script file, line and column,
+`org.monflabs.nashorn.api.scripting.NashornException`, which knows the script file, line and column,
 and can render the *script* stack:
 
 ```java

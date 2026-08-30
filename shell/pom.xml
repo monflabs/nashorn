@@ -112,14 +112,14 @@ questions.
             <arg>-Xdiags:verbose</arg>
             <arg>-parameters</arg>
             <!-- was nashorn.shell.module.imports in project.properties -->
-            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.openjdk.nashorn.shell</arg>
-            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.openjdk.nashorn.shell</arg>
-            <arg>--add-reads=org.openjdk.nashorn.shell=jdk.internal.ed</arg>
+            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.monflabs.nashorn.shell</arg>
+            <arg>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.monflabs.nashorn.shell</arg>
+            <arg>--add-reads=org.monflabs.nashorn.shell=jdk.internal.ed</arg>
           </compilerArgs>
         </configuration>
       </plugin>
@@ -134,14 +134,14 @@ questions.
             jdk.internal.org.jline.reader is not visible".
           -->
           <additionalOptions>
-            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.openjdk.nashorn.shell</additionalOption>
-            <additionalOption>--add-reads=org.openjdk.nashorn.shell=jdk.internal.ed</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.spi=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.ed/jdk.internal.editor.external=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.reader.impl.completer=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.keymap=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-exports=jdk.internal.le/jdk.internal.org.jline.terminal=org.monflabs.nashorn.shell</additionalOption>
+            <additionalOption>--add-reads=org.monflabs.nashorn.shell=jdk.internal.ed</additionalOption>
           </additionalOptions>
           <!-- in-JDK tags used by module-info; javadoc rejects them otherwise -->
           <tags>
@@ -165,7 +165,7 @@ questions.
           <includes>
             <include>**/ScriptTest.java</include>
           </includes>
-          <argLine>--module-path=${nashorn.test.modulepath} --add-modules=org.openjdk.nashorn.shell --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.openjdk.nashorn/org.openjdk.nashorn.tools=ALL-UNNAMED --add-opens=org.openjdk.nashorn/org.openjdk.nashorn.internal.runtime=ALL-UNNAMED -Xmx2G -esa -ea -Dfile.encoding=UTF-8 -Dbuild.dir=target</argLine>
+          <argLine>--module-path=${nashorn.test.modulepath} --add-modules=org.monflabs.nashorn.shell --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED --add-exports=org.monflabs.nashorn/org.monflabs.nashorn.tools=ALL-UNNAMED --add-opens=org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED -Xmx2G -esa -ea -Dfile.encoding=UTF-8 -Dbuild.dir=target</argLine>
           <systemPropertyVariables>
             <test.js.roots>src/test/scripts/basic</test.js.roots>
             <test.js.framework>${nashorn.core.dir}/src/test/scripts/assert.js</test.js.framework>

@@ -32,13 +32,13 @@
  * @run
  */
 
-var Reflector     = Java.type("org.openjdk.nashorn.test.models.Reflector");
+var Reflector     = Java.type("org.monflabs.nashorn.test.models.Reflector");
 var forName       = java.lang.Class["forName(String)"];
-var RuntimeEvent  = forName("org.openjdk.nashorn.internal.runtime.events.RuntimeEvent").static;
+var RuntimeEvent  = forName("org.monflabs.nashorn.internal.runtime.events.RuntimeEvent").static;
 var getValue      = RuntimeEvent.class.getMethod("getValue");
-var RewriteException = forName("org.openjdk.nashorn.internal.runtime.RewriteException").static;
+var RewriteException = forName("org.monflabs.nashorn.internal.runtime.RewriteException").static;
 var getReturnType    = RewriteException.class.getMethod("getReturnType");
-var RecompilationEvent = forName("org.openjdk.nashorn.internal.runtime.events.RecompilationEvent").static;
+var RecompilationEvent = forName("org.monflabs.nashorn.internal.runtime.events.RecompilationEvent").static;
 var getReturnValue     = RecompilationEvent.class.getMethod("getReturnValue");
 var setReturnTypeAndValue = [];
 var expectedValues = [];

@@ -3,7 +3,7 @@
 Passing a Java object to a script gets you its beans-style surface: methods, getters as properties.
 Sometimes that is not enough — you want a host object that *feels* native: indexable with `[]`,
 callable with `()`, enumerable with `for..in`, answering `typeof` as a function. That is what
-`org.openjdk.nashorn.api.scripting.JSObject` is for.
+`org.monflabs.nashorn.api.scripting.JSObject` is for.
 
 ## JSObject and AbstractJSObject
 
@@ -26,7 +26,7 @@ source: [`samples/BufferArray.java`](../../../samples/BufferArray.java ':ignore'
 
 ```java
 import java.nio.DoubleBuffer;
-import org.openjdk.nashorn.api.scripting.AbstractJSObject;
+import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 
 public class BufferArray extends AbstractJSObject {
     private final DoubleBuffer buf;

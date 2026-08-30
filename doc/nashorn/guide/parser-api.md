@@ -1,6 +1,6 @@
 # The parser API
 
-`org.openjdk.nashorn.api.tree` is a public, read-only AST API in the style of javac's
+`org.monflabs.nashorn.api.tree` is a public, read-only AST API in the style of javac's
 `com.sun.source` — the tool for linters, code analysers, documentation extractors and anything else
 that needs to *understand* JavaScript source without running it. It is one of the two packages the
 engine's module exports, so it needs no `--add-exports`.
@@ -8,7 +8,7 @@ engine's module exports, so it needs no `--add-exports`.
 ## Parsing
 
 ```java
-import org.openjdk.nashorn.api.tree.*;
+import org.monflabs.nashorn.api.tree.*;
 
 Parser parser = Parser.create();
 CompilationUnitTree unit = parser.parse("hello.js",

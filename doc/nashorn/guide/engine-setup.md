@@ -2,12 +2,12 @@
 
 `ScriptEngineManager.getEngineByName("nashorn")` is all most embedders need. When you want control —
 options, class loading, class filtering — instantiate the factory yourself:
-`org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory`.
+`org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory`.
 
 ## The factory's overloads
 
 ```java
-import org.openjdk.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 
 NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
 
