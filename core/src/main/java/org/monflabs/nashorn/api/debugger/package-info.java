@@ -37,6 +37,12 @@
  * otherwise through {@link org.monflabs.nashorn.api.debugger.Debugger#evaluate} or
  * {@link org.monflabs.nashorn.api.debugger.DebugValues}, which bind the realm themselves.
  *
+ * <p>A pause is controlled through its {@link org.monflabs.nashorn.api.debugger.PausedEvent}:
+ * resume, step into, over or out - or
+ * {@link org.monflabs.nashorn.api.debugger.PausedEvent#terminate() terminate}, which ends the
+ * script on the spot by unwinding it with a
+ * {@link org.monflabs.nashorn.api.debugger.ScriptTerminated} no script {@code catch} can hold.
+ *
  * @since 20
  */
 package org.monflabs.nashorn.api.debugger;

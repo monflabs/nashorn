@@ -37,7 +37,11 @@ The flag is a `ScriptEnvironment` boolean, fixed at engine construction, read in
 The exception: **B.3.5** — a `var` taking a simple catch parameter's name — is *not* gated. The
 internal flag-clearing that permits it is also what makes an ordinary catch parameter visible at
 all, and untangling the two costs more than the purity is worth. Stated in the conformance
-document rather than left to be discovered.
+document rather than left to be discovered. One consequence for symbol assignment: the var-scoped
+binding the clause hoists to the function body is a binding *no name in the catch block resolves
+to* — every use of the name is the parameter — so the usual marking of scope symbols at their
+uses never reaches it, and `defineSymbol` marks a var as a scope symbol at creation when the
+function keeps all vars in scope (an `eval`, or `--debugger`) or is the program.
 
 ## B.3.3: block-level function declarations, hoisted
 

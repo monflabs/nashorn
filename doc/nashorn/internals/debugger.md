@@ -22,8 +22,11 @@ own bootstrap, so a site binds once to what it needs and thereafter costs a call
 
 - **statement** — `CodeGenerator.enterStatement`, the one place every statement visitor passes
   through, emits `stmt(scope, this)` with the statement's line and column as constants. Loop
-  back-edges get one too, so stepping stops at a loop header every iteration, as V8 does. The
-  bootstrap looks the position up in the source's table (below) and binds the site to that entry.
+  back-edges get one too — for a loop with an update clause before the update, for a `while` or a
+  bare `for(;;)` before the jump back — so stepping stops at a loop header every iteration, as V8
+  does, and even an empty body (`while (true) {}`) runs a hook per turn, which is what lets such a
+  loop be paused and terminated at all. The bootstrap looks the position up in the source's table
+  (below) and binds the site to that entry.
 - **enter** — at the head of a function body, once `initLocals` has made the scope object and the
   `arguments` object, `enter(scope, this, callee)` with the function's name and position.
 - **exit** — `exit()` before the `return` of every `ReturnNode` (the implicit return of a body is
@@ -93,6 +96,14 @@ bound (the `ScopedValue` scope is never left). `resume` and the steps end the lo
 mode and the depth it was taken at, and the next statement hook compares: *into* stops anywhere,
 *over* at the same depth or shallower, *out* shallower only. A breakpoint met on the way wins.
 
+**Termination** rides the same machinery. `PausedEvent.terminate()` flags the thread's shadow
+stack and ends the pause loop by throwing `ScriptTerminated` — an `Error`, not an
+`ECMAException`, so no script `catch` matches it. A `catch`-everything handler could still swallow
+it between statements, so while the flag is up every statement hook throws a fresh one; the flag
+clears when the exit hooks have popped the last frame, so the engine runs its next script
+normally. A script blocked inside a Java call is beyond the hooks' reach — callers pair
+`terminate()` with interrupting the thread.
+
 Exceptions have two hooks: `ECMAErrors.error`, through which every error the runtime makes passes,
 and `ECMAException.create`, which a script's `throw` calls — *all* pauses there, at the throw site.
 *Uncaught* is decided in the outermost frame's `exitThrow`, where an `ECMAException` about to leave
@@ -108,4 +119,6 @@ protocol's `-32601` so that the many domains DevTools probes on connect (`Profil
 `Page`, …) do not end the session. Events come from the API's listener: `paused` is built *on the
 paused thread*, which owns the objects it describes, then sent. `RemoteObjects` hands out object
 ids per session, in the groups the client names, and serialises values as `Runtime.RemoteObject`s
-through `DebugValues`.
+through `DebugValues`. `Runtime.terminateExecution` maps onto the API's termination: honoured on
+the spot when a thread is paused, and otherwise armed so the next pause — which the domain
+requests — terminates instead of reporting.

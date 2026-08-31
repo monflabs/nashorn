@@ -81,3 +81,6 @@ itself removed.
 - [Using the engine](using-the-engine.md) — evaluating, invoking, bindings and scopes.
 - [Connecting with Java](connecting-with-java.md) — the `Java` object and everything interop.
 - Running scripts from the command line — [jjs and the shell](../reference/jjs.md).
+- Trying things out interactively — [the playground](playground.md), a sample browser built by the
+  reactor with the whole language and every extension as runnable, editable samples.
+- Pausing and stepping through scripts — [debugging](debugging.md) with Chrome DevTools or VS Code.
