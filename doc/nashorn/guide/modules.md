@@ -85,7 +85,11 @@ Context.runWithGlobal(global, () -> {           // establishes the realm for the
 `evaluateModule` is `loadModule(...).link().evaluate()` — the record it returns also offers
 `exportNames()` and `namespace()` (the module's namespace object). Working fixtures live in
 `core/src/test/scripts/modules/`, driven by
-`core/src/test/java/org/monflabs/nashorn/internal/runtime/test/ModuleTest.java`.
+`core/src/test/java/org/monflabs/nashorn/internal/runtime/test/ModuleTest.java`. The
+[playground](playground.md)'s *ECMAScript support → ES2015 → Modules* sample runs the same flow
+from inside a script — module files written to a temporary directory, evaluated through
+`evaluateModule`, exports and live bindings read from outside — which works there because the
+playground runs on the class path.
 
 ## Meanwhile, in scripts
 
