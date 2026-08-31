@@ -650,11 +650,11 @@ public final class Context {
 
         // print version info if asked.
         if (env._version) {
-            getErr().println("nashorn " + Version.version());
+            getErr().println("nashorn-monflabs " + Version.version());
         }
 
         if (env._fullversion) {
-            getErr().println("nashorn full version " + Version.fullVersion());
+            getErr().println("nashorn-monflabs full version " + Version.fullVersion());
         }
 
         if (Options.getBooleanProperty("nashorn.fields.dual")) {
