@@ -524,7 +524,12 @@ public enum JSType {
         try {
             return requirePrimitive(jsobj.getDefaultValue(hint));
         } catch (final UnsupportedOperationException e) {
-            throw new ECMAException(Context.getGlobal().newTypeError(e.getMessage()), e);
+            // AbstractJSObject reports the failure by message key; a JSObject of the user's own says what it likes
+            final String message = e.getMessage();
+            if (message != null && message.startsWith("cannot.get.default.")) {
+                throw typeError(e, message);
+            }
+            throw new ECMAException(Context.getGlobal().newTypeError(message), e);
         }
     }
 
