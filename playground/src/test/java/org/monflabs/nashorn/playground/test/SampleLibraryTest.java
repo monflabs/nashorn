@@ -86,6 +86,28 @@ public class SampleLibraryTest {
     }
 
     @Test
+    public void everySampleHasAReadmeWithAParagraph() throws IOException {
+        final List<String> missing = new java.util.ArrayList<>();
+        for (final Sample sample : SampleLibrary.load().samples()) {
+            final String readme = sample.readme();
+            if (readme == null) {
+                missing.add(sample.id() + ": no README.md");
+                continue;
+            }
+            final StringBuilder prose = new StringBuilder();
+            for (final String line : readme.split("\\R")) {
+                if (!line.startsWith("#")) {
+                    prose.append(line.trim()).append(' ');
+                }
+            }
+            if (prose.toString().trim().length() < 80) {
+                missing.add(sample.id() + ": README has a heading but no real paragraph");
+            }
+        }
+        assertTrue(missing.isEmpty(), missing.size() + " sample(s) lack a README paragraph:\n" + String.join("\n", missing));
+    }
+
+    @Test
     public void theSameTreeReadsOutOfAJar() throws IOException {
         final Path jar = Files.createTempFile("samples", ".jar");
         try {
