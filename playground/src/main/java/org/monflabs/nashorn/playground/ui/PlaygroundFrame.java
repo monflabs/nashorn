@@ -55,6 +55,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
@@ -125,8 +126,8 @@ public final class PlaygroundFrame extends JFrame {
         });
 
         add(toolbar(), BorderLayout.NORTH);
-        bottom.setLeftComponent(readme);
-        bottom.setRightComponent(console);
+        bottom.setLeftComponent(titled("README", readme));
+        bottom.setRightComponent(titled("Console", console));
         bottom.setResizeWeight(0.35);
         final JSplitPane right = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor, bottom);
         right.setResizeWeight(0.6);
@@ -192,6 +193,13 @@ public final class PlaygroundFrame extends JFrame {
         north.add(bar, BorderLayout.CENTER);
         north.add(debugInfo, BorderLayout.SOUTH);
         return north;
+    }
+
+    /** One pane wrapped in a single-tab container, so it carries a title. */
+    private static JTabbedPane titled(final String title, final JComponent pane) {
+        final JTabbedPane tab = new JTabbedPane();
+        tab.addTab(title, pane);
+        return tab;
     }
 
     private void keys() {
