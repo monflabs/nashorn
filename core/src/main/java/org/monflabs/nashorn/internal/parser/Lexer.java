@@ -47,6 +47,11 @@ import static org.monflabs.nashorn.internal.parser.TokenType.REGEX;
 import static org.monflabs.nashorn.internal.parser.TokenType.RPAREN;
 import static org.monflabs.nashorn.internal.parser.TokenType.STRING;
 import static org.monflabs.nashorn.internal.parser.TokenType.TEMPLATE;
+import static org.monflabs.nashorn.internal.parser.TokenType.THIS;
+import static org.monflabs.nashorn.internal.parser.TokenType.SUPER;
+import static org.monflabs.nashorn.internal.parser.TokenType.RBRACKET;
+import static org.monflabs.nashorn.internal.parser.TokenType.DIV;
+import static org.monflabs.nashorn.internal.parser.TokenType.ASSIGN_DIV;
 import static org.monflabs.nashorn.internal.parser.TokenType.TEMPLATE_HEAD;
 import static org.monflabs.nashorn.internal.parser.TokenType.TEMPLATE_MIDDLE;
 import static org.monflabs.nashorn.internal.parser.TokenType.TEMPLATE_TAIL;
@@ -681,6 +686,47 @@ public class Lexer extends Scanner {
     }
 
     /**
+     * Settles a / or /= the scan of a template substitution paused on: a
+     * regular expression where an operand is expected, a division after one.
+     * The parser makes the same decision from its grammar for a top-level
+     * scan; a nested scan has no parser to hand it to.
+     */
+    private void resolveSlash() {
+        final long token = stream.get(stream.last());
+        final TokenType type = Token.descType(token);
+        if (type != DIV && type != ASSIGN_DIV) {
+            return;
+        }
+        if (endsOperand(Token.descType(stream.get(stream.last() - 1)))) {
+            return;
+        }
+        stream.removeLast();
+        reset(Token.descPosition(token));
+        if (!scanRegEx()) {
+            // not a regular expression after all: the operator, back
+            skip(type.getLength());
+            add(type, position - type.getLength());
+        }
+    }
+
+    /** Whether an expression can end with a token, so that a / after it divides. */
+    private static boolean endsOperand(final TokenType type) {
+        switch (type) {
+        case RPAREN:
+        case RBRACKET:
+        case RBRACE:
+        case THIS:
+        case SUPER:
+            return true;
+        case TEMPLATE_HEAD:
+        case TEMPLATE_MIDDLE:
+            return false;
+        default:
+            return type.getKind() == TokenKind.LITERAL;
+        }
+    }
+
+    /**
      * Scan over regex literal.
      *
      * @return True if a regex literal.
@@ -1184,10 +1230,16 @@ public class Lexer extends Scanner {
                 stringState.setLimit(position - 2);
                 add(type == TEMPLATE ? TEMPLATE_HEAD : type, stringState.position, stringState.limit);
 
-                // scan to RBRACE
+                // scan to RBRACE. lexify pauses after a / or /=, which the
+                // parser would otherwise settle from its grammar; nothing
+                // resumes a nested lexer, so this one settles it itself.
                 final Lexer expressionLexer = new Lexer(this, saveState());
                 expressionLexer.templateExpressionOpenBraces = 1;
                 expressionLexer.lexify();
+                while (expressionLexer.templateExpressionOpenBraces > 0 && !expressionLexer.atEOF()) {
+                    expressionLexer.resolveSlash();
+                    expressionLexer.lexify();
+                }
                 restoreState(expressionLexer.saveState());
 
                 // scan next middle or tail of the template literal
