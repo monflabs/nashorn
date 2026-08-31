@@ -32,7 +32,7 @@ questions.
   <parent>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-parent</artifactId>
-    <version>20</version>
+    <version>2017.0.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
