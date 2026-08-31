@@ -76,6 +76,12 @@ public final class Hooks {
      */
     static volatile boolean interesting;
 
+    /**
+     * Whether any debugger has a listener: what a {@code debugger} statement
+     * asks before it pauses, in every engine, so it must be one read.
+     */
+    static volatile boolean attached;
+
     private static final MethodHandle STATEMENT;
     private static final MethodHandle ENTER;
     private static final MethodHandle EXIT;
@@ -262,6 +268,25 @@ public final class Hooks {
         if (reason != null) {
             pause(stack, debugger, reason, hits, null);
         }
+    }
+
+    /**
+     * A {@code debugger} statement: pauses if a debugger is listening, and is
+     * nothing otherwise, as the specification allows.
+     */
+    public static void debuggerStatement() {
+        if (!attached) {
+            return;
+        }
+        final ShadowStack stack = ShadowStack.current();
+        if (stack.top() == null || stack.inCommand) {
+            return;
+        }
+        final DebuggerImpl debugger = DebuggerImpl.current();
+        if (debugger == null || debugger.skipAllPauses || !debugger.hasListeners()) {
+            return;
+        }
+        pause(stack, debugger, PauseReason.OTHER, null, null);
     }
 
     /**

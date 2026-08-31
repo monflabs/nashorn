@@ -26,45 +26,25 @@
 package org.monflabs.nashorn.internal.runtime.debugger;
 
 import java.util.Set;
-import org.monflabs.nashorn.api.debugger.ExecutionContext;
 import org.monflabs.nashorn.internal.objects.Global;
 
 /**
- * A global object as a debugger sees it.
+ * The "script" scope of a program frame: the global object seen through a
+ * filter that leaves out the built-ins, so that what a script declared at its
+ * top level - its vars, its functions - is what a debugger shows first, the
+ * way V8's script scope does. Reads and writes go straight to the global.
+ *
+ * @param global the global object
+ * @param builtinKeys the keys the global had before any script ran
  */
-final class ExecutionContextImpl implements ExecutionContext {
-    private final int id;
-    private final Global global;
-    private final ScriptScopeView scriptScope;
+public record ScriptScopeView(Global global, Set<String> builtinKeys) {
 
-    ExecutionContextImpl(final int id, final Global global) {
-        this.id = id;
-        this.global = global;
-        // what the global has before any script ran is what a script scope leaves out
-        this.scriptScope = new ScriptScopeView(global, Set.of(global.getOwnKeys(true)));
-    }
-
-    /** The script scope: the global's own, script-made properties. */
-    ScriptScopeView scriptScope() {
-        return scriptScope;
-    }
-
-    @Override
-    public int id() {
-        return id;
-    }
-
-    @Override
-    public String name() {
-        return "nashorn";
-    }
-
-    @Override
-    public Object global() {
-        return global;
-    }
-
-    Global globalObject() {
-        return global;
+    /**
+     * Whether a global property is one a script made rather than a built-in.
+     * @param key the property key
+     * @return true if it belongs in the script scope
+     */
+    public boolean isScriptProperty(final Object key) {
+        return key instanceof String s && !builtinKeys.contains(s);
     }
 }

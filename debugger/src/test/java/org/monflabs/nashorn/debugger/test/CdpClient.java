@@ -120,8 +120,14 @@ final class CdpClient implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
-        socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(TIMEOUT, TimeUnit.SECONDS);
+    public void close() {
+        try {
+            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(TIMEOUT, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (final Exception e) {
+            // the server may already be gone
+        }
     }
 
     static final class CdpFailure extends Exception {

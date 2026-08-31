@@ -192,11 +192,28 @@ public final class DebuggerImpl implements Debugger {
     @Override
     public void addListener(final DebugListener listener) {
         listeners.add(listener);
+        Hooks.attached = true;
     }
 
     @Override
     public void removeListener(final DebugListener listener) {
         listeners.remove(listener);
+        recomputeAttached();
+    }
+
+    boolean hasListeners() {
+        return !listeners.isEmpty();
+    }
+
+    private static void recomputeAttached() {
+        boolean any = false;
+        for (final WeakReference<DebuggerImpl> ref : ALL) {
+            final DebuggerImpl d = ref.get();
+            if (d != null && d.hasListeners()) {
+                any = true;
+            }
+        }
+        Hooks.attached = any;
     }
 
     @Override
@@ -307,6 +324,7 @@ public final class DebuggerImpl implements Debugger {
             breakpoints.clear();
         }
         listeners.clear();
+        recomputeAttached();
         pauseRequested.set(false);
         pauseOnStart.set(false);
         pauseOnExceptions = PauseOnExceptions.NONE;

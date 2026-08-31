@@ -68,6 +68,7 @@ import org.monflabs.nashorn.internal.objects.NativeJava;
 import org.monflabs.nashorn.internal.parser.Lexer;
 import org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
+import org.monflabs.nashorn.internal.runtime.debugger.Hooks;
 import org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import org.monflabs.nashorn.internal.runtime.linker.InvokeByName;
 
@@ -955,6 +956,7 @@ public final class ScriptRuntime {
      * @return undefined
      */
     public static Object DEBUGGER() {
+        Hooks.debuggerStatement();
         return UNDEFINED;
     }
 

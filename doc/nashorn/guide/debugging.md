@@ -33,6 +33,9 @@ first statement instead — the way to debug something that runs to completion i
 java -cp nashorn-core-20.jar:nashorn-debugger-20.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
 ```
 
+A `debugger;` statement in the script is the other way to stop somewhere in particular: with a
+client attached it pauses there, and without one it is nothing, as the language says.
+
 Both take an optional `[host:]port` — `--inspect=9230`, `--inspect=0.0.0.0:9229` — and both imply
 [`--debugger`](../reference/options.md), the option that compiles scripts with the hooks the
 debugger needs. On the module path the debugger module has to be resolved:
@@ -101,8 +104,15 @@ is loaded are pending and resolve when the engine compiles it — exactly as wit
 - **Call frames** for every script function on the paused thread, the program body last, each at
   the statement it is executing.
 - **Scopes** per frame: *Local* (the function's variables, `arguments` included), *Closure* (the
-  enclosing functions'), *Block* (a block's `let`/`const`), *Catch*, *With* and *Global*.
+  enclosing functions'), *Block* (a block's `let`/`const`), *Catch*, *With*, then *Script* — the
+  variables and functions scripts declared at their top level, which is what a pause at the top
+  level of a script shows first — and *Global*, the whole global object, built-ins included, which
+  DevTools keeps folded.
 - **`this`** for every frame.
+- **Java objects** as a script sees them: an array's or `List`'s elements, a `Map`'s entries, a
+  `JSObject`'s members, and otherwise an object's public fields and bean properties (`getX()` as
+  `x`, called when the object is expanded); a `Java.type(...)` class shows its static fields.
+- **`debugger;`** statements pause when a client is attached, and do nothing otherwise.
 - **Evaluation** in any frame — watches, hover, the console while paused — with the frame's
   variables visible and assignable (`x = 3` changes the local).
 - **`console.log`** and its kin (`info`, `warn`, `error`, `debug`, `assert`, `count`, `time`,

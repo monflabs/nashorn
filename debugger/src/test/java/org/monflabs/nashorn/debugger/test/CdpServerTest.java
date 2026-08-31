@@ -26,6 +26,7 @@
 package org.monflabs.nashorn.debugger.test;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 
 import java.io.InputStream;
@@ -134,6 +135,7 @@ public class CdpServerTest {
     @Test
     public void secondClientIsRefused() throws Exception {
         try (CdpClient first = new CdpClient(server.webSocketUrl())) {
+            assertNotNull(first.call("Runtime.getIsolateId").get("id"), "the first client is served");
             final String response = rawRequest("GET " + path() + " HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                     + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
             assertTrue(response.startsWith("HTTP/1.1 403 "), response);

@@ -25,8 +25,16 @@
 
 package org.monflabs.nashorn.internal.runtime.debugger;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import jdk.dynalink.beans.StaticClass;
+import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.debugger.DebugException;
 import org.monflabs.nashorn.api.debugger.DebugProperty;
 import org.monflabs.nashorn.api.debugger.DebugValues;
@@ -68,7 +76,7 @@ final class DebugValuesImpl implements DebugValues {
 
     @Override
     public String type(final Object value) {
-        if (value == null || value instanceof ScriptObject) {
+        if (value == null || value instanceof ScriptObject || value instanceof ScriptScopeView) {
             return value instanceof ScriptFunction ? "function" : "object";
         }
         if (value instanceof Undefined) {
@@ -93,6 +101,9 @@ final class DebugValuesImpl implements DebugValues {
     public String subtype(final Object value) {
         if (value == null) {
             return "null";
+        }
+        if (isJavaArrayLike(value)) {
+            return "array";
         }
         if (!(value instanceof ScriptObject so) || value instanceof ScriptFunction) {
             return null;
@@ -142,10 +153,17 @@ final class DebugValuesImpl implements DebugValues {
         return null;
     }
 
+    private static boolean isJavaArrayLike(final Object value) {
+        return value != null && (value.getClass().isArray() || value instanceof List);
+    }
+
     @Override
     public String className(final Object value) {
         if (value instanceof ScriptFunction) {
             return "Function";
+        }
+        if (value instanceof ScriptScopeView) {
+            return "Object";
         }
         if (value instanceof ScriptObject so) {
             return so.getClassName();
@@ -153,13 +171,28 @@ final class DebugValuesImpl implements DebugValues {
         if (value == null || isPrimitive(value)) {
             return null;
         }
-        return value.getClass().getSimpleName();
+        if (value instanceof StaticClass sc) {
+            return "JavaClass";
+        }
+        return javaName(value.getClass());
+    }
+
+    /** A Java class's name as a script would write it: simple, with [] for arrays. */
+    private static String javaName(final Class<?> clazz) {
+        if (clazz.isArray()) {
+            return javaName(clazz.getComponentType()) + "[]";
+        }
+        final String simple = clazz.getSimpleName();
+        return simple.isEmpty() ? clazz.getName() : simple;
     }
 
     @Override
     public String description(final Object value) {
         if (value instanceof ScriptFunction fn) {
             return truncate(fn.toSource());
+        }
+        if (value instanceof ScriptScopeView) {
+            return "Script";
         }
         if (value instanceof ScriptObject so) {
             if (so.isArray()) {
@@ -180,7 +213,23 @@ final class DebugValuesImpl implements DebugValues {
                 || value instanceof Undefined || value instanceof Symbol) {
             return JSType.toString(value);
         }
-        return String.valueOf(value);
+        if (value instanceof StaticClass sc) {
+            return "[JavaClass " + sc.getRepresentedClass().getName() + "]";
+        }
+        if (value.getClass().isArray()) {
+            return javaName(value.getClass().getComponentType()) + "[" + Array.getLength(value) + "]";
+        }
+        if (value instanceof Collection<?> c) {
+            return javaName(value.getClass()) + "(" + c.size() + ")";
+        }
+        if (value instanceof Map<?, ?> m) {
+            return javaName(value.getClass()) + "(" + m.size() + ")";
+        }
+        try {
+            return truncate(String.valueOf(value));
+        } catch (final RuntimeException e) {
+            return javaName(value.getClass());
+        }
     }
 
     /** Every error class - Error, TypeError, ... - is a class of its own, and all of them answer "Error" here. */
@@ -213,6 +262,9 @@ final class DebugValuesImpl implements DebugValues {
 
     @Override
     public boolean isPrimitive(final Object value) {
+        if (value instanceof ScriptScopeView) {
+            return false;
+        }
         return value == null || value instanceof Undefined || value instanceof Boolean || value instanceof Number
                 || value instanceof CharSequence || value instanceof Symbol;
     }
@@ -251,7 +303,18 @@ final class DebugValuesImpl implements DebugValues {
     @Override
     public List<DebugProperty> ownProperties(final Object object, final boolean includeNonEnumerable, final boolean includeIndexed) {
         final List<DebugProperty> properties = new ArrayList<>();
+        if (object instanceof ScriptScopeView view) {
+            for (final DebugProperty p : ownProperties(view.global(), includeNonEnumerable, includeIndexed)) {
+                if (view.isScriptProperty(p.key())) {
+                    properties.add(p);
+                }
+            }
+            return properties;
+        }
         if (!(object instanceof ScriptObject so)) {
+            if (object != null && !isPrimitive(object)) {
+                javaProperties(object, includeNonEnumerable, includeIndexed, properties);
+            }
             return properties;
         }
         for (final Object key : so.getOwnKeysAndSymbols(includeNonEnumerable)) {
@@ -280,6 +343,155 @@ final class DebugValuesImpl implements DebugValues {
         return properties;
     }
 
+    /**
+     * A Java object as a script sees it through Dynalink: an array's or list's
+     * elements, a map's entries, a JSObject's members, and otherwise its public
+     * fields and bean properties - the getters called, since that is what
+     * reading the property would do.
+     */
+    private void javaProperties(final Object object, final boolean includeNonEnumerable, final boolean includeIndexed,
+            final List<DebugProperty> properties) {
+        if (object instanceof JSObject js) {
+            for (final String key : js.keySet()) {
+                Object value;
+                boolean thrown = false;
+                try {
+                    value = js.getMember(key);
+                } catch (final RuntimeException e) {
+                    value = e;
+                    thrown = true;
+                }
+                properties.add(new DebugProperty(key, key, value, null, null, true, true, true, true, thrown));
+            }
+            return;
+        }
+        if (object instanceof StaticClass sc) {
+            staticMembers(sc.getRepresentedClass(), properties);
+            return;
+        }
+        final Class<?> clazz = object.getClass();
+        if (clazz.isArray()) {
+            final int length = Array.getLength(object);
+            if (includeIndexed) {
+                for (int i = 0; i < length; i++) {
+                    properties.add(new DebugProperty(Integer.toString(i), Integer.toString(i), Array.get(object, i), null, null, true, true, false, true, false));
+                }
+            }
+            if (includeNonEnumerable) {
+                properties.add(new DebugProperty("length", "length", length, null, null, false, false, false, true, false));
+            }
+            return;
+        }
+        if (object instanceof List<?> list) {
+            if (includeIndexed) {
+                int i = 0;
+                for (final Object element : list) {
+                    properties.add(new DebugProperty(Integer.toString(i), Integer.toString(i), element, null, null, true, true, true, true, false));
+                    i++;
+                }
+            }
+            if (includeNonEnumerable) {
+                properties.add(new DebugProperty("length", "length", list.size(), null, null, false, false, false, true, false));
+            }
+            return;
+        }
+        if (object instanceof Map<?, ?> map) {
+            for (final Map.Entry<?, ?> entry : map.entrySet()) {
+                final String name = String.valueOf(entry.getKey());
+                properties.add(new DebugProperty(name, name, entry.getValue(), null, null, true, true, true, true, false));
+            }
+            return;
+        }
+        if (object instanceof Collection<?> collection) {
+            if (includeIndexed) {
+                int i = 0;
+                for (final Object element : collection) {
+                    properties.add(new DebugProperty(Integer.toString(i), Integer.toString(i), element, null, null, false, true, false, true, false));
+                    i++;
+                }
+            }
+            if (includeNonEnumerable) {
+                properties.add(new DebugProperty("size", "size", collection.size(), null, null, false, false, false, true, false));
+            }
+            return;
+        }
+        beanProperties(object, clazz, properties);
+    }
+
+    private static void beanProperties(final Object object, final Class<?> clazz, final List<DebugProperty> properties) {
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        for (final Field field : clazz.getFields()) {
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            Object value;
+            boolean thrown = false;
+            try {
+                value = field.get(object);
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                value = e;
+                thrown = true;
+            }
+            seen.add(field.getName());
+            properties.add(new DebugProperty(field.getName(), field.getName(), value, null, null,
+                    !Modifier.isFinal(field.getModifiers()), true, false, true, thrown));
+        }
+        for (final Method method : clazz.getMethods()) {
+            final String property = beanProperty(method);
+            if (property == null || !seen.add(property)) {
+                continue;
+            }
+            Object value;
+            boolean thrown = false;
+            try {
+                value = method.invoke(object);
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                value = e instanceof java.lang.reflect.InvocationTargetException ite && ite.getCause() != null ? ite.getCause() : e;
+                thrown = true;
+            }
+            properties.add(new DebugProperty(property, property, value, null, null, false, true, false, true, thrown));
+        }
+    }
+
+    private static void staticMembers(final Class<?> clazz, final List<DebugProperty> properties) {
+        for (final Field field : clazz.getFields()) {
+            if (!Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            Object value;
+            boolean thrown = false;
+            try {
+                value = field.get(null);
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                value = e;
+                thrown = true;
+            }
+            properties.add(new DebugProperty(field.getName(), field.getName(), value, null, null,
+                    !Modifier.isFinal(field.getModifiers()), true, false, true, thrown));
+        }
+    }
+
+    /** The bean property a public no-argument getter defines, or null. */
+    private static String beanProperty(final Method method) {
+        if (Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0
+                || method.getDeclaringClass() == Object.class || method.getReturnType() == void.class) {
+            return null;
+        }
+        final String name = method.getName();
+        final String rest;
+        if (name.startsWith("get") && name.length() > 3) {
+            rest = name.substring(3);
+        } else if (name.startsWith("is") && name.length() > 2 && (method.getReturnType() == boolean.class || method.getReturnType() == Boolean.class)) {
+            rest = name.substring(2);
+        } else {
+            return null;
+        }
+        if (!Character.isUpperCase(rest.charAt(0))) {
+            return null;
+        }
+        return rest.length() > 1 && Character.isUpperCase(rest.charAt(1)) ? rest : Character.toLowerCase(rest.charAt(0)) + rest.substring(1);
+    }
+
     private static boolean isArrayIndex(final String s) {
         if (s.isEmpty() || s.length() > 10) {
             return false;
@@ -296,9 +508,15 @@ final class DebugValuesImpl implements DebugValues {
     @Override
     public List<DebugProperty> internalProperties(final Object object) {
         final List<DebugProperty> properties = new ArrayList<>();
+        if (object instanceof ScriptScopeView) {
+            return properties;
+        }
         if (object instanceof ScriptObject so) {
             final ScriptObject proto = so.getProto();
             properties.add(new DebugProperty("[[Prototype]]", "[[Prototype]]", proto, null, null, false, false, false, true, false));
+        } else if (object != null && !isPrimitive(object)) {
+            final Class<?> clazz = object instanceof StaticClass sc ? sc.getRepresentedClass() : object.getClass();
+            properties.add(new DebugProperty("[[JavaClass]]", "[[JavaClass]]", clazz.getName(), null, null, false, false, false, true, false));
         }
         return properties;
     }
@@ -313,12 +531,20 @@ final class DebugValuesImpl implements DebugValues {
         if (array instanceof ScriptObject so && so.isArray()) {
             return so.getArray().length();
         }
+        if (array != null && array.getClass().isArray()) {
+            return Array.getLength(array);
+        }
+        if (array instanceof List<?> list) {
+            return list.size();
+        }
         return -1;
     }
 
     @Override
     public void setProperty(final Object object, final Object key, final Object value) {
-        if (object instanceof ScriptObject so) {
+        if (object instanceof ScriptScopeView view) {
+            view.global().set(key, value, 0);
+        } else if (object instanceof ScriptObject so) {
             so.set(key, value, 0);
         }
     }

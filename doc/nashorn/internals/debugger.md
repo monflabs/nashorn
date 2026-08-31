@@ -58,6 +58,14 @@ functions' scopes, `WithObject`s, the global. `this` is never in a scope, so the
 This is also what makes evaluation in a frame a one-liner: `Context.eval(scope, expression, this,
 UNDEFINED)` compiles the expression as a program whose `:scope` is the frame's.
 
+The chain ends with the global object twice: once as a `script` scope, the global seen through a
+filter that leaves out the keys it had before any script ran (`ScriptScopeView`, a record the
+value model reads and writes through), and once as the `global` scope proper. DevTools expands
+every scope down to the local one and folds the global, so at the top level of a script the
+script's own declarations are what appears open. A `debugger` statement compiles, as it always
+did, to `ScriptRuntime.DEBUGGER()`; that now asks `Hooks.debuggerStatement()`, which pauses when
+a debugger has a listener - one static read, since every engine runs it.
+
 ## Positions come from the parse
 
 Under lazy compilation only the program's shell is compiled when a script arrives; nested functions

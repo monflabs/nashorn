@@ -537,14 +537,14 @@ public class DebuggerTest {
         final PausedEvent event = awaitPause();
         assertEquals(at(event), "g@1");
         assertTrue(event.thread().isVirtual(), "a generator body runs on a virtual thread");
-        assertEquals(scopeTypes(event.frames().get(0)), List.of(ScopeType.LOCAL, ScopeType.GLOBAL));
+        assertEquals(scopeTypes(event.frames().get(0)), List.of(ScopeType.LOCAL, ScopeType.SCRIPT, ScopeType.GLOBAL));
         event.resume();
         assertEquals(await(result), 3);
     }
 
     @Test
     public void valuesModel() throws Exception {
-        breakpointAt("values.js", 12);
+        breakpointAt("values.js", 17);
         final Future<Object> result = run("values.js",
                 "var arr = [1, 2, 3];",
                 "var date = new Date(0);",
@@ -558,6 +558,11 @@ public class DebuggerTest {
                 "var nan = NaN, negZero = -0, inf = Infinity;",
                 "var str = 'text', cons = str + str;",
                 "var nothing = null, undef;",
+                "var jarr = Java.to([7, 8], 'int[]');",
+                "var jlist = new java.util.ArrayList(); jlist.add('x'); jlist.add('y');",
+                "var jmap = new java.util.HashMap(); jmap.put('k', 5);",
+                "var jbean = new java.awt.Point(3, 4);",
+                "var jclass = java.lang.Integer;",
                 "1;");
         final PausedEvent event = awaitPause();
         final DebugValues v = debugger.values();
@@ -605,10 +610,87 @@ public class DebuggerTest {
             assertEquals(v.internalProperties(obj).get(0).name(), "[[Prototype]]");
             assertEquals(v.prototype(obj), top.evaluate("Object.prototype"));
             assertEquals(v.description(v.callFunction(fn, null, "arg")), "arg");
+
+            // Java objects, as a script sees them
+            final Object jarr = top.evaluate("jarr");
+            assertEquals(v.type(jarr), "object");
+            assertEquals(v.subtype(jarr), "array");
+            assertEquals(v.className(jarr), "int[]");
+            assertEquals(v.description(jarr), "int[2]");
+            assertEquals(v.arrayLength(jarr), 2);
+            assertEquals(v.ownProperties(jarr, true, true).size(), 3, "two elements and length");
+            assertEquals(v.description(v.ownProperties(jarr, false, true).get(1).value()), "8");
+            final Object jlist = top.evaluate("jlist");
+            assertEquals(v.subtype(jlist), "array");
+            assertEquals(v.description(jlist), "ArrayList(2)");
+            assertEquals(v.ownProperties(jlist, false, true).size(), 2);
+            final Object jmap = top.evaluate("jmap");
+            assertNull(v.subtype(jmap));
+            assertEquals(v.ownProperties(jmap, true, true).get(0).name(), "k");
+            final Object jbean = top.evaluate("jbean");
+            final List<String> beanNames = new ArrayList<>();
+            for (final DebugProperty p : v.ownProperties(jbean, true, true)) {
+                beanNames.add(p.name() + "=" + v.description(p.value()));
+            }
+            assertTrue(beanNames.contains("x=3"), beanNames.toString());
+            assertTrue(beanNames.contains("location=java.awt.Point[x=3,y=4]"), beanNames.toString());
+            assertEquals(v.internalProperties(jbean).get(0).value(), "java.awt.Point");
+            final Object jclass = top.evaluate("jclass");
+            assertEquals(v.className(jclass), "JavaClass");
+            assertEquals(v.description(jclass), "[JavaClass java.lang.Integer]");
+            boolean sawMaxValue = false;
+            for (final DebugProperty p : v.ownProperties(jclass, true, true)) {
+                sawMaxValue |= p.name().equals("MAX_VALUE");
+            }
+            assertTrue(sawMaxValue);
             return null;
         });
         event.resume();
         assertEquals(await(result), 1);
+    }
+
+    @Test
+    public void programFrameShowsTheScriptScopeFirst() throws Exception {
+        breakpointAt("top.js", 2);
+        final Future<Object> result = run("top.js",
+                "var mine = 1;",
+                "function helper() { return mine; }",
+                "var later = helper();",
+                "later;");
+        final PausedEvent event = awaitPause();
+        final DebugFrame top = event.frames().get(0);
+        assertEquals(scopeTypes(top), List.of(ScopeType.SCRIPT, ScopeType.GLOBAL));
+        final DebugScope script = top.scopes().get(0);
+        final List<String> names = new ArrayList<>();
+        for (final DebugProperty p : event.call(() -> debugger.values().ownProperties(script.object(), true, true))) {
+            names.add(p.name());
+        }
+        java.util.Collections.sort(names);
+        assertEquals(names, List.of("helper", "later", "mine"), "the script's own declarations, no built-ins");
+        assertEquals(event.call(() -> debugger.values().description(script.object())), "Script");
+        event.call(() -> {
+            debugger.values().setProperty(script.object(), "mine", 41);
+            return null;
+        });
+        event.resume();
+        assertEquals(await(result), 41, "a write to the script scope reaches the global");
+    }
+
+    @Test
+    public void debuggerStatementPausesWhenListened() throws Exception {
+        final Future<Object> result = run("stmt.js",
+                "var a = 1;",
+                "debugger;",
+                "a + 1;");
+        final PausedEvent event = awaitPause();
+        assertEquals(event.reason(), PauseReason.OTHER);
+        assertEquals(event.frames().get(0).location().line(), 1);
+        event.resume();
+        assertEquals(await(result), 2);
+
+        // and is nothing without a listener - the plain engine runs through it
+        final ScriptEngine plain = new NashornScriptEngineFactory().getScriptEngine();
+        assertEquals(((Number)plain.eval("var b = 2; debugger; b * 2")).intValue(), 4);
     }
 
     @Test

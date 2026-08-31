@@ -83,8 +83,8 @@ final class DebugFrameImpl implements DebugFrame {
         ScriptObject scope = frame.scope;
         final Global global = event.contextImpl() == null ? null : event.contextImpl().globalObject();
         while (scope != null) {
-            if (scope instanceof Global) {
-                scopes.add(new DebugScope(ScopeType.GLOBAL, scope, null));
+            if (scope instanceof Global g) {
+                addGlobalScopes(scopes, g);
                 return scopes;
             } else if (scope instanceof WithObject with) {
                 scopes.add(new DebugScope(ScopeType.WITH, with.getExpression(), null));
@@ -106,9 +106,23 @@ final class DebugFrameImpl implements DebugFrame {
             scope = scope.getProto();
         }
         if (global != null) {
-            scopes.add(new DebugScope(ScopeType.GLOBAL, global, null));
+            addGlobalScopes(scopes, global);
         }
         return scopes;
+    }
+
+    /**
+     * The global object ends every chain twice over: first as the script scope
+     * - the properties scripts declared, which is what a person paused at the
+     * top level wants to see and what a frontend expands - then as the global
+     * itself, built-ins and all, which a frontend keeps folded.
+     */
+    private void addGlobalScopes(final List<DebugScope> scopes, final Global global) {
+        final ExecutionContextImpl ctx = event.debugger.contextFor(global);
+        if (ctx != null) {
+            scopes.add(new DebugScope(ScopeType.SCRIPT, ctx.scriptScope(), null));
+        }
+        scopes.add(new DebugScope(ScopeType.GLOBAL, global, null));
     }
 
     @Override
