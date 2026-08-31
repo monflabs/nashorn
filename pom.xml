@@ -63,6 +63,7 @@ questions.
     <module>buildtools/nasgen</module>
     <module>core</module>
     <module>shell</module>
+    <module>debugger</module>
   </modules>
 
   <properties>

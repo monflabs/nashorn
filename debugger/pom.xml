@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Oracle designates this
+particular file as subject to the "Classpath" exception as provided
+by Oracle in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+
+Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+or visit www.oracle.com if you need additional information or have any
+questions.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.monflabs.nashorn</groupId>
+    <artifactId>nashorn-parent</artifactId>
+    <version>20</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>nashorn-debugger</artifactId>
+  <packaging>jar</packaging>
+  <name>OpenJDK-Monflabs debugger</name>
+  <description>
+    A Chrome DevTools Protocol frontend for the Nashorn debugger API: an
+    engine created with --inspect (or handed to this module's frontend
+    directly) listens for Chrome DevTools, VS Code or any other CDP client.
+    Published alongside nashorn-core; depends on nothing else.
+  </description>
+  <dependencies>
+    <dependency>
+      <groupId>org.monflabs.nashorn</groupId>
+      <artifactId>nashorn-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${nashorn.target.java.version}</release>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+            <arg>-Xdiags:verbose</arg>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+        <executions>
+          <execution>
+            <!--
+              The tests are compiled into the module, and they drive the server
+              with the JDK's WebSocket client, which the module itself has no
+              business requiring.
+            -->
+            <id>default-testCompile</id>
+            <configuration>
+              <compilerArgs>
+                <arg>-Xlint:all</arg>
+                <arg>-parameters</arg>
+                <arg>--add-modules</arg>
+                <arg>java.net.http</arg>
+                <arg>--add-reads</arg>
+                <arg>org.monflabs.nashorn.debugger=java.net.http</arg>
+              </compilerArgs>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- the tests speak to the server over a real socket, on the class path like an embedder would -->
+          <useModulePath>false</useModulePath>
+          <argLine>-ea -esa</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <excludePackageNames>org.monflabs.nashorn.debugger.json:org.monflabs.nashorn.debugger.ws:org.monflabs.nashorn.debugger.cdp</excludePackageNames>
+          <tags>
+            <tag><name>moduleGraph</name><placement>a</placement><head>Module Graph</head></tag>
+          </tags>
+          <quiet>true</quiet>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
