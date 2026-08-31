@@ -67,7 +67,7 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
     private final SimpleAttributeSet plain = new SimpleAttributeSet();
     private final SimpleAttributeSet error = new SimpleAttributeSet();
     private final SimpleAttributeSet value = new SimpleAttributeSet();
-    private final List<Chunk> pending = new ArrayList<>();
+    private final transient List<Chunk> pending = new ArrayList<>();
     private boolean flushScheduled;
     private boolean wrap = true;
 

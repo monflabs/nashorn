@@ -68,7 +68,7 @@ public final class EditorPane extends JTabbedPane implements SearchListener {
     private RSyntaxTextArea main;
     private FindDialog findDialog;
     private ReplaceDialog replaceDialog;
-    private Runnable onEdit = () -> {};
+    private transient Runnable onEdit = () -> {};
 
     /**
      * Creates the editor.

@@ -24,8 +24,8 @@ The tree on the left holds three categories, read straight out of the jar's reso
   `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
   scripting mode, the JSR-223 engine driven from script, and a debugging sample.
 
-A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered under the
-console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
+A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
+editor, next to the console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
 line asks for engine options. The **Scratchpad** at the top of the tree is yours: it is kept in
 `~/.nashorn-playground/scratch.js` between sessions.
 

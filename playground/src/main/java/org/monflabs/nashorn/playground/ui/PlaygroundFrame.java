@@ -55,7 +55,6 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
@@ -81,7 +80,7 @@ public final class PlaygroundFrame extends JFrame {
     private final EditorPane editor;
     private final ConsolePane console;
     private final ReadmePane readme;
-    private final JTabbedPane bottom = new JTabbedPane();
+    private final JSplitPane bottom = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
     private final JButton runButton = new JButton("Run");
     private final JButton stopButton = new JButton("Stop");
     private final JCheckBox autoRun = new JCheckBox("Auto-run", true);
@@ -126,8 +125,9 @@ public final class PlaygroundFrame extends JFrame {
         });
 
         add(toolbar(), BorderLayout.NORTH);
-        bottom.addTab("Console", console);
-        bottom.addTab("README", readme);
+        bottom.setLeftComponent(readme);
+        bottom.setRightComponent(console);
+        bottom.setResizeWeight(0.35);
         final JSplitPane right = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor, bottom);
         right.setResizeWeight(0.6);
         final JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tree, right);
@@ -141,10 +141,12 @@ public final class PlaygroundFrame extends JFrame {
         keys();
         loadPrefs();
         split.setDividerLocation(prefs.getInt("divider", 280));
+        bottom.setDividerLocation(prefs.getInt("bottomDivider", Math.max(300, prefs.getInt("width", 1200) * 35 / 100)));
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(final WindowEvent e) {
                 prefs.putInt("divider", split.getDividerLocation());
+                prefs.putInt("bottomDivider", bottom.getDividerLocation());
             }
         });
         if (!tree.select(prefs.get("sample", ""))) {
@@ -300,7 +302,6 @@ public final class PlaygroundFrame extends JFrame {
         if (!preserve.isSelected()) {
             console.clear();
         }
-        bottom.setSelectedIndex(0);
         queued = runner.run(current, source, echo.isSelected(), console, new ScriptRunner.Listener() {
             @Override
             public void started() {

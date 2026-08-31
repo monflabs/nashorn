@@ -52,11 +52,11 @@ public final class SampleTree extends JPanel {
     /** The scratchpad's id. */
     public static final String SCRATCH_ID = "_scratch";
 
-    private final SampleLibrary library;
-    private final Sample scratch;
+    private final transient SampleLibrary library;
+    private final transient Sample scratch;
     private final JTree tree = new JTree();
     private final JTextField filter = new JTextField();
-    private Consumer<Sample> onSelect = s -> {};
+    private transient Consumer<Sample> onSelect = s -> {};
     private boolean selecting;
 
     /** A tree node's payload. */

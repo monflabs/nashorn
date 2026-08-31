@@ -44,8 +44,8 @@ public final class ReadmePane extends JScrollPane {
     private static final long serialVersionUID = 1L;
 
     private final JEditorPane pane = new JEditorPane();
-    private final Parser parser = Parser.builder().build();
-    private final HtmlRenderer renderer = HtmlRenderer.builder().build();
+    private final transient Parser parser = Parser.builder().build();
+    private final transient HtmlRenderer renderer = HtmlRenderer.builder().build();
     private final boolean dark;
 
     /**
