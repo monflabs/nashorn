@@ -146,6 +146,14 @@ debugger never touches them from another. `DebugValues` interprets the values th
 (type, subtype, description, properties) in the protocol's vocabulary. The server itself can be
 started from Java too, `CdpServer.open(debugger, InspectOptions.parse("9229", false))`.
 
+A paused script can also be ended on the spot: `event.terminate()` makes the pause return by
+throwing `ScriptTerminated`, an `Error` a script `catch` cannot intercept — the debugger keeps
+re-throwing at every statement until the script's frames have unwound. Together with
+`debugger.pause()` this stops a runaway script: pause it, terminate it, and interrupt its thread
+in case it is blocked inside a Java call. Over the protocol the same is
+`Runtime.terminateExecution`. The reactor's [playground](playground.md) wires exactly this to
+its Stop button.
+
 ## Limitations
 
 - **Generators and async functions** run their bodies on threads of their own, so a breakpoint

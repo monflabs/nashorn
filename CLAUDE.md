@@ -24,6 +24,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `core` | `nashorn-core` | **yes** — the engine |
 | `shell` | `nashorn-shell` | no — the `jjs` REPL |
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
+| `playground` | `nashorn-playground` | no — a Swing sample browser, shaded into an executable `-all` jar |
 
 `shell` reaches into JDK-internal `jdk.internal.le` / `jdk.internal.ed` via `--add-exports`, so it constrains which JDKs can build the reactor. It is the piece most likely to break on a future JDK.
 
@@ -178,6 +179,20 @@ parameter visible.
 
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
+
+## The playground
+
+`playground/` is a Swing application over `nashorn-core` + `nashorn-debugger`: a sample library
+read from its `samples/**` resources (a folder with a `main.js` is a sample; `NN - Title` folder
+names order the tree; `// @option` lines at the top of a script select engine options; a README's
+first heading overrides the title), an RSyntaxTextArea editor, and a console. `ScriptRunner` keeps
+one engine per option set, always with `--debugger`, and gives every run a fresh `ScriptContext`;
+Stop pauses via the debugger and calls `PausedEvent.terminate()`, so an endless loop dies even
+inside a catch-all. `SampleRunTest` runs **every bundled sample** headlessly and fails the build on
+any error, so the library cannot drift from the engine — when adding a sample, run
+`mvn -o -pl playground test`. Samples that end in an error on purpose are named in its
+`EXPECTED_FAILURES` map. The three Galta-derived sample sets are this repo's own copies; edit them
+here, not in Galta.
 
 ## The debugger
 

@@ -31,7 +31,9 @@ Documentation
 
 This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md): a user's guide
 (embedding, Java interop, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
-a technical guide to the engine's internals, and the option and built-in reference.
+a technical guide to the engine's internals, and the option and built-in reference. To try the
+engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-20-all.jar`.
 
 Making Nashorn standalone is still a work in progress. There is no
 standalone user's guides for it yet. The best current guides are
@@ -62,10 +64,12 @@ mvn package
 builds `core/target/nashorn-core-<version>.jar`. `mvn verify` additionally runs
 the internal test suite, in both the optimistic and pessimistic typing modes.
 
-The reactor has three modules: `core` (the published `nashorn-core` artifact),
-`shell` (the `jjs` REPL, not published), and `buildtools/nasgen` (a build-time
-bytecode post-processor that Nashorn does not work without — so always build
-through Maven rather than compiling the sources directly).
+The reactor has five modules: `core` (the published `nashorn-core` artifact),
+`debugger` (the published `nashorn-debugger` Chrome DevTools Protocol server),
+`shell` (the `jjs` REPL, not published), `playground` (a Swing sample browser,
+not published), and `buildtools/nasgen` (a build-time bytecode post-processor
+that Nashorn does not work without — so always build through Maven rather than
+compiling the sources directly).
 
 To run the [official ECMA-262 conformance suite](https://github.com/tc39/test262),
 fetch it once and then run it:

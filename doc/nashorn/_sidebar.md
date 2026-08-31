@@ -12,6 +12,7 @@
   - [The parser API](/guide/parser-api.md)
   - [Threads and concurrency](/guide/concurrency.md)
   - [Debugging scripts](/guide/debugging.md)
+  - [The playground](/guide/playground.md)
 
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)
