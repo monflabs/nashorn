@@ -30,7 +30,7 @@ web-compatibility extensions of Annex B are on by default and removable with `--
 
 **[User's Guide](guide/getting-started.md)** — for embedding and using the engine: adding the
 dependency, creating and configuring engines, calling script from Java and Java from script,
-building custom host objects, ES modules, scripting mode, the parser API.
+building custom host objects, ES modules, scripting mode, the parser API. It ends with [debugging scripts](guide/debugging.md) from Chrome DevTools or VS Code.
 
 **[Technical Guide](internals/architecture.md)** — for reading or changing the engine: the compiler
 pipeline, optimistic typing, how objects, arrays, strings and call sites really work, generators on

@@ -11,6 +11,7 @@
   - [Scripting mode](/guide/scripting-mode.md)
   - [The parser API](/guide/parser-api.md)
   - [Threads and concurrency](/guide/concurrency.md)
+  - [Debugging scripts](/guide/debugging.md)
 
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)
@@ -26,6 +27,7 @@
   - [Annex B](/internals/annex-b.md)
   - [nasgen](/internals/nasgen.md)
   - [Regular expressions](/internals/regexp.md)
+  - [The debugger](/internals/debugger.md)
 
 - **Reference**
   - [Command-line options](/reference/options.md)

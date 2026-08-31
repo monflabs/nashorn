@@ -20,10 +20,13 @@ which are `{"-doe"}` — add `-doe` back if you still want stack traces dumped o
 | `--annexB` | | `true` | Implement ECMA-262 Annex B, the additional features for web browsers. `--annexB=false` removes all of it — the built-ins (`escape`, `String.prototype.substr`, `__proto__`, …), the syntax (HTML-like comments, `for (var i = 0 in o)`), and the block-function hoisting. See [Conformance](conformance.md). |
 | `-classpath` | `-cp` | | Where to find user Java class files. |
 | `-D` | | | `-Dname=value` — set a system property; repeatable. |
+| `--debugger` | | `false` | Compile scripts with debugger hooks and keep every variable in a scope object, so that a debugger can set breakpoints, step and inspect variables. Implied by `--inspect`. See [Debugging scripts](../guide/debugging.md). |
 | `-dump-on-error` | `-doe` | `false` | Dump a full stack trace on errors, instead of the one-line message. |
 | `-fullversion` | `-fv` | | Print the full version and exit. |
 | `-fx` | | `false` | Launch the script as a JavaFX application (requires a JavaFX-bearing JDK). |
 | `--help` | `-h` | | Print the help message. |
+| `--inspect` | | | `--inspect[=[host:]port]` — listen for a Chrome DevTools Protocol client, on `127.0.0.1:9229` by default, and run. Needs the `nashorn-debugger` artifact. |
+| `--inspect-brk` | | | Like `--inspect`, but wait for the client to attach and pause at the first statement. |
 | `--language` | | `es6` | Accepted for compatibility with old command lines; `es6` is the only value. There is no ES5 mode — asking for `es5` is an error. |
 | `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
 | `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |
@@ -45,6 +48,7 @@ decade, but they are not part of the supported surface and can change without no
 | `--global-per-engine` | One shared global for all `ENGINE_SCOPE` bindings of an engine, instead of one global per bindings object. Changes the [scope model](../guide/using-the-engine.md#the-scope-model). |
 | `--locale` (`-l`) | Locale for script execution (`toLocaleString` and friends). The documented sibling of `-timezone`. |
 | `--log=<system>[:<level>]` | Enable an internal logger — see [Logging and debugging](debugging.md). |
+| `--debug-lines` (default on), `--debug-scopes`, `--debug-locals` | Aids for a *JVM* debugger, from before the engine had one of its own: emit the bytecode line-number table; keep every variable in a scope object (what `--debugger` does too); and a local-variable-table switch that nothing reads any more. |
 | `--no-syntax-extensions` (`-nse`) | Disallow non-standard syntax extensions. |
 | `--no-typed-arrays` (`-nta`) | Disable typed array support. |
 | `--parse-only` | Parse without compiling. |

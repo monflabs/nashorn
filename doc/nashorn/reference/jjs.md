@@ -20,6 +20,13 @@ java -cp nashorn-core-20.jar org.monflabs.nashorn.tools.Shell -scripting script.
 Exit codes: `0` success, `100` command-line error, `101` compilation error, `102` runtime error,
 `103` I/O error, `104` internal error.
 
+To debug a script, add `nashorn-debugger` and `--inspect` or `--inspect-brk` — see
+[Debugging scripts](../guide/debugging.md):
+
+```bash
+java -cp nashorn-core-20.jar:nashorn-debugger-20.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
+```
+
 ## Running jjs
 
 `nashorn-shell` is built by the reactor (`mvn package` → `shell/target/nashorn-shell-20.jar`) but

@@ -29,6 +29,10 @@ Documentation
 
 [View the JavaDoc](https://www.javadoc.io/doc/org.monflabs.nashorn/nashorn-core).
 
+This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md): a user's guide
+(embedding, Java interop, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
+a technical guide to the engine's internals, and the option and built-in reference.
+
 Making Nashorn standalone is still a work in progress. There is no
 standalone user's guides for it yet. The best current guides are
 Nashorn-related documents last published by Oracle with Java 14:

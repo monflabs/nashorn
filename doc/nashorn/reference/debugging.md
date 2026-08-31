@@ -1,5 +1,7 @@
 # Logging and debugging
 
+?> This page is about the engine's own diagnostics. To debug a *script* — breakpoints, stepping, watches — see [Debugging scripts](../guide/debugging.md).
+
 The engine has a logging system of its own, keyed by subsystem, plus a set of `-Dnashorn.*` system
 properties for the switches that predate it. Prefer the loggers when investigating code generation —
 they were built for exactly that, and adding print statements to the compiler was never the way.

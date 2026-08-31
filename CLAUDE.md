@@ -23,6 +23,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `buildtools/nasgen` | `nashorn-nasgen` | no — build-time bytecode tool |
 | `core` | `nashorn-core` | **yes** — the engine |
 | `shell` | `nashorn-shell` | no — the `jjs` REPL |
+| `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
 
 `shell` reaches into JDK-internal `jdk.internal.le` / `jdk.internal.ed` via `--add-exports`, so it constrains which JDKs can build the reactor. It is the piece most likely to break on a future JDK.
 
@@ -178,6 +179,29 @@ parameter visible.
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
 
+## The debugger
+
+`--debugger` (implied by `--inspect`/`--inspect-brk`) is the only thing that changes code generation:
+`CodeGenerator.enterStatement` emits a statement hook, the head of each function body an entry
+hook, each `ReturnNode` an exit hook, and `leaveFunctionNode` a catch-all whose target pops the
+frame. Three invariants, each of which a test pins:
+
+1. **Nothing is emitted without the option**, so test262, the perf gate and every other test see
+   the engine unchanged. `basic/es6/debugger-hooks.js` runs a corpus of constructs *with* the option
+   and must print what the plain engine prints.
+2. **Breakable positions come from the parse** (`DebugLocations`, run in `Context.compile` over the
+   whole tree), not from codegen — lazy compilation would otherwise leave nested functions without
+   locations. The predicate for "breakable" is one method both sides call.
+3. **The catch-all is recorded after the body's optimism handlers** and its code sits outside the
+   body's range, so deoptimisation never looks like an exceptional exit; rest-of methods run the
+   entry hook's code dead. Do not move the `_try` to before `generateUnwarrantedOptimismExceptionHandlers`.
+
+The hooks are `invokedynamic`s bootstrapped in `internal.runtime.debugger.Hooks`, which
+`ScriptLoader` exports to the scripts module at runtime — add a package there and it needs the
+same export. The public API is `api.debugger` (exported, documented); the protocol server is the
+`debugger` module, which must stay on the public API and free of dependencies. `Debugger.of(engine)`
+reaches the `Context` through a static engine→context map filled in `Context.initGlobal`.
+
 ## Performance gate
 
 `buildtools/perf-gate.sh [base-ref]` compares the working tree against a base
@@ -224,6 +248,6 @@ an explicit band: `-Dperf.tolerance=0.02`.
 
 - OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`. Every source file carries the GPLv2+Classpath-exception header — new files need it too.
 - Compilation runs with `-Xlint:all`; keep new code warning-free.
-- Releases: bump the version across the reactor (`mvn versions:set`), add a `CHANGELOG.md` entry, then `mvn -Prelease deploy`. Only `nashorn-core` is deployed.
+- Releases: bump the version across the reactor (`mvn versions:set`), add a `CHANGELOG.md` entry, then `mvn -Prelease deploy`. `nashorn-core` and `nashorn-debugger` are deployed; nasgen and the shell skip deployment.
 - Security Manager support was removed in 15.7 — do not reintroduce `doPrivileged`/`AccessController` patterns.
 - `doc/nashorn/DEVELOPER_README` documents the internal `-Dnashorn.*` properties and the `--log=<subsystem>:<level>` loggers (codegen, fields, compiler, …). Use those when debugging code generation rather than adding print statements.
