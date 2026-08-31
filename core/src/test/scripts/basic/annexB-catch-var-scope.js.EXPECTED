@@ -1,0 +1,5 @@
+redeclared
+true undefined undefined
+hoisted
+redeclared in f
+hoisted in f

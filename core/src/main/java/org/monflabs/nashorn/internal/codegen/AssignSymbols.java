@@ -433,6 +433,16 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
                 symbolBlock = varTarget != null ? varTarget : lc.getFunctionBody(function);
             }
 
+            // A var of a function whose every var lives in scope - it has an
+            // eval, or the debugger asked - or of the program, whose vars are
+            // properties of the global, is a scope symbol from the start. A use
+            // of the name would mark it later, but not every binding has one:
+            // the var-scoped binding B.3.5 gives a catch parameter's name is
+            // never what a name in the catch block resolves to.
+            if (isVar && !isBlockScope && (flags & IS_INTERNAL) == 0 && (function.allVarsInScope() || function.isProgram())) {
+                flags |= IS_SCOPE;
+            }
+
             // Create and add to appropriate block.
             symbol = createSymbol(name, flags);
             symbolBlock.putSymbol(symbol);

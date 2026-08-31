@@ -2094,7 +2094,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 }
 
                 if (symbol.isVar()) {
-                    assert !varsInScope || symbol.isScope();
+                    assert !varsInScope || symbol.isScope() : symbol + " should be in scope, as every var of " + function.getName() + " is";
                     if (varsInScope || symbol.isScope()) {
                         assert symbol.isScope()   : "scope for " + symbol + " should have been set in Lower already " + function.getName();
                         assert !symbol.hasSlot()  : "slot for " + symbol + " should have been removed in Lower already" + function.getName();
