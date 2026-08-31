@@ -694,6 +694,30 @@ public class DebuggerTest {
     }
 
     @Test
+    public void terminateEndsARunawayScriptDespiteItsCatch() throws Exception {
+        final Future<Object> result = run("runaway.js",
+                "var n = 0;",
+                "while (true) {",
+                "  try { n++; } catch (e) { n = -1; }",
+                "}");
+        Thread.sleep(50);
+        debugger.pause();
+        final PausedEvent event = awaitPause();
+        event.terminate();
+        try {
+            await(result);
+            fail("the script must not finish normally");
+        } catch (final java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            while (cause != null && !(cause instanceof org.monflabs.nashorn.api.debugger.ScriptTerminated)) {
+                cause = cause.getCause();
+            }
+            assertNotNull(cause, "terminated by ScriptTerminated: " + e.getCause());
+        }
+        assertEquals(await(run("after.js", "1 + 1;")), 2, "the engine is usable afterwards");
+    }
+
+    @Test
     public void closeResumesAndForgets() throws Exception {
         breakpointAt("close.js", 0);
         final Future<Object> result = run("close.js", "var z = 3;", "z;");

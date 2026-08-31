@@ -4156,6 +4156,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 emitDebuggerLoopHook(loopNode);
                 loadAndDiscard(modify);
                 method.beforeJoinPoint(modify);
+            } else {
+                // a while loop, or a for loop without an update: the back edge is the only place
+                // where a hook runs on every iteration - an empty body has none of its own
+                emitDebuggerLoopHook(loopNode);
             }
             method._goto(repeatLabel);
         }

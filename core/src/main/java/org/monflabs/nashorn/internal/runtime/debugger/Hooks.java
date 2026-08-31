@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.monflabs.nashorn.api.debugger.PauseOnExceptions;
 import org.monflabs.nashorn.api.debugger.PauseReason;
+import org.monflabs.nashorn.api.debugger.ScriptTerminated;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants.Call;
 import org.monflabs.nashorn.internal.runtime.ECMAException;
@@ -178,6 +179,7 @@ public final class Hooks {
         stack.pop();
         if (stack.depth() == 0) {
             stack.clearStep();
+            stack.terminating = false;
         }
     }
 
@@ -194,6 +196,7 @@ public final class Hooks {
         if (stack.depth() == 0) {
             stack.clearStep();
             stack.pausedThrown = null;
+            stack.terminating = false;
         }
     }
 
@@ -217,6 +220,9 @@ public final class Hooks {
             frame.site = site;
             frame.scope = scope;
             frame.self = self;
+        }
+        if (stack.terminating && !stack.inCommand) {
+            throw new ScriptTerminated();
         }
         if (!interesting || frame == null || stack.inCommand) {
             return;
@@ -347,6 +353,9 @@ public final class Hooks {
             event.drain();
             debugger.pauseEnded(event);
             debugger.fireResumed(event);
+        }
+        if (stack.terminating) {
+            throw new ScriptTerminated();
         }
     }
 }

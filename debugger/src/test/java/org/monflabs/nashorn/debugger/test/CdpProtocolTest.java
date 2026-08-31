@@ -257,6 +257,19 @@ public class CdpProtocolTest {
     }
 
     @Test
+    public void terminateExecutionEndsARunningScript() throws Exception {
+        final Future<Object> result = run("forever.js", "var i = 0; while (true) { i++; }");
+        Thread.sleep(100);
+        client.call("Runtime.terminateExecution");
+        try {
+            result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS);
+            fail("the script must be terminated");
+        } catch (final java.util.concurrent.ExecutionException expected) {
+            assertTrue(String.valueOf(expected.getCause()).contains("terminated"), String.valueOf(expected.getCause()));
+        }
+    }
+
+    @Test
     public void unknownMethodsDoNotEndTheSession() throws Exception {
         try {
             client.call("Profiler.enable");

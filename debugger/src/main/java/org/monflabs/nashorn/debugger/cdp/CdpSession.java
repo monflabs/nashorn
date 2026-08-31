@@ -287,8 +287,20 @@ public final class CdpSession implements DebugListener {
         }
     }
 
+    private volatile boolean terminateOnPause;
+
+    /** Runtime.terminateExecution while running: the next pause ends the script instead of reporting. */
+    void terminateOnNextPause() {
+        terminateOnPause = true;
+    }
+
     @Override
     public void paused(final PausedEvent event) {
+        if (terminateOnPause) {
+            terminateOnPause = false;
+            event.terminate();
+            return;
+        }
         if (!debuggerEnabled) {
             return;
         }

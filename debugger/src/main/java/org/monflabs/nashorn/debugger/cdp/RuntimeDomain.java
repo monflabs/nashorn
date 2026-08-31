@@ -158,8 +158,18 @@ final class RuntimeDomain {
             return Json.object();
         case "globalLexicalScopeNames":
             return Json.object("names", List.of());
+        case "terminateExecution": {
+            final PausedEvent pause = session.pause();
+            if (pause != null && !pause.isResumed()) {
+                pause.terminate();
+            } else {
+                debugger().pause();
+                session.terminateOnNextPause();
+            }
+            return null;
+        }
         case "discardConsoleEntries", "setCustomObjectFormatterEnabled", "setMaxCallStackSizeToCapture",
-             "setAsyncCallStackDepth", "addBinding", "removeBinding", "terminateExecution":
+             "setAsyncCallStackDepth", "addBinding", "removeBinding":
             return null;
         default:
             throw new CdpError(CdpError.METHOD_NOT_FOUND, "'Runtime." + method + "' wasn't found");

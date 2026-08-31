@@ -50,6 +50,8 @@ final class ShadowStack {
     boolean inCommand;
     /** The last thrown value paused on, so that unwinding it does not pause a second time. */
     Object pausedThrown;
+    /** Set by terminate: every statement hook throws until the stack is empty. */
+    volatile boolean terminating;
 
     static ShadowStack current() {
         return CURRENT.get();

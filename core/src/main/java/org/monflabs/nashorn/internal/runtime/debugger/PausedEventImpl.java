@@ -130,6 +130,12 @@ final class PausedEventImpl implements PausedEvent {
         finish(ShadowStack.StepMode.OUT);
     }
 
+    @Override
+    public void terminate() {
+        stack.terminating = true;
+        finish(ShadowStack.StepMode.NONE);
+    }
+
     private synchronized void finish(final ShadowStack.StepMode mode) {
         if (resumed) {
             return;

@@ -101,6 +101,14 @@ public interface PausedEvent {
     void stepOut();
 
     /**
+     * Ends the script: the paused thread resumes by throwing
+     * {@link ScriptTerminated}, and keeps throwing it at every statement it
+     * reaches until nothing of the script is left on its stack, so that a
+     * {@code catch} in the script cannot keep it running.
+     */
+    void terminate();
+
+    /**
      * Runs an operation on the paused thread and returns its result. Called
      * on the paused thread itself, it runs inline.
      *
