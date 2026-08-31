@@ -5094,8 +5094,9 @@ public class Parser extends AbstractParser implements Loggable {
         try {
             // Create a new function block.
             body = newBlock();
-            if (env._debug_scopes) {
-                // debug scope options forces everything to be in scope
+            if (env._debug_scopes || env._debugger) {
+                // debug scope options forces everything to be in scope; a
+                // debugger reads variables from scope objects, so it needs the same
                 markEval(lc);
             }
             assert functionNode != null;

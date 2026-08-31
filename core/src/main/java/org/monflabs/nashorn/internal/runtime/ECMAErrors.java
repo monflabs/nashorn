@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.ResourceBundle;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants;
 import org.monflabs.nashorn.internal.objects.Global;
+import org.monflabs.nashorn.internal.runtime.debugger.Hooks;
 import org.monflabs.nashorn.internal.scripts.JS;
 
 /**
@@ -54,6 +55,7 @@ public final class ECMAErrors {
     }
 
     private static ECMAException error(final Object thrown, final Throwable cause) {
+        Hooks.exceptionThrown(thrown);
         return new ECMAException(thrown, cause);
     }
 

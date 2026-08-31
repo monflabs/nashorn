@@ -81,6 +81,7 @@ import org.monflabs.nashorn.internal.runtime.ScriptingFunctions;
 import org.monflabs.nashorn.internal.runtime.Specialization;
 import org.monflabs.nashorn.internal.runtime.Symbol;
 import org.monflabs.nashorn.internal.runtime.arrays.ArrayData;
+import org.monflabs.nashorn.internal.runtime.debugger.DebuggerImpl;
 import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
 import org.monflabs.nashorn.internal.runtime.linker.InvokeByName;
 import org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
@@ -3356,6 +3357,10 @@ public final class Global extends Scope {
             initDebug();
         }
 
+        if (getContext().getDebugger() != null) {
+            initConsole();
+        }
+
         copyBuiltins();
 
         // ECMAScript 2020 19.1.1: the global object under a name of its own.
@@ -3555,6 +3560,33 @@ public final class Global extends Scope {
 
     private void initDebug() {
         this.addOwnProperty("Debug", Attribute.NOT_ENUMERABLE, initConstructor("Debug", ScriptObject.class));
+    }
+
+    private void initConsole() {
+        this.addOwnProperty("console", Attribute.NOT_ENUMERABLE, NativeConsole.create(this));
+    }
+
+    /**
+     * The debugger of this global's context, or null.
+     * @return the debugger
+     */
+    DebuggerImpl debuggerOf() {
+        return getContext().getDebugger();
+    }
+
+    /**
+     * Prints a line the way {@code print} does, to the error writer when asked.
+     * @param error whether to print to the error writer
+     * @param text the line
+     */
+    void consolePrint(final boolean error, final String text) {
+        final ScriptContext sc = currentContext();
+        @SuppressWarnings("resource")
+        final PrintWriter out = sc != null
+                ? new PrintWriter(error ? sc.getErrorWriter() : sc.getWriter())
+                : error ? getContext().getEnv().getErr() : getContext().getEnv().getOut();
+        out.println(text);
+        out.flush();
     }
 
     private Object printImpl(final boolean newLine, final Object... objects) {

@@ -406,7 +406,7 @@ questions.
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
-          <!-- only the two public API packages are documented, as before -->
+          <!-- only the public API packages are documented: api.scripting, api.tree and api.debugger -->
           <excludePackageNames>org.monflabs.nashorn.internal:org.monflabs.nashorn.internal.*:org.monflabs.nashorn.tools:org.monflabs.nashorn.tools.*:org.monflabs.nashorn.api.linker</excludePackageNames>
           <tags>
             <tag><name>implSpec</name><placement>a</placement><head>Implementation Requirements:</head></tag>

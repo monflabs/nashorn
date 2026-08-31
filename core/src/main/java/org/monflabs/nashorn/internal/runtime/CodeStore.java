@@ -236,7 +236,10 @@ public abstract class CodeStore implements Loggable {
                 // may be given
                 return versionDir
                         + (env._optimistic_types ? "_opt" : "")
-                        + (env._annexB ? "" : "_noannexb");
+                        + (env._annexB ? "" : "_noannexb")
+                        // a class compiled with debugger hooks is not one an
+                        // engine without them wants, nor the other way round
+                        + (env._debugger ? "_dbg" : "");
             } catch (final Exception e) {
                 throw new IOException(e);
             }

@@ -47,6 +47,9 @@ import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DirectMethodHandleDesc;
+import org.monflabs.nashorn.internal.runtime.debugger.Hooks;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.ConstantDesc;
 import java.lang.constant.DynamicCallSiteDesc;
 import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
@@ -75,6 +78,7 @@ import org.monflabs.nashorn.internal.runtime.Debug;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.RewriteException;
 import org.monflabs.nashorn.internal.runtime.Scope;
+import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException;
@@ -146,6 +150,20 @@ public class MethodEmitter {
 
     /** Bootstrap for array populators */
     private static final DirectMethodHandleDesc POPULATE_ARRAY_BOOTSTRAP = staticBootstrap(RewriteException.BOOTSTRAP);
+
+    /** Bootstraps for the debugger's hooks, emitted under --debugger */
+    private static final DirectMethodHandleDesc DEBUGGER_STMT_BOOTSTRAP = staticBootstrap(Hooks.STMT_BOOTSTRAP);
+    private static final DirectMethodHandleDesc DEBUGGER_ENTER_BOOTSTRAP = staticBootstrap(Hooks.ENTER_BOOTSTRAP);
+    private static final DirectMethodHandleDesc DEBUGGER_EXIT_BOOTSTRAP = staticBootstrap(Hooks.EXIT_BOOTSTRAP);
+    private static final DirectMethodHandleDesc DEBUGGER_EXIT_THROW_BOOTSTRAP = staticBootstrap(Hooks.EXIT_THROW_BOOTSTRAP);
+
+    private static final MethodTypeDesc DEBUGGER_STMT_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
+            Type.classDesc(ScriptObject.class), ConstantDescs.CD_Object);
+    private static final MethodTypeDesc DEBUGGER_ENTER_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
+            Type.classDesc(ScriptObject.class), ConstantDescs.CD_Object, Type.classDesc(ScriptFunction.class));
+    private static final MethodTypeDesc DEBUGGER_EXIT_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void);
+    private static final MethodTypeDesc DEBUGGER_EXIT_THROW_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
+            Type.classDesc(Throwable.class));
 
     private static DirectMethodHandleDesc staticBootstrap(final Call call) {
         return MethodHandleDesc.ofMethod(DirectMethodHandleDesc.Kind.STATIC, call.owner(), call.name(), call.type());
@@ -2100,7 +2118,64 @@ public class MethodEmitter {
      * @param flags     the single static bootstrap argument
      */
     private void indy(final String name, final MethodTypeDesc type, final DirectMethodHandleDesc bootstrap, final int flags) {
-        method.emit(cb -> cb.invokedynamic(DynamicCallSiteDesc.of(bootstrap, name, type, flags)));
+        indy(name, type, bootstrap, (ConstantDesc)flags);
+    }
+
+    /**
+     * Records an invokedynamic with any number of static bootstrap arguments.
+     *
+     * @param name      call site name
+     * @param type      call site type
+     * @param bootstrap the bootstrap method
+     * @param args      the static bootstrap arguments
+     */
+    private void indy(final String name, final MethodTypeDesc type, final DirectMethodHandleDesc bootstrap, final ConstantDesc... args) {
+        method.emit(cb -> cb.invokedynamic(DynamicCallSiteDesc.of(bootstrap, name, type, args)));
+    }
+
+    /**
+     * Emits the debugger's statement hook. Pops the scope and the receiver.
+     *
+     * @param line   the statement's line, zero based
+     * @param column the statement's column, zero based
+     */
+    void debuggerStatement(final int line, final int column) {
+        debug("debugger_statement", line, column);
+        popType();
+        popType();
+        indy("stmt", DEBUGGER_STMT_TYPE, DEBUGGER_STMT_BOOTSTRAP, line, column);
+    }
+
+    /**
+     * Emits the debugger's function entry hook. Pops the scope, the receiver and the callee.
+     *
+     * @param functionName the function's decoded name, empty when anonymous
+     * @param line         the function's line, zero based
+     * @param column       the function's column, zero based
+     */
+    void debuggerEnter(final String functionName, final int line, final int column) {
+        debug("debugger_enter", functionName, line, column);
+        popType();
+        popType();
+        popType();
+        indy("enter", DEBUGGER_ENTER_TYPE, DEBUGGER_ENTER_BOOTSTRAP, functionName, line, column);
+    }
+
+    /**
+     * Emits the debugger's normal exit hook. Stack neutral.
+     */
+    void debuggerExit() {
+        debug("debugger_exit");
+        indy("exit", DEBUGGER_EXIT_TYPE, DEBUGGER_EXIT_BOOTSTRAP);
+    }
+
+    /**
+     * Emits the debugger's exceptional exit hook. Pops the throwable.
+     */
+    void debuggerExitThrow() {
+        debug("debugger_exit_throw");
+        popType();
+        indy("exitThrow", DEBUGGER_EXIT_THROW_TYPE, DEBUGGER_EXIT_THROW_BOOTSTRAP);
     }
 
     MethodEmitter invalidateSpecialName(final String name) {

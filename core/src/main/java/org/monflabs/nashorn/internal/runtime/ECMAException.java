@@ -33,6 +33,7 @@ import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.NashornException;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants.Call;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants.FieldAccess;
+import org.monflabs.nashorn.internal.runtime.debugger.Hooks;
 
 /**
  * Exception used to implement ECMAScript "throw" from scripts. The actual thrown
@@ -93,6 +94,7 @@ public final class ECMAException extends NashornException {
      * @return ECMAException object
      */
     public static ECMAException create(final Object thrown, final String fileName, final int line, final int column) {
+        Hooks.exceptionThrown(thrown);
         // If thrown object is an Error or sub-object like TypeError, then
         // an ECMAException object has been already initialized at constructor.
         if (thrown instanceof ScriptObject) {

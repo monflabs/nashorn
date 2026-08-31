@@ -94,6 +94,15 @@ public final class ScriptEnvironment {
     /** Put all variables in scopes to make them debuggable */
     public final boolean _debug_scopes;
 
+    /** Compile scripts with debugger hooks, and put all variables in scopes */
+    public final boolean _debugger;
+
+    /** Where a debugger frontend should listen, [host:]port or empty for the default; null when not asked for */
+    public final String _inspect;
+
+    /** Whether execution waits for the debugger client to attach */
+    public final boolean _inspect_brk;
+
     /** Directory in which source files and generated class files are dumped */
     public final String  _dest_dir;
 
@@ -240,6 +249,12 @@ public final class ScriptEnvironment {
         _const_as_var         = options.getBoolean("const.as.var");
         _debug_lines          = options.getBoolean("debug.lines");
         _debug_scopes         = options.getBoolean("debug.scopes");
+        final String inspect  = options.getString("inspect");
+        final String inspectBrk = options.getString("inspect.brk");
+        _inspect_brk          = inspectBrk != null;
+        _inspect              = inspectBrk != null ? inspectBrk : inspect;
+        // a frontend that has nothing to attach to is no use: --inspect implies --debugger
+        _debugger             = options.getBoolean("debugger") || _inspect != null;
         _dest_dir             = options.getString("d");
         _dump_on_error        = options.getBoolean("doe");
         _early_lvalue_error   = options.getBoolean("early.lvalue.error");

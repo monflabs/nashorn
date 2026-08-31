@@ -54,6 +54,7 @@ import java.util.Objects;
 import java.util.WeakHashMap;
 import org.monflabs.nashorn.api.scripting.URLReader;
 import org.monflabs.nashorn.internal.parser.Token;
+import org.monflabs.nashorn.internal.runtime.debugger.ScriptInfo;
 import org.monflabs.nashorn.internal.runtime.logging.DebugLogger;
 import org.monflabs.nashorn.internal.runtime.logging.Loggable;
 import org.monflabs.nashorn.internal.runtime.logging.Logger;
@@ -135,6 +136,25 @@ public final class Source implements Loggable {
             assert !(value.data instanceof RawData);
             put(key, new WeakReference<>(value));
         }
+    }
+
+    /** What the debugger knows about this source; made on first demand. */
+    private volatile ScriptInfo debugInfo;
+
+    /**
+     * The debugger's table of this source, or null if none was made.
+     * @return the table
+     */
+    public ScriptInfo getDebugInfo() {
+        return debugInfo;
+    }
+
+    /**
+     * Sets the debugger's table of this source.
+     * @param info the table
+     */
+    public void setDebugInfo(final ScriptInfo info) {
+        this.debugInfo = info;
     }
 
     /* package-private */

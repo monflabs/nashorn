@@ -37,6 +37,7 @@ final class ScriptLoader extends NashornLoader {
     private static final String OBJECTS_PKG        = "org.monflabs.nashorn.internal.objects";
     private static final String RUNTIME_ARRAYS_PKG = "org.monflabs.nashorn.internal.runtime.arrays";
     private static final String RUNTIME_LINKER_PKG = "org.monflabs.nashorn.internal.runtime.linker";
+    private static final String RUNTIME_DEBUGGER_PKG = "org.monflabs.nashorn.internal.runtime.debugger";
     private static final String NASHORN_PKG_PREFIX = "org.monflabs.nashorn.internal.";
 
     private volatile boolean structureAccessAdded;
@@ -63,6 +64,8 @@ final class ScriptLoader extends NashornLoader {
             NASHORN_MODULE.addExports(RUNTIME_PKG, scriptModule);
             NASHORN_MODULE.addExports(RUNTIME_ARRAYS_PKG, scriptModule);
             NASHORN_MODULE.addExports(RUNTIME_LINKER_PKG, scriptModule);
+            // the debugger's hooks are bootstrapped from here under --debugger
+            NASHORN_MODULE.addExports(RUNTIME_DEBUGGER_PKG, scriptModule);
             NASHORN_MODULE.addExports(SCRIPTS_PKG, scriptModule);
 
             // nashorn needs to read scripts module methods,fields

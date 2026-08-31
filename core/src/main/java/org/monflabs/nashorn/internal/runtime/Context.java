@@ -64,6 +64,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Collections;
+import java.util.WeakHashMap;
+import org.monflabs.nashorn.internal.runtime.debugger.DebuggerImpl;
+import org.monflabs.nashorn.internal.runtime.debugger.DebugLocations;
+import org.monflabs.nashorn.api.debugger.DebuggerFrontend;
+import org.monflabs.nashorn.api.debugger.InspectOptions;
+import java.util.ServiceLoader;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -351,6 +358,12 @@ public final class Context {
     // persistent code store
     private CodeStore codeStore;
 
+    // the debugger, when the context was created with --debugger
+    private final DebuggerImpl debugger;
+
+    // the context behind each script engine, for the debugger API
+    private static final Map<ScriptEngine, Context> ENGINE_CONTEXTS = Collections.synchronizedMap(new WeakHashMap<>());
+
     // A factory for linking global properties as constant method handles. It is created when the first Global
     // is created, and invalidated forever once the second global is created.
     private final AtomicReference<GlobalConstants> globalConstantsRef = new AtomicReference<>();
@@ -596,6 +609,7 @@ public final class Context {
         this.classFilter = classFilter;
         this.env       = new ScriptEnvironment(options, out, err);
         this._strict   = env._strict;
+        this.debugger  = env._debugger ? new DebuggerImpl(this) : null;
         if (env._loader_per_compile) {
             this.scriptLoader = null;
             this.uniqueScriptId = null;
@@ -652,8 +666,73 @@ public final class Context {
         }
 
         initLoggers();
+
+        if (env._inspect != null) {
+            inspector = startInspector();
+        } else {
+            inspector = null;
+        }
     }
 
+    // the debugger frontend --inspect started, or null
+    private final AutoCloseable inspector;
+
+    /**
+     * Starts the debugger frontend {@code --inspect} asked for: whichever
+     * {@link DebuggerFrontend} the module path or class path offers.
+     */
+    private AutoCloseable startInspector() {
+        DebuggerFrontend frontend = null;
+        for (final DebuggerFrontend candidate : ServiceLoader.load(DebuggerFrontend.class)) {
+            frontend = candidate;
+            break;
+        }
+        if (frontend == null) {
+            for (final DebuggerFrontend candidate : ServiceLoader.load(DebuggerFrontend.class, Thread.currentThread().getContextClassLoader())) {
+                frontend = candidate;
+                break;
+            }
+        }
+        if (frontend == null) {
+            throw new IllegalArgumentException("--inspect needs a debugger frontend, and none is on the module path or class path: add the nashorn-debugger artifact");
+        }
+        try {
+            return frontend.start(debugger, InspectOptions.parse(env._inspect, env._inspect_brk));
+        } catch (final IOException e) {
+            throw new IllegalArgumentException("--inspect: " + frontend.name() + " could not start: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Stops the debugger frontend {@code --inspect} started, if any. The
+     * debugger itself stays; a frontend can be started again.
+     */
+    public void closeInspector() {
+        if (inspector != null) {
+            try {
+                inspector.close();
+            } catch (final Exception e) {
+                // it is being discarded
+            }
+        }
+    }
+
+    /**
+     * The debugger of this context, or null when it was created without {@code --debugger}.
+     * @return the debugger
+     */
+    public DebuggerImpl getDebugger() {
+        return debugger;
+    }
+
+    /**
+     * The context behind a script engine.
+     * @param engine the engine
+     * @return its context, or null if the engine is not a Nashorn engine whose global has been created
+     */
+    public static Context getContext(final ScriptEngine engine) {
+        return ENGINE_CONTEXTS.get(engine);
+    }
 
     /**
      * Get the class filter for this context
@@ -1326,10 +1405,16 @@ public final class Context {
      * @return the initialized global scope object.
      */
     public Global initGlobal(final Global global, final ScriptEngine engine) {
+        if (engine != null) {
+            ENGINE_CONTEXTS.put(engine, this);
+        }
         // Need only minimal global object, if we are just compiling.
         if (!env._compile_only) {
             // initialize global scope with builtin global objects
             Context.runWithGlobal(global, () -> global.initBuiltinObjects(engine));
+        }
+        if (debugger != null) {
+            debugger.globalCreated(global);
         }
 
         return global;
@@ -1512,6 +1597,10 @@ public final class Context {
         if (errors.hasErrors()) {
             throw new ParserException(errors.getNumberOfErrors() + " module parse error(s) in " + source.getName());
         }
+        if (debugger != null) {
+            DebugLocations.collect(moduleNode, source);
+            debugger.scriptCompiled(source, true);
+        }
         return moduleNode;
     }
 
@@ -1545,6 +1634,9 @@ public final class Context {
             if (log.isEnabled()) {
                 log.fine(new RuntimeEvent<>(Level.INFO, source), "Code cache hit for ", source, " avoiding recompile.");
             }
+            if (debugger != null) {
+                debugger.scriptCompiled(source, false);
+            }
             return script;
         }
 
@@ -1571,6 +1663,13 @@ public final class Context {
 
             if (errMan.hasErrors()) {
                 return null;
+            }
+
+            if (debugger != null) {
+                // the whole program is parsed here, nested functions included,
+                // which is where the breakable positions come from: what gets
+                // compiled later, lazily, is only ever a part of this tree
+                DebugLocations.collect(functionNode, source);
             }
 
             if (env._print_ast || functionNode.getDebugFlag(FunctionNode.DEBUG_PRINT_AST)) {
@@ -1625,6 +1724,9 @@ public final class Context {
 
         if (cacheable) {
             cacheClass(source, script);
+        }
+        if (debugger != null) {
+            debugger.scriptCompiled(source, false);
         }
         return script;
     }

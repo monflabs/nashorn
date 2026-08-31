@@ -57,6 +57,8 @@ import static org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescri
 import java.io.PrintWriter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import org.monflabs.nashorn.internal.runtime.linker.NameCodec;
+import org.monflabs.nashorn.internal.runtime.debugger.DebugLocations;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
@@ -282,7 +284,84 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         this.evalCode                = compiler.getSource().isEvalCode();
         this.continuationEntryPoints = continuationEntryPoints;
         this.callSiteFlags           = compiler.getScriptEnvironment()._callsite_flags;
+        this.debugger                = compiler.getScriptEnvironment()._debugger;
         this.log                     = initLogger(compiler.getContext());
+    }
+
+    /** Whether the debugger's hooks are emitted: --debugger */
+    private final boolean debugger;
+
+    /** The start of each open method's body, for the debugger's catch-all handler */
+    private final Deque<Label> debuggerBodyStarts = new ArrayDeque<>();
+
+    /**
+     * Emits the debugger's statement hook for a statement: the scope, the
+     * receiver, and the statement's position as constants of the site.
+     */
+    private void emitDebuggerStatement(final Statement statement) {
+        if (method.hasScope()) {
+            method.loadCompilerConstant(SCOPE);
+        } else {
+            method.loadNull();
+        }
+        method.loadCompilerConstant(THIS);
+        method.debuggerStatement(statement.getLineNumber() - 1, getCurrentSource().getColumn(statement.position()));
+    }
+
+    /**
+     * Emits the debugger's statement hook again where a loop comes back to its
+     * head, so that stepping stops at the loop on every iteration.
+     */
+    private void emitDebuggerLoopHook(final Statement loop) {
+        if (debugger && DebugLocations.isBreakable(loop)) {
+            emitDebuggerStatement(loop);
+        }
+    }
+
+    /**
+     * Emits the debugger's entry hook at the head of a function body, once the
+     * scope and the arguments are in place.
+     */
+    private void emitDebuggerEnter(final FunctionNode functionNode) {
+        if (method.hasScope()) {
+            method.loadCompilerConstant(SCOPE);
+        } else {
+            method.loadNull();
+        }
+        method.loadCompilerConstant(THIS);
+        if (functionNode.needsCallee()) {
+            method.loadCompilerConstant(CALLEE);
+        } else {
+            method.loadNull();
+        }
+        method.debuggerEnter(debuggerFunctionName(functionNode), functionNode.getLineNumber() - 1,
+                getCurrentSource().getColumn(functionNode.position()));
+    }
+
+    /**
+     * The name a debugger shows for a function: the source name, decoded;
+     * empty for an anonymous function and for a program.
+     */
+    private static String debuggerFunctionName(final FunctionNode functionNode) {
+        if (functionNode.isProgram() || functionNode.isAnonymous() || functionNode.getIdent() == null) {
+            return "";
+        }
+        return NameCodec.decode(functionNode.getIdent().getName());
+    }
+
+    /**
+     * Emits the debugger's catch-all around a function body: whatever leaves
+     * the body by an exception pops the frame the entry hook pushed. Recorded
+     * after every handler the body emitted, so that the optimism handlers
+     * within the body keep precedence over it.
+     */
+    private void emitDebuggerCatchAll(final Label bodyStart, final Label bodyEnd) {
+        final Label recovery = new Label("dbg_recovery");
+        method._try(bodyStart, bodyEnd, recovery);
+        method._catch(recovery);
+        method.dup();
+        method.debuggerExitThrow();
+        method.athrow();
     }
 
     @Override
@@ -1348,6 +1427,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
         initLocals(block);
 
+        if (debugger && lc.isFunctionBody() && !lc.getCurrentFunction().isSplit()) {
+            emitDebuggerEnter(lc.getCurrentFunction());
+        }
+
         assert lc.getUsedSlotCount() == method.getFirstTemp();
         return true;
     }
@@ -2270,6 +2353,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             method.begin();
 
+            if (debugger && !functionNode.isSplit()) {
+                final Label bodyStart = new Label("dbg_body_start");
+                method.label(bodyStart);
+                debuggerBodyStarts.push(bodyStart);
+            }
+
             if (isRestOf()) {
                 assert continuationInfo == null;
                 continuationInfo = new ContinuationInfo();
@@ -2296,8 +2385,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         try {
             final boolean markOptimistic;
             if (emittedMethods.add(functionNode.getName())) {
+                final Label debuggerBodyEnd = debugger && !functionNode.isSplit() ? new Label("dbg_body_end") : null;
+                if (debuggerBodyEnd != null) {
+                    method.label(debuggerBodyEnd);
+                }
                 markOptimistic = generateUnwarrantedOptimismExceptionHandlers(functionNode);
                 generateContinuationHandler();
+                if (debuggerBodyEnd != null) {
+                    emitDebuggerCatchAll(debuggerBodyStarts.pop(), debuggerBodyEnd);
+                }
                 method.end(); // wrap up this method
                 unit   = lc.popCompileUnit(functionNode.getCompileUnit());
                 popMethodEmitter();
@@ -2376,6 +2472,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private void enterStatement(final Statement statement) {
         lineNumber(statement);
+        if (debugger && DebugLocations.isBreakable(statement)) {
+            emitDebuggerStatement(statement);
+        }
     }
 
     private void lineNumber(final Statement statement) {
@@ -3126,6 +3225,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             loadExpressionUnbounded(expression);
         } else {
             method.loadUndefined(returnType);
+        }
+
+        if (debugger && !lc.getCurrentFunction().isSplit()) {
+            method.debuggerExit();
         }
 
         method._return(returnType);
@@ -4050,6 +4153,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         if(method.isReachable()) {
             if(modify != null) {
                 lineNumber(loopNode);
+                emitDebuggerLoopHook(loopNode);
                 loadAndDiscard(modify);
                 method.beforeJoinPoint(modify);
             }
@@ -4091,6 +4195,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         emitContinueLabel(whileNode.getContinueLabel(), liveLocalsOnContinueOrBreak);
         if(method.isReachable()) {
             lineNumber(whileNode);
+            emitDebuggerLoopHook(whileNode);
             final JoinPredecessorExpression test = whileNode.getTest();
             final Label bodyEntryLabel = body.getEntryLabel();
             final boolean testHasLiveConversion = LocalVariableConversion.hasLiveConversion(test);

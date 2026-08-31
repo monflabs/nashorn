@@ -167,22 +167,27 @@ public class Shell implements PartialParser {
             return COMMANDLINE_ERROR;
         }
 
-        final Global global = context.createGlobal();
-        final ScriptEnvironment env = context.getEnv();
-        final List<String> files = env.getFiles();
-        if (files.isEmpty()) {
-            return readEvalPrint(context, global);
-        }
+        try {
+            final Global global = context.createGlobal();
+            final ScriptEnvironment env = context.getEnv();
+            final List<String> files = env.getFiles();
+            if (files.isEmpty()) {
+                return readEvalPrint(context, global);
+            }
 
-        if (env._compile_only) {
-            return compileScripts(context, global, files);
-        }
+            if (env._compile_only) {
+                return compileScripts(context, global, files);
+            }
 
-        if (env._fx) {
-            return runFXScripts(context, global, files);
-        }
+            if (env._fx) {
+                return runFXScripts(context, global, files);
+            }
 
-        return runScripts(context, global, files);
+            return runScripts(context, global, files);
+        } finally {
+            // the --inspect server, if there is one, has nothing left to show
+            context.closeInspector();
+        }
     }
 
     /**
@@ -237,7 +242,13 @@ public class Shell implements PartialParser {
             }
         }
 
-        return new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader());
+        try {
+            return new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader());
+        } catch (final IllegalArgumentException e) {
+            // an option that could not be honoured, such as --inspect without a frontend
+            werr.println(e.getMessage());
+            return null;
+        }
     }
 
     /**
