@@ -68,7 +68,7 @@ public class ScriptLibraryTest {
     private static final JSObject AREA = new AbstractJSObject() {
         @Override
         public Object call(final Object thiz, final Object... args) {
-            final double r = args.length == 0 ? Double.NaN : (Double)ScriptUtils.convert(args[0], double.class);
+            final double r = ScriptUtils.toNumber(args.length == 0 ? ScriptUtils.undefined() : args[0]);
             return Math.PI * r * r;
         }
 

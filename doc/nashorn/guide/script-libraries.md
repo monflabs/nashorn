@@ -55,10 +55,11 @@ var shapes = {
 The Java function is a `JSObject` — `AbstractJSObject` with `isFunction()` and `call` — which a
 script calls like any other function. Write it the way a script function behaves: a script may
 call `area("2")`, `area()` or `area(null)`, and a cast to `Number` would answer with a
-`ClassCastException` where the language answers with a conversion. `ScriptUtils.convert` *is* the
-engine's conversion — ToNumber for a numeric target: `"2"` → 2, `true` → 1, an object's `valueOf()`
-honoured, `undefined` and `"abc"` → NaN, `null` → 0 — so the function coerces exactly as one
-written in JavaScript would, and a missing argument is `undefined`, hence NaN:
+`ClassCastException` where the language answers with a conversion. `ScriptUtils.toNumber` *is* the
+language's ToNumber, as the engine does it — `"2"` → 2, `true` → 1, an object's `valueOf()`
+honoured, `undefined` and `"abc"` → NaN, `null` → 0 — so the function coerces exactly as one written
+in JavaScript would; a missing argument is `undefined`, hence NaN, and a bad one can be refused with
+a script error the caller can catch:
 
 ```java
 package com.example.geometry;
@@ -70,13 +71,11 @@ public class Area extends AbstractJSObject {
     @Override public boolean isFunction() { return true; }
 
     @Override public Object call(Object thiz, Object... args) {
-        double r = args.length == 0 ? Double.NaN : toNumber(args[0]);
+        double r = ScriptUtils.toNumber(args.length == 0 ? ScriptUtils.undefined() : args[0]);
+        if (r < 0) {
+            throw ScriptUtils.rangeError("radius must not be negative: " + ScriptUtils.toString(args[0]));
+        }
         return Math.PI * r * r;
-    }
-
-    /** ECMAScript's ToNumber, as the engine does it. */
-    static double toNumber(Object value) {
-        return (Double) ScriptUtils.convert(value, double.class);
     }
 }
 ```
@@ -120,6 +119,27 @@ ScriptLibrary geometry = ScriptLibrary.of("geometry",
 A global value can be any Java object — scripts use it through the ordinary Java interop
 (`clock.instant()`) — or a `JSObject` when it should behave like a native function or object, as
 `area` does; the [custom objects](custom-objects.md) guide covers `JSObject` in depth.
+
+### Script values in Java hands
+
+What a script passes to a Java function - or what `initialize` reads from the global - arrives as
+the engine's own values: numbers as Java `Number`s, strings as `String` (or, from inside the engine,
+a `CharSequence` that is not one), `null` as `null`, `undefined` as its own singleton, and objects as
+`ScriptObjectMirror`s. `ScriptUtils` has the language's operations for them, named after the
+specification and delegating to the engine's implementation:
+
+| Group | Methods | Notes |
+| --- | --- | --- |
+| Type tests | `typeOf(v)`, `isUndefined(v)`, `isNullOrUndefined(v)`, `isString(v)`, `isNumber(v)`, `isPrimitive(v)`, `isCallable(v)`, `undefined()` | `typeOf` answers as the operator does; `undefined()` is the value to *return* undefined |
+| Conversions | `toNumber(v)`, `toInt32(v)`, `toUint32(v)`, `toUint16(v)`, `toLong(v)`, `toBoolean(v)`, `toString(v)`, `toPrimitive(v[, hint])`, `toObject(v)` | ToNumber, ToInt32, ToUint32, ToUint16, ToBoolean, ToString, ToPrimitive, ToObject - the tables of the specification, `toLong` a saturating truncation for Java's sake |
+| Equality | `strictEquals(x, y)`, `looseEquals(x, y)`, `sameValue(x, y)`, `sameValueZero(x, y)` | `===`, `==`, `Object.is`, and what `includes`/`Map`/`Set` use; two mirrors of one object are one object |
+| Errors | `requireObjectCoercible(v)`, `typeError(msg)`, `rangeError(msg)` | the check at the head of most built-ins, and script errors for Java to `throw` - they reach the script as ordinary `TypeError`/`RangeError` it can catch |
+
+A mirror converts through its own realm, so a conversion needs nothing bound on the thread. What
+does need the caller's realm is *making* something that belongs to one - a script error (a
+`TypeError` for a symbol, for `null` where an object is required, or `typeError(...)` itself) or a
+wrapper object from `toObject` - and those are meant to be called from where a script called you,
+where there always is one; called with no realm bound they say so.
 
 ### Extending what is already there
 
