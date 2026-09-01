@@ -77,7 +77,7 @@ itself removed.
 
 ## Where next
 
-- [Creating the engine](engine-setup.md) — factory overloads, options, class filtering.
+- [Creating the engine](engine-setup.md) — the builder, options, class filtering, script libraries.
 - [Using the engine](using-the-engine.md) — evaluating, invoking, bindings and scopes.
 - [Connecting with Java](connecting-with-java.md) — the `Java` object and everything interop.
 - Running scripts from the command line — [jjs and the shell](../reference/jjs.md).

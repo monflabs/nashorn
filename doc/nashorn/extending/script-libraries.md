@@ -10,7 +10,7 @@ Two things make it more than a convenience. A global in Nashorn is **per `Bindin
 context has one, every `engine.createBindings()` makes another, and so does `loadWithNewGlobal`
 from script. A library is installed into each of them, so its globals are there whichever context a
 script runs in. And it reaches the engine **by discovery** — a service provider on the class path or
-module path — so dropping the jar in is enough; or **explicitly**, handed to the factory when the
+module path — so dropping the jar in is enough; or **explicitly**, handed to the builder when the
 engine is built.
 
 ## The interface
@@ -217,15 +217,15 @@ On the class path, a file `META-INF/services/org.monflabs.nashorn.api.scripting.
 containing the line `com.example.geometry.GeometryLibrary`. Doing both keeps the jar working either
 way, which is what `nashorn-core` itself does for its own services.
 
-Discovery goes through the engine's application class loader — the one `NashornScriptEngineFactory`
-was given, or the thread's context class loader — so a library is found wherever the application's
-own classes are. A provider needs a public no-argument constructor.
+Discovery goes through the engine's application class loader — the builder's `classLoader(...)`,
+or the thread's context class loader — so a library is found wherever the application's own
+classes are. A provider needs a public no-argument constructor.
 
 ### Choosing which discovered libraries apply
 
-The `--libraries` option, on the `jjs` command line or among the factory arguments, selects among
-the *discovered* libraries: `--libraries=all` (the default), `--libraries=none`, or a list of names,
-`--libraries=geometry,logging`. Libraries passed explicitly are not subject to it.
+The builder's `discoveredLibraries(names...)` — the `--libraries` option, on the `jjs` command
+line or in `option(...)` — selects among the *discovered* libraries: all of them by default, none
+if no name is given, or the named ones. Libraries passed explicitly are not subject to it.
 
 ```java
 new NashornScriptEngineBuilder().discoveredLibraries().build();          // a bare engine

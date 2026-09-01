@@ -27,7 +27,7 @@ Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the e
 
 | API | What it is for | Read |
 | --- | --- | --- |
-| **`ScriptLibrary`** | A named bundle of Java globals, scripts and an initializer, installed into *every* global an engine creates - the default context's, each `createBindings()`, a `loadWithNewGlobal`, the shell's. Discovered as a `ServiceLoader` provider or passed to the factory; `initialize(global)` reaches into the global to extend prototypes from Java. | [Script libraries](script-libraries.md) |
+| **`ScriptLibrary`** | A named bundle of Java globals, scripts and an initializer, installed into *every* global an engine creates - the default context's, each `createBindings()`, a `loadWithNewGlobal`, the shell's. Discovered as a `ServiceLoader` provider or passed to the builder's `library(...)`; `initialize(global)` reaches into the global to extend prototypes from Java. | [Script libraries](script-libraries.md) |
 | `ScriptLibrary.Script` | A script of a library: `of(name, text)`, `ofResource(Class, path)`, `ofUrl(url)`. | [Script libraries](script-libraries.md) |
 | `--libraries` | Which discovered libraries apply: `all`, `none`, or names; explicit ones always do. | [Options](../reference/options.md) |
 

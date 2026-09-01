@@ -21,8 +21,8 @@ Being libraries rather than language built-ins, their *presence* remains a choic
 sandboxing scripts can leave `fetch` out.
 
 To choose, use `--libraries`: `--libraries=host` for the timers without `fetch`,
-`--libraries=none` for a bare engine. Or hand a library to the factory yourself, which applies it
-whatever the option says:
+`--libraries=none` for a bare engine. Or hand a library to the builder yourself, which applies it
+whatever the selection says:
 
 ```java
 ScriptEngine engine = new NashornScriptEngineBuilder().discoveredLibraries().library(new HostLibrary()).build();

@@ -20,7 +20,7 @@ one per worker gives every thread its own world:
 
 ```java
 ThreadLocal<ScriptEngine> engines = ThreadLocal.withInitial(
-        () -> new NashornScriptEngineFactory().getScriptEngine());
+        () -> new NashornScriptEngineBuilder().build());
 ```
 
 **One engine, one realm per thread** — cheaper when scripts share compiled code. Compile once, then

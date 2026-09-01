@@ -169,4 +169,5 @@ try {
 ```
 
 A JS `Error` object itself is accessible via `NashornException.getEcmaError()`. With the `-doe`
-option (the factory default), full traces are also dumped as they happen.
+option (`dumpStackOnError(true)` on a builder; the no-argument factory engine has it on), full
+traces are also dumped as they happen.

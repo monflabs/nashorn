@@ -96,7 +96,7 @@ javac writes to `target/classes-raw`; nasgen reads that and writes into `target/
 
 ### Public API surface
 
-- `api/scripting` — JSR-223 (`NashornScriptEngine`, `NashornScriptEngineFactory`, `ScriptObjectMirror`, `JSObject`, `ClassFilter`).
+- `api/scripting` — JSR-223 (`NashornScriptEngine`, `NashornScriptEngineFactory` — its option-taking overloads deprecated for `NashornScriptEngineBuilder` — `ScriptObjectMirror`, `JSObject`, `ClassFilter`, `ScriptLibrary`, `ScriptUtils`, `EventLoop`).
 - `api/tree` — the parser API (`Parser`, `*Tree`/`*TreeImpl` pairs), a public AST distinct from `internal/ir`.
 - `api/linker` — `NashornLinkerExporter`.
 - `tools/Shell` — the engine-side CLI entry point.

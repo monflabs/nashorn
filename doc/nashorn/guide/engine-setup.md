@@ -1,8 +1,8 @@
 # Creating the engine
 
-`ScriptEngineManager.getEngineByName("nashorn-monflabs")` is all most embedders need. When you want control —
-options, class loading, class filtering — instantiate the factory yourself:
-`org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory`.
+`ScriptEngineManager.getEngineByName("nashorn-monflabs")` is all most embedders need. When you want
+control — options, class loading, class filtering, script libraries — build the engine yourself with
+`org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder`.
 
 ## The builder
 
