@@ -22,16 +22,19 @@ public interface ScriptLibrary {
     String name();                                  // unique; what --libraries selects by
     default Map<String, Object> globals() { … }     // Java values to define, first
     default List<Script> scripts()        { … }     // scripts to evaluate, in order, after
+    default void initialize(JSObject global) { }    // then: the global itself, to reach into
     record Script(String name, String text) { … }   // of(name, text), ofResource(Class, path), ofUrl(url)
     static ScriptLibrary of(String name, Map<String, Object> globals, Script... scripts);
 }
 ```
 
 In each new global the `globals()` are defined first, then the `scripts()` run in order, so a script
-may build on the Java values. Each script runs as a program at the global's top level: its `var` and
-function declarations become properties of the global, exactly as if `load`ed. A library that fails —
-a script that throws, a resource that is missing — fails the creation of the engine (or of the
-global) with an `IllegalStateException` naming the library and the script.
+may build on the Java values, and then `initialize(global)` is called with the global object itself
+— the same `JSObject` an engine hands out as its engine scope — for whatever is easier done from Java
+than declared. Each script runs as a program at the global's top level: its `var` and function
+declarations become properties of the global, exactly as if `load`ed. A library that fails — a script
+that throws, a resource that is missing, an initializer that throws — fails the creation of the engine
+(or of the global) with an `IllegalStateException` naming the library and the stage.
 
 ## A worked example
 
@@ -82,6 +85,52 @@ ScriptLibrary geometry = ScriptLibrary.of("geometry",
 A global value can be any Java object — scripts use it through the ordinary Java interop
 (`clock.instant()`) — or a `JSObject` when it should behave like a native function or object; the
 [custom objects](custom-objects.md) guide covers that.
+
+### Extending what is already there
+
+`globals()` defines *new* names. To change objects the global already has — add a method to a
+built-in prototype, wrap an existing function — there are two routes, shown on the same
+`capitalize` method for strings.
+
+**From a script**, because a library script runs at the global's top level with the whole realm in
+reach, it is one line of JavaScript:
+
+```js
+// strings.js, listed in scripts()
+String.prototype.capitalize = function () {
+    return this.length === 0 ? this : this.charAt(0).toUpperCase() + this.slice(1);
+};
+```
+
+**From Java**, when the method's body is Java code, `initialize` receives the global and the library
+navigates to the prototype and installs a `JSObject` function there:
+
+```java
+public class StringsLibrary implements ScriptLibrary {
+    @Override public String name() { return "strings"; }
+
+    @Override public void initialize(JSObject global) {
+        JSObject string    = (JSObject) global.getMember("String");
+        JSObject prototype = (JSObject) string.getMember("prototype");
+        prototype.setMember("capitalize", new AbstractJSObject() {
+            @Override public boolean isFunction() { return true; }
+
+            @Override public Object call(Object thiz, Object... args) {
+                String s = String.valueOf(thiz);              // the receiver: the string itself
+                return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+            }
+        });
+    }
+}
+```
+
+Either way, `'nashorn'.capitalize()` is `"Nashorn"` in every global the engine creates — each global
+has its own `String.prototype`, and the library is installed into each. The `JSObject` the initializer
+gets is a mirror bound to that global's realm: `getMember`/`setMember`/`callMember` and `eval(String)`
+all act there, and a Java function installed through it is called with the script-side receiver as
+`thiz`. Because libraries go one after the other, an initializer sees the libraries before it
+complete, and its own scripts already run — so it can also wrap or decorate functions those scripts
+declared.
 
 ### Handing it to the engine explicitly
 
@@ -134,8 +183,10 @@ new NashornScriptEngineFactory().getScriptEngine("--libraries=none");   // a bar
 - **Every global gets its own evaluation.** A library's script runs once per global, so state it
   keeps in a `var` is per global, not shared across contexts. Shared state belongs in a Java object
   handed out through `globals()`.
-- **Order.** Discovered libraries run in discovery order, then the explicit ones in the order given;
-  a library may rely on one that runs before it, and on its own globals from its own scripts.
+- **Order.** Discovered libraries run in discovery order, then the explicit ones in the order given,
+  each fully — globals, scripts, `initialize` — before the next; a library may rely on one that runs
+  before it, and on its own globals from its own scripts. A library that must see all the others
+  goes last.
 - **Cost.** Installation is part of creating a global, which is on the path of every
   `createBindings()`. The scripts compile once per engine (the code cache keys on the source) and
   run once per global; keep a library's top level to declarations and light setup.

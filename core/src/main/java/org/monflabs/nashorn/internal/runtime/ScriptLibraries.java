@@ -31,7 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
+import org.monflabs.nashorn.api.scripting.ScriptObjectMirror;
 import org.monflabs.nashorn.internal.objects.Global;
 
 /**
@@ -73,10 +75,15 @@ final class ScriptLibraries {
     }
 
     /**
-     * Defines the libraries' globals and runs their scripts in a global that
-     * has its built-ins. The current realm must be the global's.
+     * Defines the libraries' globals, runs their scripts and calls their
+     * initializers in a global that has its built-ins, one library after the
+     * other. The current realm must be the global's.
      */
     static void install(final Context context, final Global global, final List<ScriptLibrary> libraries) {
+        if (libraries.isEmpty()) {
+            return;
+        }
+        final JSObject mirror = (JSObject)ScriptObjectMirror.wrap(global, global);
         for (final ScriptLibrary library : libraries) {
             String stage = "its globals";
             try {
@@ -87,6 +94,8 @@ final class ScriptLibraries {
                     stage = script.name();
                     context.evaluateSource(Source.sourceFor(script.name(), script.text()), global, global);
                 }
+                stage = "initialize";
+                library.initialize(mirror);
             } catch (final RuntimeException e) {
                 throw new IllegalStateException("script library '" + library.name() + "' failed in " + stage + ": " + e.getMessage(), e);
             }

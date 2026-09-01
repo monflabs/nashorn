@@ -32,3 +32,18 @@ print(typeof circumference, typeof TAU);
 // --libraries selects among libraries *discovered* as services; explicit ones always apply
 var bare = new Factory().getScriptEngine(Java.to(['--libraries=none'], 'java.lang.String[]'), geometry);
 print(bare.eval('typeof area'));
+
+// initialize(global) - on a library implemented rather than described - reaches into the
+// global once the library's own parts are in place: the way to extend a built-in prototype.
+// Java code navigates with getMember/setMember; to a script the mirror simply *is* the
+// other engine's global, so this is plain property access.
+var strings = new ScriptLibrary({
+    name: function () { return 'strings'; },
+    initialize: function (global) {
+        global.String.prototype.capitalize = function () {
+            return this.length === 0 ? this : this.charAt(0).toUpperCase() + this.slice(1);
+        };
+    }
+});
+var extended = new Factory().getScriptEngine(geometry, strings);
+print(extended.eval("'nashorn'.capitalize() + ' ' + typeof circumference"));

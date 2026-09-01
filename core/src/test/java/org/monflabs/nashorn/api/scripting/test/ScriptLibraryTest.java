@@ -45,6 +45,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
+import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary.Script;
@@ -156,6 +157,76 @@ public class ScriptLibraryTest {
         final ScriptLibrary second = ScriptLibrary.of("second", Map.of(), Script.of("b.js", "var fromSecond = fromFirst + 1;"));
         final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(first, second);
         assertEquals(((Number)engine.eval("fromSecond")).intValue(), 12);
+    }
+
+    /** A library that adds a method to a built-in prototype, from Java. */
+    private static final ScriptLibrary STRINGS = new ScriptLibrary() {
+        @Override
+        public String name() {
+            return "strings";
+        }
+
+        @Override
+        public List<Script> scripts() {
+            return List.of(Script.of("strings.js", "var stringsLoaded = true;"));
+        }
+
+        @Override
+        public void initialize(final JSObject global) {
+            final JSObject prototype = (JSObject)((JSObject)global.getMember("String")).getMember("prototype");
+            prototype.setMember("capitalize", new AbstractJSObject() {
+                @Override
+                public Object call(final Object thiz, final Object... args) {
+                    final String s = String.valueOf(thiz);
+                    return s.isEmpty() ? s : Character.toUpperCase(s.charAt(0)) + s.substring(1);
+                }
+
+                @Override
+                public boolean isFunction() {
+                    return true;
+                }
+            });
+            // the library's own scripts have run by now
+            global.setMember("stringsReady", global.getMember("stringsLoaded"));
+        }
+    };
+
+    @Test
+    public void initializeReachesIntoTheGlobalFromJava() throws ScriptException {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(STRINGS);
+        assertEquals(engine.eval("'nashorn'.capitalize()"), "Nashorn");
+        assertEquals(engine.eval("''.capitalize()"), "");
+        assertEquals(engine.eval("typeof String.prototype.capitalize"), "function");
+        assertEquals(engine.eval("stringsReady"), true);
+        // in every global, each with its own String.prototype
+        assertEquals(engine.eval("'other'.capitalize()", engine.createBindings()), "Other");
+        assertEquals(engine.eval("loadWithNewGlobal({ name: 'n.js', script: \"'new'.capitalize()\" })"), "New");
+        // a library that comes later sees it
+        final ScriptLibrary user = ScriptLibrary.of("user", Map.of(), Script.of("user.js", "var greeting = 'hello'.capitalize();"));
+        assertEquals(new NashornScriptEngineFactory().getScriptEngine(STRINGS, user).eval("greeting"), "Hello");
+    }
+
+    @Test
+    public void aFailingInitializerFailsEngineCreationNamingItself() {
+        final ScriptLibrary broken = new ScriptLibrary() {
+            @Override
+            public String name() {
+                return "brokeninit";
+            }
+
+            @Override
+            public void initialize(final JSObject global) {
+                throw new IllegalArgumentException("not today");
+            }
+        };
+        try {
+            new NashornScriptEngineFactory().getScriptEngine(broken);
+            fail("expected the engine creation to fail");
+        } catch (final IllegalStateException e) {
+            assertTrue(e.getMessage().contains("'brokeninit'"), e.getMessage());
+            assertTrue(e.getMessage().contains("initialize"), e.getMessage());
+            assertTrue(e.getMessage().contains("not today"), e.getMessage());
+        }
     }
 
     @Test

@@ -50,11 +50,14 @@ import java.util.Objects;
  * option says, and replaces a discovered library of the same {@link #name()}.
  *
  * <p>In each global the {@link #globals()} are defined first, then the
- * {@link #scripts()} run in order, so a script may build on the Java values.
- * Every global gets its own evaluation: what a script declares in one is
- * not shared with another. A library that fails - a script that throws, a
- * resource that cannot be read - fails the creation of the engine or global
- * with an exception naming the library.
+ * {@link #scripts()} run in order, so a script may build on the Java values,
+ * and then {@link #initialize(JSObject)} is called with the global itself,
+ * for what is easier done from Java than declared - a method on an existing
+ * prototype, say. Libraries go one after the other, so a library sees the
+ * ones before it complete. Every global gets its own installation: what a
+ * script declares in one is not shared with another. A library that fails -
+ * a script that throws, a resource that cannot be read - fails the creation
+ * of the engine or global with an exception naming the library.
  *
  * <p>Implement the interface, or describe the library and let
  * {@link #of(String, Map, Script...)} do it:
@@ -95,6 +98,21 @@ public interface ScriptLibrary {
      */
     default List<Script> scripts() {
         return List.of();
+    }
+
+    /**
+     * Called in each new global once this library's globals are defined and
+     * its scripts have run, with the global object itself - the same
+     * {@link JSObject} a {@code ScriptEngine} hands out as its engine scope.
+     * Reach into it to change what is already there: add a method to a
+     * built-in prototype, wrap a function the scripts declared, read a
+     * setting. {@code global.eval(source)} evaluates in the global too.
+     *
+     * <p>Does nothing by default.
+     *
+     * @param global the global, as a mirror bound to its own realm
+     */
+    default void initialize(final JSObject global) {
     }
 
     /**
