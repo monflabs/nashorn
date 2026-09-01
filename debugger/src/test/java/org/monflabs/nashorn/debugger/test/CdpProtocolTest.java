@@ -50,7 +50,7 @@ import org.testng.annotations.Test;
  * The protocol, as a client speaks it: enable, breakpoints, pauses, frames,
  * evaluation, properties, stepping, exceptions, the console.
  */
-@SuppressWarnings({ "javadoc", "unchecked" })
+@SuppressWarnings({"javadoc", "unchecked", "deprecation"})   // the factory overloads stay tested for compatibility
 public class CdpProtocolTest {
     private ScriptEngine engine;
     private CdpServer.Handle server;

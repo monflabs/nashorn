@@ -39,6 +39,7 @@ import org.monflabs.nashorn.internal.runtime.Context;
  * with the rest of the framework, so it is reachable from anywhere, and it is
  * the only thing the host object needs to name.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public final class Test262Host {
     /**
      * The agents this one started, in the order they were started.

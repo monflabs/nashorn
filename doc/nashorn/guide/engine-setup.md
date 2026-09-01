@@ -4,22 +4,34 @@
 options, class loading, class filtering — instantiate the factory yourself:
 `org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory`.
 
-## The factory's overloads
+## The builder
 
 ```java
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 
-NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-
-ScriptEngine plain      = factory.getScriptEngine();
-ScriptEngine withLoader = factory.getScriptEngine(myClassLoader);
-ScriptEngine filtered   = factory.getScriptEngine(myClassFilter);
-ScriptEngine optioned   = factory.getScriptEngine("--annexB=false", "-strict");
-ScriptEngine both       = factory.getScriptEngine(options, myClassLoader);
-ScriptEngine all        = factory.getScriptEngine(options, myClassLoader, myClassFilter);
-ScriptEngine extended   = factory.getScriptEngine(myLibrary, anotherLibrary);            // script libraries
-ScriptEngine everything = factory.getScriptEngine(options, myClassLoader, myClassFilter, List.of(myLibrary));
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .annexB(false)                                   // the named options...
+        .strict(true)
+        .option("--class-cache-size=100")                // ...and any other, as on the command line
+        .classLoader(myClassLoader)
+        .classFilter(name -> name.startsWith("com.example."))
+        .library(myLibrary, anotherLibrary)              // script libraries
+        .discoveredLibraries("host")                     // which registered ones apply; none if no name
+        .build();
 ```
+
+A builder starts with **no options** (what `jjs` runs with), adds what it is told in order — a
+later setting of the same option wins, as on a command line — and `build()` validates the options
+the way the command line would, throwing `IllegalArgumentException` for one it does not know. The
+named methods cover the choices that come up in every embedding: `annexB`, `strict`, `scripting`,
+`dumpStackOnError`, `debugger`, `inspect(hostAndPort, waitForClient)`, `discoveredLibraries`;
+`option(...)` takes anything else in its command-line spelling. A builder can be reused, and every
+`build()` is a new engine with its own compiled-code cache and globals.
+
+The `javax.script` route still exists, of course — `new ScriptEngineManager().getEngineByName("nashorn-monflabs")`
+or `new NashornScriptEngineFactory().getScriptEngine()` — and gives the defaults plus `-doe`. The
+factory's other `getScriptEngine` overloads (options, class loader, filter, libraries, in every
+combination) are **deprecated** in favour of the builder and kept for compatibility.
 
 - The **class loader** is what scripts see when they reach for Java classes (`Java.type`,
   `Packages`). By default it is the current thread's context class loader.
@@ -29,9 +41,8 @@ ScriptEngine everything = factory.getScriptEngine(options, myClassLoader, myClas
 - The **[script libraries](../extending/script-libraries.md)** are bundles of globals and scripts installed into
   every global the engine creates; the ones passed here join those discovered as services.
 
-!> The no-argument factory methods use a default option set of `{"-doe"}` (dump stack traces on
-error). Passing your own `String... args` **replaces** that default rather than adding to it — if
-you still want the stack traces, include `-doe` in your list.
+!> The factory's no-argument engine has `-doe` (dump the Java stack on a script error) on; a
+builder starts without it — call `dumpStackOnError(true)` while developing if you want it.
 
 Options are fixed at engine construction. There is no per-`eval` or per-context option switch; two
 configurations means two engines, and two engines coexist cleanly in one process (each is its own

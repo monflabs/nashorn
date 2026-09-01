@@ -46,6 +46,7 @@ import org.testng.annotations.Test;
  * The fetch library against a local server: the promise, the Response,
  * Headers and Request, errors, and async/await over it.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class FetchLibraryTest {
     private HttpServer server;
     private String base;

@@ -29,7 +29,6 @@ package org.monflabs.nashorn.playground;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -47,7 +46,7 @@ import org.monflabs.nashorn.api.debugger.InspectOptions;
 import org.monflabs.nashorn.api.debugger.PausedEvent;
 import org.monflabs.nashorn.api.debugger.ScriptTerminated;
 import org.monflabs.nashorn.api.scripting.NashornException;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.debugger.CdpServer;
 
 /**
@@ -217,9 +216,11 @@ public final class ScriptRunner {
                 debugServer.close();
                 debugServer = null;
             }
-            final List<String> args = new ArrayList<>(List.of("--debugger", "-doe"));
-            args.addAll(options);
-            engine = new NashornScriptEngineFactory().getScriptEngine(args.toArray(new String[0]));
+            engine = new NashornScriptEngineBuilder()
+                    .debugger(true)
+                    .dumpStackOnError(true)
+                    .option(options.toArray(new String[0]))
+                    .build();
             engineOptions = options;
             if (serving) {
                 try {

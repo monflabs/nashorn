@@ -69,7 +69,7 @@ import org.testng.annotations.Test;
  * test plays the frontend from the TestNG thread. Every wait has a timeout so
  * that a pause that never comes fails the test rather than hanging the run.
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class DebuggerTest {
     private static final long TIMEOUT = 20;
 

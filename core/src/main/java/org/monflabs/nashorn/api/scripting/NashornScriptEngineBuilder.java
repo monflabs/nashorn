@@ -1,0 +1,240 @@
+/*
+ * Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Oracle designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * by Oracle in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+ * or visit www.oracle.com if you need additional information or have any
+ * questions.
+ */
+
+package org.monflabs.nashorn.api.scripting;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import javax.script.ScriptEngine;
+
+/**
+ * Builds a script engine, one choice at a time: options, in their command-line
+ * spelling or by name; the class loader scripts reach Java through; a class
+ * filter; script libraries.
+ *
+ * <pre>{@code
+ * ScriptEngine engine = new NashornScriptEngineBuilder()
+ *         .annexB(false)
+ *         .strict(true)
+ *         .classLoader(myLoader)
+ *         .classFilter(name -> name.startsWith("com.example."))
+ *         .library(geometry)
+ *         .build();
+ * }</pre>
+ *
+ * <p>A builder starts with no options at all - what {@code jjs} runs with -
+ * and adds what it is told, in order; a later setting of the same option wins,
+ * as on a command line. {@link #build()} validates the options as the command
+ * line would and throws {@link IllegalArgumentException} for one it does not
+ * know. A builder can be reused: every {@code build()} makes a new engine
+ * with its own compiled-code cache and globals.
+ *
+ * <p>This replaces the {@code getScriptEngine} overloads of
+ * {@link NashornScriptEngineFactory}, which stay for compatibility; the
+ * factory's no-argument {@code getScriptEngine()} remains the
+ * {@code javax.script} entry point and is not going anywhere.
+ *
+ * @since 2017.0.0
+ */
+public final class NashornScriptEngineBuilder {
+    private final List<String> options = new ArrayList<>();
+    private final List<ScriptLibrary> libraries = new ArrayList<>();
+    private ClassLoader classLoader;
+    private ClassFilter classFilter;
+
+    /** A builder with no options. */
+    public NashornScriptEngineBuilder() {
+    }
+
+    // -- options ------------------------------------------------------------------------
+
+    /**
+     * Adds options in their command-line spelling - {@code "--annexB=false"},
+     * {@code "-strict"}, {@code "--libraries=host"} - for anything the named
+     * methods below do not cover; the {@code Options} reference lists them all.
+     *
+     * @param options the options, in order
+     * @return this
+     */
+    public NashornScriptEngineBuilder option(final String... options) {
+        for (final String option : Objects.requireNonNull(options, "options")) {
+            this.options.add(Objects.requireNonNull(option, "option"));
+        }
+        return this;
+    }
+
+    /**
+     * Whether Annex B - the web's legacy: {@code escape}, {@code __proto__},
+     * block-level function hoisting and the rest - is implemented. On by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder annexB(final boolean enabled) {
+        return option("--annexB=" + enabled);
+    }
+
+    /**
+     * Whether every script runs in strict mode, as if it began with
+     * {@code "use strict"}. Off by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder strict(final boolean enabled) {
+        return option("-strict=" + enabled);
+    }
+
+    /**
+     * Whether scripting mode - {@code #} comments, {@code ${expression}} in
+     * double-quoted strings, heredocs, {@code $ENV} - is on. Off by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder scripting(final boolean enabled) {
+        return option("-scripting=" + enabled);
+    }
+
+    /**
+     * Whether a script error carries the Java stack trace of its origin
+     * ({@code -doe}, dump on error), a help while developing. Off by default
+     * here; the factory's no-argument engine turns it on.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder dumpStackOnError(final boolean enabled) {
+        return option("-doe=" + enabled);
+    }
+
+    /**
+     * Whether scripts are compiled with the debugger's hooks, so that a
+     * debugger can attach through {@code Debugger.of(engine)} or a frontend;
+     * costs some speed. Off by default; implied by {@link #inspect}.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder debugger(final boolean enabled) {
+        return option("--debugger=" + enabled);
+    }
+
+    /**
+     * Listens for a Chrome DevTools Protocol client - Chrome DevTools, VS Code
+     * - the way {@code node --inspect} does; needs the {@code nashorn-debugger}
+     * artifact. Implies the debugger.
+     *
+     * @param hostAndPort {@code "[host:]port"}, or {@code "9229"} for the default host
+     * @param waitForClient whether to pause at the first statement until a client attaches ({@code --inspect-brk})
+     * @return this
+     */
+    public NashornScriptEngineBuilder inspect(final String hostAndPort, final boolean waitForClient) {
+        return option((waitForClient ? "--inspect-brk=" : "--inspect=") + Objects.requireNonNull(hostAndPort, "hostAndPort"));
+    }
+
+    /**
+     * Which of the script libraries registered as services apply, by name;
+     * none if no name is given. All of them by default. Libraries added with
+     * {@link #library} apply regardless.
+     *
+     * @param names the names, e.g. {@code "host"}
+     * @return this
+     */
+    public NashornScriptEngineBuilder discoveredLibraries(final String... names) {
+        return option("--libraries=" + (names.length == 0 ? "none" : String.join(",", names)));
+    }
+
+    // -- the Java side ------------------------------------------------------------------
+
+    /**
+     * The class loader scripts reach Java classes through - {@code Java.type},
+     * the package globals - and script libraries are discovered through. The
+     * current thread's context class loader by default.
+     *
+     * @param classLoader the loader
+     * @return this
+     */
+    public NashornScriptEngineBuilder classLoader(final ClassLoader classLoader) {
+        this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+        return this;
+    }
+
+    /**
+     * A filter consulted before any Java class becomes visible to a script -
+     * the sandboxing hook. None by default. {@code ClassFilter} has one method,
+     * so a lambda over the class name will do.
+     *
+     * @param classFilter the filter
+     * @return this
+     */
+    public NashornScriptEngineBuilder classFilter(final ClassFilter classFilter) {
+        this.classFilter = Objects.requireNonNull(classFilter, "classFilter");
+        return this;
+    }
+
+    /**
+     * Script libraries to install into every global the engine creates, besides
+     * the ones discovered as services; one that shares a discovered library's
+     * name replaces it.
+     *
+     * @param libraries the libraries, in the order they apply
+     * @return this
+     */
+    public NashornScriptEngineBuilder library(final ScriptLibrary... libraries) {
+        for (final ScriptLibrary library : Objects.requireNonNull(libraries, "libraries")) {
+            this.libraries.add(Objects.requireNonNull(library, "library"));
+        }
+        return this;
+    }
+
+    // -- building -----------------------------------------------------------------------
+
+    /**
+     * The options as they stand, in command-line spelling and order.
+     *
+     * @return the options
+     */
+    public List<String> options() {
+        return List.copyOf(options);
+    }
+
+    /**
+     * Builds the engine.
+     *
+     * @return a new engine
+     * @throws IllegalArgumentException for an option the engine does not know, or a malformed one
+     */
+    public ScriptEngine build() {
+        final ClassLoader loader = classLoader != null ? classLoader : NashornScriptEngineFactory.getAppClassLoader();
+        return new NashornScriptEngine(NashornScriptEngineFactory.shared(), options.toArray(new String[0]), loader, classFilter, List.copyOf(libraries));
+    }
+
+    @Override
+    public String toString() {
+        return "NashornScriptEngineBuilder" + options + (libraries.isEmpty() ? "" : " libraries " + libraries);
+    }
+}

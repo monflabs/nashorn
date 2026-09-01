@@ -40,7 +40,7 @@ import org.testng.annotations.Test;
  * again. That is a shape divergence between two globals of one process, and the
  * question a script cannot ask is whether the two stay apart.
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class AnnexBTest {
 
     private static ScriptEngine engine(final String... options) {

@@ -43,6 +43,7 @@ import org.monflabs.nashorn.internal.runtime.Context;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class JavaAdapterTest {
     public interface TestConversions {
         public byte getByte(byte b);

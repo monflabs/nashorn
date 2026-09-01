@@ -42,7 +42,7 @@ import static org.testng.Assert.assertEquals;
  * @test
  * @run testng org.monflabs.nashorn.internal.runtime.test.LexicalBindingTest
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class LexicalBindingTest {
 
     final static String LANGUAGE_ES6 = "--language=es6";

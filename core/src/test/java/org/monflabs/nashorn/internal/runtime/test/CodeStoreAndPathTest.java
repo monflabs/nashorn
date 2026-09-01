@@ -45,7 +45,7 @@ import org.testng.annotations.Test;
  * @summary  Test for persistent code cache and path handling
  * @run testng org.monflabs.nashorn.internal.runtime.test.CodeStoreAndPathTest
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class CodeStoreAndPathTest {
 
     final static String code1 = "var code1; var x = 'Hello Script'; var x1 = 'Hello Script'; "

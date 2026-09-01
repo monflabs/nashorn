@@ -3,15 +3,15 @@
 Options can be handed to the engine in three ways, and the same strings work in all of them:
 
 - on the `jjs` or `Shell` command line — `jjs -scripting --annexB=false script.js`;
-- when creating an engine — `new NashornScriptEngineFactory().getScriptEngine("--annexB=false")`;
+- when creating an engine — `new NashornScriptEngineBuilder().annexB(false).build()`, or `.option("--annexB=false")` for any option in its command-line spelling;
 - through the system property `-Dnashorn.args="--annexB=false -strict"`, which reaches every engine
   in the process even where the launch line is not yours to edit (`-Dnashorn.args.prepend` is the
   same, but prepended, so explicit arguments win).
 
 Boolean options accept both forms: `--annexB` means true, `--annexB=false` means false.
 
-?> Passing your own options to `getScriptEngine(String...)` **replaces** the factory's defaults,
-which are `{"-doe"}` — add `-doe` back if you still want stack traces dumped on error.
+?> A `NashornScriptEngineBuilder` starts with **no** options; the factory's no-argument engine has
+`-doe` on. Call `dumpStackOnError(true)` on a builder if you want stack traces dumped on error.
 
 ## Documented options
 

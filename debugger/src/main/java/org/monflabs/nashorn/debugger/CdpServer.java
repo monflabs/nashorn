@@ -45,7 +45,7 @@ import org.monflabs.nashorn.debugger.ws.HttpWebSocketServer;
  * client that can attach to Node can attach here.
  *
  * <pre>
- *   ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+ *   ScriptEngine engine = new NashornScriptEngineBuilder().debugger(true).build();
  *   try (CdpServer.Handle handle = CdpServer.open(Debugger.of(engine), InspectOptions.parse("9229", false))) {
  *       engine.eval(...);
  *   }

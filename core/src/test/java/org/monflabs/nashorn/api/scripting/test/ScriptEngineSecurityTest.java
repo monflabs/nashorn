@@ -42,7 +42,7 @@ import org.testng.annotations.Test;
  * @test
  * @run testng/othervm org.monflabs.nashorn.api.scripting.test.ScriptEngineSecurityTest
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class ScriptEngineSecurityTest {
 
     private static void log(final String msg) {

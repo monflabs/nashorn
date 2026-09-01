@@ -36,7 +36,7 @@ import org.monflabs.nashorn.api.scripting.URLReader;
 import org.monflabs.nashorn.internal.test.framework.TestFinder;
 import org.testng.annotations.Test;
 
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class ClassFilterTest {
     private static final String NASHORN_CODE_CACHE = "nashorn.persistent.code.cache";
     private static final String CLASSFILTER_CODE_CACHE = System.getProperty("build.dir", "build") + "/classfilter_nashorn_code_cache";

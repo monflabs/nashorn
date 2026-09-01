@@ -25,8 +25,7 @@ To choose, use `--libraries`: `--libraries=host` for the timers without `fetch`,
 whatever the option says:
 
 ```java
-ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(
-        new String[] { "--libraries=none" }, new HostLibrary());
+ScriptEngine engine = new NashornScriptEngineBuilder().discoveredLibraries().library(new HostLibrary()).build();
 ```
 
 ## The event loop

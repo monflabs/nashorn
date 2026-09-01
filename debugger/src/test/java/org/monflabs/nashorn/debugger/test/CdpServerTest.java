@@ -53,7 +53,7 @@ import org.testng.annotations.Test;
  * The HTTP side: discovery, the Host check, the WebSocket handshake, and the
  * frame codec through a real client.
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class CdpServerTest {
     private ScriptEngine engine;
     private CdpServer.Handle server;

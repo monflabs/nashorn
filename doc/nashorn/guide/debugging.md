@@ -48,7 +48,7 @@ java --module-path nashorn-core-2017.0.0.jar:nashorn-debugger-2017.0.0.jar --add
 The same options work when embedding, because they are engine options like any other:
 
 ```java
-ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--inspect=9229");
+ScriptEngine engine = new NashornScriptEngineBuilder().inspect("9229", false).build();
 engine.eval(...);   // debuggable from the moment the engine exists
 ```
 
@@ -128,7 +128,7 @@ The protocol server is one client of a public API in `nashorn-core`,
 `org.monflabs.nashorn.api.debugger`, which a test or another protocol adapter can use directly:
 
 ```java
-ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+ScriptEngine engine = new NashornScriptEngineBuilder().debugger(true).build();
 Debugger debugger = Debugger.of(engine);
 debugger.addListener(new DebugListener() {
     @Override public void paused(PausedEvent event) {

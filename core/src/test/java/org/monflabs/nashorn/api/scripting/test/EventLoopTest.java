@@ -47,6 +47,7 @@ import org.testng.annotations.Test;
  * The event loop behind a realm: microtasks first, timers and posted tasks
  * after, eval returning only when the script is idle.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class EventLoopTest {
 
     /** A tiny host: later(fn, ms) schedules, cancel(t) cancels, soon(fn) queues a microtask, request(fn) completes off-thread. */

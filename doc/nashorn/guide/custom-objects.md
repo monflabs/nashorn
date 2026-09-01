@@ -84,8 +84,9 @@ implements in full; `JSAdapter` remains for the large body of existing code writ
 script names a class through `Java.type`, `Packages` or `new`:
 
 ```java
-ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(
-    className -> className.startsWith("com.mycompany.scriptapi."));
+ScriptEngine engine = new NashornScriptEngineBuilder()
+    .classFilter(className -> className.startsWith("com.mycompany.scriptapi."))
+    .build();
 
 engine.eval("Java.type('com.mycompany.scriptapi.Thing')");  // fine
 engine.eval("Java.type('java.io.File')");                    // ClassNotFoundException

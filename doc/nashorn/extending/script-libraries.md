@@ -190,18 +190,16 @@ declared.
 ### Handing it to the engine explicitly
 
 ```java
-ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(geometry);
+ScriptEngine engine = new NashornScriptEngineBuilder().library(geometry).build();
 engine.eval("print(circumference(1), area(2), shapes.circle(2).area, clock.instant())");
 
 Bindings other = engine.createBindings();
 engine.eval("print(typeof circumference)", other);       // function - every global has it
 ```
 
-The factory has three overloads for this: `getScriptEngine(ScriptLibrary...)`,
-`getScriptEngine(String[] args, ScriptLibrary...)`, and the full
-`getScriptEngine(String[] args, ClassLoader, ClassFilter, List<ScriptLibrary>)`. An explicit library
-always applies, whatever `--libraries` says, and replaces a discovered library of the same name —
-which is also how an application overrides a library its class path happens to carry.
+`library(...)` takes any number, in the order they apply. An explicit library always applies,
+whatever `--libraries` says, and replaces a discovered library of the same name — which is also
+how an application overrides a library its class path happens to carry.
 
 ### Registering it for discovery
 
@@ -230,7 +228,8 @@ the *discovered* libraries: `--libraries=all` (the default), `--libraries=none`,
 `--libraries=geometry,logging`. Libraries passed explicitly are not subject to it.
 
 ```java
-new NashornScriptEngineFactory().getScriptEngine("--libraries=none");   // a bare engine
+new NashornScriptEngineBuilder().discoveredLibraries().build();          // a bare engine
+new NashornScriptEngineBuilder().discoveredLibraries("geometry", "logging").build();
 ```
 
 ## What to keep in mind

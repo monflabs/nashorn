@@ -45,9 +45,9 @@ import java.util.Objects;
  * module descriptor, or a {@code META-INF/services/org.monflabs.nashorn.api.scripting.ScriptLibrary}
  * entry on the class path - it is discovered by every engine whose class
  * loader can see it, subject to the {@code --libraries} option. Passed to
- * {@link NashornScriptEngineFactory#getScriptEngine(String[], ClassLoader, ClassFilter, List)}
- * or one of its shorter overloads, it applies to that engine whatever the
- * option says, and replaces a discovered library of the same {@link #name()}.
+ * {@link NashornScriptEngineBuilder#library(ScriptLibrary...)}, it applies to
+ * that engine whatever the option says, and replaces a discovered library of
+ * the same {@link #name()}.
  *
  * <p>In each global the {@link #globals()} are defined first, then the
  * {@link #scripts()} run in order, so a script may build on the Java values,
@@ -65,7 +65,7 @@ import java.util.Objects;
  * ScriptLibrary geometry = ScriptLibrary.of("geometry",
  *     Map.of("TAU", 2 * Math.PI),
  *     Script.ofResource(Geometry.class, "geometry.js"));
- * ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(geometry);
+ * ScriptEngine engine = new NashornScriptEngineBuilder().library(geometry).build();
  * }</pre>
  *
  * @since 2017.0.0

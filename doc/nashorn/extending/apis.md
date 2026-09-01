@@ -35,7 +35,7 @@ Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the e
 
 | API | What it is for | Read |
 | --- | --- | --- |
-| **`NashornScriptEngineFactory`** | Building an engine with options, an application class loader, a `ClassFilter`, and script libraries - the overloads of `getScriptEngine`. | [Creating the engine](../guide/engine-setup.md) |
+| **`NashornScriptEngineBuilder`** | Building an engine one choice at a time: options by name or in command-line spelling, the application class loader, a `ClassFilter`, script libraries, which discovered libraries apply. (`NashornScriptEngineFactory`'s overloads for the same are deprecated; its no-argument `getScriptEngine()` stays the `javax.script` entry point.) | [Creating the engine](../guide/engine-setup.md) |
 | **`ClassFilter`** | One method, `exposeToScripts(className)`: which Java classes a script may reach through `Java.type` and the package globals. The sandboxing hook. | [Custom objects](../guide/custom-objects.md#classfilter) |
 | `-classpath`, `--module-path`, `--add-modules` | Where scripts find Java classes - a class path or module layer of the engine's own, on top of the application's loader. | [Options](../reference/options.md) |
 | **`jdk.dynalink.linker.GuardingDynamicLinkerExporter`** | A Dynalink linker of your own, registered as a service, which the engine picks up: how call sites link to *your* Java types - property access on a domain object, calls on a custom callable - ahead of the default bean linking. A JDK API (`jdk.dynalink`), not the engine's; the engine's own `api.linker.NashornLinkerExporter` is how *it* exports its linkers, not a hook. | [Dynalink custom linkers](../guide/dynalink-linkers.md) |

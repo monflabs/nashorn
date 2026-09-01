@@ -48,6 +48,11 @@ import org.monflabs.nashorn.internal.runtime.Version;
  * accessible as a global variable named {@code "arguments"}.
  *
  * @since 1.8u40
+ *
+ * <p>To build an engine with options, a class loader, a class filter or script
+ * libraries, use {@link NashornScriptEngineBuilder}; the {@code getScriptEngine}
+ * overloads that took those are deprecated and kept for compatibility. The
+ * no-argument {@link #getScriptEngine()} is the {@code javax.script} entry point.
  */
 public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     public NashornScriptEngineFactory() {
@@ -165,7 +170,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      *
      * @param appLoader class loader to be used as script "app" class loader.
      * @return newly created script engine.
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final ClassLoader appLoader) {
         return newEngine(DEFAULT_OPTIONS, appLoader, null);
     }
@@ -176,7 +183,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param classFilter class filter to use.
      * @return newly created script engine.
      * @throws NullPointerException if {@code classFilter} is {@code null}
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final ClassFilter classFilter) {
         return newEngine(DEFAULT_OPTIONS, getAppClassLoader(), Objects.requireNonNull(classFilter));
     }
@@ -187,7 +196,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param args arguments array passed to script engine.
      * @return newly created script engine.
      * @throws NullPointerException if {@code args} is {@code null}
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final String... args) {
         return newEngine(Objects.requireNonNull(args), getAppClassLoader(), null);
     }
@@ -199,7 +210,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param appLoader class loader to be used as script "app" class loader.
      * @return newly created script engine.
      * @throws NullPointerException if {@code args} is {@code null}
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final String[] args, final ClassLoader appLoader) {
         return newEngine(Objects.requireNonNull(args), appLoader, null);
     }
@@ -212,7 +225,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param classFilter class filter to use.
      * @return newly created script engine.
      * @throws NullPointerException if {@code args} or {@code classFilter} is {@code null}
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter) {
         return newEngine(Objects.requireNonNull(args), appLoader, Objects.requireNonNull(classFilter));
     }
@@ -225,7 +240,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @return newly created script engine.
      * @throws NullPointerException if {@code libraries} or one of them is {@code null}
      * @since 2017.0.0
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final ScriptLibrary... libraries) {
         return newEngine(DEFAULT_OPTIONS, getAppClassLoader(), null, List.of(libraries));
     }
@@ -239,7 +256,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @return newly created script engine.
      * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
      * @since 2017.0.0
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final String[] args, final ScriptLibrary... libraries) {
         return newEngine(Objects.requireNonNull(args), getAppClassLoader(), null, List.of(libraries));
     }
@@ -257,7 +276,9 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @return newly created script engine.
      * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
      * @since 2017.0.0
+     * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
+    @Deprecated(since = "2017.0.0")
     public ScriptEngine getScriptEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         return newEngine(Objects.requireNonNull(args), appLoader != null ? appLoader : getAppClassLoader(), classFilter, List.copyOf(libraries));
     }
@@ -295,7 +316,14 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
 
     private static final List<String> extensions = List.of("js");
 
-    private static ClassLoader getAppClassLoader() {
+    /** The factory the builder's engines report; one is as good as another. */
+    private static final NashornScriptEngineFactory SHARED = new NashornScriptEngineFactory();
+
+    static NashornScriptEngineFactory shared() {
+        return SHARED;
+    }
+
+    static ClassLoader getAppClassLoader() {
         // Revisit: script engine implementation needs the capability to
         // find the class loader of the context in which the script engine
         // is running so that classes will be found and loaded properly

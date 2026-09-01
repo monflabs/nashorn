@@ -45,7 +45,7 @@ import org.testng.annotations.Test;
  * @summary Sanity tests for no persistence caching
  * @run testng/othervm org.monflabs.nashorn.internal.runtime.test.NoPersistenceCachingTest
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class NoPersistenceCachingTest {
 
    private ScriptEngine engine;

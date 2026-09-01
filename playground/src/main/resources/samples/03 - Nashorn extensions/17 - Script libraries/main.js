@@ -5,7 +5,7 @@
 // that every engine discovers it (see the README).
 var ScriptLibrary = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary');
 var Script        = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary.Script');
-var Factory       = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory');
+var Builder       = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
 
 var AbstractJSObject = Java.type('org.monflabs.nashorn.api.scripting.AbstractJSObject');
 var globals = new java.util.LinkedHashMap();
@@ -20,7 +20,7 @@ var geometry = ScriptLibrary.of('geometry', globals, Script.of('geometry.js', sn
 print(geometry.name(), '- scripts:', geometry.scripts().size(), '- globals:', geometry.globals().keySet());
 
 // An engine built with the library: the globals are simply there
-var engine = new Factory().getScriptEngine(geometry);
+var engine = new Builder().library(geometry).build();
 print(engine.eval('circumference(1)'), '/', engine.eval('area(1)'));
 print(engine.eval('JSON.stringify(shapes.circle(2))'));
 print(engine.eval('clock.instant().getClass().getSimpleName()'), '- a Java value, used through the interop');
@@ -35,7 +35,7 @@ print(engine.eval('shapes.circle(1)', other), '/', engine.eval('shapes.circle(1)
 print(typeof circumference, typeof TAU);
 
 // --libraries selects among libraries *discovered* as services; explicit ones always apply
-var bare = new Factory().getScriptEngine(Java.to(['--libraries=none'], 'java.lang.String[]'), geometry);
+var bare = new Builder().discoveredLibraries().library(geometry).build();
 print(bare.eval('typeof area'));
 
 // initialize(global) - on a library implemented rather than described - reaches into the
@@ -50,5 +50,5 @@ var strings = new ScriptLibrary({
         };
     }
 });
-var extended = new Factory().getScriptEngine(geometry, strings);
+var extended = new Builder().library(geometry, strings).build();
 print(extended.eval("'nashorn'.capitalize() + ' ' + typeof circumference"));

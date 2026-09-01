@@ -62,6 +62,7 @@ import org.testng.annotations.Test;
  * Script libraries: contributed as services or explicitly, installed into
  * every global an engine makes - globals, scripts, then the initializer.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class ScriptLibraryTest {
 
     /** A function implemented in Java, handed out as a global - coercing its argument as the language would. */

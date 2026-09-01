@@ -25,9 +25,11 @@ engine.eval('function run() { print("run() called on the script-implemented Runn
 var runnable = engine.getInterface(Java.type('java.lang.Runnable').class);
 runnable.run();
 
-// Engine options through the factory
-var NashornScriptEngineFactory = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory');
-var strict = new NashornScriptEngineFactory().getScriptEngine('-strict');
+// An engine with choices: the builder - options by name or in their command-line
+// spelling, a class loader, a class filter, script libraries
+var NashornScriptEngineBuilder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
+var strict = new NashornScriptEngineBuilder().strict(true).annexB(false).build();
+print('a strict engine without Annex B:', strict.eval('typeof escape'));
 try {
     strict.eval('undeclared = 1');
 } catch (e) {

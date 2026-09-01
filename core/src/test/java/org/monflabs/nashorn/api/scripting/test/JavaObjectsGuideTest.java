@@ -46,6 +46,7 @@ import org.testng.annotations.Test;
  * The examples of the guide page "Objects from Java", run as written there:
  * the page's claims about what a script sees are these assertions.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class JavaObjectsGuideTest {
 
     /** A value object: data properties, a computed one, a write that validates, conversions. */

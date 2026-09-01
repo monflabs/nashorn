@@ -50,6 +50,7 @@ import org.testng.annotations.Test;
  * own tables - with the values a script hands a Java function: primitives,
  * null, undefined, mirrors.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class ScriptUtilsTest {
     private ScriptEngine engine;
     private Object undefined;

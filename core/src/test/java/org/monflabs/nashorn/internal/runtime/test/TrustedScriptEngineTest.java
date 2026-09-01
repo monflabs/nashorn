@@ -42,7 +42,7 @@ import org.testng.annotations.Test;
 /**
  * Tests for trusted client usage of nashorn script engine factory extension API
  */
-@SuppressWarnings("javadoc")
+@SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class TrustedScriptEngineTest {
     @Test
     public void versionTest() {

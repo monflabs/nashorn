@@ -38,6 +38,7 @@ import org.testng.annotations.Test;
 /**
  * The host library: timers on the event loop, queueMicrotask, atob and btoa.
  */
+@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class HostLibraryTest {
 
     private static ScriptEngine engine() {

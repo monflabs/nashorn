@@ -7,7 +7,7 @@ before any script runs there. It is how a jar contributes functions and objects 
 without the embedder evaluating a prelude into each context by hand.
 
 This sample builds one from its `geometry.js` tab plus three Java values — a number, an `area`
-function implemented as a Java `JSObject`, and a `Clock` — hands it **explicitly** to a second engine (`getScriptEngine(library)`), and shows the globals present in that engine's every
+function implemented as a Java `JSObject`, and a `Clock` — hands it **explicitly** to a second engine (`new NashornScriptEngineBuilder().library(library).build()`), and shows the globals present in that engine's every
 global, each with its own copy — and absent from this one, which was built without it.
 
 A library can also **reach into the global** once its parts are in place: `initialize(global)`
