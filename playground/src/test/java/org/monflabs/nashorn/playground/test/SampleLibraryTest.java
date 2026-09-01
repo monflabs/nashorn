@@ -52,10 +52,10 @@ import org.testng.annotations.Test;
 public class SampleLibraryTest {
 
     @Test
-    public void theBundledLibraryHasTheThreeCategoriesInOrder() throws IOException {
+    public void theBundledLibraryHasTheFourCategoriesInOrder() throws IOException {
         final SampleLibrary library = SampleLibrary.load();
         final List<String> categories = library.root().children().stream().map(SampleLibrary.Node::name).toList();
-        assertEquals(categories, List.of("Getting started", "ECMAScript support", "Nashorn extensions"));
+        assertEquals(categories, List.of("Getting started", "ECMAScript support", "Nashorn extensions", "Standard libraries"));
         assertTrue(library.samples().size() > 40, "samples: " + library.samples().size());
         final Sample first = library.samples().get(0);
         assertEquals(first.title(), "Hello");
