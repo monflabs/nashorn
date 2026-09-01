@@ -163,7 +163,9 @@ public final class NativePromise extends ScriptObject {
         if (!newObj) {
             throw typeError("constructor.requires.new", "Promise");
         }
-        if (!(executor instanceof ScriptFunction function)) {
+        // 25.4.3.1 step 2 asks IsCallable, not "is a script function": a JSObject that says
+        // it is a function - a promise made by Java code - qualifies too
+        if (!Bootstrap.isCallable(executor)) {
             throw typeError("not.a.function", ScriptRuntime.safeToString(executor));
         }
 
@@ -171,7 +173,7 @@ public final class NativePromise extends ScriptObject {
         final NativePromise promise = allocate(global);
         final Settlers settlers = promise.settlers();
         try {
-            ScriptRuntime.apply(function, ScriptRuntime.UNDEFINED, settlers.resolve(), settlers.reject());
+            ScriptRuntime.call(executor, ScriptRuntime.UNDEFINED, new Object[] { settlers.resolve(), settlers.reject() });
         } catch (final ECMAException e) {
             // a throwing executor rejects the promise rather than propagating -
             // unless it had already resolved it, in which case 25.4.3.1 step 9

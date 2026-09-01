@@ -61,8 +61,8 @@ completes on another thread, `queueMicrotask`.
 
 ## Writing one of your own
 
-The libraries are ordinary `ScriptLibrary` implementations — one Java class each, a function
-object per entry with a `switch` on an enum, and for `fetch` a script half defining the classes over
-a Java transport. They are a reasonable template for a library of your own; the
+The libraries are ordinary `ScriptLibrary` implementations, entirely in Java — one class each, a
+function object per entry with a `switch` on an enum, and for `fetch` constructor objects that
+answer `new` and `instanceof`. They are a reasonable template for a library of your own; the
 [script libraries](../extending/script-libraries.md) page and the
 [extension APIs](../extending/apis.md) inventory cover what they use.

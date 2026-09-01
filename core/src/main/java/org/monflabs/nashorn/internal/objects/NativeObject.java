@@ -50,6 +50,7 @@ import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.GuardingDynamicLinker;
 import jdk.dynalink.linker.LinkRequest;
 import jdk.dynalink.linker.support.SimpleLinkRequest;
+import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.ScriptObjectMirror;
 import org.monflabs.nashorn.internal.lookup.Lookup;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
@@ -552,6 +553,9 @@ public final class NativeObject {
         if (obj instanceof ScriptObject) {
             final ScriptObject sobj = (ScriptObject)obj;
             return new NativeArray(sobj.getOwnKeys(false));
+        } else if (obj instanceof JSObject jsobj && !(obj instanceof ScriptObjectMirror)) {
+            // any other JSObject - one implemented in Java - answers with its key set
+            return new NativeArray(jsobj.keySet().toArray());
         } else if (obj instanceof ScriptObjectMirror) {
             final ScriptObjectMirror sobjMirror = (ScriptObjectMirror)obj;
             return new NativeArray(sobjMirror.getOwnKeys(false));

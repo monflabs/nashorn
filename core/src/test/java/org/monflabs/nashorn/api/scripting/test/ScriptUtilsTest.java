@@ -320,6 +320,23 @@ public class ScriptUtilsTest {
     }
 
     @Test
+    public void objectKeysOfAJSObjectAreItsKeySet() throws ScriptException {
+        final ScriptEngine e = new NashornScriptEngineFactory().getScriptEngine();
+        e.put("bag", new AbstractJSObject() {
+            @Override
+            public java.util.Set<String> keySet() {
+                return new java.util.LinkedHashSet<>(java.util.List.of("b", "a"));
+            }
+
+            @Override
+            public Object getMember(final String name) {
+                return name.length();
+            }
+        });
+        assertEquals(e.eval("Object.keys(bag).join()"), "b,a");
+    }
+
+    @Test
     public void mirrorsConvertWithoutARealmBound() throws InterruptedException {
         final double[] result = new double[1];
         final String[] text = new String[1];

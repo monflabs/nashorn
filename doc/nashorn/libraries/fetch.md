@@ -31,9 +31,10 @@ response has been handled, and several requests started together are in flight t
   `init.body` (a string; not allowed on GET and HEAD). Resolves with a `Response` for *any* HTTP
   status — `ok` says whether it was 2xx — and rejects with a `TypeError` for a network failure, an
   unresolvable host or a malformed URL.
-- **`Headers`** — case-insensitive names, `append`/`set`/`get`/`has`/`delete`, `forEach`,
-  `entries`/`keys`/`values` and iteration in name order, several values of one name joined with
-  `", "`; an invalid header name is a `TypeError`.
+- **`Headers`** — case-insensitive names, `append`/`set`/`get`/`has`/`delete`, `forEach`, and
+  `entries()`/`keys()`/`values()` as arrays in name order (`for (const [name, value] of
+  headers.entries())`), several values of one name joined with `", "`; an invalid header name is
+  a `TypeError`.
 - **`Request`** — `url`, `method`, `headers`, `text()`, `json()`, `clone()`.
 - **`Response`** — `status`, `statusText`, `ok`, `url`, `headers`, `bodyUsed`; `text()`,
   `json()`, `arrayBuffer()` (each usable once, then a `TypeError`), `clone()`; `new Response(body,
@@ -49,8 +50,11 @@ Streams (`response.body` as a `ReadableStream`), `AbortController`/`signal`, `Fo
 
 ## From Java
 
-`FetchLibrary` in `org.monflabs.nashorn.libs` is the transport: one Java function that sends the
-request through a shared `HttpClient` and, through the event loop's `pending()`, hands the
-response back on the script's thread. The classes and `fetch` itself are script, in the library's
-`fetch.js`, over that transport — the shape to copy for a library whose API is easiest written in
-JavaScript and whose work is Java's.
+`FetchLibrary` in `org.monflabs.nashorn.libs` is all Java: `Headers`, `Request` and `Response` are
+`JSObject`s — a constructor object per class that answers `new` and `instanceof`, a method object
+per entry of the class's enum with a `switch`, data properties through `getMember` — and `fetch`
+is a function object that sends the request through a shared `HttpClient` and, through the event
+loop's `pending()`, settles the promise on the script's thread. The promises, arrays, `JSON.parse`
+and `ArrayBuffer`s it hands out are made with the realm's own constructors, which is why the
+library installs itself from `initialize(global)` rather than `globals()`: it needs the global to
+get them from. It is the shape to copy for a library whose whole API must be Java.

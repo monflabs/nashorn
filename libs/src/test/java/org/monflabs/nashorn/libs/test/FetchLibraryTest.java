@@ -184,8 +184,13 @@ public class FetchLibraryTest {
         final ScriptEngine e = engine();
         assertEquals(e.eval("var h = new Headers({ 'Content-Type': 'text/plain', 'X-A': '1' }); h.append('x-a', '2'); h.set('X-B', ' spaced '); [h.get('content-type'), h.get('X-A'), h.has('x-b'), h.get('x-b'), h.get('nope')].join('|')"),
                 "text/plain|1, 2|true|spaced|");
-        assertEquals(e.eval("Array.from(h.keys()).join()"), "content-type,x-a,x-b");
-        assertEquals(e.eval("Array.from(h).map(function (p) { return p.join('='); }).join(';')"), "content-type=text/plain;x-a=1, 2;x-b=spaced");
+        assertEquals(e.eval("h.keys().join()"), "content-type,x-a,x-b");
+        assertEquals(e.eval("h.values().join('|')"), "text/plain|1, 2|spaced");
+        assertEquals(e.eval("h.entries().map(function (p) { return p.join('='); }).join(';')"), "content-type=text/plain;x-a=1, 2;x-b=spaced");
+        assertEquals(((Number)e.eval("var n = 0; for (var pair of h.entries()) { n += pair.length; } n")).intValue(), 6);
+        assertEquals(e.eval("[h instanceof Headers, ({}) instanceof Headers, String(h), Headers.name, typeof Headers].join()"), "true,false,[object Headers],Headers,function");
+        assertEquals(e.eval("try { Headers(); } catch (x) { x.name }"), "TypeError");
+        assertEquals(e.eval("try { h.get.call({}, 'x'); } catch (x) { x.name }"), "TypeError");
         assertEquals(e.eval("h.delete('x-a'); h.has('X-A')"), false);
         assertEquals(e.eval("var seen = []; h.forEach(function (v, k) { seen.push(k + ':' + v); }); seen.join()"), "content-type:text/plain,x-b:spaced");
         assertEquals(e.eval("try { new Headers({ 'bad header': 'x' }); } catch (x) { x.name }"), "TypeError");
@@ -200,5 +205,9 @@ public class FetchLibraryTest {
         assertEquals(e.eval("try { new Response('', { status: 99 }); } catch (x) { x.name }"), "RangeError");
         assertEquals(e.eval("try { new Request('" + base + "', { body: 'x' }); } catch (x) { x.name }"), "TypeError");
         assertEquals(e.eval("Response.error().ok"), false);
+        assertEquals(e.eval("Response.error().status"), 0);
+        assertEquals(e.eval("[r instanceof Response, new Request('" + base + "') instanceof Request, r instanceof Request, Object.keys(r).join()].join('|')"), "true|true|false|status,statusText,ok,url,headers,bodyUsed");
+        assertEquals(e.eval("var c = r.clone(); c.status + ':' + c.bodyUsed + ':' + r.bodyUsed"), "201:false:true");
+        assertEquals(e.eval("r.extra = 5; r.extra + ':' + ('extra' in r)"), "5:true");
     }
 }

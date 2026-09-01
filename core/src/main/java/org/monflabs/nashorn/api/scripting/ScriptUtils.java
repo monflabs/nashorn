@@ -499,6 +499,11 @@ public final class ScriptUtils {
         return JSType.isPrimitive(value) && !JSType.nullOrUndefined(value);
     }
 
+    /** An exception made here has its error object ready for getEcmaError(), as one that crossed out of a script would. */
+    private static NashornException withErrorObject(final NashornException exception) {
+        return exception.initEcmaError(realm());
+    }
+
     /** The current realm, or a plain refusal when there is none - which an NPE deep inside would not say. */
     private static Global realm() {
         final Global global = Context.getGlobal();
@@ -563,7 +568,7 @@ public final class ScriptUtils {
      * @since 2017.0.0
      */
     public static NashornException typeError(final String message) {
-        return new ECMAException(realm().newTypeError(message), null);
+        return withErrorObject(new ECMAException(realm().newTypeError(message), null));
     }
 
     /**
@@ -575,7 +580,7 @@ public final class ScriptUtils {
      * @since 2017.0.0
      */
     public static NashornException error(final String message) {
-        return new ECMAException(realm().newError(message), null);
+        return withErrorObject(new ECMAException(realm().newError(message), null));
     }
 
     /**
@@ -587,6 +592,6 @@ public final class ScriptUtils {
      * @since 2017.0.0
      */
     public static NashornException rangeError(final String message) {
-        return new ECMAException(realm().newRangeError(message), null);
+        return withErrorObject(new ECMAException(realm().newRangeError(message), null));
     }
 }
