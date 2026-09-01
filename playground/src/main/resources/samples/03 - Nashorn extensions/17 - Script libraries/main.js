@@ -7,8 +7,13 @@ var ScriptLibrary = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary'
 var Script        = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary.Script');
 var Factory       = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory');
 
+var AbstractJSObject = Java.type('org.monflabs.nashorn.api.scripting.AbstractJSObject');
 var globals = new java.util.LinkedHashMap();
 globals.put('TAU', 2 * Math.PI);                       // a number
+globals.put('area', new AbstractJSObject({             // a function implemented in Java (well: a Java adapter)
+    isFunction: function () { return true; },
+    call: function (thiz, args) { var r = args[0]; return Math.PI * r * r; }
+}));
 globals.put('clock', java.time.Clock.systemUTC());     // any Java object
 
 var geometry = ScriptLibrary.of('geometry', globals, Script.of('geometry.js', snippet.text('geometry.js')));
@@ -16,7 +21,7 @@ print(geometry.name(), '- scripts:', geometry.scripts().size(), '- globals:', ge
 
 // An engine built with the library: the globals are simply there
 var engine = new Factory().getScriptEngine(geometry);
-print(engine.eval('circumference(1)'));
+print(engine.eval('circumference(1)'), '/', engine.eval('area(1)'));
 print(engine.eval('JSON.stringify(shapes.circle(2))'));
 print(engine.eval('clock.instant().getClass().getSimpleName()'), '- a Java value, used through the interop');
 

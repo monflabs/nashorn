@@ -38,17 +38,36 @@ that throws, a resource that is missing, an initializer that throws — fails th
 
 ## A worked example
 
-Say you want every script to have `TAU`, a `circumference(r)` function, and a `clock` object backed
-by Java. Put the script part in a resource next to a class:
+Say you want every script to have `TAU`, an `area(r)` function **implemented in Java**, a
+`circumference(r)` function written in script, and a `clock` object backed by Java. The script part
+goes in a resource next to a class — and it may use the Java globals freely, since those are defined
+before it runs:
 
 ```js
 // src/main/resources/com/example/geometry/geometry.js
 function circumference(r) { return TAU * r; }
-function area(r)          { return TAU / 2 * r * r; }
 
 var shapes = {
     circle: function (r) { return { radius: r, area: area(r), circumference: circumference(r) }; }
-};
+};                                            // area is the Java function below
+```
+
+The Java function is a `JSObject` — `AbstractJSObject` with `isFunction()` and `call` — which a
+script calls like any other function:
+
+```java
+package com.example.geometry;
+
+import org.monflabs.nashorn.api.scripting.AbstractJSObject;
+
+public class Area extends AbstractJSObject {
+    @Override public boolean isFunction() { return true; }
+
+    @Override public Object call(Object thiz, Object... args) {
+        double r = ((Number) args[0]).doubleValue();
+        return Math.PI * r * r;
+    }
+}
 ```
 
 Then describe the library. Either implement the interface:
@@ -57,6 +76,7 @@ Then describe the library. Either implement the interface:
 package com.example.geometry;
 
 import java.time.Clock;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
@@ -65,7 +85,11 @@ public class GeometryLibrary implements ScriptLibrary {
     @Override public String name() { return "geometry"; }
 
     @Override public Map<String, Object> globals() {
-        return Map.of("TAU", 2 * Math.PI, "clock", Clock.systemUTC());   // any Java object will do
+        Map<String, Object> globals = new LinkedHashMap<>();    // defined in this order
+        globals.put("TAU", 2 * Math.PI);                        // a number
+        globals.put("area", new Area());                        // a function implemented in Java
+        globals.put("clock", Clock.systemUTC());                // any Java object will do
+        return globals;
     }
 
     @Override public List<Script> scripts() {
@@ -78,13 +102,13 @@ or let `ScriptLibrary.of` build it from the same parts:
 
 ```java
 ScriptLibrary geometry = ScriptLibrary.of("geometry",
-        Map.of("TAU", 2 * Math.PI, "clock", Clock.systemUTC()),
+        Map.of("TAU", 2 * Math.PI, "area", new Area(), "clock", Clock.systemUTC()),
         Script.ofResource(GeometryLibrary.class, "geometry.js"));
 ```
 
 A global value can be any Java object — scripts use it through the ordinary Java interop
-(`clock.instant()`) — or a `JSObject` when it should behave like a native function or object; the
-[custom objects](custom-objects.md) guide covers that.
+(`clock.instant()`) — or a `JSObject` when it should behave like a native function or object, as
+`area` does; the [custom objects](custom-objects.md) guide covers `JSObject` in depth.
 
 ### Extending what is already there
 
@@ -136,7 +160,7 @@ declared.
 
 ```java
 ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(geometry);
-engine.eval("print(circumference(1), shapes.circle(2).area, clock.instant())");
+engine.eval("print(circumference(1), area(2), shapes.circle(2).area, clock.instant())");
 
 Bindings other = engine.createBindings();
 engine.eval("print(typeof circumference)", other);       // function - every global has it
