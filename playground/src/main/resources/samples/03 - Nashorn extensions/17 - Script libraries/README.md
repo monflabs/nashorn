@@ -22,5 +22,5 @@ and every engine whose class loader sees the jar picks it up. `--libraries=all|n
 selects among discovered libraries; an explicit one always applies and replaces a discovered
 library of the same name.
 
-The *Script libraries* page of the user's guide (`doc/nashorn/guide/script-libraries.md`) walks
+The *Script libraries* page of the documentation's *Extending the engine* section (`doc/nashorn/extending/script-libraries.md`) walks
 through writing, packaging and registering one.

@@ -6,7 +6,6 @@
   - [Using the engine](/guide/using-the-engine.md)
   - [Connecting with Java](/guide/connecting-with-java.md)
   - [Custom objects and extensions](/guide/custom-objects.md)
-  - [Script libraries](/guide/script-libraries.md)
   - [Dynalink custom linkers](/guide/dynalink-linkers.md)
   - [ES modules](/guide/modules.md)
   - [Scripting mode](/guide/scripting-mode.md)
@@ -14,6 +13,10 @@
   - [Threads and concurrency](/guide/concurrency.md)
   - [Debugging scripts](/guide/debugging.md)
   - [The playground](/guide/playground.md)
+
+- **Extending the engine**
+  - [Extension APIs](/extending/apis.md)
+  - [Script libraries](/extending/script-libraries.md)
 
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)

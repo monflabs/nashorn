@@ -26,7 +26,7 @@ ScriptEngine everything = factory.getScriptEngine(options, myClassLoader, myClas
 - The **[`ClassFilter`](custom-objects.md#classfilter)** is consulted before any Java class becomes
   visible to a script — one method, `exposeToScripts(String className)`.
 - The **options** are the same strings as the [command line](../reference/options.md).
-- The **[script libraries](script-libraries.md)** are bundles of globals and scripts installed into
+- The **[script libraries](../extending/script-libraries.md)** are bundles of globals and scripts installed into
   every global the engine creates; the ones passed here join those discovered as services.
 
 !> The no-argument factory methods use a default option set of `{"-doe"}` (dump stack traces on

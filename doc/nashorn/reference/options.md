@@ -27,7 +27,7 @@ which are `{"-doe"}` — add `-doe` back if you still want stack traces dumped o
 | `--help` | `-h` | | Print the help message. |
 | `--inspect` | | | `--inspect[=[host:]port]` — listen for a Chrome DevTools Protocol client, on `127.0.0.1:9229` by default, and run. Needs the `nashorn-debugger` artifact. |
 | `--inspect-brk` | | | Like `--inspect`, but wait for the client to attach and pause at the first statement. |
-| `--libraries` | | `all` | `--libraries=all|none|name,...` — which of the script libraries registered as services apply to every global; libraries passed to the engine factory always apply. See [Script libraries](../guide/script-libraries.md). |
+| `--libraries` | | `all` | `--libraries=all|none|name,...` — which of the script libraries registered as services apply to every global; libraries passed to the engine factory always apply. See [Script libraries](../extending/script-libraries.md). |
 | `--language` | | `es6` | Accepted for compatibility with old command lines; `es6` is the only value. There is no ES5 mode — asking for `es5` is an error. |
 | `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
 | `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |

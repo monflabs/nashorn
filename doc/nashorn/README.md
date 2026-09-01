@@ -30,11 +30,15 @@ web-compatibility extensions of Annex B are on by default and removable with `--
 
 **[User's Guide](guide/getting-started.md)** — for embedding and using the engine: adding the
 dependency, creating and configuring engines, calling script from Java and Java from script,
-building custom host objects, script libraries that extend every engine, ES modules, scripting mode, the parser API. It ends with [debugging
+building custom host objects, ES modules, scripting mode, the parser API. It ends with [debugging
 scripts](guide/debugging.md) from Chrome DevTools or VS Code, and with [the
 playground](guide/playground.md) — a runnable sample browser (`java -jar
 playground/target/nashorn-playground-2017.0.0-all.jar` after `mvn -pl playground -am package`) whose
 library walks the language and the extensions one sample at a time.
+
+**[Extending the engine](extending/apis.md)** — for giving scripts more than the language: the
+public APIs an extension is built from, and [script libraries](extending/script-libraries.md), which
+install globals, scripts and prototype extensions into every global an engine creates.
 
 **[Technical Guide](internals/architecture.md)** — for reading or changing the engine: the compiler
 pipeline, optimistic typing, how objects, arrays, strings and call sites really work, generators on

@@ -118,7 +118,7 @@ ScriptLibrary geometry = ScriptLibrary.of("geometry",
 
 A global value can be any Java object — scripts use it through the ordinary Java interop
 (`clock.instant()`) — or a `JSObject` when it should behave like a native function or object, as
-`area` does; the [custom objects](custom-objects.md) guide covers `JSObject` in depth.
+`area` does; the [custom objects](../guide/custom-objects.md) guide covers `JSObject` in depth.
 
 ### Script values in Java hands
 
@@ -251,5 +251,5 @@ new NashornScriptEngineFactory().getScriptEngine("--libraries=none");   // a bar
   discovered library is present there as well — handy for a house REPL, and worth `--libraries=none`
   when you want a clean engine.
 
-The playground's *Nashorn extensions → Script libraries* sample builds a library from a script tab
+The [playground](../guide/playground.md)'s *Nashorn extensions → Script libraries* sample builds a library from a script tab
 and a Java value, hands it to a second engine, and runs code against it.
