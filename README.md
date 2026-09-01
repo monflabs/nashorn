@@ -30,7 +30,7 @@ Documentation
 [View the JavaDoc](https://www.javadoc.io/doc/org.monflabs.nashorn/nashorn-core).
 
 This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md): a user's guide
-(embedding, Java interop, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
+(embedding, Java interop, [script libraries](doc/nashorn/guide/script-libraries.md) that extend every engine, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
 `mvn -pl playground -am package && java -jar playground/target/nashorn-playground-20-all.jar`.

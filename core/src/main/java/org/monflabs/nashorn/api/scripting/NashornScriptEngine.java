@@ -28,11 +28,13 @@ package org.monflabs.nashorn.api.scripting;
 import static org.monflabs.nashorn.internal.runtime.Source.sourceFor;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Reader;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.MessageFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.ResourceBundle;
@@ -97,7 +99,7 @@ public final class NashornScriptEngine extends AbstractScriptEngine implements C
         }
     }
 
-    NashornScriptEngine(final NashornScriptEngineFactory factory, final String[] args, final ClassLoader appLoader, final ClassFilter classFilter) {
+    NashornScriptEngine(final NashornScriptEngineFactory factory, final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         assert args != null : "null argument array";
         this.factory = factory;
         final Options options = new Options("nashorn");
@@ -107,7 +109,7 @@ public final class NashornScriptEngine extends AbstractScriptEngine implements C
         final ErrorManager errMgr = new Context.ThrowErrorManager();
         // create new Nashorn Context
         try {
-            this.nashornContext = new Context(options, errMgr, appLoader, classFilter);
+            this.nashornContext = new Context(options, errMgr, new PrintWriter(System.out, true), new PrintWriter(System.err, true), appLoader, classFilter, libraries);
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();

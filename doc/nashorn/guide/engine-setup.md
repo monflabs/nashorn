@@ -17,6 +17,8 @@ ScriptEngine filtered   = factory.getScriptEngine(myClassFilter);
 ScriptEngine optioned   = factory.getScriptEngine("--annexB=false", "-strict");
 ScriptEngine both       = factory.getScriptEngine(options, myClassLoader);
 ScriptEngine all        = factory.getScriptEngine(options, myClassLoader, myClassFilter);
+ScriptEngine extended   = factory.getScriptEngine(myLibrary, anotherLibrary);            // script libraries
+ScriptEngine everything = factory.getScriptEngine(options, myClassLoader, myClassFilter, List.of(myLibrary));
 ```
 
 - The **class loader** is what scripts see when they reach for Java classes (`Java.type`,
@@ -24,6 +26,8 @@ ScriptEngine all        = factory.getScriptEngine(options, myClassLoader, myClas
 - The **[`ClassFilter`](custom-objects.md#classfilter)** is consulted before any Java class becomes
   visible to a script — one method, `exposeToScripts(String className)`.
 - The **options** are the same strings as the [command line](../reference/options.md).
+- The **[script libraries](script-libraries.md)** are bundles of globals and scripts installed into
+  every global the engine creates; the ones passed here join those discovered as services.
 
 !> The no-argument factory methods use a default option set of `{"-doe"}` (dump stack traces on
 error). Passing your own `String... args` **replaces** that default rather than adding to it — if

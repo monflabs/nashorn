@@ -180,6 +180,18 @@ parameter visible.
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
 
+## Script libraries
+
+`api.scripting.ScriptLibrary` is the second service the engine consumes (after `DebuggerFrontend`):
+`Context` resolves the providers its app class loader offers, filtered by `--libraries`, plus the
+ones the factory was handed explicitly (never filtered; override by name), and `initGlobal`
+installs them into **every** global right after `initBuiltinObjects` - inside the same
+`runWithGlobal`, so scripts see the realm. Do **not** register a test library under
+`core/src/test/resources/META-INF/services`: it would land in every engine the suite creates, and
+four tests enumerate the global's properties (`globals.js`, `JDK-8015830.js`, `parser-es6.js`,
+`noEnumerablePropertiesTest`). `ScriptLibraryTest` instead writes a services directory to a temp
+path and hands a `URLClassLoader` over it to the factory (and `-cp` to the shell).
+
 ## The playground
 
 `playground/` is a Swing application over `nashorn-core` + `nashorn-debugger`: a sample library

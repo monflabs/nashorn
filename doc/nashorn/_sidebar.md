@@ -6,6 +6,7 @@
   - [Using the engine](/guide/using-the-engine.md)
   - [Connecting with Java](/guide/connecting-with-java.md)
   - [Custom objects and extensions](/guide/custom-objects.md)
+  - [Script libraries](/guide/script-libraries.md)
   - [Dynalink custom linkers](/guide/dynalink-linkers.md)
   - [ES modules](/guide/modules.md)
   - [Scripting mode](/guide/scripting-mode.md)

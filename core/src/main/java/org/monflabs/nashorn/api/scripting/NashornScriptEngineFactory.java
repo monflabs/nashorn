@@ -151,7 +151,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     @Override
     public ScriptEngine getScriptEngine() {
         try {
-            return new NashornScriptEngine(this, DEFAULT_OPTIONS, getAppClassLoader(), null);
+            return new NashornScriptEngine(this, DEFAULT_OPTIONS, getAppClassLoader(), null, List.of());
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();
@@ -217,9 +217,58 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
         return newEngine(Objects.requireNonNull(args), appLoader, Objects.requireNonNull(classFilter));
     }
 
+    /**
+     * Create a new Script engine with these script libraries, besides the ones
+     * discovered as services. They apply to every global the engine creates.
+     *
+     * @param libraries the libraries
+     * @return newly created script engine.
+     * @throws NullPointerException if {@code libraries} or one of them is {@code null}
+     * @since 2017.0.0
+     */
+    public ScriptEngine getScriptEngine(final ScriptLibrary... libraries) {
+        return newEngine(DEFAULT_OPTIONS, getAppClassLoader(), null, List.of(libraries));
+    }
+
+    /**
+     * Create a new Script engine initialized with the given arguments and
+     * these script libraries, besides the ones discovered as services.
+     *
+     * @param args arguments array passed to script engine.
+     * @param libraries the libraries
+     * @return newly created script engine.
+     * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
+     * @since 2017.0.0
+     */
+    public ScriptEngine getScriptEngine(final String[] args, final ScriptLibrary... libraries) {
+        return newEngine(Objects.requireNonNull(args), getAppClassLoader(), null, List.of(libraries));
+    }
+
+    /**
+     * Create a new Script engine initialized with the given arguments, class
+     * loader, class filter and script libraries. The libraries apply to every
+     * global the engine creates, whatever the {@code --libraries} option
+     * says, and each replaces a discovered library of the same name.
+     *
+     * @param args arguments array passed to script engine.
+     * @param appLoader class loader to be used as script "app" class loader; null for the default
+     * @param classFilter class filter to use; null for none
+     * @param libraries the libraries
+     * @return newly created script engine.
+     * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
+     * @since 2017.0.0
+     */
+    public ScriptEngine getScriptEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
+        return newEngine(Objects.requireNonNull(args), appLoader != null ? appLoader : getAppClassLoader(), classFilter, List.copyOf(libraries));
+    }
+
     private ScriptEngine newEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter) {
+        return newEngine(args, appLoader, classFilter, List.of());
+    }
+
+    private ScriptEngine newEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         try {
-            return new NashornScriptEngine(this, args, appLoader, classFilter);
+            return new NashornScriptEngine(this, args, appLoader, classFilter, libraries);
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();

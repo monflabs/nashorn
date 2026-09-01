@@ -63,6 +63,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Collections;
 import java.util.WeakHashMap;
@@ -86,6 +87,7 @@ import java.util.stream.Stream;
 import javax.script.ScriptEngine;
 import jdk.dynalink.DynamicLinker;
 import org.monflabs.nashorn.api.scripting.ClassFilter;
+import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptObjectMirror;
 import org.monflabs.nashorn.internal.WeakValueCache;
 import org.monflabs.nashorn.internal.codegen.Compiler;
@@ -531,6 +533,9 @@ public final class Context {
     /** Optional class filter to use for Java classes. Can be null. */
     private final ClassFilter classFilter;
 
+    /** The script libraries every global of this context gets, in order. */
+    private final List<ScriptLibrary> libraries;
+
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;
     private static final ConcurrentMap<String, Class<?>> structureClasses = new ConcurrentHashMap<>();
@@ -606,6 +611,21 @@ public final class Context {
      * @param classFilter class filter to use
      */
     public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter) {
+        this(options, errors, out, err, appLoader, classFilter, List.of());
+    }
+
+    /**
+     * Constructor
+     *
+     * @param options options from command line or Context creator
+     * @param errors  error manger
+     * @param out     output writer for this Context
+     * @param err     error writer for this Context
+     * @param appLoader application class loader
+     * @param classFilter class filter to use
+     * @param libraries script libraries to apply to every global, besides the ones discovered as services
+     */
+    public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         this.classFilter = classFilter;
         this.env       = new ScriptEnvironment(options, out, err);
         this._strict   = env._strict;
@@ -638,6 +658,7 @@ public final class Context {
 
         this.appLoader = appCl;
         this.dynamicLinker = Bootstrap.createDynamicLinker(this.appLoader, env._unstable_relink_threshold);
+        this.libraries = env._compile_only ? List.of() : ScriptLibraries.resolve(env._libraries, ScriptLibraries.listOf(libraries), this.appLoader);
 
         final int cacheSize = env._class_cache_size;
         if (cacheSize > 0) {
@@ -1410,8 +1431,11 @@ public final class Context {
         }
         // Need only minimal global object, if we are just compiling.
         if (!env._compile_only) {
-            // initialize global scope with builtin global objects
-            Context.runWithGlobal(global, () -> global.initBuiltinObjects(engine));
+            // initialize global scope with builtin global objects, then the libraries' contributions
+            Context.runWithGlobal(global, () -> {
+                global.initBuiltinObjects(engine);
+                ScriptLibraries.install(this, global, libraries);
+            });
         }
         if (debugger != null) {
             debugger.globalCreated(global);
@@ -1540,7 +1564,7 @@ public final class Context {
         return ClassLoader.getSystemResource(resName);
     }
 
-    private Object evaluateSource(final Source source, final ScriptObject scope, final ScriptObject thiz) {
+    Object evaluateSource(final Source source, final ScriptObject scope, final ScriptObject thiz) {
         ScriptFunction script = null;
 
         try {
