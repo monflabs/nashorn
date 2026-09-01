@@ -2,60 +2,63 @@
 // Headers, Request and Response as the WHATWG specification has them. The
 // request runs on the JDK's HttpClient and the promise settles on the
 // script's thread through the event loop, so async/await reads naturally.
-//
-// To stay self-contained, this sample serves its own responses from the JDK's
-// HTTP server, started right here.
-var HttpServer = Java.type('com.sun.net.httpserver.HttpServer');
-var server = HttpServer.create(new java.net.InetSocketAddress('127.0.0.1', 0), 0);
+// These calls go to public APIs that need no key - so this sample needs
+// the network, and says so if it has none.
 
-function respond(exchange, status, type, text) {
-    var bytes = new java.lang.String(text).getBytes('UTF-8');
-    exchange.getResponseHeaders().add('Content-Type', type);
-    exchange.sendResponseHeaders(status, bytes.length);
-    var out = exchange.getResponseBody();
-    out.write(bytes);
-    out.close();
+// Current weather in Paris, from Open-Meteo (https://open-meteo.com)
+async function weather(city, latitude, longitude) {
+    var response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current_weather=true');
+    print(city + ':', response.status, response.statusText, '-', response.headers.get('content-type'));
+    var data = await response.json();
+    var now = data.current_weather;
+    print('  ' + now.temperature + ' ' + data.current_weather_units.temperature + ', wind ' + now.windspeed + ' ' + data.current_weather_units.windspeed + ', at ' + now.time);
 }
-server.createContext('/hello', function (exchange) {
-    respond(exchange, 200, 'application/json', JSON.stringify({ greeting: 'hello', from: 'a server this script started' }));
-});
-server.createContext('/echo', function (exchange) {
-    var body = new java.lang.String(exchange.getRequestBody().readAllBytes(), 'UTF-8');
-    respond(exchange, 201, 'text/plain', exchange.getRequestMethod() + ' ' + exchange.getRequestHeaders().getFirst('X-Sample') + ' "' + body + '"');
-});
-server.createContext('/missing', function (exchange) {
-    respond(exchange, 404, 'text/plain', 'nothing here');
-});
-server.start();
-var base = 'http://127.0.0.1:' + server.getAddress().getPort();
+
+// A GitHub repository, from the GitHub REST API (60 unauthenticated calls an hour)
+async function repository(name) {
+    var response = await fetch('https://api.github.com/repos/' + name, { headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'nashorn-playground' } });
+    if (!response.ok) {                     // an HTTP error resolves - ok says whether it was 2xx
+        print(name + ':', response.status, response.statusText, '-', (await response.json()).message);
+        return;
+    }
+    var repo = await response.json();
+    print(name + ':', repo.description);
+    print('  ' + repo.stargazers_count + ' stars, ' + repo.forks_count + ' forks, default branch ' + repo.default_branch + ', updated ' + repo.updated_at);
+}
 
 (async function () {
     try {
-        var response = await fetch(base + '/hello');
-        print(response.status, response.statusText, response.ok, response.headers.get('content-type'));
-        var data = await response.json();
-        print(JSON.stringify(data));
+        await weather('Paris', 48.85, 2.35);
+        await weather('Tokyo', 35.68, 139.69);
 
-        var posted = await fetch(base + '/echo', { method: 'POST', headers: { 'X-Sample': 'fetch' }, body: 'payload' });
-        print(posted.status, await posted.text());
+        await repository('openjdk/nashorn');
+        await repository('openjdk/no-such-repository');   // a 404: resolved, with ok false
 
-        var missing = await fetch(base + '/missing');
-        print(missing.status, missing.ok, '-', await missing.text());
+        // several requests in flight at once
+        var started = Date.now();
+        var cities = await Promise.all([
+            fetch('https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&current_weather=true'),
+            fetch('https://api.open-meteo.com/v1/forecast?latitude=-33.87&longitude=151.21&current_weather=true'),
+            fetch('https://api.open-meteo.com/v1/forecast?latitude=51.51&longitude=-0.13&current_weather=true')
+        ]);
+        var temperatures = [];
+        for (var response of cities) {
+            temperatures.push((await response.json()).current_weather.temperature);
+        }
+        print('New York, Sydney, London at once:', temperatures.join(' / '), 'in', Date.now() - started, 'ms');
 
-        var both = await Promise.all([fetch(base + '/hello'), fetch(base + '/hello')]);
-        print(both.length, 'requests in flight at once, both', both[0].status);
-
+        // Headers: case-insensitive, several values joined
         var headers = new Headers({ 'Accept': 'application/json' });
         headers.append('accept', 'text/plain');
         print('Headers are case-insensitive and joined:', headers.get('ACCEPT'));
-
-        try {
-            await fetch('http://127.0.0.1:1/nothing-listens-here');
-        } catch (e) {
-            print('a network failure rejects:', e.name, '-', e.message);
-        }
-    } finally {
-        server.stop(0);
+    } catch (e) {
+        // a network or DNS failure rejects with a TypeError
+        print('No network? fetch rejected with', e.name + ':', e.message);
+    }
+    try {
+        await fetch('http://127.0.0.1:1/nothing-listens-here');
+    } catch (e) {
+        print('A connection refused rejects too:', e.name, '-', e.message);
     }
 })();
 

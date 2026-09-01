@@ -24,7 +24,7 @@ The tree on the left holds three categories, read straight out of the jar's reso
   `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
   scripting mode, the JSR-223 engine driven from script, script libraries, and a debugging sample.
 * **Standard libraries** — the `nashorn-libs` host functions on the event loop: timers,
-  microtasks, Base64, and `fetch` against a server the sample starts itself.
+  microtasks, Base64, and `fetch` against public APIs (Open-Meteo weather, GitHub).
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
 editor and console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
