@@ -1184,6 +1184,12 @@ public final class Global extends Scope {
     private ScriptFunction builtinWeakSet;
     private ScriptObject   builtinIteratorPrototype;
     private ScriptObject   builtinMapIteratorPrototype;
+
+    // the fetch standard library's classes, installed on request rather than with the language
+    private ScriptFunction builtinHeaders;
+    private ScriptFunction builtinRequest;
+    private ScriptFunction builtinResponse;
+    private ScriptObject   builtinHeadersIteratorPrototype;
     private ScriptObject   builtinSetIteratorPrototype;
     private ScriptObject   builtinArrayIteratorPrototype;
     private ScriptObject   builtinStringIteratorPrototype;
@@ -2115,6 +2121,58 @@ public final class Global extends Scope {
 
     ScriptObject getSymbolPrototype() {
         return ScriptFunction.getPrototype(getBuiltinSymbol());
+    }
+
+    ScriptObject getHeadersPrototype() {
+        return ScriptFunction.getPrototype(builtinHeaders);
+    }
+
+    ScriptObject getRequestPrototype() {
+        return ScriptFunction.getPrototype(builtinRequest);
+    }
+
+    ScriptObject getResponsePrototype() {
+        return ScriptFunction.getPrototype(builtinResponse);
+    }
+
+    ScriptObject getHeadersIteratorPrototype() {
+        if (builtinHeadersIteratorPrototype == null) {
+            builtinHeadersIteratorPrototype = initPrototype("HeadersIterator", getIteratorPrototype());
+        }
+        return builtinHeadersIteratorPrototype;
+    }
+
+    /**
+     * Installs the fetch standard library's classes and function into this
+     * global - Headers, Request, Response as built-ins with their prototypes
+     * and switch points, and fetch - as non-enumerable properties. Once.
+     *
+     * @param fetch the fetch function
+     */
+    public void installFetchLibrary(final ScriptFunction fetch) {
+        if (builtinHeaders != null) {
+            return;
+        }
+        builtinHeaders = initConstructorAndSwitchPoint("Headers", ScriptFunction.class);
+        alias(ScriptFunction.getPrototype(builtinHeaders), NativeSymbol.iterator, "entries");
+        builtinRequest = initConstructorAndSwitchPoint("Request", ScriptFunction.class);
+        builtinResponse = initConstructorAndSwitchPoint("Response", ScriptFunction.class);
+        installLibraryFunction("Headers", builtinHeaders);
+        installLibraryFunction("Request", builtinRequest);
+        installLibraryFunction("Response", builtinResponse);
+        installLibraryFunction("fetch", fetch);
+    }
+
+    /**
+     * Defines a standard library's function as a non-enumerable property of
+     * this global, as the language's own functions are.
+     *
+     * @param name the name
+     * @param function the function
+     */
+    public void installLibraryFunction(final String name, final ScriptFunction function) {
+        function.setIsBuiltin();
+        addOwnProperty(name, Attribute.NOT_ENUMERABLE, function);
     }
 
     ScriptObject getMapPrototype() {

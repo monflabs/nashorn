@@ -26,20 +26,12 @@
 /**
  * The standard libraries: what a script expects from its host beyond the
  * language, as {@link org.monflabs.nashorn.api.scripting.ScriptLibrary}
- * services every engine discovers - the {@code host} library (timers,
+ * services the engine itself provides - the {@code host} library (timers,
  * {@code queueMicrotask}, {@code atob}/{@code btoa}) and the {@code fetch}
  * library ({@code fetch}, {@code Headers}, {@code Request}, {@code Response}).
+ * Every engine has them unless {@code --libraries} says otherwise; either can
+ * also be passed to the engine factory explicitly.
  *
- * @moduleGraph
  * @since 2017.0.0
  */
-module org.monflabs.nashorn.libs {
-    requires transitive org.monflabs.nashorn;
-    requires java.net.http;
-
-    exports org.monflabs.nashorn.libs;
-
-    provides org.monflabs.nashorn.api.scripting.ScriptLibrary with
-        org.monflabs.nashorn.libs.HostLibrary,
-        org.monflabs.nashorn.libs.FetchLibrary;
-}
+package org.monflabs.nashorn.libs;

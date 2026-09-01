@@ -1,7 +1,7 @@
 # Timers
 
-`setTimeout`, `setInterval`, `clearTimeout` and `clearInterval` from the **host** library of
-`nashorn-libs`, with WHATWG semantics: a delay in milliseconds, extra arguments passed to the
+`setTimeout`, `setInterval`, `clearTimeout` and `clearInterval` from the **host** standard
+library, with WHATWG semantics: a delay in milliseconds, extra arguments passed to the
 callback, small positive integer ids, `clearTimeout` and `clearInterval` interchangeable.
 
 The callbacks run on the engine's **event loop**, on the script's own thread, once the delay has

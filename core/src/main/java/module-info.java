@@ -140,6 +140,7 @@ ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn-
  * @since 9
  */
 module org.monflabs.nashorn {
+    requires java.net.http;
     requires java.logging;
     requires jdk.dynalink;
     requires jdk.unsupported;
@@ -149,9 +150,13 @@ module org.monflabs.nashorn {
     exports org.monflabs.nashorn.api.scripting;
     exports org.monflabs.nashorn.api.tree;
     exports org.monflabs.nashorn.api.debugger;
+    exports org.monflabs.nashorn.libs;
 
     uses org.monflabs.nashorn.api.debugger.DebuggerFrontend;
     uses org.monflabs.nashorn.api.scripting.ScriptLibrary;
+    provides org.monflabs.nashorn.api.scripting.ScriptLibrary with
+        org.monflabs.nashorn.libs.HostLibrary,
+        org.monflabs.nashorn.libs.FetchLibrary;
 
     exports org.monflabs.nashorn.internal.runtime to
         org.monflabs.nashorn.shell;

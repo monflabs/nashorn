@@ -61,11 +61,6 @@ questions.
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.monflabs.nashorn</groupId>
-      <artifactId>nashorn-libs</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
       <groupId>com.fifesoft</groupId>
       <artifactId>rsyntaxtextarea</artifactId>
       <version>${rsyntaxtextarea.version}</version>

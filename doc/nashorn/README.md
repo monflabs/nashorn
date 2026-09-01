@@ -41,7 +41,7 @@ public APIs an extension is built from, and [script libraries](extending/script-
 install globals, scripts and prototype extensions into every global an engine creates.
 
 **[Standard Libraries](libraries/overview.md)** — what a script expects from its host beyond the
-language, as the `nashorn-libs` artifact: [timers, `queueMicrotask` and Base64](libraries/host.md),
+language, shipped inside the engine: [timers, `queueMicrotask` and Base64](libraries/host.md),
 and [`fetch`](libraries/fetch.md), on an event loop that lets `eval` return when the script is idle.
 
 **[Technical Guide](internals/architecture.md)** — for reading or changing the engine: the compiler

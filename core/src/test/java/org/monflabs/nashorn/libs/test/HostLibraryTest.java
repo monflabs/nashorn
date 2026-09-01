@@ -51,6 +51,11 @@ public class HostLibraryTest {
         assertEquals(e.eval("[typeof setTimeout, typeof clearTimeout, typeof setInterval, typeof clearInterval, typeof queueMicrotask, typeof atob, typeof btoa].join()"),
                 "function,function,function,function,function,function,function");
         assertEquals(e.eval("setTimeout.name"), "setTimeout");
+        // real functions: Function.prototype applies, and they are non-enumerable like the language's own
+        assertEquals(e.eval("typeof setTimeout.call + ':' + (Object.getPrototypeOf(btoa) === Function.prototype)"), "function:true");
+        assertEquals(e.eval("btoa.call(null, 'x')"), "eA==");
+        assertEquals(e.eval("Object.getOwnPropertyDescriptor(this, 'setTimeout').enumerable"), false);
+        assertEquals(e.eval("var seen = []; for (var k in this) { if (k === 'fetch' || k === 'setTimeout') seen.push(k); } seen.length"), 0);
         assertEquals(new NashornScriptEngineFactory().getScriptEngine("--libraries=none").eval("typeof setTimeout"), "undefined");
         assertEquals(new NashornScriptEngineFactory().getScriptEngine(new String[] { "--libraries=none" }, new HostLibrary()).eval("typeof setTimeout"), "function");
     }

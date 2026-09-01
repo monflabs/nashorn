@@ -24,7 +24,6 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `core` | `nashorn-core` | **yes** — the engine |
 | `shell` | `nashorn-shell` | no — the `jjs` REPL |
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
-| `libs` | `nashorn-libs` | **yes** — the standard libraries (`host`: timers, `queueMicrotask`, `atob`/`btoa`; `fetch`), as `ScriptLibrary` services |
 | `playground` | `nashorn-playground` | no — a Swing sample browser, shaded into an executable `-all` jar |
 
 `shell` reaches into JDK-internal `jdk.internal.le` / `jdk.internal.ed` via `--add-exports`, so it constrains which JDKs can build the reactor. It is the piece most likely to break on a future JDK.
@@ -200,9 +199,14 @@ by `ScriptRuntime.apply` when the per-thread script depth returns to zero - runs
 then macrotasks (timers in a priority queue, tasks posted from other threads, and a count of
 pending operations that keeps the loop waiting) until idle. **`eval` returns when the script is
 idle**; a script that schedules nothing is unaffected. Interruption abandons everything, which is
-what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`. `libs/` holds the
-`host` and `fetch` libraries built on it, registered as services; a test that leaves an interval
-running blocks its `eval` forever, so clear intervals in the same eval and give tests a timeout.
+what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`. The standard
+libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrary`, registered as
+`ScriptLibrary` services by core's own descriptor and `META-INF/services`) over `@ScriptClass`
+built-ins `NativeHeaders`/`NativeRequest`/`NativeResponse` in `internal.objects`, installed per
+global by `Global.installFetchLibrary`. Their globals are NOT_ENUMERABLE, which is what keeps the
+four global-enumerating tests quiet; `Test262Runner` passes `--libraries=none`. A test that leaves
+an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
+timeout.
 
 ## The playground
 

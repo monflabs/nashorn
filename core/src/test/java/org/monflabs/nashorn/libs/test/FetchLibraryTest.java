@@ -184,15 +184,22 @@ public class FetchLibraryTest {
         final ScriptEngine e = engine();
         assertEquals(e.eval("var h = new Headers({ 'Content-Type': 'text/plain', 'X-A': '1' }); h.append('x-a', '2'); h.set('X-B', ' spaced '); [h.get('content-type'), h.get('X-A'), h.has('x-b'), h.get('x-b'), h.get('nope')].join('|')"),
                 "text/plain|1, 2|true|spaced|");
-        assertEquals(e.eval("h.keys().join()"), "content-type,x-a,x-b");
-        assertEquals(e.eval("h.values().join('|')"), "text/plain|1, 2|spaced");
-        assertEquals(e.eval("h.entries().map(function (p) { return p.join('='); }).join(';')"), "content-type=text/plain;x-a=1, 2;x-b=spaced");
-        assertEquals(((Number)e.eval("var n = 0; for (var pair of h.entries()) { n += pair.length; } n")).intValue(), 6);
+        assertEquals(e.eval("Array.from(h.keys()).join()"), "content-type,x-a,x-b");
+        assertEquals(e.eval("Array.from(h.values()).join('|')"), "text/plain|1, 2|spaced");
+        assertEquals(e.eval("Array.from(h).map(function (p) { return p.join('='); }).join(';')"), "content-type=text/plain;x-a=1, 2;x-b=spaced");
+        assertEquals(((Number)e.eval("var n = 0; for (var pair of h) { n += pair.length; } n")).intValue(), 6);
         assertEquals(e.eval("[h instanceof Headers, ({}) instanceof Headers, String(h), Headers.name, typeof Headers].join()"), "true,false,[object Headers],Headers,function");
         assertEquals(e.eval("try { Headers(); } catch (x) { x.name }"), "TypeError");
         assertEquals(e.eval("try { h.get.call({}, 'x'); } catch (x) { x.name }"), "TypeError");
+        // the shape the specification gives it: a real prototype, methods inherited, Symbol.iterator
+        assertEquals(e.eval("Object.getPrototypeOf(h) === Headers.prototype"), true);
+        assertEquals(e.eval("[h.hasOwnProperty('append'), 'append' in h, Headers.prototype.hasOwnProperty('append'), h.constructor === Headers].join()"), "false,true,true,true");
+        assertEquals(e.eval("Headers.prototype.append.call(h, 'z', '9'); h.get('z')"), "9");
+        assertEquals(e.eval("h[Symbol.iterator] === h.entries"), true);
+        assertEquals(e.eval("String(h.entries())"), "[object Headers Iterator]");
+        assertEquals(e.eval("Object.getOwnPropertyNames(Headers.prototype).sort().join()"), "append,constructor,delete,entries,forEach,get,has,keys,set,values");
         assertEquals(e.eval("h.delete('x-a'); h.has('X-A')"), false);
-        assertEquals(e.eval("var seen = []; h.forEach(function (v, k) { seen.push(k + ':' + v); }); seen.join()"), "content-type:text/plain,x-b:spaced");
+        assertEquals(e.eval("var seen = []; h.forEach(function (v, k) { seen.push(k + ':' + v); }); seen.join()"), "content-type:text/plain,x-b:spaced,z:9");
         assertEquals(e.eval("try { new Headers({ 'bad header': 'x' }); } catch (x) { x.name }"), "TypeError");
         assertEquals(e.eval("new Headers(h).get('content-type')"), "text/plain");
     }
@@ -206,8 +213,14 @@ public class FetchLibraryTest {
         assertEquals(e.eval("try { new Request('" + base + "', { body: 'x' }); } catch (x) { x.name }"), "TypeError");
         assertEquals(e.eval("Response.error().ok"), false);
         assertEquals(e.eval("Response.error().status"), 0);
-        assertEquals(e.eval("[r instanceof Response, new Request('" + base + "') instanceof Request, r instanceof Request, Object.keys(r).join()].join('|')"), "true|true|false|status,statusText,ok,url,headers,bodyUsed");
+        assertEquals(e.eval("[r instanceof Response, new Request('" + base + "') instanceof Request, r instanceof Request, Object.keys(r).length].join('|')"), "true|true|false|0");
         assertEquals(e.eval("var c = r.clone(); c.status + ':' + c.bodyUsed + ':' + r.bodyUsed"), "201:false:true");
         assertEquals(e.eval("r.extra = 5; r.extra + ':' + ('extra' in r)"), "5:true");
+        // status, ok and the rest are read-only accessors on the prototype, as WebIDL says
+        assertEquals(e.eval("var d = Object.getOwnPropertyDescriptor(Response.prototype, 'status'); typeof d.get + ':' + typeof d.set + ':' + d.enumerable"), "function:undefined:false");
+        assertEquals(e.eval("r.status = 0; r.status"), 201);
+        assertEquals(e.eval("try { (function () { 'use strict'; r.ok = true; })(); 'assigned' } catch (x) { x.name }"), "TypeError");
+        assertEquals(e.eval("Object.prototype.toString.call(r) + Object.prototype.toString.call(new Request('" + base + "'))"), "[object Response][object Request]");
+        assertEquals(e.eval("typeof Response.prototype.text + ':' + typeof Response.error + ':' + typeof r.text.call"), "function:function:function");
     }
 }

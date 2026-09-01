@@ -64,7 +64,6 @@ questions.
     <module>core</module>
     <module>shell</module>
     <module>debugger</module>
-    <module>libs</module>
     <module>playground</module>
   </modules>
 

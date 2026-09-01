@@ -1,8 +1,10 @@
 # The fetch library
 
 `fetch` provides the WHATWG fetch API: `fetch(input, init)` returning a promise of a `Response`,
-and the `Headers`, `Request` and `Response` classes. It is in `nashorn-libs` and discovered
-automatically; `--libraries=fetch` selects it alone (it does not need `host`).
+and the `Headers`, `Request` and `Response` classes. It is part of `nashorn-core` and present in
+every engine; `--libraries=fetch` selects it alone (it does not need `host`), `--libraries=none` or
+`--libraries=host` leaves it out — which is the right setting for an engine that must not reach
+the network.
 
 ```js
 (async function () {
@@ -31,10 +33,10 @@ response has been handled, and several requests started together are in flight t
   `init.body` (a string; not allowed on GET and HEAD). Resolves with a `Response` for *any* HTTP
   status — `ok` says whether it was 2xx — and rejects with a `TypeError` for a network failure, an
   unresolvable host or a malformed URL.
-- **`Headers`** — case-insensitive names, `append`/`set`/`get`/`has`/`delete`, `forEach`, and
-  `entries()`/`keys()`/`values()` as arrays in name order (`for (const [name, value] of
-  headers.entries())`), several values of one name joined with `", "`; an invalid header name is
-  a `TypeError`.
+- **`Headers`** — case-insensitive names, `append`/`set`/`get`/`has`/`delete`, `forEach`,
+  `entries()`/`keys()`/`values()` iterators in name order, and `Symbol.iterator`
+  (`for (const [name, value] of headers)`), several values of one name joined with `", "`; an
+  invalid header name is a `TypeError`.
 - **`Request`** — `url`, `method`, `headers`, `text()`, `json()`, `clone()`.
 - **`Response`** — `status`, `statusText`, `ok`, `url`, `headers`, `bodyUsed`; `text()`,
   `json()`, `arrayBuffer()` (each usable once, then a `TypeError`), `clone()`; `new Response(body,
@@ -48,13 +50,16 @@ Streams (`response.body` as a `ReadableStream`), `AbortController`/`signal`, `Fo
 `Response.redirect`. Headers the JDK client controls itself (`Host`, `Content-Length`,
 `Connection`) are set by it and cannot be overridden.
 
-## From Java
+## The shape
 
-`FetchLibrary` in `org.monflabs.nashorn.libs` is all Java: `Headers`, `Request` and `Response` are
-`JSObject`s — a constructor object per class that answers `new` and `instanceof`, a method object
-per entry of the class's enum with a `switch`, data properties through `getMember` — and `fetch`
-is a function object that sends the request through a shared `HttpClient` and, through the event
-loop's `pending()`, settles the promise on the script's thread. The promises, arrays, `JSON.parse`
-and `ArrayBuffer`s it hands out are made with the realm's own constructors, which is why the
-library installs itself from `initialize(global)` rather than `globals()`: it needs the global to
-get them from. It is the shape to copy for a library whose whole API must be Java.
+The classes have the shape WebIDL gives them, because they are built-ins: `Headers.prototype`,
+`Request.prototype` and `Response.prototype` are real prototype objects holding the methods, so
+`hasOwnProperty`, `Headers.prototype.append.call(h, …)`, `instanceof` through the chain,
+`Object.prototype.toString` (`[object Response]`) and monkey-patching all behave; `status`, `ok`,
+`headers` and the rest are read-only accessors on the prototype (assignment is ignored, or a
+`TypeError` in strict code); `Headers` is iterable through `Symbol.iterator`. All of it is Java:
+`NativeHeaders`, `NativeRequest` and `NativeResponse` in `internal.objects` are `@ScriptClass`
+classes that nasgen turns into the constructor and prototype objects, and `FetchLibrary` in
+`org.monflabs.nashorn.libs` installs them into a global on request and provides `fetch` — a
+built-in function that sends the request through a shared `HttpClient` and settles a promise on
+the script's thread through the event loop.

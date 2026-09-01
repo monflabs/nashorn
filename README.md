@@ -31,7 +31,7 @@ Documentation
 
 This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md): a user's guide
 (embedding, Java interop, [script libraries](doc/nashorn/extending/script-libraries.md) that extend every engine, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
-the [standard libraries](doc/nashorn/libraries/overview.md) (`nashorn-libs`: timers, `fetch`),
+the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
 `mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2017.0.0-all.jar`.
@@ -65,9 +65,9 @@ mvn package
 builds `core/target/nashorn-core-<version>.jar`. `mvn verify` additionally runs
 the internal test suite, in both the optimistic and pessimistic typing modes.
 
-The reactor has six modules: `core` (the published `nashorn-core` artifact),
-`libs` (the published `nashorn-libs` standard libraries: timers, `queueMicrotask`,
-`atob`/`btoa` and `fetch`), `debugger` (the published `nashorn-debugger` Chrome
+The reactor has five modules: `core` (the published `nashorn-core` artifact,
+which includes the standard libraries: timers, `queueMicrotask`, `atob`/`btoa`
+and `fetch`), `debugger` (the published `nashorn-debugger` Chrome
 DevTools Protocol server), `shell` (the `jjs` REPL, not published), `playground`
 (a Swing sample browser, not published), and `buildtools/nasgen` (a build-time
 bytecode post-processor that Nashorn does not work without — so always build

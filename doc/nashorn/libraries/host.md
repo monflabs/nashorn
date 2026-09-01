@@ -1,8 +1,8 @@
 # The host library
 
 `host` provides the functions every JavaScript host has and ECMAScript does not define: the WHATWG
-timers, `queueMicrotask`, and the Base64 pair. It is in `nashorn-libs` and discovered automatically;
-`--libraries=host` selects it alone.
+timers, `queueMicrotask`, and the Base64 pair. It is part of `nashorn-core` and present in every
+engine; `--libraries=host` selects it alone, `--libraries=none` leaves it out.
 
 ## Timers
 
@@ -53,7 +53,9 @@ argument with ToString and require one.
 
 ## From Java
 
-`HostLibrary` in `org.monflabs.nashorn.libs` is the implementation: one class, a function object per
-entry of its `Function` enum, a `switch`, and a timer table per global — `globals()` is called once
-per global, and hands each its own. Pass `new HostLibrary()` to the engine factory to have it
-regardless of `--libraries`.
+`HostLibrary` in `org.monflabs.nashorn.libs` is the implementation: one class, a built-in
+`ScriptFunction` per entry of its `Function` enum bound to one `switch`, and a timer table per
+global — `initialize` runs once per global and hands each its own. The functions are ordinary
+functions to a script (`Function.prototype` applies) and non-enumerable on the global, like the
+language's own. Pass `new HostLibrary()` to the engine factory to have it regardless of
+`--libraries`.

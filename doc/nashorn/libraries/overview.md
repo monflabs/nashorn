@@ -1,10 +1,11 @@
 # Standard libraries
 
 ECMAScript defines the language and its built-in objects; what a script expects from its *host* —
-timers, `fetch`, Base64 — comes from the platform. `nashorn-libs` is this engine's platform: a set
-of [script libraries](../extending/script-libraries.md) that give every engine the host functions
-scripts written for browsers or Node.js reach for, implemented in Java on the engine's public API
-and installed into every global an engine creates.
+timers, `fetch`, Base64 — comes from the platform. The standard libraries are this engine's
+platform: [script libraries](../extending/script-libraries.md), shipped inside `nashorn-core`
+itself, that give every engine the host functions scripts written for browsers or Node.js reach
+for — built the way the language's own objects are, and installed into every global an engine
+creates unless told otherwise.
 
 | Library | Provides | Page |
 | --- | --- | --- |
@@ -13,20 +14,11 @@ and installed into every global an engine creates.
 
 ## Getting them
 
-Add the artifact next to `nashorn-core`:
-
-```xml
-<dependency>
-    <groupId>org.monflabs.nashorn</groupId>
-    <artifactId>nashorn-libs</artifactId>
-    <version>2017.0.0</version>
-</dependency>
-```
-
-That is all: the libraries are registered as `ScriptLibrary` services (in the module descriptor
-and in `META-INF/services`), so every engine whose class loader sees the jar has them — on the
-class path, on the module path (`org.monflabs.nashorn.libs`), and in `jjs` with the jar on its
-class path. Nothing to call, nothing to configure.
+There is nothing to add: they are part of `nashorn-core`, registered by the engine's own module
+descriptor and `META-INF/services` as `ScriptLibrary` providers, so every engine has them — on the
+class path, on the module path, in `jjs`, in the playground. Nothing to call, nothing to configure.
+Being libraries rather than language built-ins, their *presence* remains a choice: an embedder
+sandboxing scripts can leave `fetch` out.
 
 To choose, use `--libraries`: `--libraries=host` for the timers without `fetch`,
 `--libraries=none` for a bare engine. Or hand a library to the factory yourself, which applies it
@@ -61,8 +53,11 @@ completes on another thread, `queueMicrotask`.
 
 ## Writing one of your own
 
-The libraries are ordinary `ScriptLibrary` implementations, entirely in Java — one class each, a
-function object per entry with a `switch` on an enum, and for `fetch` constructor objects that
-answer `new` and `instanceof`. They are a reasonable template for a library of your own; the
+The libraries are `ScriptLibrary` implementations in `org.monflabs.nashorn.libs`, built with the
+engine's own machinery: the host functions are built-in `ScriptFunction`s over a Java `switch`, and
+`Headers`, `Request` and `Response` are `@ScriptClass` classes that nasgen turns into real
+prototypes with accessor properties and symbol-keyed methods — exactly what the language's `Map`
+or `Promise` are. That machinery is internal, which a library shipped with the engine may use and
+a third-party one may not; for the public route see the
 [script libraries](../extending/script-libraries.md) page and the
 [extension APIs](../extending/apis.md) inventory cover what they use.

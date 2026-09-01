@@ -1,6 +1,6 @@
 # fetch
 
-`fetch(input, init)` from the **fetch** library of `nashorn-libs`: a promise of a `Response`,
+`fetch(input, init)` from the **fetch** standard library: a promise of a `Response`,
 with `Headers`, `Request` and `Response` as WHATWG defines them - `ok`, `status`, `statusText`,
 `headers`, `text()`, `json()`, `arrayBuffer()`, a body read once. The request runs on the JDK's
 `HttpClient`; the promise settles on the script's thread through the event loop, so the run lasts
