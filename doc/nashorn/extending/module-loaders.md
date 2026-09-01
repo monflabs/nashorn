@@ -106,6 +106,8 @@ The habits that keep a loader honest, all enforced by the engine's own tests
 3. **Canonical, prefixed names** so no two loaders ever collide in the registry.
 4. **No extension magic** unless your domain defines it — say what a name means, and mean it.
 
-The engine-side machinery — how a loaded module becomes a `ModuleRecord`, links and evaluates,
-and how the values-backed records answer exports — is on the
-[module internals page](../internals/modules.md).
+The [playground](../guide/playground.md)'s *Nashorn extensions → Module loaders* sample runs all
+of this: a script-function loader, a `ResourceModuleLoader` over the sample's own resources, a
+Java module, the chain's order, and the unresolvable-specifier error. The engine-side machinery —
+how a loaded module becomes a `ModuleRecord`, links and evaluates, and how the values-backed
+records answer exports — is on the [module internals page](../internals/modules.md).

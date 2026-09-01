@@ -22,7 +22,8 @@ The tree on the left holds three categories, read straight out of the jar's reso
   `// @option --annexB=false` as the first line.
 * **Nashorn extensions** — `Java.type`, collections, `Java.extend` and `Java.super`,
   `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
-  scripting mode, the JSR-223 engine driven from script, script libraries, and a debugging sample.
+  scripting mode, the JSR-223 engine driven from script, script libraries, module loaders, and a
+  debugging sample.
 * **Standard libraries** — the host functions on the event loop: timers,
   microtasks, Base64, and `fetch` against public APIs (Open-Meteo weather, GitHub).
 
