@@ -52,16 +52,58 @@ Options are fixed at engine construction. There is no per-`eval` or per-context 
 configurations means two engines, and two engines coexist cleanly in one process (each is its own
 [Context](../internals/contexts-globals.md), with its own compiled-code cache).
 
-## Options worth setting deliberately
+## Engine options
 
-| Option | When |
-| --- | --- |
-| `-strict` | Everything the engine runs should be strict-mode code. |
-| `--annexB=false` | You want the ECMAScript standard alone — no `escape`, no `__proto__`, no web-compat scoping. |
-| `--no-java` | Scripts must not touch Java at all: removes `Java`, `Packages`, `JavaImporter` and the package roots. Combine with a `ClassFilter` that returns false if you want belt and braces. |
-| `--global-per-engine` | All bindings of this engine should share one global — see [the scope model](using-the-engine.md#the-scope-model). |
-| `-timezone`, `--locale` | Pin `Date` and `toLocaleString` behaviour rather than inheriting the JVM defaults. |
-| `-ot` / `--optimistic-types` | Long-running, compute-heavy scripts: better steady state, slower warmup. |
+Every configuration choice the engine offers, by its builder method and its command-line spelling —
+the two are interchangeable, `option("--no-java")` and `java(false)` build the same engine. The
+[options reference](../reference/options.md) has the diagnostic switches (`--log`, `--print-*`,
+tracing) that stay with `option(...)`.
+
+**The language and its extras**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `annexB(boolean)` | `--annexB` | on | Annex B, the web's legacy: `escape`, `__proto__`, block-level function hoisting, `<!--` comments. Off for the ECMAScript standard alone. |
+| `strict(boolean)` | `-strict` | off | Every script runs as strict-mode code. |
+| `scripting(boolean)` | `-scripting` | off | Shell conveniences: `#` comments, `${expr}` in double-quoted strings, heredocs, `$ENV`. |
+| `syntaxExtensions(boolean)` | `--no-syntax-extensions` | on | Nashorn's own syntax: `for each`, conditional catch, expression closures. Off refuses them. |
+| `typedArrays(boolean)` | `--no-typed-arrays` | on | Whether `ArrayBuffer`, the typed arrays, `DataView`, `SharedArrayBuffer` and `Atomics` exist. |
+
+**The Java side**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `java(boolean)` | `--no-java` | on | Whether scripts may touch Java at all: off removes `Java`, `Packages`, `JavaImporter` and the package roots — the bluntest sandbox. Combine with a `classFilter` for belt and braces. |
+| `classFilter(filter)` | — | none | Which Java classes a script may see, one name at a time. |
+| `classLoader(loader)` | — | context loader | The loader scripts reach Java through, and libraries are discovered through. |
+| `classPath(path)` | `-classpath` | none | A class path of the engine's own, on top of the application loader. |
+| `modulePath(path, modules...)` | `--module-path` + `--add-modules` | none | A module layer of the engine's own; the modules to resolve are required. |
+
+**Compilation and performance**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `optimisticTypes(boolean)` | `--optimistic-types` | off | Narrow types assumed and deoptimized when wrong: better steady state for long-running, compute-heavy scripts, slower warmup. |
+| `lazyCompilation(boolean)` | `--lazy-compilation` | on | Functions compile on first call rather than with the script. |
+| `classCacheSize(int)` | `--class-cache-size` | 50 | How many compiled scripts the engine's class cache holds; 0 disables it. |
+| `persistentCodeCache(boolean)` | `--persistent-code-cache` | off | Compiled classes cached on disk across processes, keyed by source and configuration. |
+
+**The environment scripts see**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `timeZone(TimeZone)` | `-timezone` | the JVM's | What `new Date()` and the local getters answer with. Pin it rather than inheriting the host's. |
+| `locale(Locale)` | `--locale` | the JVM's | What `toLocaleString` and its kin answer with. |
+| `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-the-engine.md#the-scope-model). |
+| `discoveredLibraries(names...)` | `--libraries` | all | Which [standard and registered libraries](../extending/script-libraries.md) apply; none if no name is given. |
+
+**Debugging**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `dumpStackOnError(boolean)` | `-doe` | off (builder), on (no-argument factory engine) | A script error also dumps the Java stack of its origin. |
+| `debugger(boolean)` | `--debugger` | off | Scripts compile with the [debugger's](debugging.md) hooks, so a client can attach; costs some speed. |
+| `inspect(hostAndPort, wait)` | `--inspect` / `--inspect-brk` | off | Listen for a Chrome DevTools Protocol client; `wait` pauses at the first statement until one attaches. Implies the debugger. |
 
 ## Engine metadata
 
