@@ -31,7 +31,7 @@ package org.monflabs.nashorn.api.debugger;
  * @param type what kind of scope
  * @param object the object holding the scope's bindings, an engine object
  * @param name the scope's name where one applies - the function's for a local or closure scope - or null
- * @since 20
+ * @since 2017.0.0
  */
 public record DebugScope(ScopeType type, Object object, String name) {
 

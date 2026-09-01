@@ -41,7 +41,7 @@ import org.monflabs.nashorn.playground.ui.PlaygroundFrame;
 
 /**
  * The playground: a library of samples, an editor, a console, and the
- * debugger a click away. {@code java -jar nashorn-playground-20-all.jar}.
+ * debugger a click away. {@code java -jar nashorn-playground-2017.0.0-all.jar}.
  */
 public final class Playground {
     private Playground() {

@@ -31,7 +31,7 @@ package org.monflabs.nashorn.api.debugger;
  * @param script the script
  * @param line the line, zero based
  * @param column the column, zero based
- * @since 20
+ * @since 2017.0.0
  */
 public record Location(DebugScript script, int line, int column) {
 }

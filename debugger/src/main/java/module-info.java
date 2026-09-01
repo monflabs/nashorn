@@ -31,7 +31,7 @@
  * itself.
  *
  * @moduleGraph
- * @since 20
+ * @since 2017.0.0
  */
 module org.monflabs.nashorn.debugger {
     requires transitive org.monflabs.nashorn;

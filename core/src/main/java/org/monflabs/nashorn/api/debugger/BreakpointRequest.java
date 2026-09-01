@@ -36,7 +36,7 @@ package org.monflabs.nashorn.api.debugger;
  * @param line the line, zero based
  * @param column the column, zero based; negative for any column on the line
  * @param condition an expression that must be truthy for the breakpoint to pause, or null
- * @since 20
+ * @since 2017.0.0
  */
 public record BreakpointRequest(String url, String urlRegex, String scriptId, int line, int column, String condition) {
 

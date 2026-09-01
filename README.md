@@ -33,7 +33,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 (embedding, Java interop, [script libraries](doc/nashorn/guide/script-libraries.md) that extend every engine, modules, [debugging scripts with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-20-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2017.0.0-all.jar`.
 
 Making Nashorn standalone is still a work in progress. There is no
 standalone user's guides for it yet. The best current guides are
@@ -47,7 +47,7 @@ Nashorn-related documents last published by Oracle with Java 14:
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 20, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2017.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 Nashorn is a JPMS module with no dependencies of its own - it generates bytecode with the JDK's own `java.lang.classfile` API - so make sure it is on your application's module path, or appropriately added to a module layer, or otherwise configured as a module.
 

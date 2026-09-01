@@ -34,7 +34,7 @@ import java.util.List;
  * @param arguments the arguments, engine objects
  * @param location where it was called from, or null if unknown
  * @param context the context it was called in
- * @since 20
+ * @since 2017.0.0
  */
 public record ConsoleEvent(String type, List<Object> arguments, Location location, ExecutionContext context) {
 }

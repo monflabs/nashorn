@@ -5,7 +5,7 @@ The `-scripting` option turns on a set of shell-friendly extensions, aimed at sc
 enables it automatically.
 
 ```bash
-java -cp nashorn-core-20.jar org.monflabs.nashorn.tools.Shell -scripting script.js
+java -cp nashorn-core-2017.0.0.jar org.monflabs.nashorn.tools.Shell -scripting script.js
 ```
 
 ## Syntax extensions
@@ -52,7 +52,7 @@ EOF
 [built-ins reference](../reference/builtins.md#added-by--scripting).
 
 ```js
-#!/usr/bin/env -S java -cp nashorn-core-20.jar org.monflabs.nashorn.tools.Shell -scripting
+#!/usr/bin/env -S java -cp nashorn-core-2017.0.0.jar org.monflabs.nashorn.tools.Shell -scripting
 var name = readLine("Who are you? ");
 print("PWD is ${$ENV.PWD}");
 print("script args: " + $ARG.join(", "));

@@ -28,7 +28,7 @@ package org.monflabs.nashorn.api.debugger;
 /**
  * Why a thread paused.
  *
- * @since 20
+ * @since 2017.0.0
  */
 public enum PauseReason {
     /** A breakpoint was hit. */

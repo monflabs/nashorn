@@ -43,6 +43,6 @@
  * script on the spot by unwinding it with a
  * {@link org.monflabs.nashorn.api.debugger.ScriptTerminated} no script {@code catch} can hold.
  *
- * @since 20
+ * @since 2017.0.0
  */
 package org.monflabs.nashorn.api.debugger;

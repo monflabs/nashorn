@@ -38,7 +38,7 @@ package org.monflabs.nashorn.api.debugger;
  * @param configurable whether the property is configurable
  * @param isOwn whether the property is the object's own
  * @param wasThrown whether reading the value threw, in which case {@code value} is what was thrown
- * @since 20
+ * @since 2017.0.0
  */
 public record DebugProperty(String name, Object key, Object value, Object getter, Object setter,
         boolean writable, boolean enumerable, boolean configurable, boolean isOwn, boolean wasThrown) {

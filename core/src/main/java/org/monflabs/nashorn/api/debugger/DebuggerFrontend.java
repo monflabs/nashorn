@@ -33,7 +33,7 @@ import java.io.IOException;
  * Protocol server of the {@code nashorn-debugger} artifact. Found through
  * {@link java.util.ServiceLoader}.
  *
- * @since 20
+ * @since 2017.0.0
  */
 public interface DebuggerFrontend {
 

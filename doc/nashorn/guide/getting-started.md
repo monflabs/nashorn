@@ -6,7 +6,7 @@ Nashorn is published to Maven Central as a single, dependency-free artifact:
 <dependency>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-core</artifactId>
-    <version>20</version>
+    <version>2017.0.0</version>
 </dependency>
 ```
 

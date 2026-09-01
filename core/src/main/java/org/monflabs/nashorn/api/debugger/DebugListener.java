@@ -31,7 +31,7 @@ package org.monflabs.nashorn.api.debugger;
  * that paused, before it blocks; everything else runs on the thread that
  * caused the event.
  *
- * @since 20
+ * @since 2017.0.0
  */
 public interface DebugListener {
 

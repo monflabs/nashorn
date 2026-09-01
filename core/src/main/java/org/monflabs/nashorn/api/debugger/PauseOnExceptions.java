@@ -28,7 +28,7 @@ package org.monflabs.nashorn.api.debugger;
 /**
  * Which thrown exceptions pause execution.
  *
- * @since 20
+ * @since 2017.0.0
  */
 public enum PauseOnExceptions {
     /** None. */

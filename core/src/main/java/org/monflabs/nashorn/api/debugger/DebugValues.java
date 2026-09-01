@@ -35,7 +35,7 @@ import java.util.List;
  * that owns them - through {@link PausedEvent#call} while paused - except
  * that primitives and functions' names may be read anywhere.
  *
- * @since 20
+ * @since 2017.0.0
  */
 public interface DebugValues {
 
