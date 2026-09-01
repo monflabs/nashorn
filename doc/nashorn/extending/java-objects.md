@@ -4,7 +4,7 @@ Everything a script sees is an object, and two Java classes can be one. `ScriptO
 engine's own objects are — every literal, array, function and built-in — and it is **internal**.
 `JSObject` is the **public** interface a Java object implements to take part in script as if it
 were one of them. This page says why the line is where it is, what a `JSObject` can and cannot do,
-and how to build extensions with it — the examples below are the ones the test suite runs.
+and how to build extensions with it — the examples below are run by the test suite (`JavaObjectsGuideTest`), so what this page says a script sees is what the engine does.
 
 ## Why ScriptObject is internal
 
