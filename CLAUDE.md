@@ -24,6 +24,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `core` | `nashorn-core` | **yes** — the engine |
 | `shell` | `nashorn-shell` | no — the `jjs` REPL |
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
+| `libs` | `nashorn-libs` | **yes** — the standard libraries (`host`: timers, `queueMicrotask`, `atob`/`btoa`; `fetch`), as `ScriptLibrary` services |
 | `playground` | `nashorn-playground` | no — a Swing sample browser, shaded into an executable `-all` jar |
 
 `shell` reaches into JDK-internal `jdk.internal.le` / `jdk.internal.ed` via `--add-exports`, so it constrains which JDKs can build the reactor. It is the piece most likely to break on a future JDK.
@@ -191,6 +192,17 @@ installs them into **every** global right after `initBuiltinObjects` - inside th
 four tests enumerate the global's properties (`globals.js`, `JDK-8015830.js`, `parser-es6.js`,
 `noEnumerablePropertiesTest`). `ScriptLibraryTest` instead writes a services directory to a temp
 path and hands a `URLClassLoader` over it to the factory (and `-cp` to the shell).
+
+## The event loop and the standard libraries
+
+`JobQueue` (per Global) is both the microtask queue and the realm's event loop: `drain()` - called
+by `ScriptRuntime.apply` when the per-thread script depth returns to zero - runs the microtasks,
+then macrotasks (timers in a priority queue, tasks posted from other threads, and a count of
+pending operations that keeps the loop waiting) until idle. **`eval` returns when the script is
+idle**; a script that schedules nothing is unaffected. Interruption abandons everything, which is
+what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`. `libs/` holds the
+`host` and `fetch` libraries built on it, registered as services; a test that leaves an interval
+running blocks its `eval` forever, so clear intervals in the same eval and give tests a timeout.
 
 ## The playground
 

@@ -18,6 +18,11 @@
   - [Extension APIs](/extending/apis.md)
   - [Script libraries](/extending/script-libraries.md)
 
+- **Standard Libraries**
+  - [Overview and the event loop](/libraries/overview.md)
+  - [host: timers, microtasks, Base64](/libraries/host.md)
+  - [fetch](/libraries/fetch.md)
+
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)
   - [Optimistic typing](/internals/optimistic-typing.md)

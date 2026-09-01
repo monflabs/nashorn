@@ -40,6 +40,10 @@ library walks the language and the extensions one sample at a time.
 public APIs an extension is built from, and [script libraries](extending/script-libraries.md), which
 install globals, scripts and prototype extensions into every global an engine creates.
 
+**[Standard Libraries](libraries/overview.md)** — what a script expects from its host beyond the
+language, as the `nashorn-libs` artifact: [timers, `queueMicrotask` and Base64](libraries/host.md),
+and [`fetch`](libraries/fetch.md), on an event loop that lets `eval` return when the script is idle.
+
 **[Technical Guide](internals/architecture.md)** — for reading or changing the engine: the compiler
 pipeline, optimistic typing, how objects, arrays, strings and call sites really work, generators on
 virtual threads, the module system, Annex B's implementation, nasgen.
