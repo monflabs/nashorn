@@ -3405,6 +3405,21 @@ public final class Global extends Scope {
             this.uint32Array       = LAZY_SENTINEL;
             this.float32Array      = LAZY_SENTINEL;
             this.float64Array      = LAZY_SENTINEL;
+        } else {
+            // absent, not null: the lazy properties would otherwise sit there holding null
+            this.delete("ArrayBuffer", false);
+            this.delete("SharedArrayBuffer", false);
+            this.delete("Atomics", false);
+            this.delete("DataView", false);
+            this.delete("Int8Array", false);
+            this.delete("Uint8Array", false);
+            this.delete("Uint8ClampedArray", false);
+            this.delete("Int16Array", false);
+            this.delete("Uint16Array", false);
+            this.delete("Int32Array", false);
+            this.delete("Uint32Array", false);
+            this.delete("Float32Array", false);
+            this.delete("Float64Array", false);
         }
 
         if (env._scripting) {

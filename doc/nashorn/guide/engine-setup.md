@@ -23,9 +23,13 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
 A builder starts with **no options** (what `jjs` runs with), adds what it is told in order — a
 later setting of the same option wins, as on a command line — and `build()` validates the options
 the way the command line would, throwing `IllegalArgumentException` for one it does not know. The
-named methods cover the choices that come up in every embedding: `annexB`, `strict`, `scripting`,
-`dumpStackOnError`, `debugger`, `inspect(hostAndPort, waitForClient)`, `discoveredLibraries`;
-`option(...)` takes anything else in its command-line spelling. A builder can be reused, and every
+named methods cover the engine's configuration: the language and its extras (`annexB`, `strict`,
+`scripting`, `syntaxExtensions`, `typedArrays`), the Java side (`java(false)` for the bluntest
+sandbox, `classPath`, `modulePath(path, modules...)`), compilation (`optimisticTypes`,
+`lazyCompilation`, `classCacheSize`, `persistentCodeCache`), the environment scripts see
+(`timeZone`, `locale`, `globalPerEngine`), debugging (`dumpStackOnError`, `debugger`,
+`inspect(hostAndPort, waitForClient)`) and `discoveredLibraries`; `option(...)` takes anything
+else - the diagnostic switches, `--log`, the `--print-*` family - in its command-line spelling. A builder can be reused, and every
 `build()` is a new engine with its own compiled-code cache and globals.
 
 The `javax.script` route still exists, of course — `new ScriptEngineManager().getEngineByName("nashorn-monflabs")`

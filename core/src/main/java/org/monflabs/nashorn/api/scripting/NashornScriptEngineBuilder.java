@@ -27,7 +27,9 @@ package org.monflabs.nashorn.api.scripting;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.TimeZone;
 import javax.script.ScriptEngine;
 
 /**
@@ -47,7 +49,10 @@ import javax.script.ScriptEngine;
  *
  * <p>A builder starts with no options at all - what {@code jjs} runs with -
  * and adds what it is told, in order; a later setting of the same option wins,
- * as on a command line. {@link #build()} validates the options as the command
+ * as on a command line. The named methods cover the engine's configuration;
+ * {@link #option(String...)} takes anything else - the diagnostic switches,
+ * {@code --log}, the {@code --print-*} family - in its command-line spelling.
+ * {@link #build()} validates the options as the command
  * line would and throws {@link IllegalArgumentException} for one it does not
  * know. A builder can be reused: every {@code build()} makes a new engine
  * with its own compiled-code cache and globals.
@@ -166,6 +171,153 @@ public final class NashornScriptEngineBuilder {
      */
     public NashornScriptEngineBuilder discoveredLibraries(final String... names) {
         return option("--libraries=" + (names.length == 0 ? "none" : String.join(",", names)));
+    }
+
+    /**
+     * Whether scripts may reach Java at all: with {@code false} (the
+     * {@code --no-java} option), {@code Java}, {@code Packages} and the
+     * package globals are gone, and {@code Java.type} with them - the
+     * bluntest sandbox, next to {@link #classFilter} for a finer one.
+     * Java access is on by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder java(final boolean enabled) {
+        return option("--no-java=" + !enabled);
+    }
+
+    /**
+     * Whether Nashorn's own syntax extensions - {@code for each},
+     * conditional catch, expression closures - are accepted
+     * ({@code --no-syntax-extensions} off). On by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder syntaxExtensions(final boolean enabled) {
+        return option("--no-syntax-extensions=" + !enabled);
+    }
+
+    /**
+     * Whether the typed arrays - {@code ArrayBuffer}, {@code Uint8Array} and
+     * the rest - are present ({@code --no-typed-arrays} off). On by default,
+     * and part of ES2015; turning them off is for hosts that must not expose
+     * them.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder typedArrays(final boolean enabled) {
+        return option("--no-typed-arrays=" + !enabled);
+    }
+
+    /**
+     * Whether code is compiled optimistically - narrow types assumed and
+     * deoptimized when proven wrong - which runs hot code faster and warms up
+     * slower. Off by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder optimisticTypes(final boolean enabled) {
+        return option("--optimistic-types=" + enabled);
+    }
+
+    /**
+     * Whether functions are compiled when first called rather than with the
+     * script. On by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder lazyCompilation(final boolean enabled) {
+        return option("--lazy-compilation=" + enabled);
+    }
+
+    /**
+     * Whether compiled classes are cached on disk across processes
+     * ({@code --persistent-code-cache}), keyed by source and configuration,
+     * in the directory the {@code nashorn.persistent.code.cache} system
+     * property names. Off by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder persistentCodeCache(final boolean enabled) {
+        return option("--persistent-code-cache=" + enabled);
+    }
+
+    /**
+     * How many compiled scripts the engine's class cache holds. 50 by default.
+     *
+     * @param size the size; 0 disables the cache
+     * @return this
+     */
+    public NashornScriptEngineBuilder classCacheSize(final int size) {
+        return option("--class-cache-size=" + size);
+    }
+
+    /**
+     * Whether the engine has one global for all bindings instead of one per
+     * bindings ({@code --global-per-engine}) - the pre-JSR-223 behaviour some
+     * embeddings rely on. Off by default.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder globalPerEngine(final boolean enabled) {
+        return option("--global-per-engine=" + enabled);
+    }
+
+    /**
+     * The time zone scripts see - what {@code new Date()} and its local
+     * getters answer with. The host's by default.
+     *
+     * @param timeZone the zone
+     * @return this
+     */
+    public NashornScriptEngineBuilder timeZone(final TimeZone timeZone) {
+        return option("-timezone=" + Objects.requireNonNull(timeZone, "timeZone").getID());
+    }
+
+    /**
+     * The locale scripts see - what {@code toLocaleString} and its kin answer
+     * with. The host's by default.
+     *
+     * @param locale the locale
+     * @return this
+     */
+    public NashornScriptEngineBuilder locale(final Locale locale) {
+        return option("--locale=" + Objects.requireNonNull(locale, "locale").toLanguageTag());
+    }
+
+    /**
+     * A class path of the engine's own for scripts to load Java classes from,
+     * on top of the {@linkplain #classLoader application class loader} - the
+     * {@code -classpath} option.
+     *
+     * @param classPath the path, in the platform's path syntax
+     * @return this
+     */
+    public NashornScriptEngineBuilder classPath(final String classPath) {
+        return option("-classpath=" + Objects.requireNonNull(classPath, "classPath"));
+    }
+
+    /**
+     * A module path of the engine's own: scripts reach the named modules'
+     * exported packages - {@code --module-path} with {@code --add-modules}.
+     *
+     * @param modulePath the path, in the platform's path syntax
+     * @param moduleNames the modules to resolve; at least one
+     * @return this
+     */
+    public NashornScriptEngineBuilder modulePath(final String modulePath, final String... moduleNames) {
+        Objects.requireNonNull(modulePath, "modulePath");
+        if (Objects.requireNonNull(moduleNames, "moduleNames").length == 0) {
+            throw new IllegalArgumentException("a module path needs the modules to resolve: pass their names");
+        }
+        return option("--module-path=" + modulePath, "--add-modules=" + String.join(",", moduleNames));
     }
 
     // -- the Java side ------------------------------------------------------------------

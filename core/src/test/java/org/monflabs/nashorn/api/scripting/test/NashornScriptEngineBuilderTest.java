@@ -86,6 +86,48 @@ public class NashornScriptEngineBuilderTest {
     }
 
     @Test
+    public void theEngineShapingOptions() throws ScriptException {
+        // no Java at all: the bluntest sandbox
+        final ScriptEngine sandboxed = new NashornScriptEngineBuilder().java(false).discoveredLibraries().build();
+        assertEquals(sandboxed.eval("[typeof Java, typeof Packages, typeof java, typeof javax].join(' ')"), "undefined undefined undefined undefined");
+        assertEquals(new NashornScriptEngineBuilder().java(true).build().eval("typeof Java"), "object");
+        // Nashorn's own syntax refused without the extensions
+        final ScriptEngine noExtensions = new NashornScriptEngineBuilder().syntaxExtensions(false).build();
+        try {
+            noExtensions.eval("for each (var x in [1]) {}");
+            fail("expected a syntax error");
+        } catch (final ScriptException expected) {
+            // as configured
+        }
+        assertEquals(((Number)new NashornScriptEngineBuilder().syntaxExtensions(true).build().eval("var s = 0; for each (var x in [1, 2]) { s += x; } s")).intValue(), 3);
+        // typed arrays removable
+        assertEquals(new NashornScriptEngineBuilder().typedArrays(false).build().eval("typeof Uint8Array"), "undefined");
+        assertEquals(new NashornScriptEngineBuilder().typedArrays(true).build().eval("new Uint8Array(2).length"), 2);
+        // compilation modes still evaluate
+        assertEquals(new NashornScriptEngineBuilder().optimisticTypes(true).build().eval("(function f(n) { return n < 2 ? 1 : n * f(n - 1); })(5)"), 120);
+        assertEquals(new NashornScriptEngineBuilder().lazyCompilation(false).classCacheSize(0).build().eval("6 * 7"), 42);
+        // one global for every bindings
+        final ScriptEngine oneGlobal = new NashornScriptEngineBuilder().globalPerEngine(true).build();
+        oneGlobal.eval("var shared = 'seen'");
+        assertEquals(oneGlobal.eval("shared", oneGlobal.createBindings()), "seen");
+        // the zone and locale scripts see
+        final ScriptEngine utc = new NashornScriptEngineBuilder().timeZone(java.util.TimeZone.getTimeZone("UTC")).locale(java.util.Locale.CANADA_FRENCH).build();
+        assertEquals(((Number)utc.eval("new Date(0).getTimezoneOffset()")).intValue(), 0);
+        assertEquals(utc.eval("new Date(0).getUTCFullYear() + '/' + new Date(0).getFullYear()"), "1970/1970");
+        // the spellings of the rest
+        assertEquals(new NashornScriptEngineBuilder().persistentCodeCache(true).classPath("lib/a.jar").options(),
+                List.of("--persistent-code-cache=true", "-classpath=lib/a.jar"));
+        assertEquals(new NashornScriptEngineBuilder().modulePath("mods", "com.example.api", "com.example.impl").options(),
+                List.of("--module-path=mods", "--add-modules=com.example.api,com.example.impl"));
+        try {
+            new NashornScriptEngineBuilder().modulePath("mods");
+            fail("expected a refusal");
+        } catch (final IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("module"), expected.getMessage());
+        }
+    }
+
+    @Test
     public void classLoaderFilterAndLibraries() throws Exception {
         final ScriptLibrary geometry = ScriptLibrary.of("geometry", Map.of("TAU", 2 * Math.PI), ScriptLibrary.Script.of("g.js", "function circumference(r) { return TAU * r; }"));
         try (URLClassLoader loader = new URLClassLoader(new URL[0], NashornScriptEngineBuilderTest.class.getClassLoader())) {
