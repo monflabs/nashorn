@@ -37,8 +37,10 @@ playground/target/nashorn-playground-2017.0.0-all.jar` after `mvn -pl playground
 library walks the language and the extensions one sample at a time.
 
 **[Extending the engine](extending/apis.md)** — for giving scripts more than the language: the
-public APIs an extension is built from, and [script libraries](extending/script-libraries.md), which
-install globals, scripts and prototype extensions into every global an engine creates.
+public APIs an extension is built from, [objects implemented in Java](extending/java-objects.md) with
+`JSObject` (and why the engine's own `ScriptObject` is not for that), and
+[script libraries](extending/script-libraries.md), which install globals, scripts and prototype
+extensions into every global an engine creates.
 
 **[Standard Libraries](libraries/overview.md)** — what a script expects from its host beyond the
 language, shipped inside the engine: [timers, `queueMicrotask` and Base64](libraries/host.md),

@@ -16,7 +16,7 @@ Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the e
 | API | What it is for | Read |
 | --- | --- | --- |
 | `engine.put(name, object)`, `Bindings` | The simplest extension: any Java object becomes a global, and scripts use its methods and fields through the interop. | [Connecting with Java](../guide/connecting-with-java.md) |
-| **`JSObject`**, **`AbstractJSObject`** | An object or a function *implemented in Java* that a script treats as native: `getMember`/`setMember` for properties, `call`/`newObject` for calls, `isFunction`, `getDefaultValue` for conversions. The way to write `area(r)` or a proxy-like object in Java. | [Custom objects](../guide/custom-objects.md) |
+| **`JSObject`**, **`AbstractJSObject`** | An object or a function *implemented in Java* that a script treats as native: `getMember`/`setMember` for properties, `call`/`newObject` for calls, `isFunction`, `isInstance`, `getDefaultValue` for conversions. The way to write `area(r)`, a constructor or a proxy-like object in Java - and the line between it and the internal `ScriptObject`. | [Objects from Java](java-objects.md), [Custom objects](../guide/custom-objects.md) |
 | **`ScriptObjectMirror`** | A script object in Java hands - what `eval` returns and what a Java function receives as an argument: `getMember`, `setMember`, `callMember`, `eval(source)`, `keySet`, `to(Class)`, `isArray`, `isFunction`, and `freeze`/`seal`. The global an engine hands out as its engine scope is one too. | [Using the engine](../guide/using-the-engine.md) |
 | **`ScriptUtils`** | The language's abstract operations for the values a script passes - `typeOf`, `toNumber`, `toString`, `toBoolean`, `strictEquals`, `requireObjectCoercible`, `typeError(msg)` and the rest - plus `wrap`/`unwrap` between mirrors and engine objects, `convert(value, type)`, `makeSynchronizedFunction`, `format` (the engine's `sprintf`) and `parse` (the AST as JSON). | [Script values in Java hands](script-libraries.md#script-values-in-java-hands) |
 | **`NashornException`** | A script error seen from Java: `getEcmaError()` for the thrown value, `getFileName`/`getLineNumber`/`getColumnNumber`, `getScriptStackString` for the script's own stack. What `ScriptException.getCause()` is, and what `typeError(...)` makes. | [Using the engine](../guide/using-the-engine.md) |
@@ -70,8 +70,9 @@ and the playground's *Nashorn extensions* category runs one sample per mechanism
 
 `org.monflabs.nashorn.internal.*` - `Context`, `Global`, `JSType`, `ScriptObject`, `ScriptRuntime` -
 is reachable on the class path, and on a module path it is not exported at all (only the shell module
-sees it). None of it carries a compatibility promise, and the things an extension is tempted to take
-from it have public homes:
+sees it). None of it carries a compatibility promise; `ScriptObject` in particular is for extensions
+that ship inside the engine, as the standard libraries do ([why](java-objects.md#why-scriptobject-is-internal)).
+The things an extension is tempted to take from it have public homes:
 
 | Instead of | Use |
 | --- | --- |

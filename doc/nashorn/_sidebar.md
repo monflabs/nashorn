@@ -16,6 +16,7 @@
 
 - **Extending the engine**
   - [Extension APIs](/extending/apis.md)
+  - [Objects from Java: JSObject vs ScriptObject](/extending/java-objects.md)
   - [Script libraries](/extending/script-libraries.md)
 
 - **Standard Libraries**
