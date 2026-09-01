@@ -52,6 +52,7 @@ import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary.Script;
+import org.monflabs.nashorn.api.scripting.ScriptUtils;
 import org.monflabs.nashorn.tools.Shell;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -63,11 +64,11 @@ import org.testng.annotations.Test;
  */
 public class ScriptLibraryTest {
 
-    /** A function implemented in Java, handed out as a global. */
+    /** A function implemented in Java, handed out as a global - coercing its argument as the language would. */
     private static final JSObject AREA = new AbstractJSObject() {
         @Override
         public Object call(final Object thiz, final Object... args) {
-            final double r = ((Number)args[0]).doubleValue();
+            final double r = args.length == 0 ? Double.NaN : (Double)ScriptUtils.convert(args[0], double.class);
             return Math.PI * r * r;
         }
 
@@ -178,6 +179,31 @@ public class ScriptLibraryTest {
         // geometry.js called it while the library was installed
         assertEquals(engine.eval("unit.area"), Math.PI);
         assertEquals(engine.eval("shapes.circle(3).area"), Math.PI * 9);
+    }
+
+    @Test
+    public void aJavaFunctionCoercesItsArgumentsAsTheLanguageWould() throws ScriptException {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(GEOMETRY);
+        assertEquals(engine.eval("area('2')"), Math.PI * 4);
+        assertEquals(engine.eval("area(true)"), Math.PI);
+        assertEquals(engine.eval("area({ valueOf: function () { return 3; } })"), Math.PI * 9);
+        assertEquals(engine.eval("area([2])"), Math.PI * 4);
+        assertEquals(engine.eval("area(null)"), 0.0);
+        assertEquals(engine.eval("isNaN(area())"), true);
+        assertEquals(engine.eval("isNaN(area(undefined))"), true);
+        assertEquals(engine.eval("isNaN(area('abc'))"), true);
+        assertEquals(engine.eval("area(2, 'ignored')"), Math.PI * 4);
+    }
+
+    @Test
+    public void convertFollowsTheLanguageForNull() {
+        assertEquals(ScriptUtils.convert(null, double.class), 0.0);
+        assertEquals(ScriptUtils.convert(null, int.class), 0);
+        assertEquals(ScriptUtils.convert(null, long.class), 0L);
+        assertEquals(ScriptUtils.convert(null, boolean.class), false);
+        assertEquals(ScriptUtils.convert(null, char.class), (char)0);
+        assertEquals(ScriptUtils.convert(null, String.class), null);
+        assertEquals(ScriptUtils.convert(null, Double.class), null);
     }
 
     @Test

@@ -148,18 +148,24 @@ public final class ScriptUtils {
     }
 
     /**
-     * Convert the given object to the given type.
+     * Convert the given object to the given type, the way the language would:
+     * a string, a boolean, or an object with a {@code valueOf} converts to a
+     * number as ECMAScript's ToNumber says, {@code undefined} to NaN, and
+     * {@code null} - which reaches Java as {@code null} - to 0 for a numeric
+     * primitive, {@code false} for {@code boolean}, and {@code null} for any
+     * other type.
      *
      * @param obj object to be converted
      * @param type destination type to convert to. type is either a Class
      * or nashorn representation of a Java type returned by Java.type() call in script.
      * @return converted object
      */
-    public static Object convert(final Object obj, final Object type) {
-        if (obj == null) {
-            return null;
-        }
+    /** What null converts to for each primitive: ToNumber(null) is 0, ToBoolean(null) is false. */
+    private static final java.util.Map<Class<?>, Object> NULL_AS_PRIMITIVE = java.util.Map.of(
+            double.class, 0.0, float.class, 0.0f, long.class, 0L, int.class, 0,
+            short.class, (short)0, byte.class, (byte)0, char.class, (char)0, boolean.class, false);
 
+    public static Object convert(final Object obj, final Object type) {
         final Class<?> clazz;
         if (type instanceof Class) {
             clazz = (Class<?>)type;
@@ -167,6 +173,10 @@ public final class ScriptUtils {
             clazz = ((StaticClass)type).getRepresentedClass();
         } else {
             throw new IllegalArgumentException("type expected");
+        }
+
+        if (obj == null) {
+            return clazz.isPrimitive() ? NULL_AS_PRIMITIVE.get(clazz) : null;
         }
 
         final LinkerServices linker = Bootstrap.getLinkerServices();

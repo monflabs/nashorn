@@ -53,19 +53,30 @@ var shapes = {
 ```
 
 The Java function is a `JSObject` — `AbstractJSObject` with `isFunction()` and `call` — which a
-script calls like any other function:
+script calls like any other function. Write it the way a script function behaves: a script may
+call `area("2")`, `area()` or `area(null)`, and a cast to `Number` would answer with a
+`ClassCastException` where the language answers with a conversion. `ScriptUtils.convert` *is* the
+engine's conversion — ToNumber for a numeric target: `"2"` → 2, `true` → 1, an object's `valueOf()`
+honoured, `undefined` and `"abc"` → NaN, `null` → 0 — so the function coerces exactly as one
+written in JavaScript would, and a missing argument is `undefined`, hence NaN:
 
 ```java
 package com.example.geometry;
 
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
+import org.monflabs.nashorn.api.scripting.ScriptUtils;
 
 public class Area extends AbstractJSObject {
     @Override public boolean isFunction() { return true; }
 
     @Override public Object call(Object thiz, Object... args) {
-        double r = ((Number) args[0]).doubleValue();
+        double r = args.length == 0 ? Double.NaN : toNumber(args[0]);
         return Math.PI * r * r;
+    }
+
+    /** ECMAScript's ToNumber, as the engine does it. */
+    static double toNumber(Object value) {
+        return (Double) ScriptUtils.convert(value, double.class);
     }
 }
 ```
