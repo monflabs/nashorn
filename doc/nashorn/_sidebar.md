@@ -18,6 +18,7 @@
   - [Extension APIs](/extending/apis.md)
   - [Objects from Java: JSObject vs ScriptObject](/extending/java-objects.md)
   - [Script libraries](/extending/script-libraries.md)
+  - [Module loaders](/extending/module-loaders.md)
 
 - **Standard Libraries**
   - [Overview and the event loop](/libraries/overview.md)

@@ -40,7 +40,8 @@ library walks the language and the extensions one sample at a time.
 public APIs an extension is built from, [objects implemented in Java](extending/java-objects.md) with
 `JSObject` (and why the engine's own `ScriptObject` is not for that), and
 [script libraries](extending/script-libraries.md), which install globals, scripts and prototype
-extensions into every global an engine creates.
+extensions into every global an engine creates, and [module loaders](extending/module-loaders.md),
+which decide where `import` finds its modules.
 
 **[Standard Libraries](libraries/overview.md)** — what a script expects from its host beyond the
 language, shipped inside the engine: [timers, `queueMicrotask` and Base64](libraries/host.md),

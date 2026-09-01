@@ -97,7 +97,7 @@ tracing) that stay with `option(...)`.
 | `locale(Locale)` | `--locale` | the JVM's | What `toLocaleString` and its kin answer with. |
 | `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-the-engine.md#the-scope-model). |
 | `discoveredLibraries(names...)` | `--libraries` | all | Which [standard and registered libraries](../extending/script-libraries.md) apply; none if no name is given. |
-| `moduleLoader(loaders...)` | — | filesystem | Where `import` finds its [modules](modules.md#module-loaders): a chain, first answer wins. Registering any loader replaces the default filesystem resolution. |
+| `moduleLoader(loaders...)` | — | filesystem | Where `import` finds its modules: a [chain of loaders](../extending/module-loaders.md), first answer wins. Registering any loader replaces the default filesystem resolution. |
 
 **Debugging**
 

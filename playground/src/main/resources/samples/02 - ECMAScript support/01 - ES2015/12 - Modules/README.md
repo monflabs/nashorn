@@ -15,4 +15,5 @@ interface has one method, so a function converts) serving the sample's other tab
 
 `PathModuleLoader` (files under a root) and `ResourceModuleLoader` (class-path resources) ship
 too; with no loader registered, a specifier is a filesystem path relative to its importer. The
-*ES modules* guide (`doc/nashorn/guide/modules.md`) has the whole story.
+*ES modules* guide (`doc/nashorn/guide/modules.md`) covers consumption; building a loader is the
+*Module loaders* page of *Extending the engine* (`doc/nashorn/extending/module-loaders.md`).

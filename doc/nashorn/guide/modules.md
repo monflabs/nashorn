@@ -66,45 +66,26 @@ ns.getMember("count");    // 1 - a live binding
 A plain script is unaffected (one parse, as always), and a source that parses as neither reports
 the script's own error. `Compilable` stays script-only.
 
-## Module loaders
+## Choosing where imports come from
 
-Where an `import`'s specifier comes from is the engine's **module-loading chain**
-(`org.monflabs.nashorn.api.modules`), registered on the builder: every loader is asked in order,
-the first that answers wins, and a loader that does not have the module returns null. With no
-loader registered, the default is the filesystem behaviour above — a specifier as a path relative
-to the importing module; registering any loader replaces it (add a `PathModuleLoader` to keep
-filesystem access).
+Which modules an `import` can see is configured when the engine is built: the builder's
+`moduleLoader(...)` registers a chain of loaders — files under a directory
+(`PathModuleLoader`), class-path resources (`ResourceModuleLoader`), modules whose exports are
+Java values (`JavaModuleLoader`), or any loader of your own — and the first that answers a
+specifier wins.
 
 ```java
 ScriptEngine engine = new NashornScriptEngineBuilder()
         .moduleLoader(
-            new PathModuleLoader(Path.of("scripts")),                          // files under a root
-            new ResourceModuleLoader(MyApp.class, "/com/example/modules"),     // class-path resources
-            new JavaModuleLoader()                                             // modules in pure Java
-                .add("math", Map.of("TAU", 2 * Math.PI, "add", addFunction)))
+            new PathModuleLoader(Path.of("scripts")),
+            new ResourceModuleLoader(MyApp.class, "/com/example/modules"))
         .build();
 ```
 
-- **`PathModuleLoader(root)`** — bare and entry specifiers against the root, `./x`/`../x` against
-  the importing module's directory, absolute paths as themselves. Literal names, no extension
-  guessing; canonical name = the absolute path.
-- **`ResourceModuleLoader(anchor | loader, root)`** — resources under the root (`a` →
-  `/com/example/modules/a`), `./` resolved among resources and never above the root; canonical
-  name = `classpath:/<path>`, so a resource module and a file module never collide.
-- **`JavaModuleLoader`** — modules whose exports are Java values, `"default"` for the default
-  export: `import { TAU, add } from "math"` with no script behind it. The values are fixed (no
-  live bindings — export `JSObject` functions for behaviour); each realm gets its own namespace
-  object over them.
-- **Your own** — `ModuleLoader` is one method, `load(specifier, referrer)`: return
-  `Module.source(name, text)` or `Module.values(name, exports)`, or null to pass. A loader
-  resolves `./x` against a referrer whose `origin()` it recognises as its own, and passes on a
-  foreign one. Names are the once-per-realm registry key: same name, same module instance.
-
-A specifier no loader answers is a `TypeError` naming it and the importing module, at link time —
-before anything runs, as the specification wants.
-
-Working through the internal API - `Context.evaluateModule`, `ModuleRecord` - remains possible on
-the class path and is what the engine's own tests use, but it is no longer the only door.
+With no loader registered, a specifier is a filesystem path relative to the importing module, as
+above. A specifier nothing answers is a `TypeError` naming it and its importer, at link time —
+before anything runs. Building a loader — the contract, the built-ins as templates, pure-Java
+modules — is the [module loaders](../extending/module-loaders.md) page of *Extending the engine*.
 
 ## Meanwhile, in scripts
 
