@@ -75,6 +75,12 @@ abstract class TreeImpl implements Tree {
                 return Kind.MULTIPLY;
             case ASSIGN_MUL:
                 return Kind.MULTIPLY_ASSIGNMENT;
+            case EXP:
+                return Kind.EXPONENT;
+            case ASSIGN_EXP:
+                return Kind.EXPONENT_ASSIGNMENT;
+            case AWAIT:
+                return Kind.AWAIT;
             case POS:
                 return Kind.UNARY_PLUS;
             case ADD:

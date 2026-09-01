@@ -334,6 +334,14 @@ public interface Tree {
 
         /**
          * Used for instances of {@link BinaryTree} representing
+         * exponentiation {@code **} (ECMAScript 2016).
+         *
+         * @since 2017.0.0
+         */
+        EXPONENT(BinaryTree.class),
+
+        /**
+         * Used for instances of {@link BinaryTree} representing
          * division {@code /}.
          */
         DIVIDE(BinaryTree.class),
@@ -466,6 +474,14 @@ public interface Tree {
 
         /**
          * Used for instances of {@link CompoundAssignmentTree} representing
+         * exponentiation assignment {@code **=} (ECMAScript 2016).
+         *
+         * @since 2017.0.0
+         */
+        EXPONENT_ASSIGNMENT(CompoundAssignmentTree.class),
+
+        /**
+         * Used for instances of {@link CompoundAssignmentTree} representing
          * division assignment {@code /=}.
          */
         DIVIDE_ASSIGNMENT(CompoundAssignmentTree.class),
@@ -535,6 +551,14 @@ public interface Tree {
          * yield expression {@code yield expr}.
          */
         YIELD(YieldTree.class),
+
+        /**
+         * Used for instances of {@link UnaryTree} representing an
+         * {@code await expr} expression in an async function (ECMAScript 2017).
+         *
+         * @since 2017.0.0
+         */
+        AWAIT(UnaryTree.class),
 
         /**
          * Used for instances of {@link LiteralTree} representing
