@@ -567,6 +567,18 @@ public final class ScriptUtils {
     }
 
     /**
+     * A plain script {@code Error} with this message, for Java code to throw;
+     * see {@link #typeError(String)}.
+     *
+     * @param message the message
+     * @return the exception to throw
+     * @since 2017.0.0
+     */
+    public static NashornException error(final String message) {
+        return new ECMAException(realm().newError(message), null);
+    }
+
+    /**
      * A script {@code RangeError} with this message, for Java code to throw;
      * see {@link #typeError(String)}.
      *

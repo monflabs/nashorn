@@ -27,18 +27,32 @@ package org.monflabs.nashorn.internal.runtime;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * The microtask queue promise reactions run on.
+ * A realm's event loop: the microtask queue promise reactions run on, and
+ * behind it the macrotasks a host library adds - timers, and work posted from
+ * other threads once an asynchronous operation completes.
  *
- * An embedded engine has no event loop, so the queue is drained when the
+ * An embedded engine has no event loop of its own, so this one runs when the
  * JavaScript stack empties: entries into script from Java are counted, and the
- * queue runs when that count returns to zero. That is the observable contract
- * for embedders - a promise callback has run by the time eval returns, and not
- * before the code that scheduled it has finished.
+ * queue drains when that count returns to zero. First every microtask, as
+ * before; then, for as long as there is a timer waiting, a task posted, or an
+ * operation pending, the loop waits for the next of them, runs it, and drains
+ * the microtasks it produced. That is the observable contract for embedders:
+ * a promise callback has run by the time eval returns, and so has a timer's -
+ * eval returns when the script is idle, not merely when its synchronous code
+ * is done. A script with nothing scheduled sees no difference at all.
  *
- * The queue belongs to a realm and is only ever touched by whichever thread is
- * running that realm's script, so it needs no locking.
+ * Microtasks and timers belong to the thread running the realm's script; only
+ * posting a task is safe from any thread. The loop stops when its thread is
+ * interrupted - the host's way to give up on a script that never goes idle.
  */
 public final class JobQueue {
     private final Deque<Runnable> jobs = new ArrayDeque<>();
@@ -49,6 +63,35 @@ public final class JobQueue {
     /** Guards against a job scheduling a job forever while already draining. */
     private boolean draining;
 
+    // -- macrotasks ----------------------------------------------------------------
+
+    /** A timer: a task, when it is due, and its place in line among those due at once. */
+    private static final class Timed implements Comparable<Timed> {
+        final Runnable task;
+        final long dueNanos;
+        final long sequence;
+        volatile boolean cancelled;
+
+        Timed(final Runnable task, final long dueNanos, final long sequence) {
+            this.task = task;
+            this.dueNanos = dueNanos;
+            this.sequence = sequence;
+        }
+
+        @Override
+        public int compareTo(final Timed other) {
+            final int byTime = Long.compare(dueNanos, other.dueNanos);
+            return byTime != 0 ? byTime : Long.compare(sequence, other.sequence);
+        }
+    }
+
+    private final PriorityQueue<Timed> timers = new PriorityQueue<>();
+    private final AtomicLong sequence = new AtomicLong();
+    private final ConcurrentLinkedQueue<Runnable> posted = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger pending = new AtomicInteger();
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition arrived = lock.newCondition();
+
     /**
      * Schedules a job to run once the stack empties.
      *
@@ -56,6 +99,76 @@ public final class JobQueue {
      */
     public void enqueue(final Runnable job) {
         jobs.add(job);
+    }
+
+    /**
+     * Schedules a task to run on the loop's thread once the delay has passed
+     * and the stack is empty. Only the loop's own thread schedules.
+     *
+     * @param task the task
+     * @param delayMillis how long to wait, at least
+     * @return a handle to cancel it with
+     */
+    public Object schedule(final Runnable task, final long delayMillis) {
+        final Timed timed = new Timed(task, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.max(0, delayMillis)), sequence.getAndIncrement());
+        timers.add(timed);
+        return timed;
+    }
+
+    /**
+     * Cancels a scheduled task; nothing happens if it has run already.
+     *
+     * @param handle what {@link #schedule} returned
+     */
+    public void cancel(final Object handle) {
+        if (handle instanceof Timed timed) {
+            timed.cancelled = true;
+            timers.remove(timed);
+        }
+    }
+
+    /**
+     * Counts an operation in flight, so that the loop waits for it: it ends
+     * with {@link #post} or {@link #discard}.
+     */
+    public void begin() {
+        pending.incrementAndGet();
+    }
+
+    /**
+     * Posts a task from any thread, to run on the loop's thread once the stack
+     * is empty, and ends an operation begun with {@link #begin} if there is one.
+     *
+     * @param task the task
+     * @param endsPending whether this completes an operation counted with {@link #begin}
+     */
+    public void post(final Runnable task, final boolean endsPending) {
+        lock.lock();
+        try {
+            posted.add(task);
+            if (endsPending) {
+                pending.decrementAndGet();
+            }
+            arrived.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Ends an operation begun with {@link #begin} that has nothing to run. */
+    public void discard() {
+        lock.lock();
+        try {
+            pending.decrementAndGet();
+            arrived.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Whether anything at all is waiting to run: a microtask, a timer, a posted task or an operation in flight. */
+    public boolean isBusy() {
+        return !jobs.isEmpty() || !timers.isEmpty() || !posted.isEmpty() || pending.get() > 0;
     }
 
     /** Marks entry into script from Java. */
@@ -72,28 +185,102 @@ public final class JobQueue {
         return --DEPTH.get()[0] == 0;
     }
 
-    /** Runs everything queued, including whatever those jobs queue in turn. */
+    /**
+     * Runs everything queued, including whatever those jobs queue in turn:
+     * the microtasks, then the macrotasks as they come due, each followed by
+     * the microtasks it produced, until nothing is left and nothing is
+     * pending.
+     */
     public void drain() {
         if (draining) {
             return;
         }
         draining = true;
         try {
-            Runnable job;
-            while ((job = jobs.poll()) != null) {
-                // A promise chain can schedule work forever - the specification
-                // allows it, and a browser would spin too - but the host has to
-                // be able to give up on it. Without this a runner that abandons a
-                // wedged evaluation leaves the thread spinning here, allocating,
-                // for the life of the process.
-                if (Thread.currentThread().isInterrupted()) {
-                    jobs.clear();
+            for (;;) {
+                if (!drainMicrotasks()) {
                     return;
                 }
-                job.run();
+                final Runnable next = nextMacrotask();
+                if (next == null) {
+                    return;
+                }
+                next.run();
             }
         } finally {
             draining = false;
         }
+    }
+
+    /** Runs the microtasks; false if the thread was interrupted and the loop gave up. */
+    private boolean drainMicrotasks() {
+        Runnable job;
+        while ((job = jobs.poll()) != null) {
+            // A promise chain can schedule work forever - the specification
+            // allows it, and a browser would spin too - but the host has to
+            // be able to give up on it. Without this a runner that abandons a
+            // wedged evaluation leaves the thread spinning here, allocating,
+            // for the life of the process.
+            if (Thread.currentThread().isInterrupted()) {
+                abandon();
+                return false;
+            }
+            job.run();
+        }
+        return true;
+    }
+
+    /**
+     * The next macrotask to run, waiting for it if one is due later or an
+     * operation is in flight; null when the loop is idle or was interrupted.
+     */
+    private Runnable nextMacrotask() {
+        for (;;) {
+            if (Thread.currentThread().isInterrupted()) {
+                abandon();
+                return null;
+            }
+            final Runnable ready = posted.poll();
+            if (ready != null) {
+                return ready;
+            }
+            final Timed timer = timers.peek();
+            final long now = System.nanoTime();
+            if (timer != null && timer.dueNanos <= now) {
+                timers.poll();
+                if (timer.cancelled) {
+                    continue;
+                }
+                return timer.task;
+            }
+            if (timer == null && pending.get() == 0) {
+                return null;
+            }
+            lock.lock();
+            try {
+                if (!posted.isEmpty()) {
+                    continue;
+                }
+                if (timer != null) {
+                    arrived.awaitNanos(timer.dueNanos - now);
+                } else {
+                    arrived.await();
+                }
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                abandon();
+                return null;
+            } finally {
+                lock.unlock();
+            }
+        }
+    }
+
+    /** Drops everything: the host has given up on this script. */
+    private void abandon() {
+        jobs.clear();
+        timers.clear();
+        posted.clear();
+        pending.set(0);
     }
 }

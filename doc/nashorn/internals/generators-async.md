@@ -80,12 +80,23 @@ queue turn** either way. The settlement re-enters with `Resume.Value` or `Resume
 `Step.Returned` resolves the async function's promise (adopting thenables), `Step.Failed` rejects
 it.
 
-## The job queue
+## The job queue, and the event loop behind it
 
 Promise reactions never run inline — `then` always enqueues. The queue is an `ArrayDeque` **per
 Global** (per realm), touched only by the thread running that realm, so it needs no locks. Draining
 is tied to script depth: the runtime counts script entries per thread, and when the count returns
 to zero — the outermost `eval`/`invoke` is unwinding — the current realm's queue drains. The
 embedder-visible contract: **microtasks have run by the time your `eval` returns, and never
-before the synchronous code finished**. A wedged promise chain cannot wedge the host: draining
-checks thread interruption and abandons the queue if the thread has been interrupted.
+before the synchronous code finished**.
+
+Behind the microtasks, the same `JobQueue` is the realm's **event loop** for the macrotasks a host
+library adds through the public `EventLoop` API: *timers* (a priority queue by due time, scheduled
+and cancelled on the loop's thread only), *posted tasks* (a concurrent queue any thread may add
+to, with a condition the loop waits on), and a count of *pending operations* (a request in flight)
+that keeps the loop from declaring the script idle. The drain runs the microtasks, then, while a
+timer is waiting, a task is posted or an operation is pending, waits for the next of them, runs
+it, and drains the microtasks it produced — so **`eval` returns when the script is idle**, which
+for a script that scheduled nothing is exactly when it returned before. A loop that never goes
+idle — an interval nobody clears — is the host's to end: draining checks thread interruption at
+every step, abandons everything queued, and returns, which is what the playground's Stop and the
+debugger's `terminate` rely on. The `host` and `fetch` standard libraries are built on this.
