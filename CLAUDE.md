@@ -39,6 +39,11 @@ mvn -pl core test      # core tests only
 mvn javadoc:javadoc    # the two public API packages
 ```
 
+`.mvn/jvm.config` passes `--enable-native-access=ALL-UNNAMED` and `--sun-misc-unsafe-memory-access=allow`
+to *Maven's own* JVM: Maven 3.8's `jansi` and `guava` trip JDK 25's native-access and `Unsafe` warnings
+on every run, and nothing in the project is involved. Both flags need JDK 23+, which the enforcer
+already requires.
+
 Profiles: `-Pfetch-externals` (clone test262/octane into `core/src/test/scripts/external`), `-Ptest262`, `-Ptest-parallel`, `-Pbenchmark`, `-Psunspider`, `-Pcoverage` (JaCoCo), `-Prun` / `-Pdebug` (run a `samples/` script through the engine), `-Prelease`.
 
 SunSpider is not fetched by `-Pfetch-externals`: the Ant build checked it out of `svn.webkit.org`, which no longer exists. Drop a copy at `core/src/test/scripts/external/sunspider` to use `-Psunspider`.
