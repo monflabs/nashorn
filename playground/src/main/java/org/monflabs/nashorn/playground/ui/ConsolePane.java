@@ -53,7 +53,7 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
     private static final long serialVersionUID = 1L;
     private static final int LIMIT = 400_000;
 
-    /** A pending piece of output. */
+    /** A pending piece of output; a null text only moves to the line. */
     private record Chunk(SimpleAttributeSet style, int line, String text) {}
 
     private final JTextPane text = new JTextPane() {
@@ -104,6 +104,11 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         append(new Chunk(value, line, s));
     }
 
+    @Override
+    public void statementAt(final int line) {
+        append(new Chunk(plain, line, null));
+    }
+
     private void append(final Chunk chunk) {
         synchronized (pending) {
             pending.add(chunk);
@@ -124,7 +129,9 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         final StyledDocument doc = text.getStyledDocument();
         try {
             for (final Chunk chunk : chunks) {
-                if (chunk.line() >= 0) {
+                if (chunk.text() == null) {
+                    padToLine(doc, chunk.line());
+                } else if (chunk.line() >= 0) {
                     padToLine(doc, chunk.line());
                     doc.insertString(doc.getLength(), "  // " + chunk.text() + "\n", value);
                 } else {
@@ -140,7 +147,11 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         text.setCaretPosition(doc.getLength());
     }
 
-    /** Pads with blank lines so that a value lands beside the source line it came from. */
+    /**
+     * Pads with blank lines so that what comes next lands on the source line it
+     * belongs to - as far as possible: output that already ran past that line
+     * stays where it is.
+     */
     private void padToLine(final StyledDocument doc, final int line) throws BadLocationException {
         final String all = doc.getText(0, doc.getLength());
         int lines = 0;
@@ -156,6 +167,19 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         while (lines < line) {
             doc.insertString(doc.getLength(), "\n", plain);
             lines++;
+        }
+    }
+
+    /** Waits for the pending output to be painted; for tests. */
+    void flushNow() {
+        if (SwingUtilities.isEventDispatchThread()) {
+            flush();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(this::flush);
+            } catch (final InterruptedException | java.lang.reflect.InvocationTargetException e) {
+                throw new IllegalStateException(e);
+            }
         }
     }
 

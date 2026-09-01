@@ -68,6 +68,17 @@ public class EchoModeTest {
     }
 
     @Test
+    public void aHoistedForHeadDeclarationDoesNotSplitTheLoop() throws InterruptedException {
+        final Recorder recorder = new Recorder();
+        final Sample s = sample("var values = [1, 2];\nfor (var v of values) {\n    print(v);\n}\nfor (var k in { a: 1 }) { print(k); }\n{\n    var inBlock = 3;\n}\ninBlock;\n");
+        runner.run(s, s.source(), true, recorder, recorder);
+        final ScriptRunner.Result result = recorder.await(30);
+        assertTrue(result.ok(), result.failure() == null ? "" : ScriptRunner.describe(result.failure()));
+        assertEquals(recorder.out.toString(), "1\n2\na\n");
+        assertEquals(recorder.values, List.of("8:3"));
+    }
+
+    @Test
     public void functionsAreHoistedAboveTheCallsThatPrecedeThem() throws InterruptedException {
         final Recorder recorder = new Recorder();
         final Sample s = sample("g(2);\nfunction g(n) { return n * 21; }\n");

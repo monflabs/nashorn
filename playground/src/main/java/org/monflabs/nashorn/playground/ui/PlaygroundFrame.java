@@ -81,7 +81,8 @@ public final class PlaygroundFrame extends JFrame {
     private final EditorPane editor;
     private final ConsolePane console;
     private final ReadmePane readme;
-    private final JSplitPane bottom = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+    private final JSplitPane consoleSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+    private final JSplitPane readmeSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
     private final JButton runButton = new JButton("Run");
     private final JButton stopButton = new JButton("Stop");
     private final JCheckBox autoRun = new JCheckBox("Auto-run", true);
@@ -126,12 +127,14 @@ public final class PlaygroundFrame extends JFrame {
         });
 
         add(toolbar(), BorderLayout.NORTH);
-        bottom.setLeftComponent(titled("README", readme));
-        bottom.setRightComponent(titled("Console", console));
-        bottom.setResizeWeight(0.35);
-        final JSplitPane right = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editor, bottom);
-        right.setResizeWeight(0.6);
-        final JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tree, right);
+        // the console beside the script, so that in the echo mode its lines can mirror the script's
+        consoleSplit.setLeftComponent(editor);
+        consoleSplit.setRightComponent(titled("Console", console));
+        consoleSplit.setResizeWeight(0.55);
+        readmeSplit.setTopComponent(consoleSplit);
+        readmeSplit.setBottomComponent(titled("README", readme));
+        readmeSplit.setResizeWeight(0.75);
+        final JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tree, readmeSplit);
         split.setResizeWeight(0.0);
         tree.setMinimumSize(new Dimension(200, 100));
         tree.setPreferredSize(new Dimension(280, 600));
@@ -142,12 +145,29 @@ public final class PlaygroundFrame extends JFrame {
         keys();
         loadPrefs();
         split.setDividerLocation(prefs.getInt("divider", 280));
-        bottom.setDividerLocation(prefs.getInt("bottomDivider", Math.max(300, prefs.getInt("width", 1200) * 35 / 100)));
         addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowOpened(final WindowEvent e) {
+                // the nested splits have their real size only now; a remembered position, else a proportion
+                final int consoleDivider = prefs.getInt("consoleDivider", -1);
+                if (consoleDivider > 0) {
+                    consoleSplit.setDividerLocation(consoleDivider);
+                } else {
+                    consoleSplit.setDividerLocation(0.55);
+                }
+                final int readmeDivider = prefs.getInt("readmeDivider", -1);
+                if (readmeDivider > 0) {
+                    readmeSplit.setDividerLocation(readmeDivider);
+                } else {
+                    readmeSplit.setDividerLocation(0.72);
+                }
+            }
+
             @Override
             public void windowClosing(final WindowEvent e) {
                 prefs.putInt("divider", split.getDividerLocation());
-                prefs.putInt("bottomDivider", bottom.getDividerLocation());
+                prefs.putInt("consoleDivider", consoleSplit.getDividerLocation());
+                prefs.putInt("readmeDivider", readmeSplit.getDividerLocation());
             }
         });
         if (!tree.select(prefs.get("sample", ""))) {

@@ -72,14 +72,27 @@ final class StatementSplitter {
         if (unit == null) {
             throw new IllegalArgumentException("cannot parse " + name);
         }
-        final List<? extends Tree> elements = unit.getSourceElements();
+        // The parser hoists a declaration it moves - the var of a for-in/of head, say - into the
+        // program's own list, out of order and inside the statement it came from: sort by
+        // position and keep only what no earlier statement already covers.
+        final List<Tree> elements = new ArrayList<>(unit.getSourceElements());
+        elements.sort((a, b) -> Long.compare(a.getStartPosition(), b.getStartPosition()));
+        final List<Tree> topLevel = new ArrayList<>();
+        long covered = -1;
+        for (final Tree tree : elements) {
+            if (tree.getStartPosition() < covered) {
+                continue;
+            }
+            topLevel.add(tree);
+            covered = Math.max(covered, tree.getEndPosition());
+        }
         final List<Statement> declarations = new ArrayList<>();
         final List<Statement> statements = new ArrayList<>();
-        for (int i = 0; i < elements.size(); i++) {
-            final Tree tree = elements.get(i);
+        for (int i = 0; i < topLevel.size(); i++) {
+            final Tree tree = topLevel.get(i);
             final int start = startOf(source, tree);
             // up to the next statement, so that a trailing semicolon and comments stay with it
-            final int end = i + 1 < elements.size() ? startOf(source, elements.get(i + 1)) : source.length();
+            final int end = i + 1 < topLevel.size() ? startOf(source, topLevel.get(i + 1)) : source.length();
             if (start < 0 || end <= start) {
                 continue;
             }

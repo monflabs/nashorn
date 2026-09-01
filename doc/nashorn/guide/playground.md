@@ -25,7 +25,7 @@ The tree on the left holds three categories, read straight out of the jar's reso
   scripting mode, the JSR-223 engine driven from script, and a debugging sample.
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
-editor, next to the console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
+editor and console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
 line asks for engine options. The **Scratchpad** at the top of the tree is yours: it is kept in
 `~/.nashorn-playground/scratch.js` between sessions.
 
@@ -35,9 +35,12 @@ line asks for engine options. The **Scratchpad** at the top of the tree is yours
 second after you stop typing. Output goes to the console — `print` and `console.log` in the text
 colour, the error stream in red — with the run's outcome and time on the status line.
 
-**Log expression values** evaluates the program one top-level statement at a time and prints
-what each statement evaluated to beside its line, in the style of a REPL transcript. Function
-declarations are hoisted first, as the engine would.
+**Log expression values** evaluates the program one top-level statement at a time. The console
+sits to the right of the script and, in this mode, mirrors it line by line: before a statement runs
+the console pads with blank lines to that statement's line, so what it prints and what it
+evaluates to (shown as `// value`) land beside it — as far as possible, since output that has
+already run past a line stays where it is. Function declarations are hoisted first, as the engine
+would.
 
 **Stop** (Esc) ends a runaway script. Every run is compiled with `--debugger`, so the playground
 pauses the script at its next statement and terminates it there — a `while (true) {}` does not

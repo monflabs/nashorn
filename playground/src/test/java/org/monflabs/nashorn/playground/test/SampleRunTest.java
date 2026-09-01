@@ -83,6 +83,26 @@ public class SampleRunTest {
     }
 
     @Test
+    public void everySampleRunsInEchoModeToo() throws IOException, InterruptedException {
+        final List<String> failures = new ArrayList<>();
+        for (final Sample sample : SampleLibrary.load().samples()) {
+            final Recorder recorder = new Recorder();
+            runner.run(sample, sample.source(), true, recorder, recorder);
+            final ScriptRunner.Result result = recorder.await(60);
+            final String expected = EXPECTED_FAILURES.get(sample.id());
+            if (expected != null) {
+                if (result.failure() == null || !ScriptRunner.describe(result.failure()).contains(expected)) {
+                    failures.add(sample.id() + ": expected a failure mentioning " + expected + ", got "
+                            + (result.failure() == null ? "success" : ScriptRunner.describe(result.failure())));
+                }
+            } else if (!result.ok()) {
+                failures.add(sample.id() + ": " + (result.terminated() ? "terminated" : ScriptRunner.describe(result.failure())));
+            }
+        }
+        assertTrue(failures.isEmpty(), failures.size() + " sample(s) failed in the echo mode:\n" + String.join("\n\n", failures));
+    }
+
+    @Test
     public void helloPrints() throws IOException, InterruptedException {
         final Sample hello = SampleLibrary.load().byId("01 - Getting started/01 - Hello");
         final Recorder recorder = new Recorder();

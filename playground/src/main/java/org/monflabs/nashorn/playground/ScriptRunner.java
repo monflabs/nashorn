@@ -67,6 +67,14 @@ public final class ScriptRunner {
         void err(String text);
         /** A statement's value, next to its line, in the echo mode. */
         void valueAtLine(int line, String text);
+        /**
+         * A statement is about to run, in the echo mode: a console that mirrors
+         * the script line by line moves to that line first, so what the statement
+         * prints lands beside it.
+         * @param line the statement's line, zero based
+         */
+        default void statementAt(final int line) {
+        }
     }
 
     /** What happened to a run. Called on the worker thread. */
@@ -247,6 +255,9 @@ public final class ScriptRunner {
                 for (final StatementSplitter.Statement statement : StatementSplitter.split(sample.fileName(), source, sample.options())) {
                     if (run.stopRequested) {
                         break;
+                    }
+                    if (!statement.declaration()) {
+                        console.statementAt(statement.line());
                     }
                     final Object value = eng.eval(statement.text());
                     if (value != null && !statement.declaration()) {
