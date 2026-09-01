@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.monflabs.nashorn.api.modules.ModuleLoader;
 import java.util.TimeZone;
 import javax.script.ScriptEngine;
 
@@ -67,6 +68,7 @@ import javax.script.ScriptEngine;
 public final class NashornScriptEngineBuilder {
     private final List<String> options = new ArrayList<>();
     private final List<ScriptLibrary> libraries = new ArrayList<>();
+    private final List<ModuleLoader> moduleLoaders = new ArrayList<>();
     private ClassLoader classLoader;
     private ClassFilter classFilter;
 
@@ -363,6 +365,25 @@ public final class NashornScriptEngineBuilder {
         return this;
     }
 
+    /**
+     * Module loaders for the engine's {@code import} statements, asked in this
+     * order, the first that loads a module winning. With none registered,
+     * imports resolve as filesystem paths relative to the importing module;
+     * registering any loader replaces that - add a
+     * {@link org.monflabs.nashorn.api.modules.PathModuleLoader} to keep
+     * filesystem access.
+     *
+     * @param loaders the loaders, in chain order
+     * @return this
+     * @since 2017.0.0
+     */
+    public NashornScriptEngineBuilder moduleLoader(final ModuleLoader... loaders) {
+        for (final ModuleLoader loader : Objects.requireNonNull(loaders, "loaders")) {
+            this.moduleLoaders.add(Objects.requireNonNull(loader, "loader"));
+        }
+        return this;
+    }
+
     // -- building -----------------------------------------------------------------------
 
     /**
@@ -382,7 +403,7 @@ public final class NashornScriptEngineBuilder {
      */
     public ScriptEngine build() {
         final ClassLoader loader = classLoader != null ? classLoader : NashornScriptEngineFactory.getAppClassLoader();
-        return new NashornScriptEngine(NashornScriptEngineFactory.shared(), options.toArray(new String[0]), loader, classFilter, List.copyOf(libraries));
+        return new NashornScriptEngine(NashornScriptEngineFactory.shared(), options.toArray(new String[0]), loader, classFilter, List.copyOf(libraries), List.copyOf(moduleLoaders));
     }
 
     @Override

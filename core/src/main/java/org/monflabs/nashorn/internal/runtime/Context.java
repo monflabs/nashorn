@@ -536,6 +536,9 @@ public final class Context {
     /** The script libraries every global of this context gets, in order. */
     private final List<ScriptLibrary> libraries;
 
+    /** The module-loading chain; empty means the default filesystem loading. */
+    private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
+
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;
     private static final ConcurrentMap<String, Class<?>> structureClasses = new ConcurrentHashMap<>();
@@ -626,6 +629,23 @@ public final class Context {
      * @param libraries script libraries to apply to every global, besides the ones discovered as services
      */
     public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
+        this(options, errors, out, err, appLoader, classFilter, libraries, List.of());
+    }
+
+    /**
+     * Constructor
+     *
+     * @param options options from command line or Context creator
+     * @param errors  error manger
+     * @param out     output writer for this Context
+     * @param err     error writer for this Context
+     * @param appLoader application class loader
+     * @param classFilter class filter to use
+     * @param libraries script libraries to apply to every global, besides the ones discovered as services
+     * @param moduleLoaders the module-loading chain; empty for the default filesystem loading
+     */
+    public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries, final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders) {
+        this.moduleLoaders = moduleLoaders == null ? List.of() : List.copyOf(moduleLoaders);
         this.classFilter = classFilter;
         this.env       = new ScriptEnvironment(options, out, err);
         this._strict   = env._strict;
@@ -827,7 +847,24 @@ public final class Context {
      * @return the module record, once its body has finished
      */
     public ModuleRecord evaluateModule(final Source source) {
-        return loadModule(source, source.getName()).link().evaluate();
+        return loadModule(source, source.getName(), null).link().evaluate();
+    }
+
+    /**
+     * Evaluates a module without registering it: what an eval'd entry module
+     * needs, since every eval is its own program - two evaluations of one
+     * source are two modules, and none of them answers to a name an import
+     * could collide with. Its own imports still resolve and deduplicate
+     * normally.
+     *
+     * @param source the module source
+     * @return the evaluated module
+     */
+    public ModuleRecord evaluateModuleDetached(final Source source) {
+        final Global global = getGlobal();
+        final FunctionNode moduleNode = compileModuleNode(source);
+        final ScriptFunction body = getProgramFunction(compileModule(source, moduleNode), global);
+        return new ModuleRecord(source.getName(), moduleNode.getModule(), body, global, null).link().evaluate();
     }
 
     /**
@@ -842,16 +879,41 @@ public final class Context {
      * @return the module it names, already loaded if it has been asked for before
      */
     public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
+        if (!moduleLoaders.isEmpty()) {
+            final org.monflabs.nashorn.api.modules.Module referrerView = referrer == null ? null : referrer.moduleView();
+            for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {
+                final org.monflabs.nashorn.api.modules.Module loaded = loader.load(specifier, referrerView);
+                if (loaded != null) {
+                    return record(loaded);
+                }
+            }
+            return null;
+        }
         final String base = referrer == null ? null : referrer.getName();
         final Path resolved = resolveModule(specifier, base);
         if (resolved == null) {
             return null;
         }
         try {
-            return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString());
+            return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString(), resolved);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /** The record for what a loader answered: known already, Java values, or script to compile. */
+    private ModuleRecord record(final org.monflabs.nashorn.api.modules.Module loaded) {
+        final Global global = getGlobal();
+        final ModuleRecord known = global.getModule(loaded.name());
+        if (known != null) {
+            return known;
+        }
+        if (loaded.exports() != null) {
+            final ModuleRecord record = new ModuleRecord(loaded.name(), loaded.exports(), global);
+            global.registerModule(loaded.name(), record);
+            return record;
+        }
+        return loadModule(Source.sourceFor(loaded.name(), loaded.text()), loaded.name(), loaded.origin());
     }
 
     private static Path resolveModule(final String specifier, final String base) {
@@ -864,7 +926,7 @@ public final class Context {
         return Files.isReadable(candidate) ? candidate : null;
     }
 
-    private ModuleRecord loadModule(final Source source, final String name) {
+    private ModuleRecord loadModule(final Source source, final String name, final Object origin) {
         final Global global = getGlobal();
         final ModuleRecord known = global.getModule(name);
         if (known != null) {
@@ -873,7 +935,7 @@ public final class Context {
 
         final FunctionNode moduleNode = compileModuleNode(source);
         final ScriptFunction body = getProgramFunction(compileModule(source, moduleNode), global);
-        final ModuleRecord record = new ModuleRecord(name, moduleNode.getModule(), body, global);
+        final ModuleRecord record = new ModuleRecord(name, moduleNode.getModule(), body, global, origin);
         global.registerModule(name, record);
         return record;
     }

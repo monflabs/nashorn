@@ -91,19 +91,41 @@ public final class ModuleRecord {
     }
 
     private final String name;
-    private final Module module;
+    private final Module module;                          // null for a values-backed module
     private final ScriptFunction body;
     private final Global global;
+    private final java.util.Map<String, Object> values;   // a pure-Java module's exports; null for script
+    private final Object origin;                          // what the loader that made this stored
 
     private State state = State.NEW;
     private ScriptObject environment;
     private ScriptObject namespace;
 
-    ModuleRecord(final String name, final Module module, final ScriptFunction body, final Global global) {
+    /** What this module's specifiers resolved to: link, bind and evaluate all ask, the loaders answer once. */
+    private final java.util.Map<String, ModuleRecord> dependencies = new java.util.HashMap<>();
+
+    ModuleRecord(final String name, final Module module, final ScriptFunction body, final Global global, final Object origin) {
         this.name = name;
         this.module = module;
         this.body = body;
         this.global = global;
+        this.values = null;
+        this.origin = origin;
+    }
+
+    /** A module whose exports are Java values: nothing to link, nothing to run. */
+    ModuleRecord(final String name, final java.util.Map<String, Object> values, final Global global) {
+        this.name = name;
+        this.module = null;
+        this.body = null;
+        this.global = global;
+        this.values = values;
+        this.origin = null;
+    }
+
+    /** The public view of this module, handed to loaders as the referrer. */
+    org.monflabs.nashorn.api.modules.Module moduleView() {
+        return org.monflabs.nashorn.api.modules.Module.referrer(name, origin);
     }
 
     /** The name this module was loaded under, for error messages. */
@@ -122,6 +144,10 @@ public final class ModuleRecord {
      * @return the module itself
      */
     public ModuleRecord link() {
+        if (values != null) {
+            state = State.LINKED;
+            return this;
+        }
         if (state != State.NEW) {
             // already linked, or on the stack of a link that is: a cycle
             return this;
@@ -167,6 +193,9 @@ public final class ModuleRecord {
      * @return the binding, null if nothing exports the name, or {@link #AMBIGUOUS}
      */
     private Binding resolveExport(final String exportName, final Set<String> resolving) {
+        if (values != null) {
+            return values.containsKey(exportName) ? new Binding(this, exportName) : null;
+        }
         if (!resolving.add(name + "\u0000" + exportName)) {
             // this module is already being asked the same question further up
             // the stack: it is a cycle, and answering again would not end
@@ -222,6 +251,10 @@ public final class ModuleRecord {
      * @return the module itself, once its body has finished
      */
     public ModuleRecord evaluate() {
+        if (values != null) {
+            state = State.EVALUATED;
+            return this;
+        }
         if (state == State.NEW) {
             link();
         }
@@ -311,6 +344,10 @@ public final class ModuleRecord {
 
     private Set<String> exportNames(final Set<String> visited) {
         final Set<String> names = new LinkedHashSet<>();
+        if (values != null) {
+            names.addAll(values.keySet());
+            return names;
+        }
         if (!visited.add(name)) {
             // a cycle of export * declarations, which the specification ends by
             // answering with nothing rather than by going round again
@@ -382,6 +419,9 @@ public final class ModuleRecord {
      * @return its value
      */
     private Object local(final String localName) {
+        if (values != null) {
+            return values.get(localName);
+        }
         if (environment == null) {
             // reached through a cycle before this module's body started, so
             // nothing it declares has been initialised
@@ -398,9 +438,13 @@ public final class ModuleRecord {
     }
 
     private ModuleRecord dependency(final String specifier) {
-        final ModuleRecord loaded = Context.getContext().loadModule(specifier, this);
+        ModuleRecord loaded = dependencies.get(specifier);
         if (loaded == null) {
-            throw typeError("module.not.found", specifier, name);
+            loaded = Context.getContext().loadModule(specifier, this);
+            if (loaded == null) {
+                throw typeError("module.not.found", specifier, name);
+            }
+            dependencies.put(specifier, loaded);
         }
         return loaded;
     }

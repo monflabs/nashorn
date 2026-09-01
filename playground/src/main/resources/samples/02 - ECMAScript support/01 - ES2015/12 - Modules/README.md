@@ -1,20 +1,18 @@
 # Modules
 
-The ES2015 module system — `import`/`export`, default and named exports, namespace imports,
-**live bindings**, one evaluation per realm, module scope, cycles — is implemented in full and
+The ES2015 module system - `import`/`export`, default and named exports, namespace imports,
+**live bindings**, one evaluation per realm, module scope, cycles - is implemented in full and
 held to the module slice of the conformance suite.
 
-What is missing is a **public door**: `eval()` and `jjs` treat their input as a *script*, so a
-file containing `export` will not parse there, and nothing on `javax.script` runs a module yet.
-The engine's own tests use the internal API — `Context.evaluateModule(Source)`, returning a
-`ModuleRecord` with `read(name)`, `exportNames()` and `namespace()` — and that is what this
-sample does too. It works here because the playground runs on the class path, where the internal
-package is reachable; on a module path it is not exported, and the API carries no compatibility
-promise.
+Modules are consumed with the language's own syntax: a source handed to `eval` that parses as a
+module runs as one, and its result is the module's **namespace object**. Where an `import` finds
+its modules is the engine's **module-loading chain** (`org.monflabs.nashorn.api.modules`),
+registered on the builder - every loader is asked in order, the first that answers wins, null
+means "not mine". This sample registers two: a loader written as a *script function* (the
+interface has one method, so a function converts) serving the sample's other tabs, and a
+`JavaModuleLoader` serving a module whose exports are pure Java values - no script behind
+`import { TAU } from "constants"` at all.
 
-The two other tabs are the module files. They are written to a temporary directory before
-evaluation, because a specifier like `./counter.js` names a real file relative to its importer —
-no search path, no extension guessing.
-
-The whole story, including the Java-side embedding recipe, is in the documentation site's
-*ES modules* guide (`doc/nashorn/guide/modules.md`).
+`PathModuleLoader` (files under a root) and `ResourceModuleLoader` (class-path resources) ship
+too; with no loader registered, a specifier is a filesystem path relative to its importer. The
+*ES modules* guide (`doc/nashorn/guide/modules.md`) has the whole story.

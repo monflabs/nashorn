@@ -36,6 +36,8 @@ import org.monflabs.nashorn.internal.objects.Global;
 import org.monflabs.nashorn.internal.objects.NativeSymbol;
 import org.monflabs.nashorn.internal.parser.Parser;
 import org.monflabs.nashorn.internal.runtime.Context;
+import org.monflabs.nashorn.internal.runtime.ParserException;
+import org.monflabs.nashorn.internal.runtime.Source;
 import org.monflabs.nashorn.internal.runtime.ErrorManager;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.Property;
@@ -435,12 +437,26 @@ public class Shell implements PartialParser {
                 }
 
                 final File file = new File(fileName);
-                final ScriptFunction script = context.compileScript(sourceFor(fileName, file), global);
+                final Source source = sourceFor(fileName, file);
+                final ScriptFunction script = context.compileScript(source, global);
                 if (script == null || errors.getNumberOfErrors() != 0) {
                     if (context.getEnv()._parse_only && !errors.hasErrors()) {
                         continue; // No error, continue to consume all files in list
                     }
-                    return COMPILATION_ERROR;
+                    // import and export are reserved words, so a module never
+                    // parses as a script: a file that parses as one runs as one
+                    try {
+                        context.evaluateModule(source);
+                        continue;
+                    } catch (final ParserException notAModule) {
+                        return COMPILATION_ERROR;
+                    } catch (final NashornException e) {
+                        errors.error(e.toString());
+                        if (context.getEnv()._dump_on_error) {
+                            e.printStackTrace(context.getErr());
+                        }
+                        return RUNTIME_ERROR;
+                    }
                 }
 
                 try {

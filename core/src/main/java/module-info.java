@@ -151,6 +151,7 @@ module org.monflabs.nashorn {
     exports org.monflabs.nashorn.api.tree;
     exports org.monflabs.nashorn.api.debugger;
     exports org.monflabs.nashorn.libs;
+    exports org.monflabs.nashorn.api.modules;
 
     uses org.monflabs.nashorn.api.debugger.DebuggerFrontend;
     uses org.monflabs.nashorn.api.scripting.ScriptLibrary;

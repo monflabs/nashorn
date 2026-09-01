@@ -39,57 +39,72 @@ The guarantees you can rely on:
   missing or ambiguous export is an error up front, not halfway through.
 - **Cycles work**, with the standard temporal-dead-zone behaviour for bindings read too early.
 
-**Specifier resolution is file-based and literal**: a specifier is resolved as a path relative to
+With the default (no loaders registered), **specifier resolution is file-based and literal**: a specifier is resolved as a path relative to
 the directory of the importing module (absolute paths as themselves), with no search path, no
 `node_modules`, no URL loading, and **no extension guessing** — `import "./counter.js"` names a
 real, readable file, extension included. Bare specifiers (`import "lodash"`) do not resolve.
 
-## Running modules — the honest part
+## Running modules
 
-!> There is currently **no user-facing entry point** for modules: no `jjs` flag, no `loadModule`
-builtin, and nothing on `javax.script`. `engine.eval` and `jjs` always treat their input as a
-*script*, so a file containing `export` will not parse there. The only way to evaluate a module
-today is the engine's internal API, which is unexported and carries no compatibility promise.
-
-That said, here is exactly how it is done, because it is done — the engine's own tests run this way.
-The internal `Context` API is opened with `--add-exports`:
-
-```text
---add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime=ALL-UNNAMED
---add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.runtime.options=ALL-UNNAMED
---add-exports org.monflabs.nashorn/org.monflabs.nashorn.internal.objects=ALL-UNNAMED
-```
+A source handed to `eval` (or a file handed to `jjs`) that parses as a **module** runs as one:
+`import` and `export` are reserved words, so a module is never a valid script, and the engine
+re-parses on that failure. The completion value is the module's namespace object, so exports are
+one `getMember` away:
 
 ```java
-import java.io.File;
-import org.monflabs.nashorn.internal.objects.Global;
-import org.monflabs.nashorn.internal.runtime.Context;
-import org.monflabs.nashorn.internal.runtime.ErrorManager;
-import org.monflabs.nashorn.internal.runtime.ModuleRecord;
-import org.monflabs.nashorn.internal.runtime.Source;
-import org.monflabs.nashorn.internal.runtime.options.Options;
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .moduleLoader(new PathModuleLoader(Path.of("scripts")))
+        .build();
 
-Options options = new Options("nashorn");
-options.process(new String[0]);
-Context context = new Context(options, new ErrorManager(),
-        Thread.currentThread().getContextClassLoader());
-
-Global global = context.createGlobal();
-Context.runWithGlobal(global, () -> {           // establishes the realm for the call
-    ModuleRecord main = context.evaluateModule(
-            Source.sourceFor("main.js", new File("main.js")));
-    Object count = main.read("count");          // read an export from Java
-});
+ScriptObjectMirror ns = (ScriptObjectMirror) engine.eval(
+        "import { count, increment } from 'counter.js';\n" +
+        "increment();\n" +
+        "export { count };");
+ns.getMember("count");    // 1 - a live binding
 ```
 
-`evaluateModule` is `loadModule(...).link().evaluate()` — the record it returns also offers
-`exportNames()` and `namespace()` (the module's namespace object). Working fixtures live in
-`core/src/test/scripts/modules/`, driven by
-`core/src/test/java/org/monflabs/nashorn/internal/runtime/test/ModuleTest.java`. The
-[playground](playground.md)'s *ECMAScript support → ES2015 → Modules* sample runs the same flow
-from inside a script — module files written to a temporary directory, evaluated through
-`evaluateModule`, exports and live bindings read from outside — which works there because the
-playground runs on the class path.
+A plain script is unaffected (one parse, as always), and a source that parses as neither reports
+the script's own error. `Compilable` stays script-only.
+
+## Module loaders
+
+Where an `import`'s specifier comes from is the engine's **module-loading chain**
+(`org.monflabs.nashorn.api.modules`), registered on the builder: every loader is asked in order,
+the first that answers wins, and a loader that does not have the module returns null. With no
+loader registered, the default is the filesystem behaviour above — a specifier as a path relative
+to the importing module; registering any loader replaces it (add a `PathModuleLoader` to keep
+filesystem access).
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .moduleLoader(
+            new PathModuleLoader(Path.of("scripts")),                          // files under a root
+            new ResourceModuleLoader(MyApp.class, "/com/example/modules"),     // class-path resources
+            new JavaModuleLoader()                                             // modules in pure Java
+                .add("math", Map.of("TAU", 2 * Math.PI, "add", addFunction)))
+        .build();
+```
+
+- **`PathModuleLoader(root)`** — bare and entry specifiers against the root, `./x`/`../x` against
+  the importing module's directory, absolute paths as themselves. Literal names, no extension
+  guessing; canonical name = the absolute path.
+- **`ResourceModuleLoader(anchor | loader, root)`** — resources under the root (`a` →
+  `/com/example/modules/a`), `./` resolved among resources and never above the root; canonical
+  name = `classpath:/<path>`, so a resource module and a file module never collide.
+- **`JavaModuleLoader`** — modules whose exports are Java values, `"default"` for the default
+  export: `import { TAU, add } from "math"` with no script behind it. The values are fixed (no
+  live bindings — export `JSObject` functions for behaviour); each realm gets its own namespace
+  object over them.
+- **Your own** — `ModuleLoader` is one method, `load(specifier, referrer)`: return
+  `Module.source(name, text)` or `Module.values(name, exports)`, or null to pass. A loader
+  resolves `./x` against a referrer whose `origin()` it recognises as its own, and passes on a
+  foreign one. Names are the once-per-realm registry key: same name, same module instance.
+
+A specifier no loader answers is a `TypeError` naming it and the importing module, at link time —
+before anything runs, as the specification wants.
+
+Working through the internal API - `Context.evaluateModule`, `ModuleRecord` - remains possible on
+the class path and is what the engine's own tests use, but it is no longer the only door.
 
 ## Meanwhile, in scripts
 

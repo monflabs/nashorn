@@ -99,7 +99,7 @@ public final class NashornScriptEngine extends AbstractScriptEngine implements C
         }
     }
 
-    NashornScriptEngine(final NashornScriptEngineFactory factory, final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
+    NashornScriptEngine(final NashornScriptEngineFactory factory, final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries, final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders) {
         assert args != null : "null argument array";
         this.factory = factory;
         final Options options = new Options("nashorn");
@@ -109,7 +109,7 @@ public final class NashornScriptEngine extends AbstractScriptEngine implements C
         final ErrorManager errMgr = new Context.ThrowErrorManager();
         // create new Nashorn Context
         try {
-            this.nashornContext = new Context(options, errMgr, new PrintWriter(System.out, true), new PrintWriter(System.err, true), appLoader, classFilter, libraries);
+            this.nashornContext = new Context(options, errMgr, new PrintWriter(System.out, true), new PrintWriter(System.err, true), appLoader, classFilter, libraries, moduleLoaders);
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();
@@ -359,7 +359,54 @@ public final class NashornScriptEngine extends AbstractScriptEngine implements C
     }
 
     private Object evalImpl(final Source src, final ScriptContext ctxt) throws ScriptException {
-        return evalImpl(compileImpl(src, ctxt), ctxt);
+        final ScriptFunction script;
+        try {
+            script = compileImpl(src, ctxt);
+        } catch (final ScriptException notAScript) {
+            // import and export are reserved words, so a module is never a valid
+            // script: a source that parses as a module instead runs as one, its
+            // imports resolved through the engine's module loaders. Only the
+            // COMPILE step decides - a script that compiled and then threw at
+            // runtime must never be run again as a module.
+            return evalModuleImpl(src, ctxt, notAScript);
+        }
+        return evalImpl(script, ctxt);
+    }
+
+    /** Evaluates a source as a module, or rethrows the script's own parse error if it is not one. */
+    private Object evalModuleImpl(final Source src, final ScriptContext ctxt, final ScriptException scriptError) throws ScriptException {
+        final Global ctxtGlobal = getNashornGlobalFrom(ctxt);
+        try {
+            return Context.callWithGlobal(ctxtGlobal, () -> {
+                final ScriptContext oldCtxt = ctxtGlobal.getScriptContext();
+                ctxtGlobal.setScriptContext(ctxt);
+                try {
+                    final org.monflabs.nashorn.internal.runtime.ModuleRecord record;
+                    try {
+                        record = nashornContext.evaluateModuleDetached(src);
+                    } catch (final org.monflabs.nashorn.internal.runtime.ParserException notAModule) {
+                        throw new NotAModule();
+                    }
+                    return ScriptObjectMirror.translateUndefined(ScriptObjectMirror.wrap(record.namespace(), ctxtGlobal));
+                } finally {
+                    ctxtGlobal.setScriptContext(oldCtxt);
+                }
+            });
+        } catch (final NotAModule e) {
+            throw scriptError;   // neither goal parses: the script error is the one to report
+        } catch (final Exception e) {
+            throwAsScriptException(e, ctxtGlobal);
+            throw new AssertionError("should not reach here");
+        }
+    }
+
+    /** A source that parses as neither goal; carries no state, only the decision. */
+    private static final class NotAModule extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        NotAModule() {
+            super(null, null, false, false);
+        }
     }
 
     private Object evalImpl(final ScriptFunction script, final ScriptContext ctxt) throws ScriptException {

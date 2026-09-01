@@ -156,7 +156,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     @Override
     public ScriptEngine getScriptEngine() {
         try {
-            return new NashornScriptEngine(this, DEFAULT_OPTIONS, getAppClassLoader(), null, List.of());
+            return new NashornScriptEngine(this, DEFAULT_OPTIONS, getAppClassLoader(), null, List.of(), List.of());
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();
@@ -289,7 +289,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
 
     private ScriptEngine newEngine(final String[] args, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         try {
-            return new NashornScriptEngine(this, args, appLoader, classFilter, libraries);
+            return new NashornScriptEngine(this, args, appLoader, classFilter, libraries, List.of());
         } catch (final RuntimeException e) {
             if (Context.DEBUG) {
                 e.printStackTrace();
