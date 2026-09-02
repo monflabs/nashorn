@@ -48,59 +48,63 @@ skip() {
   return 1
 }
 
-# does a file's original exist upstream? match by class/base name, tolerating the
-# package rename and the .test.nashorn -> .test flattening.
+# Cache the upstream file list once (paths and basenames); classification below
+# matches against these rather than shelling out per file.
+UP_PATHS=""; UP_BASE=""
+if [ -n "$BASE" ]; then
+  UP_PATHS=$(git ls-tree -r --name-only "$BASE" 2>/dev/null)
+  UP_BASE=$(printf '%s\n' "$UP_PATHS" | sed 's#.*/##' | sort -u)
+fi
+
+# Does a file's upstream original exist? Match by basename (distinctive for these
+# sources), which tolerates the package rename, the src-tree relocation and the
+# .test.nashorn -> .test flattening. Over-matching a new file with a colliding
+# basename is harmless here: new files also carry the Philippe Riand copyright.
 is_derived() {
   [ -z "$BASE" ] && return 1
   local base; base=$(basename "$1")
-  git ls-tree -r --name-only "$BASE" 2>/dev/null | grep -qxF "$base" 2>/dev/null && return 0
-  # try the full relative path with the package roots canonicalised
-  local canon; canon=$(printf '%s' "$1" | sed -E \
-      -e 's#org/(monflabs|openjdk)/(nashorn|dynalink)/#PKG/#' \
-      -e 's#/test/nashorn/#/test/#' -e 's#^.*(PKG/)#\1#')
-  git ls-tree -r --name-only "$BASE" 2>/dev/null \
-    | sed -E -e 's#org/(monflabs|openjdk)/(nashorn|dynalink)/#PKG/#' -e 's#/test/nashorn/#/test/#' -e 's#^.*(PKG/)#\1#' \
-    | grep -qxF "$canon"
+  printf '%s\n' "$UP_BASE" | grep -qxF "$base"
 }
 
 header_of() { head -40 "$1" 2>/dev/null; }
 
 problems=0
 checked=0
+thirdparty=0
 for f in "${FILES[@]}"; do
   [ -f "$f" ] || continue
   skip "$f" && continue
-  # only care about files that have (or should have) a header comment
   h=$(header_of "$f")
-  has_copyright=$(printf '%s' "$h" | grep -ciE 'Copyright \(c\)|Copyright [0-9]')
-  # a non-Oracle, non-PR third-party copyright => skip (flag territory)
-  if printf '%s' "$h" | grep -qiE 'Copyright' \
-     && ! printf '%s' "$h" | grep -qi 'Oracle' \
-     && ! printf '%s' "$h" | grep -qi 'Philippe Riand'; then
-    continue   # someone else's copyright — leave it, see SKILL.md Step 4
-  fi
-  checked=$((checked+1))
 
+  # A file is in scope only if it carries an OpenJDK-style header: a copyright
+  # line, or the "DO NOT ALTER" marker (a few upstream files omit the copyright
+  # line but keep the licence). We only *update headers that exist* — a headerless
+  # file is out of scope, not a problem.
+  has_marker=$(printf '%s\n' "$h" | grep -ciE 'Copyright \(c\)|Copyright [0-9]|Copyright ©|DO NOT ALTER OR REMOVE COPYRIGHT')
+  [ "$has_marker" -eq 0 ] && continue
+
+  # Already carries the Philippe Riand credit — done (derived-with-notice, or new-with-PR).
+  if printf '%s\n' "$h" | grep -q 'Philippe Riand'; then
+    checked=$((checked+1)); continue
+  fi
+
+  # Determine the copyright HOLDER from the copyright line(s), not stray mentions
+  # in the body. A holder that is neither Oracle nor Philippe Riand is third-party
+  # (e.g. a Google- or JRuby-authored file) — leave it, flag for manual review.
+  coplines=$(printf '%s\n' "$h" | grep -iE 'Copyright \(c\)|Copyright [0-9]|Copyright ©')
+  if [ -n "$coplines" ] && ! printf '%s\n' "$coplines" | grep -qi 'Oracle'; then
+    echo "THIRD-PARTY holder, review manually (left untouched): $f"; thirdparty=$((thirdparty+1)); continue
+  fi
+
+  checked=$((checked+1))
+  # Oracle-owned (an Oracle copyright line, or an "Oracle designates" grant) and no
+  # Philippe Riand yet: derived files need the notice; new files must not keep Oracle.
   if is_derived "$f"; then
-    # derived: must keep Oracle and add the PR notice
-    if ! printf '%s' "$h" | grep -q 'Philippe Riand'; then
-      echo "DERIVED, missing Philippe Riand notice: $f"; problems=$((problems+1))
-    fi
+    echo "DERIVED, missing Philippe Riand notice: $f"; problems=$((problems+1))
   else
-    # new: must have PR copyright and no Oracle
-    if printf '%s' "$h" | grep -qi 'Oracle'; then
-      echo "NEW, still bears an Oracle notice (strip it): $f"; problems=$((problems+1))
-    elif [ "$has_copyright" -gt 0 ] && ! printf '%s' "$h" | grep -q 'Philippe Riand'; then
-      echo "NEW, header has a copyright but not Philippe Riand: $f"; problems=$((problems+1))
-    elif [ "$has_copyright" -eq 0 ]; then
-      # a brand-new source file with no header at all
-      case "$f" in
-        *.java|*.js|*.css|*.properties|*.sh|*.xml|*.fxml)
-          echo "NEW, no copyright header (add the Philippe Riand header): $f"; problems=$((problems+1)) ;;
-      esac
-    fi
+    echo "NEW, still bears an Oracle notice (strip it, use the Philippe Riand header): $f"; problems=$((problems+1))
   fi
 done
 
-echo "checked $checked file(s), $problems problem(s)"
+echo "checked $checked file(s), $problems problem(s), $thirdparty third-party flagged"
 [ "$problems" -eq 0 ]
