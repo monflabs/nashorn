@@ -60,7 +60,7 @@ the loader over it, and `import { x } from "a"` needs no files on disk.
 ## Modules in pure Java
 
 `Module.values(name, exports)` is a module with no script behind it: the map's entries are the
-named exports, the `"default"` key the default export.
+named exports.
 
 ```java
 JSObject add = /* an AbstractJSObject function - see Objects from Java */;
@@ -71,7 +71,7 @@ new NashornScriptEngineBuilder()
 ```
 
 ```js
-import theDefault, { TAU, add } from "math";
+import { TAU, add } from "math";
 import * as math from "math";
 ```
 
@@ -79,6 +79,36 @@ The values are **fixed** — imports of them are not live bindings, and every re
 Java objects, each realm getting its own namespace object over them. For behaviour, export
 [`JSObject` functions](java-objects.md), which work in any realm; for values that must vary per
 realm, a script module (whose body runs per realm) over a Java core is the shape.
+
+### The default export
+
+A default export is nothing special in a values module: it is the entry named **`"default"`** —
+the same convention the language itself uses, `export default x` being sugar for an export named
+`default`. Any value will do: a `JSObject` function makes the module itself callable-feeling, a
+plain value makes it a constant, an object gathers the API in one place.
+
+```java
+JSObject makeLogger = /* an AbstractJSObject function */;
+new NashornScriptEngineBuilder()
+        .moduleLoader(new JavaModuleLoader()
+                .add("logger", Map.of(
+                        "default", makeLogger,          // what `import logger from "logger"` binds
+                        "LEVELS", List.of("info", "warn", "error"))))
+        .build();
+```
+
+```js
+import makeLogger from "logger";                 // the "default" entry
+import makeLogger, { LEVELS } from "logger";     // default and named together
+import * as logger from "logger";                // the namespace: logger.default, logger.LEVELS
+logger["default"]                                 // default is a reserved word: index, don't dot
+```
+
+Two details worth knowing. `Map.of` is fine for a handful of entries, but a `LinkedHashMap` keeps
+the export order you wrote (namespace keys are sorted per the specification either way). And a
+module *without* a `"default"` entry has no default export — `import x from "m"` then fails at
+link time with the specification's "has no export named default", exactly as it would against a
+script module that never wrote `export default`.
 
 ## Writing your own
 

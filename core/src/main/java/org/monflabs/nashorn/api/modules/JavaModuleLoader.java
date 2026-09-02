@@ -37,10 +37,17 @@ import java.util.Objects;
  * <pre>{@code
  * new NashornScriptEngineBuilder()
  *     .moduleLoader(new JavaModuleLoader()
- *         .add("math", Map.of("TAU", 2 * Math.PI, "add", addFunction)))
+ *         .add("math", Map.of(
+ *             "TAU", 2 * Math.PI,
+ *             "add", addFunction,
+ *             "default", mathObject)))     // what `import math from "math"` binds
  *     .build();
- * // script side:  import { TAU, add } from "math";
+ * // script side:  import math, { TAU, add } from "math";
  * }</pre>
+ *
+ * <p>A module without a {@code "default"} entry has no default export, and a
+ * default import of it fails at link time, as it would against a script
+ * module that never wrote {@code export default}.
  *
  * @since 2017.0.0
  */
