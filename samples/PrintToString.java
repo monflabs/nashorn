@@ -1,5 +1,9 @@
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Philippe Riand.
+ *
+ * Modifications beginning 2026-08-17 by Philippe Riand:
+ * moved to the Nashorn-monflabs project and adapted for it.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions

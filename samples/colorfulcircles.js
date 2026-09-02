@@ -35,6 +35,10 @@
 
 /*
 * Copyright (c) 2011, 2012 Oracle and/or its affiliates.
+* Copyright (c) 2026, Philippe Riand.
+*
+* Modifications beginning 2026-08-17 by Philippe Riand:
+* moved to a new package and adapted for Nashorn-monflabs.
 * All rights reserved. Use is subject to license terms.
 *
 * This file is available and licensed under the following license:
