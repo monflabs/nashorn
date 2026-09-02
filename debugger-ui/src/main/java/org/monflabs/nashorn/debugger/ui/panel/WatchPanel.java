@@ -26,13 +26,13 @@
 package org.monflabs.nashorn.debugger.ui.panel;
 
 import java.awt.BorderLayout;
+import java.awt.Insets;
 import java.awt.Component;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
@@ -41,16 +41,16 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JToolBar;
 
 /**
- * Watch expressions, re-evaluated at every pause, like Chrome's Watch pane. Add
- * and remove with the toolbar; each row shows the expression and its latest
- * value.
+ * Watch expressions, re-evaluated at every pause, like Chrome's Watch pane.
+ * Add with the {@code +} in the section title, remove by right-clicking a row;
+ * each row shows the expression and its latest value.
  */
 final class WatchPanel extends JPanel {
     private static final long serialVersionUID = 1L;
 
+    private final transient JButton addButton = new JButton("+");
     private final DefaultListModel<String> model = new DefaultListModel<>();
     private final transient JList<String> list = new JList<>(model);
     private final transient Map<String, String> values = new LinkedHashMap<>();
@@ -74,20 +74,22 @@ final class WatchPanel extends JPanel {
             }
         });
 
-        final JToolBar bar = new JToolBar();
-        bar.setFloatable(false);
-        final JButton add = new JButton("+");
-        add.setToolTipText("Add a watch expression");
-        add.addActionListener(a -> {
+        addButton.setToolTipText("Add a watch expression");
+        addButton.setMargin(new Insets(0, 5, 0, 5));
+        addButton.setFocusable(false);
+        addButton.addActionListener(a -> {
             final String expr = JOptionPane.showInputDialog(this, "Expression to watch:");
             if (expr != null && !expr.isEmpty()) {
                 addExpression(expr);
                 onAdd.accept(expr);
             }
         });
-        bar.add(add);
-        add(bar, BorderLayout.NORTH);
         add(new JScrollPane(list), BorderLayout.CENTER);
+    }
+
+    /** The compact add-watch button, for the host to place in the section title. */
+    JButton addButton() {
+        return addButton;
     }
 
     private void maybeRemove(final MouseEvent e) {

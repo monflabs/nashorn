@@ -114,9 +114,9 @@ final class DebugSidebarPanel extends JPanel {
     }
 
     private JComponent sections() {
-        final JSplitPane lower = split(titled("Scopes", scopes), titled("Breakpoints", breakpoints), 0.6);
-        final JSplitPane middle = split(titled("Watch", watches), lower, 0.3);
-        return split(titled("Call Stack", callStack), middle, 0.3);
+        final JSplitPane lower = split(titled("Scopes", scopes, null), titled("Breakpoints", breakpoints, null), 0.6);
+        final JSplitPane middle = split(titled("Watch", watches, watches.addButton()), lower, 0.3);
+        return split(titled("Call Stack", callStack, null), middle, 0.3);
     }
 
     private static JSplitPane split(final JComponent top, final JComponent bottom, final double weight) {
@@ -126,13 +126,23 @@ final class DebugSidebarPanel extends JPanel {
         return split;
     }
 
-    /** Wraps a component with a small title, like the playground's single-tab idiom. */
-    private static JComponent titled(final String title, final JComponent content) {
+    /**
+     * Wraps a component with a small title, like the playground's single-tab
+     * idiom, optionally with a control stuck to the right of the title.
+     */
+    private static JComponent titled(final String title, final JComponent content, final JComponent right) {
         final JPanel panel = new JPanel(new BorderLayout());
+        final JPanel header = new JPanel(new BorderLayout());
         final JLabel label = new JLabel(title);
         label.setBorder(BorderFactory.createEmptyBorder(3, 6, 3, 6));
         label.setFont(label.getFont().deriveFont(java.awt.Font.BOLD, label.getFont().getSize() - 1f));
-        panel.add(label, BorderLayout.NORTH);
+        header.add(label, BorderLayout.CENTER);
+        if (right != null) {
+            final JPanel east = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 4, 1));
+            east.add(right);
+            header.add(east, BorderLayout.EAST);
+        }
+        panel.add(header, BorderLayout.NORTH);
         panel.add(content, BorderLayout.CENTER);
         return panel;
     }
