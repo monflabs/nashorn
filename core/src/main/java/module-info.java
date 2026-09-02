@@ -148,6 +148,7 @@ module org.monflabs.nashorn {
     requires java.logging;
     requires jdk.dynalink;
     requires jdk.unsupported;
+    requires java.management;
 
     requires transitive java.scripting;
 

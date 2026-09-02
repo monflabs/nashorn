@@ -143,7 +143,9 @@ implementation of Node's **`fs`** module - synchronous, error-first callback, an
 forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
 consulted before the user's module loaders and the filesystem. `import { Buffer } from "node:buffer"`
 gives Node's `Buffer` - a `Uint8Array` subclass with Node's encodings and numeric accessors - and a
-binary `fs` read yields a `Uint8Array`. See [nashorn/libraries/node.md](nashorn/libraries/node.md).
+binary `fs` read yields a `Uint8Array`; `import os from "os"` gives system information (`platform`,
+`arch`, `cpus`, `totalmem`, `hostname`, `networkInterfaces`, ...). See
+[nashorn/libraries/node.md](nashorn/libraries/node.md).
 
 
 ## New reactor modules

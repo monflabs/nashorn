@@ -37,7 +37,8 @@ import org.monflabs.nashorn.api.modules.ModuleLoader;
  * else returns null so the next loader gets a turn.
  *
  * <p>The modules implemented so far are {@code fs} (see {@link NodeFs}) and
- * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass).
+ * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass) and
+ * {@code os} (see {@link NodeOs}).
  *
  * @since 2017.0.0
  */
@@ -46,6 +47,7 @@ public final class NodeModuleLoader implements ModuleLoader {
     private static final Module FS = Module.values("fs", NodeFs.exports());
     // Node's Buffer, a Uint8Array subclass, defined in buffer.js and compiled lazily on import.
     private static final Module BUFFER = Module.source("buffer", read("buffer.js"));
+    private static final Module OS = Module.values("os", NodeOs.exports());
 
     private static String read(final String resource) {
         try (InputStream in = NodeModuleLoader.class.getResourceAsStream(resource)) {
@@ -70,6 +72,8 @@ public final class NodeModuleLoader implements ModuleLoader {
             return FS;
         case "buffer":
             return BUFFER;
+        case "os":
+            return OS;
         default:
             return null;
         }
@@ -77,6 +81,6 @@ public final class NodeModuleLoader implements ModuleLoader {
 
     @Override
     public String toString() {
-        return "NodeModuleLoader[fs, buffer]";
+        return "NodeModuleLoader[fs, buffer, os]";
     }
 }

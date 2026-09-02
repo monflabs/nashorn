@@ -15,7 +15,8 @@ It is built into `nashorn-core` and consulted **before** your own [module loader
 and the filesystem, so a bare `fs` always means the built-in module — exactly as in Node. A specifier
 it does not recognise is passed on to the next loader, so it never shadows your own modules.
 
-The modules implemented so far are **`fs`** (file system) and **`buffer`** (Node's `Buffer`).
+The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's `Buffer`) and
+**`os`** (system information).
 
 ## `fs`
 
@@ -111,6 +112,29 @@ try {
 ```
 
 Codes mapped: `ENOENT`, `EEXIST`, `ENOTDIR`, `ENOTEMPTY`, `EACCES`, and `EIO` for anything else.
+
+## `os`
+
+System information, over the JVM's own facilities - everything synchronous, as in Node:
+
+```js
+import os from 'os';
+print(os.platform(), os.arch(), os.type());     // e.g. darwin arm64 Darwin
+print(os.cpus().length, 'cores,', Math.round(os.totalmem() / 1e9) + ' GB');
+print(os.homedir(), os.tmpdir());
+```
+
+| | |
+| --- | --- |
+| Identity | `platform()` (`darwin`/`linux`/`win32`/…), `arch()` (`x64`/`arm64`/…), `type()`, `release()`, `version()`, `machine()`, `hostname()` |
+| Paths | `homedir()`, `tmpdir()`, `devNull`, `EOL` |
+| Hardware | `cpus()`, `availableParallelism()`, `totalmem()`, `freemem()`, `endianness()` |
+| Runtime | `uptime()`, `loadavg()`, `getPriority()`, `userInfo()`, `networkInterfaces()` |
+| `os.constants` | `signals` (`SIGINT`, `SIGTERM`, …) and `priority` |
+
+A few values approximate what Node reports on a real OS: `uptime()` is the **JVM's** uptime, `cpus()`
+reports the processor count with best-effort model and timing, and `loadavg()` carries the one-minute
+system load in all three slots on platforms that expose only that.
 
 ## Extending it
 
