@@ -60,7 +60,12 @@ final class DebuggerIcons {
 
     /** A right-pointing arrow marking the paused line. */
     static Icon executionArrow() {
-        return new ArrowIcon();
+        return new ArrowIcon(false);
+    }
+
+    /** The paused-line arrow over a breakpoint dot, for a line that has both. */
+    static Icon executionArrowOnBreakpoint() {
+        return new ArrowIcon(true);
     }
 
     /** The resume (play) glyph. */
@@ -123,13 +128,24 @@ final class DebuggerIcons {
         }
     }
 
-    /** The paused-line arrow. */
+    /** The paused-line arrow, optionally over a breakpoint dot. */
     private static final class ArrowIcon implements Icon {
         private static final int SIZE = 12;
+        private final boolean onBreakpoint;
+
+        ArrowIcon(final boolean onBreakpoint) {
+            this.onBreakpoint = onBreakpoint;
+        }
 
         @Override
         public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
             final Graphics2D g2 = prepare(g);
+            if (onBreakpoint) {
+                // draw the dot beneath, so a line with both markers shows both:
+                // the red breakpoint and the arrow on top of it
+                g2.setColor(BREAKPOINT);
+                g2.fillOval(x + 1, y + 1, SIZE - 2, SIZE - 2);
+            }
             g2.setColor(ARROW);
             final Path2D path = new Path2D.Float();
             path.moveTo(x + 2, y + 2);

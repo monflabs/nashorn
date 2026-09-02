@@ -76,6 +76,31 @@ public class SourceViewTest {
     }
 
     @Test
+    public void aBreakpointOnThePausedLineBecomesOneCombinedGlyph() {
+        final List<String> toggles = new ArrayList<>();
+        final SourceView view = view(toggles);
+        view.setExecutionLine(1);
+        // a breakpoint arrives on the very line the engine is paused on: the plain
+        // dot is suppressed and a single arrow-over-dot glyph stands for both, so
+        // there is exactly one icon on the line rather than two fighting for it
+        view.syncBreakpoints(List.of(new Breakpoint("file:///work/x.js", 1, null, true, "1", List.of())));
+        assertEquals(view.gutter().getBookmarks().length, 0);
+        assertTrue(view.hasExecutionMarker(), "the combined execution glyph is missing");
+    }
+
+    @Test
+    public void aBreakpointOnAnotherLineKeepsItsDotWhilePaused() throws Exception {
+        final List<String> toggles = new ArrayList<>();
+        final SourceView view = view(toggles);
+        view.setExecutionLine(0);
+        view.syncBreakpoints(List.of(new Breakpoint("file:///work/x.js", 2, null, true, "1", List.of())));
+        // the arrow on line 0 and a plain dot on line 2 coexist
+        assertTrue(view.hasExecutionMarker());
+        assertEquals(view.gutter().getBookmarks().length, 1);
+        assertEquals(view.textArea().getLineOfOffset(view.gutter().getBookmarks()[0].getMarkedOffset()), 2);
+    }
+
+    @Test
     public void theExecutionPointerSetsAndClears() {
         final SourceView view = view(new ArrayList<>());
         view.setExecutionLine(1);
