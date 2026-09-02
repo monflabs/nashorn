@@ -294,7 +294,8 @@ an explicit band: `-Dperf.tolerance=0.02`.
 
 ## Conventions
 
-- OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`. Every source file carries the GPLv2+Classpath-exception header — new files need it too.
+- OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`.
+- **Copyright headers — follow the `copyright-headers` skill (`.claude/skills/copyright-headers/`) on every file you create or modify, of any type.** In short: a file *derived* from OpenJDK Nashorn (i.e. present on the `openjdk-original` branch) keeps its original Oracle/contributor notices and gains a `Copyright (c) 2026, Philippe Riand.` line plus a `Modifications beginning <date> by Philippe Riand` notice; a *new* file for this fork uses the GPLv2+Classpath-exception header with Philippe Riand as sole copyright holder and grantor and **no** Oracle reference; never add a Classpath Exception where it was absent; leave third-party code (`doubleconv`, `joni`, vendored assets), the pristine `doc/nashorn-original` copies and the repo licence files untouched. Before committing, run `.claude/skills/copyright-headers/check-headers.sh` and fix anything it flags.
 - Compilation runs with `-Xlint:all`; keep new code warning-free.
 - Releases: bump the version across the reactor (`mvn versions:set`), add a `CHANGELOG.md` entry, then `mvn -Prelease deploy`. `nashorn-core` and `nashorn-debugger` are deployed; nasgen and the shell skip deployment.
 - Security Manager support was removed in 15.7 — do not reintroduce `doPrivileged`/`AccessController` patterns.
