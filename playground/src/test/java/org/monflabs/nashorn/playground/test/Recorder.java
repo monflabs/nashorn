@@ -38,6 +38,7 @@ final class Recorder implements ScriptRunner.Console, ScriptRunner.Listener {
     final StringBuffer out = new StringBuffer();
     final StringBuffer err = new StringBuffer();
     final List<String> values = new CopyOnWriteArrayList<>();
+    final List<String> prints = new CopyOnWriteArrayList<>();
     final CountDownLatch started = new CountDownLatch(1);
     private final CountDownLatch done = new CountDownLatch(1);
     volatile ScriptRunner.Result result;
@@ -55,6 +56,12 @@ final class Recorder implements ScriptRunner.Console, ScriptRunner.Listener {
     @Override
     public void valueAtLine(final int line, final String text) {
         values.add(line + ":" + text);
+    }
+
+    @Override
+    public void printAtLine(final int line, final String text) {
+        prints.add(line + ":" + text);
+        out(text + "\n");
     }
 
     @Override

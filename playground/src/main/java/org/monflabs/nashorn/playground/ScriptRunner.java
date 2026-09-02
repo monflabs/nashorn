@@ -75,6 +75,17 @@ public final class ScriptRunner {
          */
         default void statementAt(final int line) {
         }
+
+        /**
+         * A print whose source line is known, in the echo mode: inside a loop
+         * or a block, the line the call was written on rather than the
+         * statement's first. Falls back to plain output.
+         * @param line the call's line, zero based
+         * @param text one printed line, without its newline
+         */
+        default void printAtLine(final int line, final String text) {
+            out(text + "\n");
+        }
     }
 
     /** What happened to a run. Called on the worker thread. */
@@ -98,7 +109,14 @@ public final class ScriptRunner {
         }
     }
 
-    /** How a statement's value is shown in the echo mode. */
+    /**
+     * The echo mode's script-side helpers: the value formatter, and print and
+     * console.log rerouted through __echoPrint with the line they were called
+     * on - found from an Error's stack, relative to the statement being
+     * evaluated (__stmtLine..__stmtEnd, maintained per statement), so output
+     * from inside a loop or block lands beside its own line rather than the
+     * statement's first.
+     */
     private static final String FORMAT_PRELUDE = """
             function __playground_format(v) {
               if (typeof v === 'string') return JSON.stringify(v);
@@ -106,6 +124,35 @@ public final class ScriptRunner {
               if (v !== null && typeof v === 'object') { try { var j = JSON.stringify(v); if (j !== undefined) return j; } catch (e) {} }
               return String(v);
             }
+            (function (global) {
+              var realPrint = global.print;
+              function callerLine() {
+                try { throw new Error(); } catch (e) {
+                  var frames = String(e.stack).split('\\n');
+                  // [Error, callerLine, the wrapper, the caller]
+                  var m = frames.length > 3 ? frames[3].match(/:(\\d+)\\)?\\s*$/) : null;
+                  if (!m) return -1;
+                  var line = global.__stmtLine + Number(m[1]) - 1;
+                  return line >= global.__stmtLine && line <= global.__stmtEnd ? line : -1;
+                }
+              }
+              function join(args) {
+                return Array.prototype.map.call(args, function (v) { return typeof v === 'symbol' ? v.toString() : String(v); }).join(' ');
+              }
+              global.print = function () {
+                var line = callerLine();
+                if (line < 0) { return realPrint.apply(null, arguments); }
+                __echoPrint.accept(line, join(arguments));
+              };
+              if (typeof global.console === 'object') {
+                var realLog = global.console.log;
+                global.console.log = function () {
+                  var line = callerLine();
+                  if (line < 0) { return realLog.apply(global.console, arguments); }
+                  __echoPrint.accept(line, join(arguments));
+                };
+              }
+            })(this);
             """;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
@@ -273,6 +320,10 @@ public final class ScriptRunner {
                     finish(run, listener, start, null);
                     return;
                 }
+                context.setAttribute("__echoPrint",
+                        (java.util.function.BiConsumer<Object, Object>)(line, text) ->
+                                console.printAtLine(((Number)line).intValue(), String.valueOf(text)),
+                        ScriptContext.ENGINE_SCOPE);
                 eng.eval(FORMAT_PRELUDE);
                 for (final StatementSplitter.Statement statement : statements) {
                     if (run.stopRequested) {
@@ -281,6 +332,8 @@ public final class ScriptRunner {
                     if (!statement.declaration()) {
                         console.statementAt(statement.line());
                     }
+                    context.setAttribute("__stmtLine", statement.line(), ScriptContext.ENGINE_SCOPE);
+                    context.setAttribute("__stmtEnd", statement.line() + (int)statement.text().chars().filter(c -> c == '\n').count(), ScriptContext.ENGINE_SCOPE);
                     final Object value = eng.eval(statement.text());
                     if (value != null && !statement.declaration()) {
                         console.valueAtLine(statement.line(), String.valueOf(((Invocable)eng).invokeFunction("__playground_format", value)));

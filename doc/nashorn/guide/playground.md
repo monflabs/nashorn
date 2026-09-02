@@ -40,11 +40,12 @@ line asks for engine options. The **Scratchpad** at the top of the tree is yours
 second after you stop typing. Output goes to the console — `print` and `console.log` in the text
 colour, the error stream in red — with the run's outcome and time on the status line.
 
-**Log expression values** evaluates the program one top-level statement at a time. The console
-sits to the right of the script and, in this mode, mirrors it line by line: before a statement runs
-the console pads with blank lines to that statement's line, so what it prints and what it
-evaluates to (shown as `// value`) land beside it — as far as possible, since output that has
-already run past a line stays where it is. Function declarations are hoisted first, as the engine
+**Log expression values** (on by default) evaluates the program one top-level statement at a
+time. The console sits to the right of the script and, in this mode, mirrors it line by line: what
+a statement evaluates to (shown as `// value`) lands beside it, and `print`/`console.log` output
+lands beside the line of the *call* — inside a loop, a block or a catch, not merely at the
+statement's head — as far as possible, since output that has already run past a line stays where
+it is, and a loop that prints nine lines still takes nine rows. Function declarations are hoisted first, as the engine
 would.
 
 **Stop** (Esc) ends a runaway script. Every run is compiled with `--debugger`, so the playground

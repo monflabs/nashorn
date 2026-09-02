@@ -88,6 +88,17 @@ public class EchoModeTest {
     }
 
     @Test
+    public void printsInsideALoopAlignToTheirOwnLine() throws InterruptedException {
+        final Recorder recorder = new Recorder();
+        final Sample s = sample("var xs = [1, 2];\nfor (var x of xs) {\n    print('tick', x);\n}\nprint('done');\n");
+        runner.run(s, s.source(), true, recorder, recorder);
+        final ScriptRunner.Result result = recorder.await(30);
+        assertTrue(result.ok(), result.failure() == null ? "" : ScriptRunner.describe(result.failure()));
+        // the loop's prints carry the print's line (2), not the loop head's (1)
+        assertEquals(recorder.prints, List.of("2:tick 1", "2:tick 2", "4:done"));
+    }
+
+    @Test
     public void aModuleRunsWholeWithNoPerStatementValues() throws InterruptedException {
         final Recorder recorder = new Recorder();
         final Sample s = new Sample("echo-module", List.of(), "echo-module",
