@@ -1,9 +1,15 @@
 # Node compatibility: the `node` module resolver
 
-Alongside the [standard libraries](overview.md) that install host functions into every global, the
-engine ships a **module resolver for Node's built-in modules**. Where the standard libraries answer
-`fetch(...)` and `setTimeout(...)` as globals, the node resolver answers `import` — the way Node's
-own built-ins are reached:
+> **Experimental and incomplete.** This is a small, partial Node-compatibility layer, provided as a
+> convenience and as a worked example of building built-in modules on the engine. It covers a handful
+> of modules (and not every corner of those), its API may change, and it is **not published** to Maven
+> Central. It ships as a separate artifact, `nashorn-node`, that you add yourself — see
+> [Enabling it](#enabling-it) — rather than as part of `nashorn-core`.
+
+Alongside the [standard libraries](overview.md) that install host functions into every global, this
+optional module provides a **resolver for Node's built-in modules**. Where the standard libraries
+answer `fetch(...)` and `setTimeout(...)` as globals, the node resolver answers `import` — the way
+Node's own built-ins are reached:
 
 ```js
 import fs from 'fs';                 // the whole module
@@ -11,12 +17,29 @@ import { readFileSync } from 'fs';  // a named export
 import fs from 'node:fs';           // the node: scheme works too
 ```
 
-It is built into `nashorn-core` and consulted **before** your own [module loaders](../guide/modules.md)
-and the filesystem, so a bare `fs` always means the built-in module — exactly as in Node. A specifier
-it does not recognise is passed on to the next loader, so it never shadows your own modules.
+When the `nashorn-node` artifact is on the path, the engine discovers its resolver and consults it
+**before** your own [module loaders](../guide/modules.md) and the filesystem, so a bare `fs` means the
+built-in module — exactly as in Node. A specifier it does not recognise is passed on to the next
+loader, so it never shadows your own modules.
 
 The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's `Buffer`),
 **`os`** (system information) and **`path`** (path-string manipulation).
+
+## Enabling it
+
+The resolver lives in the **`nashorn-node`** artifact, separate from `nashorn-core` because it reaches
+into the engine's internal object model (the core module exports those internals to it by name). Put
+it on the path next to `nashorn-core` and the engine finds it through the
+[`ModuleLoader`](../extending/module-loaders.md) service — no builder call or option needed:
+
+```
+# module path or class path, alongside nashorn-core
+--module-path nashorn-core.jar:nashorn-node.jar
+```
+
+Because it depends on internals, a given `nashorn-node` is a companion to the **same version** of
+`nashorn-core`; do not mix versions. Without it on the path, `fs`/`buffer`/`os`/`path` are ordinary
+specifiers that fall through to your loaders and the filesystem.
 
 ## `fs`
 
@@ -168,7 +191,10 @@ directory; everything else is a pure function of its inputs.
 
 ## Extending it
 
-The resolver is `org.monflabs.nashorn.modules.node.NodeModuleLoader`, and `fs` is `NodeFs`. Another Node
-built-in would be a new `case` in the loader returning a `Module.values(...)` whose exports are
-[`JSObject`](../extending/apis.md) functions — the same shape `fs` uses. See
-[Module loaders](../extending/module-loaders.md) for the module SPI in general.
+The resolver is `org.monflabs.nashorn.modules.node.NodeModuleLoader` in the `nashorn-node` module,
+registered as a [`ModuleLoader`](../extending/module-loaders.md) service (`module-info` `provides` plus
+a `META-INF/services` entry, so it is found on both a module path and a class path), and `fs` is
+`NodeFs`. Another Node built-in would be a new `case` in the loader returning a `Module.values(...)`
+whose exports are [`JSObject`](../extending/apis.md) functions — the same shape `fs` uses. The module
+resolves against the engine internals that `nashorn-core` exports to it by name, which is exactly why
+it is a separate, version-locked companion rather than part of the core jar.

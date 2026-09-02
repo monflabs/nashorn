@@ -543,8 +543,12 @@ public final class Context {
     /** The module-loading chain; empty means the default filesystem loading. */
     private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
 
-    /** Node built-in modules (fs, ...), resolved before the user's loaders and the filesystem. */
-    private static final org.monflabs.nashorn.modules.node.NodeModuleLoader NODE_MODULES = new org.monflabs.nashorn.modules.node.NodeModuleLoader();
+    /**
+     * Built-in module resolvers discovered as {@link org.monflabs.nashorn.api.modules.ModuleLoader}
+     * services (for example the optional {@code nashorn-node} artifact's {@code fs}/{@code path}
+     * resolver), consulted before the user's loaders and the filesystem. Discovered lazily, once.
+     */
+    private List<org.monflabs.nashorn.api.modules.ModuleLoader> builtinModuleLoaders;
 
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;
@@ -885,11 +889,37 @@ public final class Context {
      * @param referrer  the module the import was written in
      * @return the module it names, already loaded if it has been asked for before
      */
+    /**
+     * The built-in module resolvers offered as {@link org.monflabs.nashorn.api.modules.ModuleLoader}
+     * services on the module path or class path - none by default, the {@code nashorn-node} artifact's
+     * resolver when it is present. Discovered once and cached.
+     */
+    private List<org.monflabs.nashorn.api.modules.ModuleLoader> builtinModuleLoaders() {
+        if (builtinModuleLoaders == null) {
+            final java.util.LinkedHashMap<String, org.monflabs.nashorn.api.modules.ModuleLoader> found = new java.util.LinkedHashMap<>();
+            for (final org.monflabs.nashorn.api.modules.ModuleLoader loader
+                    : ServiceLoader.load(org.monflabs.nashorn.api.modules.ModuleLoader.class)) {
+                found.putIfAbsent(loader.getClass().getName(), loader);
+            }
+            final ClassLoader ctx = Thread.currentThread().getContextClassLoader();
+            if (ctx != null) {
+                for (final org.monflabs.nashorn.api.modules.ModuleLoader loader
+                        : ServiceLoader.load(org.monflabs.nashorn.api.modules.ModuleLoader.class, ctx)) {
+                    found.putIfAbsent(loader.getClass().getName(), loader);
+                }
+            }
+            builtinModuleLoaders = List.copyOf(found.values());
+        }
+        return builtinModuleLoaders;
+    }
+
     public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
-        final org.monflabs.nashorn.api.modules.Module referrerViewForNode = referrer == null ? null : referrer.moduleView();
-        final org.monflabs.nashorn.api.modules.Module builtin = NODE_MODULES.load(specifier, referrerViewForNode);
-        if (builtin != null) {
-            return record(builtin);
+        final org.monflabs.nashorn.api.modules.Module builtinReferrerView = referrer == null ? null : referrer.moduleView();
+        for (final org.monflabs.nashorn.api.modules.ModuleLoader builtinLoader : builtinModuleLoaders()) {
+            final org.monflabs.nashorn.api.modules.Module builtin = builtinLoader.load(specifier, builtinReferrerView);
+            if (builtin != null) {
+                return record(builtin);
+            }
         }
         if (!moduleLoaders.isEmpty()) {
             final org.monflabs.nashorn.api.modules.Module referrerView = referrer == null ? null : referrer.moduleView();

@@ -136,12 +136,15 @@ The engine ships what a script expects from its host beyond the language, as
 
 See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
 
-### Node compatibility (new)
+### Node compatibility (new, experimental)
 
-A built-in **`node` module resolver** answers `import fs from "fs"` (or `"node:fs"`) with a Java
+An **experimental** `node` module resolver - the separate, unpublished **`nashorn-node`** artifact,
+provided as a convenience and an example - answers `import fs from "fs"` (or `"node:fs"`) with a Java
 implementation of Node's **`fs`** module - synchronous, error-first callback, and `fs.promises`
-forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
-consulted before the user's module loaders and the filesystem. `import { Buffer } from "node:buffer"`
+forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. The engine
+discovers it as a `ModuleLoader` service when it is on the path and consults it before the user's
+module loaders and the filesystem; a plain `nashorn-core` does not resolve these specifiers.
+`import { Buffer } from "node:buffer"`
 gives Node's `Buffer` - a `Uint8Array` subclass with Node's encodings and numeric accessors - and a
 binary `fs` read yields a `Uint8Array`; `import os from "os"` gives system information (`platform`,
 `arch`, `cpus`, `totalmem`, `hostname`, `networkInterfaces`, ...); and `import path from "path"`
@@ -157,6 +160,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 | `core` | `nashorn-core` | yes | the engine + standard libraries |
 | `debugger` | `nashorn-debugger` | yes | the Chrome DevTools Protocol server (`--inspect`) |
 | `debugger-ui` | `nashorn-debugger-ui` | no | an embeddable Swing debugger (a CDP client) |
+| `node` | `nashorn-node` | no | experimental Node-compat module resolver (`fs`, `buffer`, `os`, `path`) |
 | `shell` | — | no | the `jjs` REPL |
 | `playground` | — | no | a Swing sample browser / editor / console |
 | `buildtools/nasgen` | — | no | the build-time bytecode tool |

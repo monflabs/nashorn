@@ -24,6 +24,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `core` | `nashorn-core` | **yes** — the engine |
 | `shell` | `nashorn-shell` | no — the `jjs` REPL |
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
+| `node` | `nashorn-node` | no — experimental Node-compat module resolver (fs, buffer, os, path) |
 | `playground` | `nashorn-playground` | no — a Swing sample browser, shaded into an executable `-all` jar |
 
 `shell` reaches into JDK-internal `jdk.internal.le` / `jdk.internal.ed` via `--add-exports`, so it constrains which JDKs can build the reactor. It is the piece most likely to break on a future JDK.
@@ -33,7 +34,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 Run from the repository root:
 
 ```
-mvn package            # build all three modules
+mvn package            # build the whole reactor
 mvn verify             # + the full suite, in BOTH optimistic and pessimistic modes
 mvn -pl core test      # core tests only
 mvn javadoc:javadoc    # the two public API packages
@@ -213,13 +214,19 @@ four global-enumerating tests quiet; `Test262Runner` passes `--libraries=none`. 
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 
-The engine also ships a **Node module resolver**, `org.monflabs.nashorn.modules.node.NodeModuleLoader`,
-consulted first in `Context.loadModule` (before the embedder's loaders and the filesystem): `fs`
-(`NodeFs`), `buffer` (`NodeBuffer` — a real `Uint8Array` reparented onto a per-realm
-`Buffer.prototype`), `os` (`NodeOs`), and `path` (`NodePath` — a pure-string port of Node's
-algorithm, exposing both `path.posix` and `path.win32` and defaulting to the host flavour), each a
-`Module.values(...)` of realm-agnostic `JSObject` functions that act on `Global.instance()` at call
-time.
+A separate, **experimental** module `node` (`nashorn-node`, unpublished) ships a **Node module
+resolver**, `org.monflabs.nashorn.modules.node.NodeModuleLoader`: `fs` (`NodeFs`), `buffer`
+(`NodeBuffer` — a real `Uint8Array` reparented onto a per-realm `Buffer.prototype`), `os` (`NodeOs`),
+and `path` (`NodePath` — a pure-string port of Node's algorithm, exposing both `path.posix` and
+`path.win32` and defaulting to the host flavour), each a `Module.values(...)` of realm-agnostic
+`JSObject` functions that act on `Global.instance()` at call time. It is **not** in `core`: it reaches
+into the internal object model (`Global`, `ScriptObject`, `NativePromise`, `JobQueue`, `ScriptFunction`,
+`JSType`), which `module-info` qualified-exports to `org.monflabs.nashorn.modules.node` by name. Core
+discovers it as a `ServiceLoader<api.modules.ModuleLoader>` (registered by the node module's
+`module-info` `provides` **and** its `META-INF/services` file, for module and classpath modes) in
+`Context.builtinModuleLoaders()`, consulted first in `loadModule` before the embedder's loaders and the
+filesystem — so a plain `nashorn-core` with no `nashorn-node` on the path does not resolve these
+specifiers. Being internals-coupled, `nashorn-node` is version-locked to its `nashorn-core`.
 
 **Every core library and built-in module must be implemented in pure Java (native), leveraging the
 JRE as far as it goes — never in JavaScript.** Use the JDK's own facilities (`java.nio.file`,

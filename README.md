@@ -78,13 +78,15 @@ mvn package
 builds `core/target/nashorn-core-<version>.jar`. `mvn verify` additionally runs
 the internal test suite, in both the optimistic and pessimistic typing modes.
 
-The reactor has five modules: `core` (the published `nashorn-core` artifact,
+The reactor has seven modules: `core` (the published `nashorn-core` artifact,
 which includes the standard libraries: timers, `queueMicrotask`, `atob`/`btoa`
 and `fetch`), `debugger` (the published `nashorn-debugger` Chrome
-DevTools Protocol server), `shell` (the `jjs` REPL, not published), `playground`
-(a Swing sample browser, not published), and `buildtools/nasgen` (a build-time
-bytecode post-processor that Nashorn does not work without — so always build
-through Maven rather than compiling the sources directly).
+DevTools Protocol server), `debugger-ui` (an embeddable Swing debugger, not
+published), `shell` (the `jjs` REPL, not published), `node` (an experimental,
+unpublished Node-compatibility module resolver — `fs`, `buffer`, `os`, `path`),
+`playground` (a Swing sample browser, not published), and `buildtools/nasgen`
+(a build-time bytecode post-processor that Nashorn does not work without — so
+always build through Maven rather than compiling the sources directly).
 
 To run the [official ECMA-262 conformance suite](https://github.com/tc39/test262),
 fetch it once and then run it:

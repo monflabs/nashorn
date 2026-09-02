@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2026, Philippe Riand. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Philippe Riand designates this
+particular file as subject to the "Classpath" exception as provided
+in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.monflabs.nashorn</groupId>
+    <artifactId>nashorn-parent</artifactId>
+    <version>2017.0.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>nashorn-node</artifactId>
+  <packaging>jar</packaging>
+  <name>OpenJDK-Monflabs node modules</name>
+  <description>
+    EXPERIMENTAL, INCOMPLETE. A Node-compatibility module resolver, provided as
+    a convenience and as a worked example of building built-in modules on the
+    engine. Answers a handful of Node's built-in specifiers - fs, buffer, os,
+    path - from bare or node: imports, in pure Java. It reaches into the
+    engine's internal object model (core exports those packages to this module
+    by name), so it is a companion to a specific nashorn-core, not published.
+  </description>
+  <dependencies>
+    <dependency>
+      <groupId>org.monflabs.nashorn</groupId>
+      <artifactId>nashorn-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${nashorn.target.java.version}</release>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+            <arg>-Xdiags:verbose</arg>
+            <arg>-parameters</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- the engine discovers this module's resolver as a class-path service, as an embedder would -->
+          <useModulePath>false</useModulePath>
+          <argLine>-ea -esa</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
