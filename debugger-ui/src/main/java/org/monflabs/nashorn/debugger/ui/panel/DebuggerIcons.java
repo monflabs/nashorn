@@ -165,7 +165,9 @@ final class DebuggerIcons {
         @Override
         public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
             final Graphics2D g2 = prepare(g);
-            g2.setColor(GLYPH);
+            // the button's own foreground when active, so an enabled control looks
+            // enabled in any look and feel; a muted grey only when truly disabled
+            g2.setColor(c != null && !c.isEnabled() ? DISABLED : (c != null ? c.getForeground() : GLYPH));
             g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             final int cx = x + SIZE / 2;
             final int cy = y + SIZE / 2;

@@ -88,6 +88,12 @@ final class DebugSidebarPanel extends JPanel {
         stepInto.addActionListener(a -> session.stepInto());
         stepOut.setToolTipText("Step out (Shift+F11)");
         stepOut.addActionListener(a -> session.stepOut());
+        // the glyphs paint their own disabled state from the button's enabled
+        // flag, so pin the disabled icon to the same one - otherwise Swing
+        // synthesises a second grey version and an enabled button still looks off
+        for (final JButton control : new JButton[] {resume, stepOver, stepInto, stepOut}) {
+            control.setDisabledIcon(control.getIcon());
+        }
         bar.add(resume);
         bar.add(stepOver);
         bar.add(stepInto);
