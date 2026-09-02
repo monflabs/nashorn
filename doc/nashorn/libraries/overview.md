@@ -18,18 +18,18 @@ The engine also ships a **[Node module resolver](node.md)**: `import fs from 'fs
 
 ## Getting them
 
-There is nothing to add: they are part of `nashorn-core`, registered by the engine's own module
-descriptor and `META-INF/services` as `ScriptLibrary` providers, so every engine has them — on the
-class path, on the module path, in `jjs`, in the playground. Nothing to call, nothing to configure.
-Being libraries rather than language built-ins, their *presence* remains a choice: an embedder
-sandboxing scripts can leave `fetch` out.
-
-To choose, use `--libraries`: `--libraries=host` for the timers without `fetch`,
-`--libraries=none` for a bare engine. Or hand a library to the builder yourself, which applies it
-whatever the selection says:
+The classes are part of `nashorn-core`, but nothing is installed automatically: you contribute each
+library you want to the engine builder. A bare engine has neither `host` nor `fetch` — which is also
+how an embedder sandboxing scripts leaves `fetch` out: by simply not adding it.
 
 ```java
-ScriptEngine engine = new NashornScriptEngineBuilder().discoveredLibraries().library(new HostLibrary()).build();
+import org.monflabs.nashorn.libs.HostLibrary;
+import org.monflabs.nashorn.libs.FetchLibrary;
+
+// both
+ScriptEngine engine = new NashornScriptEngineBuilder().library(new HostLibrary(), new FetchLibrary()).build();
+// the timers without fetch
+ScriptEngine restricted = new NashornScriptEngineBuilder().library(new HostLibrary()).build();
 ```
 
 ## The event loop

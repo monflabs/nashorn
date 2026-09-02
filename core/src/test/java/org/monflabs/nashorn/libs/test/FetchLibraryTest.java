@@ -33,7 +33,9 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.FetchLibrary;
+import org.monflabs.nashorn.libs.HostLibrary;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -42,7 +44,6 @@ import org.testng.annotations.Test;
  * The fetch library against a local server: the promise, the Response,
  * Headers and Request, errors, and async/await over it.
  */
-@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class FetchLibraryTest {
     private HttpServer server;
     private String base;
@@ -90,13 +91,14 @@ public class FetchLibraryTest {
     }
 
     private static ScriptEngine engine() {
-        return new NashornScriptEngineFactory().getScriptEngine();
+        // contributed explicitly to the builder - there is no discovery
+        return new NashornScriptEngineBuilder().library(new HostLibrary(), new FetchLibrary()).build();
     }
 
     @Test(timeOut = 30_000)
-    public void theLibraryIsDiscovered() throws ScriptException {
+    public void theLibraryInstalls() throws ScriptException {
         assertEquals(engine().eval("[typeof fetch, typeof Headers, typeof Request, typeof Response].join()"), "function,function,function,function");
-        assertEquals(new NashornScriptEngineFactory().getScriptEngine("--libraries=host").eval("typeof fetch"), "undefined");
+        assertEquals(new NashornScriptEngineBuilder().build().eval("typeof fetch"), "undefined");
     }
 
     @Test(timeOut = 30_000)

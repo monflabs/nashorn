@@ -27,23 +27,23 @@ import static org.testng.Assert.assertTrue;
 import java.util.concurrent.TimeUnit;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.libs.HostLibrary;
+import org.monflabs.nashorn.libs.FetchLibrary;
 import org.testng.annotations.Test;
 
 /**
  * The host library: timers on the event loop, queueMicrotask, atob and btoa.
  */
-@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
 public class HostLibraryTest {
 
     private static ScriptEngine engine() {
-        // discovered from META-INF/services on the test class path, as an embedder would have it
-        return new NashornScriptEngineFactory().getScriptEngine();
+        // contributed explicitly to the builder - there is no discovery
+        return new NashornScriptEngineBuilder().library(new HostLibrary(), new FetchLibrary()).build();
     }
 
     @Test(timeOut = 30_000)
-    public void theLibraryIsDiscovered() throws ScriptException {
+    public void theLibraryInstalls() throws ScriptException {
         final ScriptEngine e = engine();
         assertEquals(e.eval("[typeof setTimeout, typeof clearTimeout, typeof setInterval, typeof clearInterval, typeof queueMicrotask, typeof atob, typeof btoa].join()"),
                 "function,function,function,function,function,function,function");
@@ -53,8 +53,8 @@ public class HostLibraryTest {
         assertEquals(e.eval("btoa.call(null, 'x')"), "eA==");
         assertEquals(e.eval("Object.getOwnPropertyDescriptor(this, 'setTimeout').enumerable"), false);
         assertEquals(e.eval("var seen = []; for (var k in this) { if (k === 'fetch' || k === 'setTimeout') seen.push(k); } seen.length"), 0);
-        assertEquals(new NashornScriptEngineFactory().getScriptEngine("--libraries=none").eval("typeof setTimeout"), "undefined");
-        assertEquals(new NashornScriptEngineFactory().getScriptEngine(new String[] { "--libraries=none" }, new HostLibrary()).eval("typeof setTimeout"), "function");
+        assertEquals(new NashornScriptEngineBuilder().build().eval("typeof setTimeout"), "undefined");
+        assertEquals(new NashornScriptEngineBuilder().library(new HostLibrary()).build().eval("typeof setTimeout"), "function");
     }
 
     @Test(timeOut = 30_000)

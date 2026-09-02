@@ -24,8 +24,8 @@ package org.monflabs.nashorn.api.scripting.test;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 
 /**
- * A provider that breaks the contract: no name. Registered on its own
- * temporary class path by the test that expects it to be refused.
+ * A library that breaks the contract: no name. Handed to the engine by the
+ * test that expects it to be refused.
  */
 public class NamelessScriptLibrary implements ScriptLibrary {
     @Override

@@ -76,7 +76,7 @@ public final class NashornScriptEngineBuilder {
 
     /**
      * Adds options in their command-line spelling - {@code "--annexB=false"},
-     * {@code "-strict"}, {@code "--libraries=host"} - for anything the named
+     * {@code "-strict"}, {@code "--no-typed-arrays"} - for anything the named
      * methods below do not cover; the {@code Options} reference lists them all.
      *
      * @param options the options, in order
@@ -157,18 +157,6 @@ public final class NashornScriptEngineBuilder {
      */
     public NashornScriptEngineBuilder inspect(final String hostAndPort, final boolean waitForClient) {
         return option((waitForClient ? "--inspect-brk=" : "--inspect=") + Objects.requireNonNull(hostAndPort, "hostAndPort"));
-    }
-
-    /**
-     * Which of the script libraries registered as services apply, by name;
-     * none if no name is given. All of them by default. Libraries added with
-     * {@link #library} apply regardless.
-     *
-     * @param names the names, e.g. {@code "host"}
-     * @return this
-     */
-    public NashornScriptEngineBuilder discoveredLibraries(final String... names) {
-        return option("--libraries=" + (names.length == 0 ? "none" : String.join(",", names)));
     }
 
     /**
@@ -347,9 +335,10 @@ public final class NashornScriptEngineBuilder {
     }
 
     /**
-     * Script libraries to install into every global the engine creates, besides
-     * the ones discovered as services; one that shares a discovered library's
-     * name replaces it.
+     * Script libraries to install into every global the engine creates. This is
+     * the only way libraries are contributed - there is no discovery and no
+     * option - so a bare builder installs none. A library that shares an
+     * earlier one's name replaces it.
      *
      * @param libraries the libraries, in the order they apply
      * @return this

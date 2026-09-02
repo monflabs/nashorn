@@ -77,8 +77,6 @@ public final class ScriptEnvironment {
      */
     public final boolean _annexB;
 
-    /** Which discovered script libraries apply: all, none, or a list of names */
-    public final String _libraries;
 
     /** Size of the per-global Class cache size */
     public final int     _class_cache_size;
@@ -250,7 +248,6 @@ public final class ScriptEnvironment {
         this.options = options;
 
         _annexB               = options.getBoolean("annexB");
-        _libraries            = options.getString("libraries");
         _class_cache_size     = options.getInteger("class.cache.size");
         _classpath            = options.getString("classpath");
         _compile_only         = options.getBoolean("compile.only");

@@ -188,15 +188,15 @@ snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope fr
 
 ## Script libraries
 
-`api.scripting.ScriptLibrary` is the second service the engine consumes (after `DebuggerFrontend`):
-`Context` resolves the providers its app class loader offers, filtered by `--libraries`, plus the
-ones the factory was handed explicitly (never filtered; override by name), and `initGlobal`
-installs them into **every** global right after `initBuiltinObjects` - inside the same
-`runWithGlobal`, so scripts see the realm. Do **not** register a test library under
-`core/src/test/resources/META-INF/services`: it would land in every engine the suite creates, and
-four tests enumerate the global's properties (`globals.js`, `JDK-8015830.js`, `parser-es6.js`,
-`noEnumerablePropertiesTest`). `ScriptLibraryTest` instead writes a services directory to a temp
-path and hands a `URLClassLoader` over it to the factory (and `-cp` to the shell).
+`api.scripting.ScriptLibrary` is contributed **only** imperatively - handed to the builder's
+`library(...)` (or a deprecated factory overload). There is **no** service discovery and **no**
+`--libraries` option; a bare engine installs none. `ScriptLibraries.resolve(explicit)` just
+dedups the handed-in list by name (a later library replaces an earlier one; a null name is
+rejected), and `initGlobal` installs them into **every** global right after `initBuiltinObjects` -
+inside the same `runWithGlobal`, so scripts see the realm. `ScriptLibraryTest` hands `TestScriptLibrary`
+and friends to the factory directly; nothing is ever registered under `META-INF/services`, which is
+also why the four global-enumerating tests (`globals.js`, `JDK-8015830.js`, `parser-es6.js`,
+`noEnumerablePropertiesTest`) stay quiet without any `--libraries` guard.
 
 ## The event loop and the standard libraries
 
@@ -206,11 +206,12 @@ then macrotasks (timers in a priority queue, tasks posted from other threads, an
 pending operations that keeps the loop waiting) until idle. **`eval` returns when the script is
 idle**; a script that schedules nothing is unaffected. Interruption abandons everything, which is
 what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`. The standard
-libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrary`, registered as
-`ScriptLibrary` services by core's own descriptor and `META-INF/services`) over `@ScriptClass`
-built-ins `NativeHeaders`/`NativeRequest`/`NativeResponse` in `internal.objects`, installed per
-global by `Global.installFetchLibrary`. Their globals are NOT_ENUMERABLE, which is what keeps the
-four global-enumerating tests quiet; `Test262Runner` passes `--libraries=none`. A test that leaves
+libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrary`, plain
+`ScriptLibrary` classes the embedder hands to the builder - **not** registered as services and not
+installed automatically) over `@ScriptClass` built-ins `NativeHeaders`/`NativeRequest`/`NativeResponse`
+in `internal.objects`, installed per global by `Global.installFetchLibrary`. Their globals are
+NOT_ENUMERABLE anyway; a bare engine (which `Test262Runner` builds - no libraries, no option) has
+none of them at all. A test that leaves
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 
@@ -221,12 +222,12 @@ and `path` (`NodePath` — a pure-string port of Node's algorithm, exposing both
 `path.win32` and defaulting to the host flavour), each a `Module.values(...)` of realm-agnostic
 `JSObject` functions that act on `Global.instance()` at call time. It is **not** in `core`: it reaches
 into the internal object model (`Global`, `ScriptObject`, `NativePromise`, `JobQueue`, `ScriptFunction`,
-`JSType`), which `module-info` qualified-exports to `org.monflabs.nashorn.modules.node` by name. Core
-discovers it as a `ServiceLoader<api.modules.ModuleLoader>` (registered by the node module's
-`module-info` `provides` **and** its `META-INF/services` file, for module and classpath modes) in
-`Context.builtinModuleLoaders()`, consulted first in `loadModule` before the embedder's loaders and the
-filesystem — so a plain `nashorn-core` with no `nashorn-node` on the path does not resolve these
-specifiers. Being internals-coupled, `nashorn-node` is version-locked to its `nashorn-core`.
+`JSType`), which `module-info` qualified-exports to `org.monflabs.nashorn.modules.node` by name (the
+node module in turn `exports` its own package so an embedder can name `NodeModuleLoader`). It is
+contributed like any module loader - `.moduleLoader(new NodeModuleLoader())` on the builder,
+**not** discovered - and `loadModule` consults the builder's `moduleLoaders` in order before the
+filesystem. So a plain `nashorn-core`, or one whose builder was not handed the loader, does not resolve
+these specifiers. Being internals-coupled, `nashorn-node` is version-locked to its `nashorn-core`.
 
 **Every core library and built-in module must be implemented in pure Java (native), leveraging the
 JRE as far as it goes — never in JavaScript.** Use the JDK's own facilities (`java.nio.file`,

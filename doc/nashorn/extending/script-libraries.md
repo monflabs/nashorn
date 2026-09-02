@@ -3,15 +3,15 @@
 A *script library* is a bundle of extensions the engine installs into **every global it creates**
 before any script runs there: Java values to define as globals, and scripts to evaluate at the top
 level. It is how you ship a set of functions and objects — a utility belt, a domain API, a
-compatibility layer — as one artifact that every engine picks up, instead of remembering to `eval`
-a prelude into each context by hand.
+compatibility layer — as one object you hand the engine, instead of remembering to `eval` a prelude
+into each context by hand.
 
-Two things make it more than a convenience. A global in Nashorn is **per `Bindings`**: the default
+What makes it more than a convenience is that a global in Nashorn is **per `Bindings`**: the default
 context has one, every `engine.createBindings()` makes another, and so does `loadWithNewGlobal`
 from script. A library is installed into each of them, so its globals are there whichever context a
-script runs in. And it reaches the engine **by discovery** — a service provider on the class path or
-module path — so dropping the jar in is enough; or **explicitly**, handed to the builder when the
-engine is built.
+script runs in. A library reaches the engine **only explicitly** — handed to the builder's
+`library(...)` when the engine is built. There is no discovery and no option: a bare engine has none,
+and the application decides in code which libraries each engine gets.
 
 ## The interface
 
@@ -19,7 +19,7 @@ engine is built.
 package org.monflabs.nashorn.api.scripting;
 
 public interface ScriptLibrary {
-    String name();                                  // unique; what --libraries selects by
+    String name();                                  // unique; its identity, for override-by-name and errors
     default Map<String, Object> globals() { … }     // Java values to define, first
     default List<Script> scripts()        { … }     // scripts to evaluate, in order, after
     default void initialize(JSObject global) { }    // then: the global itself, to reach into
@@ -197,39 +197,20 @@ Bindings other = engine.createBindings();
 engine.eval("print(typeof circumference)", other);       // function - every global has it
 ```
 
-`library(...)` takes any number, in the order they apply. An explicit library always applies,
-whatever `--libraries` says, and replaces a discovered library of the same name — which is also
-how an application overrides a library its class path happens to carry.
+`library(...)` takes any number, in the order they apply. It is the only way a library reaches the
+engine — there is no discovery and no option — so a bare engine has none. A later library replaces an
+earlier one of the same name.
 
-### Registering it for discovery
+### No discovery — a library is just a class you pass
 
-For the jar to extend every engine that can see it, register the implementation as a service. On
-the module path, in the library's `module-info.java`:
-
-```java
-module com.example.geometry {
-    requires org.monflabs.nashorn;
-    provides org.monflabs.nashorn.api.scripting.ScriptLibrary with com.example.geometry.GeometryLibrary;
-}
-```
-
-On the class path, a file `META-INF/services/org.monflabs.nashorn.api.scripting.ScriptLibrary`
-containing the line `com.example.geometry.GeometryLibrary`. Doing both keeps the jar working either
-way, which is what `nashorn-core` itself does for its own services.
-
-Discovery goes through the engine's application class loader — the builder's `classLoader(...)`,
-or the thread's context class loader — so a library is found wherever the application's own
-classes are. A provider needs a public no-argument constructor.
-
-### Choosing which discovered libraries apply
-
-The builder's `discoveredLibraries(names...)` — the `--libraries` option, on the `jjs` command
-line or in `option(...)` — selects among the *discovered* libraries: all of them by default, none
-if no name is given, or the named ones. Libraries passed explicitly are not subject to it.
+There is no service registration, no `META-INF/services`, and no option. A library is an ordinary
+object you hand to the builder's `library(...)`; the application decides, in code, which libraries
+each engine gets. Nothing is installed automatically — not even the engine's own `host` and `fetch`
+(see [the standard libraries](../libraries/overview.md)), which you add the same way:
 
 ```java
-new NashornScriptEngineBuilder().discoveredLibraries().build();          // a bare engine
-new NashornScriptEngineBuilder().discoveredLibraries("geometry", "logging").build();
+new NashornScriptEngineBuilder().build();                                          // a bare engine
+new NashornScriptEngineBuilder().library(new HostLibrary(), geometry).build();     // just these two
 ```
 
 ## What to keep in mind
@@ -237,18 +218,17 @@ new NashornScriptEngineBuilder().discoveredLibraries("geometry", "logging").buil
 - **Every global gets its own evaluation.** A library's script runs once per global, so state it
   keeps in a `var` is per global, not shared across contexts. Shared state belongs in a Java object
   handed out through `globals()`.
-- **Order.** Discovered libraries run in discovery order, then the explicit ones in the order given,
+- **Order.** Libraries run in the order given to `library(...)`,
   each fully — globals, scripts, `initialize` — before the next; a library may rely on one that runs
   before it, and on its own globals from its own scripts. A library that must see all the others
   goes last.
 - **Cost.** Installation is part of creating a global, which is on the path of every
   `createBindings()`. The scripts compile once per engine (the code cache keys on the source) and
   run once per global; keep a library's top level to declarations and light setup.
-- **Naming.** Names are the library's identity for `--libraries` and for override-by-name, so pick
-  something as specific as a package name would be.
-- **The shell too.** `jjs` and `org.monflabs.nashorn.tools.Shell` build a `Context` the same way, so a
-  discovered library is present there as well — handy for a house REPL, and worth `--libraries=none`
-  when you want a clean engine.
+- **Naming.** A name is the library's identity for override-by-name, so pick something as specific
+  as a package name would be.
+- **The shell.** `jjs` and `org.monflabs.nashorn.tools.Shell` build a bare `Context` and take no
+  libraries, so a script run through them has none of these extensions.
 
 The [playground](../guide/playground.md)'s *Nashorn extensions → Script libraries* sample builds a library from a script tab
 and a Java value, hands it to a second engine, and runs code against it.

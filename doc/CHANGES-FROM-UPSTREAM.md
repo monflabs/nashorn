@@ -63,7 +63,7 @@ time. (Upstream 15.x targets Java 11.)
 ## Build and runtime
 
 - **Maven, not Ant.** The whole in-JDK make/jtreg build is gone; the reactor is
-  five Maven modules (below).
+  the Maven modules listed below.
 - **No third-party dependencies.** `nashorn-core` has none. Bytecode generation
   was ported from bundled ASM to the JDK's **`java.lang.classfile`** API
   (JEP 484); the Joni regexp backend and the V8 double-conversion port remain
@@ -85,11 +85,13 @@ All under `org.monflabs.nashorn.api`.
   `debugger`, `inspect`, `java`, `syntaxExtensions`, `typedArrays`,
   `optimisticTypes`, `lazyCompilation`, `classCacheSize`, `persistentCodeCache`,
   `globalPerEngine`, `timeZone`, `locale`, `classPath`, `modulePath`,
-  `dumpStackOnError`, `discoveredLibraries` — plus `classLoader`, `classFilter`,
-  `library`, `moduleLoader`, and a raw `option(...)` escape hatch.
-- **`ScriptLibrary`** — a service the engine installs into *every* global it
-  creates (Java globals + top-level scripts), discovered via `ServiceLoader` and
-  selectable with `--libraries`, or handed to the builder explicitly. An
+  `dumpStackOnError` — plus `classLoader`, `classFilter`, `library`,
+  `moduleLoader`, and a raw `option(...)` escape hatch. Libraries and module
+  loaders are contributed only through `library(...)` / `moduleLoader(...)`;
+  there is no discovery.
+- **`ScriptLibrary`** — a bundle of Java globals and top-level scripts the
+  engine installs into *every* global it creates. Contributed only by handing it
+  to the builder's `library(...)` (there is no discovery and no option); an
   `initialize(JSObject global)` hook runs per realm.
 - **`EventLoop`** — the realm's job queue exposed to Java: `queueMicrotask`,
   `schedule` with a cancellable `Timer`, `pending()`, `post`. `eval` returns when
@@ -125,9 +127,9 @@ parser's `--es6-module` option is now a parser-only flag (it no longer implies a
 
 ## Standard libraries (now in `nashorn-core`)
 
-The engine ships what a script expects from its host beyond the language, as
-`ScriptLibrary` services installed into every global (selectable with
-`--libraries`):
+The engine ships what a script expects from its host beyond the language as
+`ScriptLibrary` classes in `nashorn-core`. Neither is installed automatically -
+hand the one you want to the builder's `library(...)`; a bare engine has neither:
 
 - **`host`** — WHATWG `setTimeout`/`clearTimeout`/`setInterval`/`clearInterval`
   on the event loop, `queueMicrotask`, and forgiving `atob`/`btoa`.
@@ -141,9 +143,9 @@ See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
 An **experimental** `node` module resolver - the separate, unpublished **`nashorn-node`** artifact,
 provided as a convenience and an example - answers `import fs from "fs"` (or `"node:fs"`) with a Java
 implementation of Node's **`fs`** module - synchronous, error-first callback, and `fs.promises`
-forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. The engine
-discovers it as a `ModuleLoader` service when it is on the path and consults it before the user's
-module loaders and the filesystem; a plain `nashorn-core` does not resolve these specifiers.
+forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
+registered on the engine builder explicitly - `.moduleLoader(new NodeModuleLoader())` - and consulted
+before the filesystem; a plain `nashorn-core` without it resolves none of these specifiers.
 `import { Buffer } from "node:buffer"`
 gives Node's `Buffer` - a `Uint8Array` subclass with Node's encodings and numeric accessors - and a
 binary `fs` read yields a `Uint8Array`; `import os from "os"` gives system information (`platform`,
@@ -175,14 +177,14 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
   for a debugger to attach to.
 - `--inspect` / `--inspect-brk` — serve the Chrome DevTools Protocol (implies
   `--debugger`; `-brk` waits for a client and pauses at the first statement).
-- `--libraries=all|none|<names>` — select which discovered `ScriptLibrary`
-  services are installed.
 - `--es6-module` — parser-API-only, enables module parsing.
 
 **Removed**
 
 - `--language` — it only ever accepted `es6` and did nothing (the engine is ES2017
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
+- `--libraries` — libraries are no longer discovered or selected by option;
+  hand each one to the builder's `library(...)` instead.
 - `--function-statement-error` / `--function-statement-warning` — block-level
   function declarations are simply legal now.
 - The `-scripting` **backquote process extension and `$EXEC`** — the backquote

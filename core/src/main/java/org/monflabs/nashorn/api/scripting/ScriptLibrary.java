@@ -36,14 +36,11 @@ import java.util.Objects;
  * {@code loadWithNewGlobal} - before any script runs in it: Java values to
  * define as globals, and scripts to evaluate there.
  *
- * <p>A library reaches an engine in one of two ways. Registered as a
- * {@link java.util.ServiceLoader} provider - a {@code provides} clause in a
- * module descriptor, or a {@code META-INF/services/org.monflabs.nashorn.api.scripting.ScriptLibrary}
- * entry on the class path - it is discovered by every engine whose class
- * loader can see it, subject to the {@code --libraries} option. Passed to
- * {@link NashornScriptEngineBuilder#library(ScriptLibrary...)}, it applies to
- * that engine whatever the option says, and replaces a discovered library of
- * the same {@link #name()}.
+ * <p>A library reaches an engine only by being passed to
+ * {@link NashornScriptEngineBuilder#library(ScriptLibrary...)} - contributed
+ * imperatively and explicitly. There is no service discovery and no option to
+ * select among libraries; a bare engine has none. A library replaces an earlier
+ * one of the same {@link #name()}.
  *
  * <p>In each global the {@link #globals()} are defined first, then the
  * {@link #scripts()} run in order, so a script may build on the Java values,
@@ -70,8 +67,7 @@ public interface ScriptLibrary {
 
     /**
      * The library's name: unique among the libraries an engine sees, the
-     * handle the {@code --libraries} option selects by, and what an error
-     * names.
+     * handle it is overridden by name with, and what an error names.
      * @return the name
      */
     String name();

@@ -26,9 +26,11 @@
  * service and consults it before its own module loaders, so a bare
  * {@code import fs from "fs"} (or {@code "node:fs"}) resolves to the built-in.
  *
- * <p>It implements its modules in pure Java over the engine's internal object
- * model, which {@code org.monflabs.nashorn} exports to this module by name.
- * Because of that coupling it is a companion to one specific
+ * <p>Register it with the engine builder explicitly -
+ * {@code new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build()};
+ * it is not discovered. It implements its modules in pure Java over the engine's
+ * internal object model, which {@code org.monflabs.nashorn} exports to this
+ * module by name. Because of that coupling it is a companion to one specific
  * {@code nashorn-core} and is not published.
  *
  * @moduleGraph
@@ -38,6 +40,5 @@ module org.monflabs.nashorn.modules.node {
     requires transitive org.monflabs.nashorn;
     requires java.management;
 
-    provides org.monflabs.nashorn.api.modules.ModuleLoader with
-        org.monflabs.nashorn.modules.node.NodeModuleLoader;
+    exports org.monflabs.nashorn.modules.node;
 }

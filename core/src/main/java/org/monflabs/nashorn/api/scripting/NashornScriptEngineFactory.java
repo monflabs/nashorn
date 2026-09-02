@@ -237,8 +237,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     }
 
     /**
-     * Create a new Script engine with these script libraries, besides the ones
-     * discovered as services. They apply to every global the engine creates.
+     * Create a new Script engine with these script libraries. They apply to every global the engine creates.
      *
      * @param libraries the libraries
      * @return newly created script engine.
@@ -253,7 +252,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
 
     /**
      * Create a new Script engine initialized with the given arguments and
-     * these script libraries, besides the ones discovered as services.
+     * these script libraries.
      *
      * @param args arguments array passed to script engine.
      * @param libraries the libraries
@@ -270,8 +269,8 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     /**
      * Create a new Script engine initialized with the given arguments, class
      * loader, class filter and script libraries. The libraries apply to every
-     * global the engine creates, whatever the {@code --libraries} option
-     * says, and each replaces a discovered library of the same name.
+     * global the engine creates, and each replaces an earlier library of the
+     * same name.
      *
      * @param args arguments array passed to script engine.
      * @param appLoader class loader to be used as script "app" class loader; null for the default

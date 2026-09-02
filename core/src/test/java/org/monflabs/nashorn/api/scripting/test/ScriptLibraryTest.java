@@ -27,14 +27,10 @@ import static org.testng.Assert.assertNotSame;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,16 +45,14 @@ import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary.Script;
 import org.monflabs.nashorn.api.scripting.ScriptUtils;
-import org.monflabs.nashorn.tools.Shell;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 /**
- * Script libraries: contributed as services or explicitly, installed into
+ * Script libraries: contributed explicitly to the engine, installed into
  * every global an engine makes - globals, scripts, then the initializer.
+ * There is no discovery; a library reaches the engine only by being handed to it.
  */
-@SuppressWarnings("deprecation")   // the factory overloads stay tested for compatibility
+@SuppressWarnings("deprecation")   // the library-taking factory overloads stay tested for compatibility
 public class ScriptLibraryTest {
 
     /** A function implemented in Java, handed out as a global - coercing its argument as the language would. */
@@ -120,42 +114,6 @@ public class ScriptLibraryTest {
             global.setMember("stringsReady", global.getMember("stringsLoaded"));
         }
     };
-
-    /** A class path holding only a service registration of {@link TestScriptLibrary}, and a loader over it. */
-    private Path services;
-    private URLClassLoader loader;
-    /** The same for a provider with no name. */
-    private Path namelessServices;
-    private URLClassLoader namelessLoader;
-
-    @BeforeClass
-    public void registerTheTestLibraries() throws IOException {
-        services = register(TestScriptLibrary.class);
-        loader = new URLClassLoader(new URL[] { services.toUri().toURL() }, ScriptLibraryTest.class.getClassLoader());
-        namelessServices = register(NamelessScriptLibrary.class);
-        namelessLoader = new URLClassLoader(new URL[] { namelessServices.toUri().toURL() }, ScriptLibraryTest.class.getClassLoader());
-    }
-
-    private static Path register(final Class<? extends ScriptLibrary> provider) throws IOException {
-        final Path dir = Files.createTempDirectory("script-library-services");
-        final Path file = dir.resolve("META-INF").resolve("services").resolve(ScriptLibrary.class.getName());
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, provider.getName() + "\n", StandardCharsets.UTF_8);
-        return dir;
-    }
-
-    @AfterClass
-    public void unregister() throws IOException {
-        loader.close();
-        namelessLoader.close();
-        for (final Path dir : List.of(services, namelessServices)) {
-            Files.walk(dir).sorted(Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
-        }
-    }
-
-    private ScriptEngine discovering(final String... args) {
-        return new NashornScriptEngineFactory().getScriptEngine(args, loader, null, List.of());
-    }
 
     // -- globals and scripts ------------------------------------------------------------
 
@@ -269,60 +227,34 @@ public class ScriptLibraryTest {
     @Test
     public void aLibraryIsInstalledOncePerGlobal() throws ScriptException {
         final int before = TestScriptLibrary.installations;
-        final ScriptEngine engine = discovering("-doe");
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new TestScriptLibrary());
         assertEquals(TestScriptLibrary.installations, before + 1);
         engine.createBindings();
         engine.createBindings();
         assertEquals(TestScriptLibrary.installations, before + 3);
     }
 
-    // -- discovery ----------------------------------------------------------------------
-
     @Test
-    public void aLibraryIsDiscoveredAsAService() throws ScriptException {
-        final ScriptEngine engine = discovering("-doe");
-        assertEquals(engine.eval("testlibGreet('world')"), "hello world from testlib 1.0");
-        // an engine whose loader has no registration does not get it
+    public void anEngineWithNoLibraryHasNone() throws ScriptException {
         assertEquals(new NashornScriptEngineFactory().getScriptEngine().eval("typeof testlibGreet"), "undefined");
     }
 
-    @Test
-    public void discoveryUsesTheContextClassLoaderWhenNoneIsGiven() throws ScriptException {
-        final ClassLoader previous = Thread.currentThread().getContextClassLoader();
-        Thread.currentThread().setContextClassLoader(loader);
-        try {
-            assertEquals(new NashornScriptEngineFactory().getScriptEngine().eval("typeof testlibGreet"), "function");
-            assertEquals(new NashornScriptEngineFactory().getScriptEngine("-doe").eval("typeof testlibGreet"), "function");
-        } finally {
-            Thread.currentThread().setContextClassLoader(previous);
-        }
-    }
+    // -- override and naming ------------------------------------------------------------
 
     @Test
-    public void theLibrariesOptionSelectsDiscoveredLibraries() throws ScriptException {
-        assertEquals(discovering("--libraries=none").eval("typeof testlibGreet"), "undefined");
-        assertEquals(discovering("--libraries=other,another").eval("typeof testlibGreet"), "undefined");
-        assertEquals(discovering("--libraries=testlib").eval("typeof testlibGreet"), "function");
-        assertEquals(discovering("--libraries=all").eval("typeof testlibGreet"), "function");
-        assertEquals(discovering("--libraries=other, testlib").eval("typeof testlibGreet"), "function");
-        // an explicit library is not subject to the option
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new String[] { "--libraries=none" }, loader, null, List.of(GEOMETRY));
-        assertEquals(engine.eval("typeof circumference"), "function");
-        assertEquals(engine.eval("typeof testlibGreet"), "undefined");
-    }
-
-    @Test
-    public void anExplicitLibraryReplacesADiscoveredOneOfTheSameName() throws ScriptException {
-        final ScriptLibrary override = ScriptLibrary.of("testlib", Map.of(), Script.of("mine.js", "function testlibGreet() { return 'overridden'; }"));
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new String[] { "-doe" }, loader, null, List.of(override));
+    public void aLaterLibraryReplacesAnEarlierOneOfTheSameName() throws ScriptException {
+        final ScriptLibrary override = ScriptLibrary.of("testlib", Map.of(),
+                Script.of("mine.js", "function testlibGreet() { return 'overridden'; }"));
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new TestScriptLibrary(), override);
         assertEquals(engine.eval("testlibGreet('x')"), "overridden");
+        // the replaced library did not contribute its globals
         assertEquals(engine.eval("typeof testlibVersion"), "undefined");
     }
 
     @Test
-    public void aDiscoveredLibraryWithoutANameIsRefused() {
+    public void aLibraryWithoutANameIsRefused() {
         try {
-            new NashornScriptEngineFactory().getScriptEngine(new String[] { "-doe" }, namelessLoader, null, List.of());
+            new NashornScriptEngineFactory().getScriptEngine(new NamelessScriptLibrary());
             fail("expected the engine creation to fail");
         } catch (final IllegalStateException e) {
             assertTrue(e.getMessage().contains(NamelessScriptLibrary.class.getName()), e.getMessage());
@@ -491,28 +423,5 @@ public class ScriptLibraryTest {
         assertEquals(ScriptLibrary.of("named", Map.of()).name(), "named");
         assertTrue(ScriptLibrary.of("named", Map.of()).scripts().isEmpty());
         assertEquals(String.valueOf(ScriptLibrary.of("named", Map.of())), "ScriptLibrary named");
-    }
-
-    // -- the shell ------------------------------------------------------------------------
-
-    @Test
-    public void theShellGetsDiscoveredLibrariesToo() throws IOException {
-        final Path script = Files.createTempFile("libtest", ".js");
-        try {
-            Files.writeString(script, "print(testlibGreet('jjs'));", StandardCharsets.UTF_8);
-            assertEquals(shell("-cp", services.toString(), script.toString()), "hello jjs from testlib 1.0");
-            Files.writeString(script, "print(typeof testlibGreet);", StandardCharsets.UTF_8);
-            assertEquals(shell("-cp", services.toString(), "--libraries=none", script.toString()), "undefined");
-        } finally {
-            Files.deleteIfExists(script);
-        }
-    }
-
-    private static String shell(final String... args) throws IOException {
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        final ByteArrayOutputStream err = new ByteArrayOutputStream();
-        final int exit = Shell.main(System.in, out, err, args);
-        assertEquals(exit, 0, err.toString(StandardCharsets.UTF_8));
-        return out.toString(StandardCharsets.UTF_8).trim();
     }
 }

@@ -15,8 +15,7 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
         .option("--class-cache-size=100")                // ...and any other, as on the command line
         .classLoader(myClassLoader)
         .classFilter(name -> name.startsWith("com.example."))
-        .library(myLibrary, anotherLibrary)              // script libraries
-        .discoveredLibraries("host")                     // which registered ones apply; none if no name
+        .library(myLibrary, anotherLibrary)              // script libraries - contributed explicitly, none by default
         .moduleLoader(new PathModuleLoader(scriptsDir))  // where import finds its modules
         .build();
 ```
@@ -29,7 +28,7 @@ named methods cover the engine's configuration: the language and its extras (`an
 sandbox, `classPath`, `modulePath(path, modules...)`), compilation (`optimisticTypes`,
 `lazyCompilation`, `classCacheSize`, `persistentCodeCache`), the environment scripts see
 (`timeZone`, `locale`, `globalPerEngine`), debugging (`dumpStackOnError`, `debugger`,
-`inspect(hostAndPort, waitForClient)`) and `discoveredLibraries`; `option(...)` takes anything
+`inspect(hostAndPort, waitForClient)`); `option(...)` takes anything
 else - the diagnostic switches, `--log`, the `--print-*` family - in its command-line spelling. A builder can be reused, and every
 `build()` is a new engine with its own compiled-code cache and globals.
 
@@ -96,7 +95,7 @@ tracing) that stay with `option(...)`.
 | `timeZone(TimeZone)` | `-timezone` | the JVM's | What `new Date()` and the local getters answer with. Pin it rather than inheriting the host's. |
 | `locale(Locale)` | `--locale` | the JVM's | What `toLocaleString` and its kin answer with. |
 | `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-the-engine.md#the-scope-model). |
-| `discoveredLibraries(names...)` | `--libraries` | all | Which [standard and registered libraries](../extending/script-libraries.md) apply; none if no name is given. |
+| `library(libraries...)` | — | none | Which [script libraries](../extending/script-libraries.md) to install into every global. Contributed explicitly; a bare engine has none, including the standard `host` and `fetch`. |
 | `moduleLoader(loaders...)` | — | filesystem | Where `import` finds its modules: a [chain of loaders](../extending/module-loaders.md), first answer wins. Registering any loader replaces the default filesystem resolution. |
 
 **Debugging**

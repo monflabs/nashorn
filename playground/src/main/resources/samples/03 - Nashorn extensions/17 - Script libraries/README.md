@@ -15,12 +15,9 @@ receives the global object as a `JSObject` — Java navigates it with `getMember
 to a script the mirror simply *is* that global — and the sample's second library uses it to add
 `capitalize` to `String.prototype`. The guide shows the same method installed from Java.
 
-The other route is **discovery**: the library's jar registers the implementation as a service — a
-`provides org.monflabs.nashorn.api.scripting.ScriptLibrary with ...` clause in its module descriptor,
-or a `META-INF/services/org.monflabs.nashorn.api.scripting.ScriptLibrary` file on the class path —
-and every engine whose class loader sees the jar picks it up. `--libraries=all|none|name,...`
-selects among discovered libraries; an explicit one always applies and replaces a discovered
-library of the same name.
+Libraries are contributed **only** this way — imperatively, through the builder's `library(...)`.
+There is no service discovery and no option to enable or disable them, so a bare engine has none;
+hand it each library you want. A later library replaces an earlier one of the same name.
 
 The *Script libraries* page of the documentation's *Extending the engine* section (`doc/nashorn/extending/script-libraries.md`) walks
 through writing, packaging and registering one.

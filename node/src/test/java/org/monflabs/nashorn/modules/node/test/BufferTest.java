@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import javax.script.ScriptEngine;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.modules.node.NodeModuleLoader;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -43,7 +44,7 @@ public class BufferTest {
 
     @BeforeMethod
     public void setUp() {
-        engine = new NashornScriptEngineBuilder().build();
+        engine = new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build();
     }
 
     /** Evaluates a module that imports Buffer and exports {@code r = <expr>}; returns r. */

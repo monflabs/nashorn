@@ -159,11 +159,6 @@ module org.monflabs.nashorn {
     exports org.monflabs.nashorn.api.modules;
 
     uses org.monflabs.nashorn.api.debugger.DebuggerFrontend;
-    uses org.monflabs.nashorn.api.scripting.ScriptLibrary;
-    uses org.monflabs.nashorn.api.modules.ModuleLoader;
-    provides org.monflabs.nashorn.api.scripting.ScriptLibrary with
-        org.monflabs.nashorn.libs.HostLibrary,
-        org.monflabs.nashorn.libs.FetchLibrary;
 
     exports org.monflabs.nashorn.internal.runtime to
         org.monflabs.nashorn.shell,

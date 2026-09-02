@@ -26,8 +26,8 @@ import java.util.Map;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 
 /**
- * A library registered as a service on the test class path, so that every
- * engine the tests create discovers it.
+ * A library the tests hand to the engine explicitly; its {@code installations}
+ * counter records how many globals it has been installed into.
  */
 public class TestScriptLibrary implements ScriptLibrary {
     /** How many globals the library has been installed into. */

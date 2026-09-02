@@ -540,15 +540,11 @@ public final class Context {
     /** The script libraries every global of this context gets, in order. */
     private final List<ScriptLibrary> libraries;
 
-    /** The module-loading chain; empty means the default filesystem loading. */
-    private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
-
     /**
-     * Built-in module resolvers discovered as {@link org.monflabs.nashorn.api.modules.ModuleLoader}
-     * services (for example the optional {@code nashorn-node} artifact's {@code fs}/{@code path}
-     * resolver), consulted before the user's loaders and the filesystem. Discovered lazily, once.
+     * The module-loading chain, in the order asked: the loaders the embedder handed the builder.
+     * Empty means imports resolve as filesystem paths relative to the importing module.
      */
-    private List<org.monflabs.nashorn.api.modules.ModuleLoader> builtinModuleLoaders;
+    private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
 
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;
@@ -637,7 +633,7 @@ public final class Context {
      * @param err     error writer for this Context
      * @param appLoader application class loader
      * @param classFilter class filter to use
-     * @param libraries script libraries to apply to every global, besides the ones discovered as services
+     * @param libraries script libraries to apply to every global
      */
     public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries) {
         this(options, errors, out, err, appLoader, classFilter, libraries, List.of());
@@ -652,7 +648,7 @@ public final class Context {
      * @param err     error writer for this Context
      * @param appLoader application class loader
      * @param classFilter class filter to use
-     * @param libraries script libraries to apply to every global, besides the ones discovered as services
+     * @param libraries script libraries to apply to every global
      * @param moduleLoaders the module-loading chain; empty for the default filesystem loading
      */
     public Context(final Options options, final ErrorManager errors, final PrintWriter out, final PrintWriter err, final ClassLoader appLoader, final ClassFilter classFilter, final List<ScriptLibrary> libraries, final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders) {
@@ -689,7 +685,7 @@ public final class Context {
 
         this.appLoader = appCl;
         this.dynamicLinker = Bootstrap.createDynamicLinker(this.appLoader, env._unstable_relink_threshold);
-        this.libraries = env._compile_only ? List.of() : ScriptLibraries.resolve(env._libraries, ScriptLibraries.listOf(libraries), this.appLoader);
+        this.libraries = env._compile_only ? List.of() : ScriptLibraries.resolve(libraries);
 
         final int cacheSize = env._class_cache_size;
         if (cacheSize > 0) {
@@ -889,38 +885,7 @@ public final class Context {
      * @param referrer  the module the import was written in
      * @return the module it names, already loaded if it has been asked for before
      */
-    /**
-     * The built-in module resolvers offered as {@link org.monflabs.nashorn.api.modules.ModuleLoader}
-     * services on the module path or class path - none by default, the {@code nashorn-node} artifact's
-     * resolver when it is present. Discovered once and cached.
-     */
-    private List<org.monflabs.nashorn.api.modules.ModuleLoader> builtinModuleLoaders() {
-        if (builtinModuleLoaders == null) {
-            final java.util.LinkedHashMap<String, org.monflabs.nashorn.api.modules.ModuleLoader> found = new java.util.LinkedHashMap<>();
-            for (final org.monflabs.nashorn.api.modules.ModuleLoader loader
-                    : ServiceLoader.load(org.monflabs.nashorn.api.modules.ModuleLoader.class)) {
-                found.putIfAbsent(loader.getClass().getName(), loader);
-            }
-            final ClassLoader ctx = Thread.currentThread().getContextClassLoader();
-            if (ctx != null) {
-                for (final org.monflabs.nashorn.api.modules.ModuleLoader loader
-                        : ServiceLoader.load(org.monflabs.nashorn.api.modules.ModuleLoader.class, ctx)) {
-                    found.putIfAbsent(loader.getClass().getName(), loader);
-                }
-            }
-            builtinModuleLoaders = List.copyOf(found.values());
-        }
-        return builtinModuleLoaders;
-    }
-
     public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
-        final org.monflabs.nashorn.api.modules.Module builtinReferrerView = referrer == null ? null : referrer.moduleView();
-        for (final org.monflabs.nashorn.api.modules.ModuleLoader builtinLoader : builtinModuleLoaders()) {
-            final org.monflabs.nashorn.api.modules.Module builtin = builtinLoader.load(specifier, builtinReferrerView);
-            if (builtin != null) {
-                return record(builtin);
-            }
-        }
         if (!moduleLoaders.isEmpty()) {
             final org.monflabs.nashorn.api.modules.Module referrerView = referrer == null ? null : referrer.moduleView();
             for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {

@@ -27,6 +27,7 @@ import static org.testng.Assert.assertTrue;
 import javax.script.ScriptEngine;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.modules.node.NodeModuleLoader;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -40,7 +41,7 @@ public class NodeOsTest {
 
     @BeforeMethod
     public void setUp() {
-        engine = new NashornScriptEngineBuilder().build();
+        engine = new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build();
     }
 
     private Object r(final String expr) throws Exception {

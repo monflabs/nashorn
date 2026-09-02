@@ -75,7 +75,7 @@ public class ModuleLoaderTest {
     }
 
     private ScriptEngine engine(final ModuleLoader... loaders) {
-        return new NashornScriptEngineBuilder().discoveredLibraries().moduleLoader(loaders).build();
+        return new NashornScriptEngineBuilder().moduleLoader(loaders).build();
     }
 
     // -- eval runs a module -------------------------------------------------------------
@@ -264,7 +264,7 @@ public class ModuleLoaderTest {
         Files.writeString(entry, "import theDefault, { count } from './counter.js';\nprint(theDefault + ' ' + count);\n");
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         final ByteArrayOutputStream err = new ByteArrayOutputStream();
-        final int exit = Shell.main(System.in, out, err, new String[] { "--libraries=none", entry.toString() });
+        final int exit = Shell.main(System.in, out, err, new String[] { entry.toString() });
         assertEquals(exit, 0, err.toString(StandardCharsets.UTF_8));
         assertEquals(out.toString(StandardCharsets.UTF_8).trim(), "the counter 0");
     }

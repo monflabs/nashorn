@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import javax.script.ScriptEngine;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.modules.node.NodeModuleLoader;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -44,7 +45,7 @@ public class NodeFsTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        engine = new NashornScriptEngineBuilder().build();
+        engine = new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build();
         dir = Files.createTempDirectory("nodefs");
         engine.put("DIR", dir.toString().replace("\\", "/"));
     }

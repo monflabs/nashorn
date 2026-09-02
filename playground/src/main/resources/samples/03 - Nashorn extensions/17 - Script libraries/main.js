@@ -1,8 +1,8 @@
 // A ScriptLibrary bundles Java values and scripts that the engine installs
 // into EVERY global it creates, before any script runs there. Here one is
 // described from this sample's geometry.js tab plus a Java value, and handed
-// explicitly to a second engine; a jar can also register one as a service so
-// that every engine discovers it (see the README).
+// explicitly to a second engine. Libraries are only ever contributed this way -
+// there is no discovery and no option (see the README).
 var ScriptLibrary = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary');
 var Script        = Java.type('org.monflabs.nashorn.api.scripting.ScriptLibrary.Script');
 var Builder       = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
@@ -33,10 +33,6 @@ print(engine.eval('shapes.circle(1)', other), '/', engine.eval('shapes.circle(1)
 
 // Not in this engine, which was built without it
 print(typeof circumference, typeof TAU);
-
-// --libraries selects among libraries *discovered* as services; explicit ones always apply
-var bare = new Builder().discoveredLibraries().library(geometry).build();
-print(bare.eval('typeof area'));
 
 // initialize(global) - on a library implemented rather than described - reaches into the
 // global once the library's own parts are in place: the way to extend a built-in prototype.

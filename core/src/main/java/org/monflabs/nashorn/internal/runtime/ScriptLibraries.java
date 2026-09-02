@@ -21,51 +21,41 @@
 
 package org.monflabs.nashorn.internal.runtime;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.Set;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptObjectMirror;
 import org.monflabs.nashorn.internal.objects.Global;
 
 /**
- * Finds the script libraries a context applies, and installs them into a
- * global: the service providers its class loader offers, filtered by the
- * {@code --libraries} option, then the ones the embedder handed over, which
- * are not filtered and replace a discovered library of the same name.
+ * Installs the script libraries a context applies into a global. Libraries are
+ * contributed imperatively - the embedder hands them to the engine builder's
+ * {@code library(...)} - never discovered; there is no service lookup and no
+ * option to select among them.
  */
 final class ScriptLibraries {
     private ScriptLibraries() {
     }
 
     /**
-     * The libraries a context applies, in the order they run.
-     * @param selection the {@code --libraries} option: {@code all}, {@code none}, or names
-     * @param explicit the libraries the embedder passed
-     * @param loader the loader providers are looked up through
+     * The libraries a context applies, in the order they run: exactly the ones
+     * the embedder handed over, deduplicated by name so a later library replaces
+     * an earlier one of the same name.
+     * @param explicit the libraries the embedder passed (may be null)
      */
-    static List<ScriptLibrary> resolve(final String selection, final List<ScriptLibrary> explicit, final ClassLoader loader) {
-        final Map<String, ScriptLibrary> byName = new LinkedHashMap<>();
-        final String choice = selection == null ? "all" : selection.trim();
-        if (!choice.equals("none")) {
-            final Set<String> wanted = choice.equals("all") ? null : Set.of(choice.split("\\s*,\\s*"));
-            final ClassLoader through = loader != null ? loader : Thread.currentThread().getContextClassLoader();
-            for (final ScriptLibrary library : ServiceLoader.load(ScriptLibrary.class, through)) {
-                final String name = library.name();
-                if (name == null) {
-                    throw new IllegalStateException("script library " + library.getClass().getName() + " has no name");
-                }
-                if (wanted == null || wanted.contains(name)) {
-                    byName.putIfAbsent(name, library);
-                }
-            }
+    static List<ScriptLibrary> resolve(final List<ScriptLibrary> explicit) {
+        if (explicit == null || explicit.isEmpty()) {
+            return List.of();
         }
+        final Map<String, ScriptLibrary> byName = new LinkedHashMap<>();
         for (final ScriptLibrary library : explicit) {
-            byName.put(library.name(), library);
+            final String name = library.name();
+            if (name == null) {
+                throw new IllegalStateException("script library " + library.getClass().getName() + " has no name");
+            }
+            byName.put(name, library);
         }
         return List.copyOf(byName.values());
     }
@@ -96,10 +86,5 @@ final class ScriptLibraries {
                 throw new IllegalStateException("script library '" + library.name() + "' failed in " + stage + ": " + e.getMessage(), e);
             }
         }
-    }
-
-    /** A list that tolerates a null argument from an older caller. */
-    static List<ScriptLibrary> listOf(final List<ScriptLibrary> libraries) {
-        return libraries == null ? List.of() : new ArrayList<>(libraries);
     }
 }

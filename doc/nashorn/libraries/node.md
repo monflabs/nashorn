@@ -17,10 +17,11 @@ import { readFileSync } from 'fs';  // a named export
 import fs from 'node:fs';           // the node: scheme works too
 ```
 
-When the `nashorn-node` artifact is on the path, the engine discovers its resolver and consults it
-**before** your own [module loaders](../guide/modules.md) and the filesystem, so a bare `fs` means the
-built-in module — exactly as in Node. A specifier it does not recognise is passed on to the next
-loader, so it never shadows your own modules.
+Register the resolver on the engine builder — `.moduleLoader(new NodeModuleLoader())` — and, put
+first in the loader chain, it is consulted **before** your own
+[module loaders](../guide/modules.md) and the filesystem, so a bare `fs` means the built-in module —
+exactly as in Node. A specifier it does not recognise is passed on to the next loader, so it never
+shadows your own modules.
 
 The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's `Buffer`),
 **`os`** (system information) and **`path`** (path-string manipulation).
@@ -29,17 +30,21 @@ The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's 
 
 The resolver lives in the **`nashorn-node`** artifact, separate from `nashorn-core` because it reaches
 into the engine's internal object model (the core module exports those internals to it by name). Put
-it on the path next to `nashorn-core` and the engine finds it through the
-[`ModuleLoader`](../extending/module-loaders.md) service — no builder call or option needed:
+it on the path next to `nashorn-core` and hand its resolver to the engine builder — it is a
+[`ModuleLoader`](../extending/module-loaders.md), contributed explicitly like any other:
 
-```
-# module path or class path, alongside nashorn-core
---module-path nashorn-core.jar:nashorn-node.jar
+```java
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.modules.node.NodeModuleLoader;
+
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .moduleLoader(new NodeModuleLoader())   // consulted first, before your loaders and the filesystem
+        .build();
 ```
 
-Because it depends on internals, a given `nashorn-node` is a companion to the **same version** of
-`nashorn-core`; do not mix versions. Without it on the path, `fs`/`buffer`/`os`/`path` are ordinary
-specifiers that fall through to your loaders and the filesystem.
+There is no discovery: without that `moduleLoader(...)` call, `fs`/`buffer`/`os`/`path` are ordinary
+specifiers that fall through to your loaders and the filesystem. Because it depends on internals, a
+given `nashorn-node` is a companion to the **same version** of `nashorn-core`; do not mix versions.
 
 ## `fs`
 
@@ -191,9 +196,8 @@ directory; everything else is a pure function of its inputs.
 
 ## Extending it
 
-The resolver is `org.monflabs.nashorn.modules.node.NodeModuleLoader` in the `nashorn-node` module,
-registered as a [`ModuleLoader`](../extending/module-loaders.md) service (`module-info` `provides` plus
-a `META-INF/services` entry, so it is found on both a module path and a class path), and `fs` is
+The resolver is `org.monflabs.nashorn.modules.node.NodeModuleLoader` in the `nashorn-node` module — an
+ordinary [`ModuleLoader`](../extending/module-loaders.md) you hand to the builder — and `fs` is
 `NodeFs`. Another Node built-in would be a new `case` in the loader returning a `Module.values(...)`
 whose exports are [`JSObject`](../extending/apis.md) functions — the same shape `fs` uses. The module
 resolves against the engine internals that `nashorn-core` exports to it by name, which is exactly why

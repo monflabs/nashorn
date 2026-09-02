@@ -22,11 +22,11 @@
 /**
  * The standard libraries: what a script expects from its host beyond the
  * language, as {@link org.monflabs.nashorn.api.scripting.ScriptLibrary}
- * services the engine itself provides - the {@code host} library (timers,
- * {@code queueMicrotask}, {@code atob}/{@code btoa}) and the {@code fetch}
- * library ({@code fetch}, {@code Headers}, {@code Request}, {@code Response}).
- * Every engine has them unless {@code --libraries} says otherwise; either can
- * also be passed to the engine factory explicitly.
+ * implementations - the {@code host} library (timers, {@code queueMicrotask},
+ * {@code atob}/{@code btoa}) and the {@code fetch} library ({@code fetch},
+ * {@code Headers}, {@code Request}, {@code Response}). Neither is installed
+ * automatically; hand the one you want to the engine builder's
+ * {@code library(...)}.
  *
  * @since 2017.0.0
  */

@@ -35,6 +35,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.libs.HostLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.testng.annotations.Test;
 
@@ -50,7 +51,7 @@ public class NashornScriptEngineBuilderTest {
         final ScriptEngine engine = builder.build();
         assertEquals(engine.eval("1 + 1"), 2);
         assertEquals(engine.eval("typeof escape"), "function");        // Annex B on
-        assertEquals(engine.eval("typeof setTimeout"), "function");    // the standard libraries discovered
+        assertEquals(engine.eval("typeof setTimeout"), "undefined");   // no libraries unless one is added
         assertSame(engine.getFactory().getClass(), NashornScriptEngineFactory.class);
         assertEquals(engine.getFactory().getEngineName(), new NashornScriptEngineFactory().getEngineName());
     }
@@ -60,8 +61,8 @@ public class NashornScriptEngineBuilderTest {
         assertEquals(new NashornScriptEngineBuilder().annexB(false).build().eval("typeof escape"), "undefined");
         assertEquals(new NashornScriptEngineBuilder().strict(true).build().eval("try { undeclared = 1; 'assigned' } catch (e) { e.name }"), "ReferenceError");
         assertEquals(new NashornScriptEngineBuilder().scripting(true).build().eval("var x = <<EOS\nheredoc\nEOS\nx.trim()"), "heredoc");
-        assertEquals(new NashornScriptEngineBuilder().discoveredLibraries().build().eval("typeof setTimeout + typeof fetch"), "undefinedundefined");
-        assertEquals(new NashornScriptEngineBuilder().discoveredLibraries("host").build().eval("typeof setTimeout + ' ' + typeof fetch"), "function undefined");
+        assertEquals(new NashornScriptEngineBuilder().build().eval("typeof setTimeout + typeof fetch"), "undefinedundefined");
+        assertEquals(new NashornScriptEngineBuilder().library(new HostLibrary()).build().eval("typeof setTimeout + ' ' + typeof fetch"), "function undefined");
         assertEquals(new NashornScriptEngineBuilder().debugger(true).build().eval("typeof console"), "object");
         assertEquals(new NashornScriptEngineBuilder().dumpStackOnError(true).options(), List.of("-doe=true"));
         assertEquals(new NashornScriptEngineBuilder().inspect("9229", true).options(), List.of("--inspect-brk=9229"));
@@ -84,7 +85,7 @@ public class NashornScriptEngineBuilderTest {
     @Test
     public void theEngineShapingOptions() throws ScriptException {
         // no Java at all: the bluntest sandbox
-        final ScriptEngine sandboxed = new NashornScriptEngineBuilder().java(false).discoveredLibraries().build();
+        final ScriptEngine sandboxed = new NashornScriptEngineBuilder().java(false).build();
         assertEquals(sandboxed.eval("[typeof Java, typeof Packages, typeof java, typeof javax].join(' ')"), "undefined undefined undefined undefined");
         assertEquals(new NashornScriptEngineBuilder().java(true).build().eval("typeof Java"), "object");
         // Nashorn's own syntax refused without the extensions
@@ -131,7 +132,6 @@ public class NashornScriptEngineBuilderTest {
                     .classLoader(loader)
                     .classFilter(name -> !name.startsWith("java.io."))
                     .library(geometry)
-                    .discoveredLibraries()
                     .build();
             assertEquals(engine.eval("circumference(1)"), 2 * Math.PI);
             assertEquals(engine.eval("typeof setTimeout"), "undefined");
@@ -144,7 +144,7 @@ public class NashornScriptEngineBuilderTest {
 
     @Test
     public void aBuilderIsReusableAndEveryBuildIsANewEngine() throws ScriptException {
-        final NashornScriptEngineBuilder builder = new NashornScriptEngineBuilder().discoveredLibraries();
+        final NashornScriptEngineBuilder builder = new NashornScriptEngineBuilder();
         final ScriptEngine one = builder.build();
         final ScriptEngine two = builder.build();
         assertNotSame(one, two);
