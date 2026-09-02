@@ -91,11 +91,15 @@ public final class PlaygroundFrame extends JFrame {
     private final JCheckBox preserve = new JCheckBox("Preserve console", false);
     private final JCheckBox debug = new JCheckBox("Start the debugger server", false);
     private final JButton debugRun = new JButton("Debug");
+    private final JButton debugHere = new JButton("Debug here");
     private final JLabel debugInfo = new JLabel(" ");
     private final JButton inspectLink = new JButton("<html><u>open chrome://inspect</u></html>");
     private final JLabel debugInfoTail = new JLabel(" ");
     private final Timer autoRunTimer = new Timer(500, e -> run());
     private final Timer scratchTimer = new Timer(1000, e -> saveScratch());
+    private final transient Font mono;
+    private final boolean dark;
+    private transient DebuggerFrame debuggerFrame;
     private transient Sample sample;
     private transient Sample scratch;
     private transient Future<?> queued;
@@ -107,7 +111,8 @@ public final class PlaygroundFrame extends JFrame {
      */
     public PlaygroundFrame(final SampleLibrary library, final boolean dark) {
         super("Nashorn Playground");
-        final Font mono = new Font(Font.MONOSPACED, Font.PLAIN, 13);
+        this.mono = new Font(Font.MONOSPACED, Font.PLAIN, 13);
+        this.dark = dark;
         scratch = loadScratch();
         tree = new SampleTree(library, scratch);
         editor = new EditorPane(this, mono, dark);
@@ -122,6 +127,9 @@ public final class PlaygroundFrame extends JFrame {
             public void windowClosing(final WindowEvent e) {
                 saveScratch();
                 savePrefs();
+                if (debuggerFrame != null) {
+                    debuggerFrame.shutdown();
+                }
                 runner.close();
                 dispose();
                 System.exit(0);
@@ -200,6 +208,8 @@ public final class PlaygroundFrame extends JFrame {
         });
         debugRun.setEnabled(false);
         debugRun.setToolTipText("Run, paused at the first statement, for the attached DevTools");
+        debugHere.addActionListener(e -> debugHere());
+        debugHere.setToolTipText("Open the built-in debugger and run, paused at the first statement");
         debugInfo.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 0));
         inspectLink.setBorderPainted(false);
         inspectLink.setContentAreaFilled(false);
@@ -224,6 +234,7 @@ public final class PlaygroundFrame extends JFrame {
         bar.add(Box.createHorizontalGlue());
         bar.add(debug);
         bar.add(debugRun);
+        bar.add(debugHere);
         final JPanel north = new JPanel(new BorderLayout());
         north.add(bar, BorderLayout.CENTER);
         final JPanel info = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
@@ -371,6 +382,43 @@ public final class PlaygroundFrame extends JFrame {
                             : result.failure() != null ? "Failed after " + result.millis() + " ms" : "Done in " + result.millis() + " ms");
                 });
             }
+        });
+    }
+
+    /**
+     * Opens the built-in debugger on the playground's own engine and runs the
+     * sample paused at its first statement. Starts the server if it is off
+     * (keeping the checkbox in step), reuses one debugger window, and arms the
+     * pause-on-start run only once the client has connected - a pause fired
+     * before then would have nothing to show.
+     */
+    private void debugHere() {
+        if (!debug.isSelected()) {
+            debug.setSelected(true);
+            toggleDebug();
+        }
+        final String url = runner.debugUrl();
+        if (url == null) {
+            debug.setSelected(false);   // toggleDebug already reported the failure
+            return;
+        }
+        if (debuggerFrame == null) {
+            debuggerFrame = new DebuggerFrame(mono, dark,
+                    () -> {
+                        final String live = runner.debugUrl();
+                        if (live != null) {
+                            return live;
+                        }
+                        try {
+                            return runner.debugInChrome(true, InspectOptions.DEFAULT_PORT);
+                        } catch (final IOException e) {
+                            return null;
+                        }
+                    });
+        }
+        debuggerFrame.show(url, () -> {
+            runner.pauseOnNextRun(true);
+            run();
         });
     }
 

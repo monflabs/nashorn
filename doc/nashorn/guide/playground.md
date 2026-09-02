@@ -56,6 +56,23 @@ pauses the script at its next statement and terminates it there — a `while (tr
 survive it, and neither does a script that catches everything. A script blocked inside a Java
 call is interrupted as well.
 
+## Debugging in the playground
+
+**Debug here** opens the playground's own debugger — a window laid out like Chrome DevTools'
+Sources panel: the script with a breakpoint gutter and an execution pointer, a call stack, watches,
+scopes and a breakpoint list down the side, and a console beneath. It is a
+[Chrome DevTools Protocol](debugging.md) *client*, attaching to the same server the **Start the
+debugger server** checkbox serves — so pressing it starts that server if it is off, then runs the
+sample paused at its first statement. Set breakpoints by clicking the gutter, step with the toolbar,
+hover the scopes tree, evaluate in the console against the selected frame; right-click a breakpoint
+to give it a condition, and add watch expressions that re-evaluate at every pause.
+
+The breakpoints are keyed by the script's url, which the playground keeps stable across runs (it
+appends a `//# sourceURL` directive), so a breakpoint set once keeps hitting on every **Debug here**.
+Closing the window detaches but leaves the server running. Because the protocol allows **one client
+at a time**, the built-in debugger and an attached Chrome are mutually exclusive: detach one before
+the other.
+
 ## Debugging in Chrome
 
 **Start the debugger server** serves the [Chrome DevTools Protocol](debugging.md) on the

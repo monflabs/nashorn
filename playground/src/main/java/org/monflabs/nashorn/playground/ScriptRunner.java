@@ -186,6 +186,16 @@ public final class ScriptRunner {
         return debugServer.webSocketUrl();
     }
 
+    /**
+     * The Chrome DevTools Protocol server's WebSocket url, or null when the
+     * server is off. Lets an in-process client find the same endpoint the
+     * status line shows, without disturbing the server.
+     * @return the {@code ws://...} url, or null
+     */
+    public synchronized String debugUrl() {
+        return debugServer == null ? null : debugServer.webSocketUrl();
+    }
+
     /** Makes the next run - and only it - pause at its first statement, for a client that is attached. */
     public void pauseOnNextRun(final boolean pause) {
         pauseOnNextRun = pause;
@@ -253,6 +263,11 @@ public final class ScriptRunner {
             context.setAttribute("snippet", new SnippetFiles(sample.files()), ScriptContext.ENGINE_SCOPE);
             currentFiles = sample.files();
             eng.setContext(context);
+            // a stable url per file, so a debugger's breakpoints survive a re-run:
+            // without it the engine mints a fresh nashorn://script/<id>/... every eval
+            // and a by-url breakpoint never re-resolves. Appended, it does not shift
+            // the real code's line numbers.
+            final String toEval = withStableUrl(sample.fileName(), source);
             if (pauseOnNextRun) {
                 pauseOnNextRun = false;   // one shot: the Debug button arms it per run
                 Debugger.of(eng).pauseOnStart();
@@ -282,17 +297,34 @@ public final class ScriptRunner {
                 };
                 debugger.addTraceListener(trace);
                 try {
-                    eng.eval(source);
+                    eng.eval(toEval);
                 } finally {
                     debugger.removeTraceListener(trace);
                 }
             } else {
-                eng.eval(source);
+                eng.eval(toEval);
             }
         } catch (final Throwable t) {
             failure = t;
         }
         finish(run, listener, start, failure);
+    }
+
+    /**
+     * The script with a stable {@code //# sourceURL} appended, unless it already
+     * declares one: the engine honours it as the script's url, so a debugger's
+     * by-url breakpoints re-resolve across runs. Appended as the last line, it
+     * leaves every real line number where it was.
+     * @param fileName the sample's file name
+     * @param source the script
+     * @return the script to evaluate
+     */
+    private static String withStableUrl(final String fileName, final String source) {
+        if (source.contains("sourceURL=")) {
+            return source;
+        }
+        final String separator = source.isEmpty() || source.endsWith("\n") ? "" : "\n";
+        return source + separator + "//# sourceURL=playground:///" + fileName + "\n";
     }
 
     /**
