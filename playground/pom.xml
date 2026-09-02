@@ -74,6 +74,16 @@ questions.
       <groupId>com.fifesoft</groupId>
       <artifactId>rstaui</artifactId>
       <version>${rstaui.version}</version>
+      <!-- rstaui (and its autocomplete) were built against an older rsyntaxtextarea;
+           pin to the direct 3.6.0 by excluding the transitive one, so no classpath -
+           an IDE's included, not only Maven's resolved one - can mix two versions of
+           org.fife.ui.rtextarea and lose an inner class at runtime. -->
+      <exclusions>
+        <exclusion>
+          <groupId>com.fifesoft</groupId>
+          <artifactId>rsyntaxtextarea</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.formdev</groupId>
