@@ -341,6 +341,15 @@ public class DebugSessionTest {
     }
 
     @Test
+    public void printReachesTheConsole() {
+        attach();
+        runScriptAtUrl("file:///work/print.js", "print('from print', 7);");
+        pumpUntil(() -> !recorder.console.isEmpty());
+        assertEquals(recorder.console.get(0).kind(), ConsoleEntry.Kind.LOG);
+        assertEquals(recorder.console.get(0).text(), "from print 7");
+    }
+
+    @Test
     public void watchesAreRememberedInOrder() {
         session.addWatch("a + b");
         session.addWatch("c");

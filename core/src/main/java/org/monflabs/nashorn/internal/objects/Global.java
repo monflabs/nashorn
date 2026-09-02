@@ -3685,6 +3685,15 @@ public final class Global extends Scope {
 
         out.flush();
 
+        // also surface it to an attached debugger's console, the way console.log
+        // is - print is Nashorn's console primitive, and a client attached over
+        // the protocol only sees what it is told. Cheap when nothing is attached
+        // (the dispatch returns at once with no listeners) and stdout is untouched.
+        final DebuggerImpl debugger = debuggerOf();
+        if (debugger != null) {
+            debugger.consoleCalled("log", objects);
+        }
+
         return UNDEFINED;
     }
 
