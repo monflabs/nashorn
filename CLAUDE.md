@@ -213,6 +213,24 @@ four global-enumerating tests quiet; `Test262Runner` passes `--libraries=none`. 
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 
+The engine also ships a **Node module resolver**, `org.monflabs.nashorn.libs.node.NodeModuleLoader`,
+consulted first in `Context.loadModule` (before the embedder's loaders and the filesystem): `fs`
+(`NodeFs`), `buffer` (`NodeBuffer` — a real `Uint8Array` reparented onto a per-realm
+`Buffer.prototype`), and `os` (`NodeOs`), each a `Module.values(...)` of realm-agnostic `JSObject`
+functions that act on `Global.instance()` at call time.
+
+**Every core library and built-in module must be implemented in pure Java (native), leveraging the
+JRE as far as it goes — never in JavaScript.** Use the JDK's own facilities (`java.nio.file`,
+`java.util.Base64`, `HexFormat`, `StandardCharsets`, `ByteBuffer`, `java.net`, the management beans,
+…) rather than a bundled `.js`. `Buffer` began as a `buffer.js` source module and had to be rewritten
+in Java: a script library recompiles in every global under that engine's options, so a stress test
+setting `nashorn.compiler.splitter.threshold` low forced the script to split and hit a codegen bug,
+breaking unrelated tests. Native modules compile nothing at import, need no splitter-safe contortions,
+and get correct encodings and I/O straight from the JRE. Expose functions as `AbstractJSObject`s
+(`isFunction()` + `call`), read/write typed-array bytes through the receiver (which may arrive as a
+`ScriptObject` or a `ScriptObjectMirror` — unwrap with `ScriptUtils.unwrap`), and build JS arrays with
+`Global.wrapAsObject`.
+
 ## The playground
 
 `playground/` is a Swing application over `nashorn-core` + `nashorn-debugger`: a sample library
