@@ -1,0 +1,187 @@
+Changes from upstream Nashorn
+=============================
+
+This engine is a fork of [OpenJDK Nashorn](https://github.com/openjdk/nashorn),
+branched at its **15.7** release (the last upstream tag; the pristine tree is kept
+on the `openjdk-original` branch). This page summarises how the fork differs from
+that baseline: the language it implements, the coordinates and packaging, the
+public API, the standard libraries, the command-line flags, and what was removed.
+
+For the exact conformance picture see [CONFORMANCE.md](CONFORMANCE.md); for the
+release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to use
+any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
+
+
+## Language: ES5.1 → ECMAScript 2017
+
+Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
+ES6 features hidden behind `--language=es6`. This fork implements
+**[ECMAScript 2017](https://262.ecma-international.org/8.0/) (ES8) as the only
+language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
+`isES6()` gating.
+
+Added on top of the ES5.1 baseline:
+
+- **ES2015 (ES6):** classes, generators, destructuring, rest/spread, `super`,
+  `new.target`, template literals, `let`/`const` and block scoping, arrow
+  functions, `for…of`, computed properties, default parameters, `Symbol` and the
+  well-known symbols, the `Map`/`Set`/`WeakMap`/`WeakSet` family, `Proxy`,
+  `Reflect`, `Promise`, the `%TypedArray%` hierarchy, and **ES modules**.
+- **ES2016:** the `**` exponentiation operator and `Array.prototype.includes`.
+- **ES2017:** `async`/`await`, `Object.values`/`entries`/`getOwnPropertyDescriptors`,
+  `String.prototype.padStart`/`padEnd`, trailing commas in parameter and argument
+  lists, `SharedArrayBuffer` and `Atomics`.
+- **Annex B** (web-compatibility): block-level function-declaration hoisting,
+  `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
+  `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
+  flag removes all of it (see below).
+
+Deliberate exclusions (see CONFORMANCE.md): **proper tail calls** and **ECMA-402
+(`intl402`)**.
+
+
+## Coordinates, module, engine name, versioning
+
+| | Upstream | This fork |
+| --- | --- | --- |
+| Maven artifact | `org.openjdk.nashorn:nashorn-core` | `org.monflabs.nashorn:nashorn-core` |
+| Java packages | `org.openjdk.nashorn.*` | `org.monflabs.nashorn.*` |
+| JPMS module | `org.openjdk.nashorn` | `org.monflabs.nashorn` |
+| JSR-223 engine name | `nashorn` | `nashorn-monflabs` (aliases `js`/`JavaScript`/`ECMAScript` unchanged) |
+| Version scheme | JDK-derived `15.x` | ECMAScript-year semver, e.g. `2017.0.0` |
+
+The rename lets this artifact **coexist on one class or module path with an
+upstream `nashorn-core`** — different module, different packages. The engine
+deliberately does **not** register as plain `nashorn`, so `getEngineByName("nashorn")`
+still resolves to the official library when both are present; use
+`getEngineByName("nashorn-monflabs")` for this one.
+
+The `--release 25`-compiled binary requires **JDK 25 or newer** at build and run
+time. (Upstream 15.x targets Java 11.)
+
+
+## Build and runtime
+
+- **Maven, not Ant.** The whole in-JDK make/jtreg build is gone; the reactor is
+  five Maven modules (below).
+- **No third-party dependencies.** `nashorn-core` has none. Bytecode generation
+  was ported from bundled ASM to the JDK's **`java.lang.classfile`** API
+  (JEP 484); the Joni regexp backend and the V8 double-conversion port remain
+  bundled.
+- **`ScopedValue`** replaces the thread-local "current global".
+- **Security Manager support was removed** (upstream removed it in 15.7; the fork
+  keeps no `doPrivileged`/`AccessController` patterns).
+
+
+## New public API
+
+All under `org.monflabs.nashorn.api`.
+
+### `api.scripting`
+
+- **`NashornScriptEngineBuilder`** — a fluent replacement for the option-taking
+  `NashornScriptEngineFactory.getScriptEngine(...)` overloads (now deprecated).
+  Typed methods for every engine option — `annexB`, `strict`, `scripting`,
+  `debugger`, `inspect`, `java`, `syntaxExtensions`, `typedArrays`,
+  `optimisticTypes`, `lazyCompilation`, `classCacheSize`, `persistentCodeCache`,
+  `globalPerEngine`, `timeZone`, `locale`, `classPath`, `modulePath`,
+  `dumpStackOnError`, `discoveredLibraries` — plus `classLoader`, `classFilter`,
+  `library`, `moduleLoader`, and a raw `option(...)` escape hatch.
+- **`ScriptLibrary`** — a service the engine installs into *every* global it
+  creates (Java globals + top-level scripts), discovered via `ServiceLoader` and
+  selectable with `--libraries`, or handed to the builder explicitly. An
+  `initialize(JSObject global)` hook runs per realm.
+- **`EventLoop`** — the realm's job queue exposed to Java: `queueMicrotask`,
+  `schedule` with a cancellable `Timer`, `pending()`, `post`. `eval` returns when
+  the script is idle, not merely when its synchronous code finishes.
+- **`ScriptUtils`** — greatly expanded with the language's abstract operations for
+  Java code a script calls (`typeOf`, `toNumber`/`toString`/`toPrimitive`,
+  `isCallable`, `strictEquals`/`looseEquals`/`sameValue`, `requireObjectCoercible`,
+  `typeError`/`rangeError`/`error`, …). `convert(null, primitiveType)` now follows
+  the language (0/`false`) instead of returning `null`.
+
+### `api.modules` (new package)
+
+Pluggable ES module loading, consumed with ordinary `import`. A chain of
+`ModuleLoader`s is registered on the engine (builder `moduleLoader`), each asked in
+order, first non-null wins. Ships `PathModuleLoader` (files under a root),
+`ResourceModuleLoader` (class-path resources), `JavaModuleLoader` (modules whose
+exports are Java values, `default` included), and the `Module` value type.
+
+### `api.debugger` (new package)
+
+A protocol-neutral debugging API behind `--debugger`: `Debugger.of(engine)`,
+breakpoints, stepping, frames, scopes, values, termination, a `console` bridge,
+and a passive **`TraceListener`** (statements and completion values without
+pausing). `DebuggerFrontend` is the service the engine looks up for `--inspect`.
+
+### `api.tree`
+
+The public parser AST gained the post-ES6 syntax: `**` is `Kind.EXPONENT`, `**=`
+is `EXPONENT_ASSIGNMENT`, and `await` is a `UnaryTree` of kind `AWAIT`. The
+parser's `--es6-module` option is now a parser-only flag (it no longer implies a
+`--language` value).
+
+
+## Standard libraries (now in `nashorn-core`)
+
+The engine ships what a script expects from its host beyond the language, as
+`ScriptLibrary` services installed into every global (selectable with
+`--libraries`):
+
+- **`host`** — WHATWG `setTimeout`/`clearTimeout`/`setInterval`/`clearInterval`
+  on the event loop, `queueMicrotask`, and forgiving `atob`/`btoa`.
+- **`fetch`** — `fetch`, `Headers`, `Request`, `Response` over the JDK's
+  `HttpClient` (`Headers`/`Request`/`Response` are real `@ScriptClass` built-ins).
+
+See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
+
+
+## New reactor modules
+
+| Module | Artifact | Published | What |
+| --- | --- | --- | --- |
+| `core` | `nashorn-core` | yes | the engine + standard libraries |
+| `debugger` | `nashorn-debugger` | yes | the Chrome DevTools Protocol server (`--inspect`) |
+| `debugger-ui` | `nashorn-debugger-ui` | no | an embeddable Swing debugger (a CDP client) |
+| `shell` | — | no | the `jjs` REPL |
+| `playground` | — | no | a Swing sample browser / editor / console |
+| `buildtools/nasgen` | — | no | the build-time bytecode tool |
+
+
+## Command-line and engine-option changes
+
+**Added**
+
+- `--annexB` / `--annexB=false` — toggle the whole of Annex B (on by default).
+- `--debugger` — emit statement/frame hooks and keep variables in scope objects,
+  for a debugger to attach to.
+- `--inspect` / `--inspect-brk` — serve the Chrome DevTools Protocol (implies
+  `--debugger`; `-brk` waits for a client and pauses at the first statement).
+- `--libraries=all|none|<names>` — select which discovered `ScriptLibrary`
+  services are installed.
+- `--es6-module` — parser-API-only, enables module parsing.
+
+**Removed**
+
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2017
+  unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
+- `--function-statement-error` / `--function-statement-warning` — block-level
+  function declarations are simply legal now.
+- The `-scripting` **backquote process extension and `$EXEC`** — the backquote
+  belongs to template literals since ES2015.
+
+**Changed**
+
+- `--no-typed-arrays` now *removes* the typed-array globals (as `--no-java` removes
+  Java's), instead of leaving them as properties holding `null`.
+
+The full option table is in [nashorn/reference/options.md](nashorn/reference/options.md).
+
+
+## Deprecations
+
+- The `NashornScriptEngineFactory.getScriptEngine(...)` overloads that took
+  options, a class loader, a class filter, or libraries are **deprecated** (since
+  `2017.0.0`) in favour of `NashornScriptEngineBuilder`. The no-argument
+  `getScriptEngine()` remains the `javax.script` entry point.

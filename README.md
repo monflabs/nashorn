@@ -42,6 +42,10 @@ a technical guide to the engine's internals, and the option and built-in referen
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
 `mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2017.0.0-all.jar`.
 
+For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
+changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
+picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
+
 
 Getting Started
 ===============
