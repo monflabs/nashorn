@@ -56,8 +56,9 @@ call is interrupted as well.
 ## Debugging in Chrome
 
 **Start the debugger server** serves the [Chrome DevTools Protocol](debugging.md) on the
-playground's engine — the status line shows the `ws://…` URL. Open `chrome://inspect` in Chrome
-and click **inspect** under *Remote Target*. From there, **Run** behaves as always — a
+playground's engine — the status line shows the `ws://…` URL with an **open chrome://inspect**
+link that launches Chrome on the inspect page (`chrome://` is no OS scheme, so the playground
+starts the browser itself); click **inspect** under *Remote Target* there. From there, **Run** behaves as always — a
 `debugger;` statement pauses in DevTools with scopes, call stack and console — and the **Debug**
 button (enabled while the server runs) runs the sample paused at its first statement, so a script
 with no `debugger;` in it can get breakpoints before anything happens. The pause applies to that

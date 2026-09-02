@@ -92,6 +92,8 @@ public final class PlaygroundFrame extends JFrame {
     private final JCheckBox debug = new JCheckBox("Start the debugger server", false);
     private final JButton debugRun = new JButton("Debug");
     private final JLabel debugInfo = new JLabel(" ");
+    private final JButton inspectLink = new JButton("<html><u>open chrome://inspect</u></html>");
+    private final JLabel debugInfoTail = new JLabel(" ");
     private final Timer autoRunTimer = new Timer(500, e -> run());
     private final Timer scratchTimer = new Timer(1000, e -> saveScratch());
     private transient Sample sample;
@@ -198,7 +200,16 @@ public final class PlaygroundFrame extends JFrame {
         });
         debugRun.setEnabled(false);
         debugRun.setToolTipText("Run, paused at the first statement, for the attached DevTools");
-        debugInfo.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 8));
+        debugInfo.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 0));
+        inspectLink.setBorderPainted(false);
+        inspectLink.setContentAreaFilled(false);
+        inspectLink.setFocusPainted(false);
+        inspectLink.setForeground(new java.awt.Color(0x2a, 0x6f, 0xc4));
+        inspectLink.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        inspectLink.setToolTipText("Launch Chrome on its inspect page; the playground appears under Remote Target");
+        inspectLink.setVisible(false);
+        inspectLink.addActionListener(e -> openChromeInspect());
+        debugInfoTail.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 8));
         bar.add(runButton);
         bar.add(stopButton);
         bar.addSeparator();
@@ -215,7 +226,11 @@ public final class PlaygroundFrame extends JFrame {
         bar.add(debugRun);
         final JPanel north = new JPanel(new BorderLayout());
         north.add(bar, BorderLayout.CENTER);
-        north.add(debugInfo, BorderLayout.SOUTH);
+        final JPanel info = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
+        info.add(debugInfo);
+        info.add(inspectLink);
+        info.add(debugInfoTail);
+        north.add(info, BorderLayout.SOUTH);
         return north;
     }
 
@@ -363,17 +378,57 @@ public final class PlaygroundFrame extends JFrame {
         try {
             final String url = runner.debugInChrome(debug.isSelected(), InspectOptions.DEFAULT_PORT);
             debugRun.setEnabled(url != null);
+            inspectLink.setVisible(url != null);
             if (url == null) {
                 runner.pauseOnNextRun(false);
                 debugInfo.setText(" ");
+                debugInfoTail.setText(" ");
             } else {
-                debugInfo.setText("Debugger listening on " + url + "  \u2014  open chrome://inspect in Chrome and click \"inspect\" under Remote Target, "
-                        + "then press Debug to run paused at the first statement.");
+                debugInfo.setText("Debugger listening on " + url + "  \u2014 ");
+                debugInfoTail.setText(" and click \"inspect\" under Remote Target, then press Debug to run paused at the first statement.");
             }
         } catch (final IOException e) {
             debug.setSelected(false);
             JOptionPane.showMessageDialog(this, "Cannot start the debugger server: " + e.getMessage(), "Start the debugger server", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    /**
+     * Launches Chrome (or another Chromium) on its inspect page. chrome:// is
+     * not an OS-registered scheme, so the browser is started with the URL as
+     * an argument, per platform, first candidate that starts winning.
+     */
+    private void openChromeInspect() {
+        final String url = "chrome://inspect/#devices";
+        final String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        final java.util.List<java.util.List<String>> candidates = new java.util.ArrayList<>();
+        if (os.contains("mac")) {
+            candidates.add(java.util.List.of("open", "-a", "Google Chrome", url));
+            candidates.add(java.util.List.of("open", "-a", "Chromium", url));
+        } else if (os.contains("win")) {
+            candidates.add(java.util.List.of("cmd", "/c", "start", "chrome", url));
+            candidates.add(java.util.List.of("cmd", "/c", "start", "msedge", "edge://inspect/#devices"));
+        } else {
+            candidates.add(java.util.List.of("google-chrome", url));
+            candidates.add(java.util.List.of("chromium", url));
+            candidates.add(java.util.List.of("chromium-browser", url));
+        }
+        for (final java.util.List<String> command : candidates) {
+            try {
+                final Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+                if (!process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) || process.exitValue() == 0) {
+                    return;   // still running, or done and content: the browser is on its way
+                }
+            } catch (final IOException notThere) {
+                // try the next candidate
+            } catch (final InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        JOptionPane.showMessageDialog(this,
+                "Could not launch Chrome. Open chrome://inspect in a Chromium browser yourself;\nthe playground appears under Remote Target.",
+                "Start the debugger server", JOptionPane.INFORMATION_MESSAGE);
     }
 
     // -- preferences ----------------------------------------------------------------
