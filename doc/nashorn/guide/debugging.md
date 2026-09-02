@@ -99,6 +99,30 @@ Start the engine with `--inspect-brk`, press F5, and VS Code stops at the first 
 Variables, Call Stack and Debug Console panels working. Breakpoints set in a `.js` file before it
 is loaded are pending and resolve when the engine compiles it — exactly as with Node.
 
+## The Swing debugger
+
+The reactor also ships a debugger *client*: `org.monflabs.nashorn.debugger.ui.DebuggerPanel`, an
+embeddable Swing component (the unpublished `nashorn-debugger-ui` module) laid out like Chrome
+DevTools' Sources panel. It speaks the Chrome DevTools Protocol over a WebSocket, so it attaches to
+any engine running with `--inspect` — the [playground](playground.md)'s **Debug here** button is
+this panel in a window, but a host application can put it anywhere:
+
+```java
+DebuggerPanel panel = new DebuggerPanel(monoFont, dark);
+frame.add(panel);
+panel.attach("ws://127.0.0.1:9229/<uuid>");   // the url the server published
+```
+
+It keeps one debugging session for its whole life, so breakpoints set on it survive a
+`detach()`/`attach()` cycle; `close()` releases it. `onConnectionChange` reports connecting,
+connected, disconnected and — when the server already has a client — failed, since the protocol
+allows only one at a time. A `detach()` while the script is paused resumes it first, so nothing is
+left hanging with no client to release it. Everything runs on the event dispatch thread; the
+protocol calls are asynchronous and never block it.
+
+The module is unpublished for now (like the playground and shell), so use it from source rather than
+as a Maven artifact.
+
 ## What the debugger shows
 
 - **Call frames** for every script function on the paused thread, the program body last, each at
