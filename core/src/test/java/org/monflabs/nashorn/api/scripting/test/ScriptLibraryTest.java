@@ -27,6 +27,7 @@ import static org.testng.Assert.assertNotSame;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -45,6 +46,7 @@ import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary.Script;
 import org.monflabs.nashorn.api.scripting.ScriptUtils;
+import org.monflabs.nashorn.tools.Shell;
 import org.testng.annotations.Test;
 
 /**
@@ -423,5 +425,30 @@ public class ScriptLibraryTest {
         assertEquals(ScriptLibrary.of("named", Map.of()).name(), "named");
         assertTrue(ScriptLibrary.of("named", Map.of()).scripts().isEmpty());
         assertEquals(String.valueOf(ScriptLibrary.of("named", Map.of())), "ScriptLibrary named");
+    }
+
+    // -- the shell ------------------------------------------------------------------------
+
+    @Test
+    public void theShellInstallsTheStandardLibrariesByDefault() throws IOException {
+        final Path script = Files.createTempFile("stdlib", ".js");
+        try {
+            Files.writeString(script, "print(typeof setTimeout, typeof fetch);", StandardCharsets.UTF_8);
+            // jjs installs host + fetch by default, unlike the bare engine
+            assertEquals(shell(script.toString()), "function function");
+            // ...and --std-libraries=false / --no-std-libraries turn them off
+            assertEquals(shell("--std-libraries=false", script.toString()), "undefined undefined");
+            assertEquals(shell("--no-std-libraries", script.toString()), "undefined undefined");
+        } finally {
+            Files.deleteIfExists(script);
+        }
+    }
+
+    private static String shell(final String... args) throws IOException {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        final int exit = Shell.main(System.in, out, err, args);
+        assertEquals(exit, 0, err.toString(StandardCharsets.UTF_8));
+        return out.toString(StandardCharsets.UTF_8).trim();
     }
 }

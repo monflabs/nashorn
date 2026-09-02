@@ -211,7 +211,10 @@ libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrar
 installed automatically) over `@ScriptClass` built-ins `NativeHeaders`/`NativeRequest`/`NativeResponse`
 in `internal.objects`, installed per global by `Global.installFetchLibrary`. Their globals are
 NOT_ENUMERABLE anyway; a bare engine (which `Test262Runner` builds - no libraries, no option) has
-none of them at all. A test that leaves
+none of them at all. **`jjs` is the one exception**: `Shell.makeContext` installs `HostLibrary` +
+`FetchLibrary` by default via a jjs-only `--std-libraries` switch (stripped from argv before the
+engine's option parser sees it, since it is deliberately not an engine option), so the REPL is
+usable; `--std-libraries=false` / `--no-std-libraries` turns them off. A test that leaves
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 

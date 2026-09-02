@@ -3,7 +3,7 @@
 `fetch` provides the WHATWG fetch API: `fetch(input, init)` returning a promise of a `Response`,
 and the `Headers`, `Request` and `Response` classes. It is part of `nashorn-core`, but not installed automatically: hand `new FetchLibrary()` to the
 engine builder's `library(...)` to have it (it does not need the `host` library). Simply not adding
-it is the right setting for an engine that must not reach the network.
+it is the right setting for an engine that must not reach the network. (`jjs` installs it by default - see [jjs](../reference/jjs.md).)
 
 ```js
 (async function () {

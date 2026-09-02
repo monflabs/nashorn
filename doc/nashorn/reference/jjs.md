@@ -67,6 +67,20 @@ REPL conveniences: `history` (persisted in `~/.jjs.history`), `edit` (external e
 tab completion over Java packages and script properties, and `input`/`evalinput` for multi-line
 entry. A script whose first line starts with `#` (a shebang) turns `-scripting` on automatically.
 
+### The standard libraries
+
+Unlike the embeddable engine — which installs nothing unless the builder's `library(...)` is called —
+`jjs` installs the [standard libraries](../libraries/overview.md) into its engine **by default**, so
+`setTimeout`/`clearTimeout`/`setInterval`, `queueMicrotask`, `atob`/`btoa` and `fetch`/`Headers`/
+`Request`/`Response` are there at the prompt and in a script it runs. This is a `jjs`-only switch, not
+an engine option: pass **`--std-libraries=false`** (or `--no-std-libraries`) for a bare shell with none
+of them — the right setting for reproducing the plain engine's environment.
+
+```text
+jjs> typeof setTimeout          // "function"
+jjs --std-libraries=false>      // typeof setTimeout is "undefined"
+```
+
 ## The `-fx` launcher
 
 `jjs -fx script.js` launches the script as a JavaFX application — the script body runs in `start()`

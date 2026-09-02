@@ -46,6 +46,9 @@ import org.monflabs.nashorn.internal.runtime.ErrorManager;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.Property;
 import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
+import org.monflabs.nashorn.api.scripting.ScriptLibrary;
+import org.monflabs.nashorn.libs.FetchLibrary;
+import org.monflabs.nashorn.libs.HostLibrary;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
@@ -217,11 +220,36 @@ public class Shell implements PartialParser {
         // Set up options.
         final Options options = new Options("nashorn", werr);
 
+        // The shell installs the standard libraries (host + fetch) into its
+        // engine by default, so setTimeout/fetch/atob work at the REPL and in a
+        // script jjs runs. It is a jjs-only switch, deliberately NOT an engine
+        // option: the engine never installs libraries on its own, and a builder
+        // must add them itself. --std-libraries=false (or --no-std-libraries)
+        // gives a bare shell.
+        boolean stdLibraries = true;
+
         // parse options
         if (args != null) {
             try {
                 final String[] prepArgs = preprocessArgs(args);
-                options.process(prepArgs);
+                // Strip the jjs-only --std-libraries switch from the leading
+                // options (up to any bare "--"), then hand the rest to the
+                // engine's option parser, which would reject an unknown option.
+                final List<String> forEngine = new ArrayList<>();
+                boolean pastOptions = false;
+                for (final String arg : prepArgs) {
+                    if (!pastOptions && (arg.equals("--std-libraries") || arg.equals("--std-libraries=true"))) {
+                        stdLibraries = true;
+                    } else if (!pastOptions && (arg.equals("--std-libraries=false") || arg.equals("--no-std-libraries"))) {
+                        stdLibraries = false;
+                    } else {
+                        if (arg.equals("--")) {
+                            pastOptions = true;
+                        }
+                        forEngine.add(arg);
+                    }
+                }
+                options.process(forEngine.toArray(new String[0]));
             } catch (final IllegalArgumentException e) {
                 werr.println(bundle.getString("shell.usage"));
                 options.displayHelp(e);
@@ -248,8 +276,12 @@ public class Shell implements PartialParser {
             }
         }
 
+        final List<ScriptLibrary> libraries = stdLibraries
+                ? List.of(new HostLibrary(), new FetchLibrary())
+                : List.of();
+
         try {
-            return new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader());
+            return new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader(), null, libraries);
         } catch (final IllegalArgumentException e) {
             // an option that could not be honoured, such as --inspect without a frontend
             werr.println(e.getMessage());

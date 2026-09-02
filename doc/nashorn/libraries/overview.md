@@ -32,6 +32,9 @@ ScriptEngine engine = new NashornScriptEngineBuilder().library(new HostLibrary()
 ScriptEngine restricted = new NashornScriptEngineBuilder().library(new HostLibrary()).build();
 ```
 
+The `jjs` shell is the exception among the tools in this repo: it installs both by default, since it
+is a REPL you invoked yourself (`--std-libraries=false` for a bare shell). See [jjs](../reference/jjs.md).
+
 ## The event loop
 
 Timers and `fetch` need somewhere to run once the script's synchronous code has returned, and an

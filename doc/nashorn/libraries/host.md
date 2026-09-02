@@ -2,7 +2,8 @@
 
 `host` provides the functions every JavaScript host has and ECMAScript does not define: the WHATWG
 timers, `queueMicrotask`, and the Base64 pair. It is part of `nashorn-core`, but not installed automatically: hand `new HostLibrary()` to the
-engine builder's `library(...)` to have it; a bare engine does not.
+engine builder's `library(...)` to have it; a bare engine does not. (`jjs` installs it by default -
+see [jjs](../reference/jjs.md).)
 
 ## Timers
 

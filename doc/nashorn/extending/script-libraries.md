@@ -227,8 +227,10 @@ new NashornScriptEngineBuilder().library(new HostLibrary(), geometry).build();  
   run once per global; keep a library's top level to declarations and light setup.
 - **Naming.** A name is the library's identity for override-by-name, so pick something as specific
   as a package name would be.
-- **The shell.** `jjs` and `org.monflabs.nashorn.tools.Shell` build a bare `Context` and take no
-  libraries, so a script run through them has none of these extensions.
+- **The shell.** The embeddable engine takes only what you hand it, but `jjs` is a tool: it installs
+  the standard `host` and `fetch` libraries into its own engine by default (`--std-libraries=false`
+  for a bare shell). Your own libraries are not among them - `jjs` has no way to load an arbitrary
+  library from the command line.
 
 The [playground](../guide/playground.md)'s *Nashorn extensions → Script libraries* sample builds a library from a script tab
 and a Java value, hands it to a second engine, and runs code against it.
