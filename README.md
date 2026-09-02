@@ -56,6 +56,18 @@ Getting Started
 ===============
 This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2017.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
+### Versioning
+
+This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
+with one twist: the **major number is the ECMAScript specification year** the engine
+implements, rather than a sequential number. So `2017.0.0` is the first release
+targeting [ECMAScript 2017](https://262.ecma-international.org/8.0/) (ES8); minor and
+patch increment as usual for backward-compatible features and fixes within that spec
+target. When the engine adopts a later edition of the language, the major number moves
+to that edition's year (for example `2018.x.x` for ECMAScript 2018). This replaces the
+upstream `15.x` scheme, which tracked the JDK release Nashorn was extracted from rather
+than the language it implements.
+
 Nashorn is a JPMS module with no dependencies of its own - it generates bytecode with the JDK's own `java.lang.classfile` API - so make sure it is on your application's module path, or appropriately added to a module layer, or otherwise configured as a module.
 
 This fork is compiled with `--release 25` and needs a JDK 25 or newer at both build and run time. Earlier releases of `nashorn-core` on Maven Central target Java 11; use one of those if you are on an older JDK. Java 14 and earlier also ship a built-in Nashorn - see [this page](https://github.com/szegedi/nashorn/wiki/Using-Nashorn-with-different-Java-versions) for details on use when both versions are present.
