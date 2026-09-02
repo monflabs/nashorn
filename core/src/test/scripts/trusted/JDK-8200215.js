@@ -1,10 +1,6 @@
 /*
  * Copyright (c) 2018, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2026, Philippe Riand.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * Modifications beginning 2026-08-17 by Philippe Riand:
- * moved to a new package and adapted for Nashorn-monflabs.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
@@ -34,7 +30,7 @@
 
 var NashornScriptEngineFactory = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory");
 var factory = new NashornScriptEngineFactory();
-var engine = factory.getScriptEngine("-strict", "--language=es6");
+var engine = factory.getScriptEngine("-strict");
 var bindings = engine.createBindings();
 for (var i = 0; i < 17; i++) {
     bindings.eval("let foo = '';\n");

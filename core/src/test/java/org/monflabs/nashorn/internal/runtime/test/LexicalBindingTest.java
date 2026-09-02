@@ -49,7 +49,6 @@ import static org.testng.Assert.assertEquals;
 @SuppressWarnings({"javadoc", "deprecation"})   // the factory overloads stay tested for compatibility
 public class LexicalBindingTest {
 
-    final static String LANGUAGE_ES6 = "--language=es6";
     final static int NUMBER_OF_CONTEXTS = 40;
     final static int MEGAMORPHIC_LOOP_COUNT = 40;
 
@@ -85,7 +84,7 @@ public class LexicalBindingTest {
     @Test
     public static void megamorphicMultiGlobalLetTest() throws ScriptException, InterruptedException {
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine e = factory.getScriptEngine(LANGUAGE_ES6);
+        final ScriptEngine e = factory.getScriptEngine();
         final ScriptContext[] contexts = new ScriptContext[NUMBER_OF_CONTEXTS];
         final String sharedScript1 = "foo";
         final String sharedScript2 = "bar = foo; bar";
@@ -112,7 +111,7 @@ public class LexicalBindingTest {
     @Test
     public static void megamorphicSingleGlobalLetTest() throws ScriptException, InterruptedException {
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine e = factory.getScriptEngine(LANGUAGE_ES6);
+        final ScriptEngine e = factory.getScriptEngine();
         final String sharedGetterScript = "foo";
         final String sharedSetterScript = "foo = 1";
 
@@ -136,7 +135,7 @@ public class LexicalBindingTest {
     @Test
     public static void megamorphicInheritedGlobalLetTest() throws ScriptException, InterruptedException {
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine e = factory.getScriptEngine(LANGUAGE_ES6);
+        final ScriptEngine e = factory.getScriptEngine();
         final String sharedGetterScript = "foo";
         final String sharedSetterScript = "foo = 1";
 
@@ -160,7 +159,7 @@ public class LexicalBindingTest {
     @Test
     public static void multiThreadedLetTest() throws ScriptException, InterruptedException {
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine e = factory.getScriptEngine(LANGUAGE_ES6);
+        final ScriptEngine e = factory.getScriptEngine();
         final Bindings b = e.createBindings();
         final ScriptContext origContext = e.getContext();
         final ScriptContext newCtxt = new SimpleScriptContext();
@@ -196,7 +195,7 @@ public class LexicalBindingTest {
     @Test
     public void lexicalScopeTest() throws ScriptException {
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine e = factory.getScriptEngine(LANGUAGE_ES6);
+        final ScriptEngine e = factory.getScriptEngine();
 
         e.eval("let x; const y = 'world';");
 

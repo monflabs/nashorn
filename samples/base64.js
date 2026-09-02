@@ -33,7 +33,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs --language=es6 base64.js
+// Usage: jjs base64.js
 
 const Base64 = Java.type("java.util.Base64");
 const ByteArray = Java.type("byte[]");

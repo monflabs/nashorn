@@ -337,17 +337,6 @@ public final class ScriptEnvironment {
         this._anonymous_classes_threshold = Options.getIntProperty(
                 "nashorn.anonymous.classes.threshold", DEFAULT_ANON_CLASS_THRESHOLD);
 
-        // The engine is ECMAScript 2015 only. --language is still accepted so that
-        // embedders who correctly opted in with --language=es6 keep working; es5
-        // is rejected explicitly rather than silently ignored, because a caller
-        // asking for it is asking for behaviour this engine no longer has.
-        final String language = options.getString("language");
-        if (language != null && !language.equals("es6")) {
-            throw new RuntimeException(language.equals("es5")
-                    ? "ES5-only mode was removed; this engine implements ECMAScript 2015"
-                    : "Unsupported language: " + language);
-        }
-
         String dir = null;
         String func = null;
         final String pc = options.getString("print.code");

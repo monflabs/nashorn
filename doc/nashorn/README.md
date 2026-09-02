@@ -68,5 +68,5 @@ python3 -m http.server 8000        # from the repository root
 
 The classic Oracle *Java Scripting Programmer's Guide* and the upstream `DEVELOPER_README` are
 preserved untouched in [`doc/nashorn-original/`](../nashorn-original/ ':ignore'). They describe the
-engine as it was — parts of them (ECMAScript 5.1, `$EXEC`, `--language=es5`) no longer apply to this
+engine as it was — parts of them (ECMAScript 5.1, `$EXEC`, the `--language` option) no longer apply to this
 fork; the pages here supersede them.

@@ -27,12 +27,16 @@ if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
   fi
 fi
 
-# --- the file set to check ---
+# --- the file set to check (portable: macOS ships bash 3.2, no mapfile) ---
+FILES=()
 if [ "$#" -gt 0 ]; then
   FILES=("$@")
 else
-  mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR HEAD; git diff --name-only --cached --diff-filter=ACMR)
+  while IFS= read -r line; do
+    [ -n "$line" ] && FILES+=("$line")
+  done < <(git diff --name-only --diff-filter=ACMR HEAD; git diff --name-only --cached --diff-filter=ACMR)
 fi
+[ "${#FILES[@]}" -eq 0 ] && { echo "checked 0 file(s), 0 problem(s), 0 third-party flagged"; exit 0; }
 
 # --- skip rules: paths we never touch ---
 skip() {
@@ -43,6 +47,8 @@ skip() {
     core/src/legal/*) return 0 ;;                               # upstream notices
     LICENSE|ADDITIONAL_LICENSE_INFO|ASSEMBLY_EXCEPTION) return 0 ;;
     *.EXPECTED) return 0 ;;                                     # test output
+    */src/test/scripts/*.js) return 0 ;;                       # line-sensitive test fixtures (.EXPECTED + in-script line asserts)
+    */src/main/resources/*.js) return 0 ;;                     # built-in scripts; their line numbers surface in error messages
     .claude/*) return 0 ;;                                      # tooling (this skill)
   esac
   return 1

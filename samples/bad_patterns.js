@@ -37,7 +37,7 @@
  * This is a test script file for staticchecker.js.
  *
  * Usage:
- *    jjs --language=es6 staticcheker.js -- bad_patterns.js
+ *    jjs staticcheker.js -- bad_patterns.js
  */
 var obj = {}
 obj.__proto__ = null;

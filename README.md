@@ -17,7 +17,7 @@ features for web browsers - and is measured against `tc39/test262`; see the
 `--annexB=false` removes all of it, for a host that wants the standard alone.
 There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols, the
-`Map`/`Set` family, which upstream hid behind `--language=es6`, and the
+`Map`/`Set` family, which upstream hid behind a language switch, and the
 editions after them - `**`, `Object.values`, `String.prototype.padStart`,
 async functions, `SharedArrayBuffer` and `Atomics` - are simply the language.
 Proper tail calls are a documented exclusion, as is ECMA-402. Annex B is

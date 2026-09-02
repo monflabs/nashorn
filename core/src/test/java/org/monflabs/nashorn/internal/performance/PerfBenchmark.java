@@ -471,7 +471,7 @@ public final class PerfBenchmark {
         final PrintWriter sink = new PrintWriter(new StringWriter());
         try {
             final Object options = Engine.NEW_OPTIONS.invoke("nashorn", sink);
-            Engine.PROCESS.invoke(options, new String[] { "--language=es6" });
+            Engine.PROCESS.invoke(options, new String[] { });
             return Engine.NEW_CONTEXT.invoke(options, Engine.NEW_ERROR_MANAGER.invoke(sink), sink, sink,
                     Thread.currentThread().getContextClassLoader());
         } catch (final Throwable t) {

@@ -41,7 +41,7 @@ import org.testng.annotations.Test;
 public class JDK_8188098_Test {
     @Test
     public void test() {
-        Parser p = Parser.create("--language=es6");
+        Parser p = Parser.create();
         p.parse("test", "foo`hello world`", System.out::println).
             accept(new SimpleTreeVisitorES6<Void, Void>(), null);
     }

@@ -146,6 +146,11 @@ Leave the header alone and tell the user if a change seems needed:
 - **Repository licence/notice files**: `LICENSE`, `ADDITIONAL_LICENSE_INFO`, `ASSEMBLY_EXCEPTION`.
 - **Generated files** and **test-output fixtures** (`*.EXPECTED`, and files that merely contain
   the word "copyright" in their body rather than a header).
+- **Line-sensitive scripts** — do **not** add the notice to `core/src/test/scripts/**/*.js` (their
+  sibling `.EXPECTED` files and some in-script assertions pin exact line numbers) or to the
+  built-in `core/src/main/resources/**/*.js` scripts (their line numbers surface in runtime error
+  messages that tests and users see). Adding header lines shifts those numbers and breaks tests.
+  These keep their original upstream headers.
 - A file under **another licence** (BSD) may still receive the Philippe Riand copyright line and
   modification notice when the fork modified it (BSD requires retaining the existing notice, which
   we do) — but never convert its licence text.

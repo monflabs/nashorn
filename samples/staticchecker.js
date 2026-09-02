@@ -33,8 +33,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs --language=es6 staticchecker.js -- <file>
-//    or  jjs --language=es6 staticchecker.js -- <directory>
+// Usage: jjs staticchecker.js -- <file>
+//    or  jjs staticchecker.js -- <directory>
 // default argument is the current directory
 
 if (arguments.length == 0) {
@@ -67,7 +67,7 @@ const Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
 const SimpleTreeVisitor = Java.type("org.monflabs.nashorn.api.tree.SimpleTreeVisitorES6");
 const Tree = Java.type("org.monflabs.nashorn.api.tree.Tree");
 
-const parser = Parser.create("-scripting", "--language=es6");
+const parser = Parser.create("-scripting");
 
 // capture standard global upfront
 const globals = new Set();

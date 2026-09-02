@@ -473,7 +473,7 @@ public final class Test262Runner {
             // The locale a script sees is a different thing: toLocaleUpperCase
             // answers for the host's, and the suite is written for a host whose
             // is not one where "i" has a dot when it grows.
-            options.process(new String[] { "--language=es6", "--libraries=none", "--class-cache-size=50",
+            options.process(new String[] { "--libraries=none", "--class-cache-size=50",
                     "--locale=en-US" });
             this.errors = new ErrorManager(errWriter);
             // negative tests are expected to produce parse errors by the thousand;

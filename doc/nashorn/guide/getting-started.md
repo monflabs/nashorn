@@ -65,8 +65,7 @@ Compile, run, and `Hello, World` appears — the exception handling is elided he
 
 The engine speaks **ECMAScript 2017**, whole: `let`/`const`, classes, arrow functions, template
 literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
-`SharedArrayBuffer` and `Atomics`. There is no ES5 mode and no version switch — `--language` is
-accepted for old command lines but `es6` is its only value. Annex B, the web-compatibility annex
+`SharedArrayBuffer` and `Atomics`. There is no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).
 

@@ -274,10 +274,10 @@ public class Shell implements PartialParser {
      * with whitespace in different and incompatible ways.
      * <p>
      * @implNote Example:<ul>
-     * <li>Shebang line in {@code script.js}: {@code #!/path/to/jjs --language=es6}</li>
+     * <li>Shebang line in {@code script.js}: {@code #!/path/to/jjs -scripting}</li>
      * <li>Command line: {@code ./script.js arg2}</li>
-     * <li>{@code args} array passed to Nashorn: {@code --language=es6,./script.js,arg}</li>
-     * <li>Required canonicalized arguments array: {@code --language=es6,./script.js,--,arg2}</li>
+     * <li>{@code args} array passed to Nashorn: {@code -scripting,./script.js,arg}</li>
+     * <li>Required canonicalized arguments array: {@code -scripting,./script.js,--,arg2}</li>
      * </ul>
      *
      * @param args the command line arguments as passed into Nashorn.

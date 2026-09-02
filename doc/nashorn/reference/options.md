@@ -28,7 +28,6 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 | `--inspect` | | | `--inspect[=[host:]port]` — listen for a Chrome DevTools Protocol client, on `127.0.0.1:9229` by default, and run. Needs the `nashorn-debugger` artifact. |
 | `--inspect-brk` | | | Like `--inspect`, but wait for the client to attach and pause at the first statement. |
 | `--libraries` | | `all` | `--libraries=all|none|name,...` — which of the script libraries registered as services apply to every global; libraries handed to the builder's `library(...)` always apply. See [Script libraries](../extending/script-libraries.md). |
-| `--language` | | `es6` | Accepted for compatibility with old command lines; `es6` is the only value. There is no ES5 mode — asking for `es5` is an error. |
 | `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
 | `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |
 | `--optimistic-types` | `-ot` | | Enable optimistic type assumptions with deoptimizing recompilation: better steady-state performance, longer warmup. See [Optimistic typing](../internals/optimistic-typing.md). |
@@ -67,7 +66,7 @@ decade, but they are not part of the supported surface and can change without no
 | `--early-lvalue-error` | Report invalid assignment targets at parse time (default true; Annex B relaxes one case). |
 
 Options removed in this fork, kept here so old command lines can be diagnosed:
-`--language=es5` (no ES5 mode), `--function-statement-error` and `--function-statement-warning`
+the `--language` version switch (the engine is ES2017; there is no ES5 mode), `--function-statement-error` and `--function-statement-warning`
 (block-level function declarations are simply legal now).
 
 ## Internal system properties

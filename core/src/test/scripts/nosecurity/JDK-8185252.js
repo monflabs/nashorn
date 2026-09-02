@@ -1,10 +1,6 @@
 /*
  * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2026, Philippe Riand.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * Modifications beginning 2026-08-17 by Philippe Riand:
- * moved to a new package and adapted for Nashorn-monflabs.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
@@ -97,7 +93,7 @@ function convert (value) {
 }
 
 function parse(name, code, args, visitor, listener) {
-    var tree =  parser.create(args).parse(name, code, listener || null)
+    var tree =  (args ? parser.create(args) : parser.create()).parse(name, code, listener || null)
     var results = []
     tree.accept(visitor, results)
     print(JSON.stringify(results, null, 2))

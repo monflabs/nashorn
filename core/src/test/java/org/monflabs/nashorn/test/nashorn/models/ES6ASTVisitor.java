@@ -35,7 +35,7 @@ public class ES6ASTVisitor{
 
         public static void visit(String script) {
                 DiagnosticListener listener = (Diagnostic diag) -> { System.err.println(diag.toString()); };
-                Parser parser = Parser.create("--language=es6","--empty-statements");
+                Parser parser = Parser.create("--empty-statements");
                 Tree astRoot = parser.parse("unknown", script, listener);
                 astRoot.accept(new SimpleTreeVisitorES6<Boolean, Void>() {
                         @Override

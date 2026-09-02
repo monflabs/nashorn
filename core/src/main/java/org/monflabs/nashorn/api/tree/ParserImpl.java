@@ -34,7 +34,6 @@ import java.io.PrintWriter;
 import java.io.Reader;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import org.monflabs.nashorn.api.scripting.NashornException;
@@ -56,31 +55,25 @@ final class ParserImpl implements Parser {
     ParserImpl(final String... args) throws IllegalArgumentException {
         Objects.requireNonNull(args);
 
-        // handle the parser specific "--es6-module" option
+        // handle the parser API specific "--es6-module" option: it is not a
+        // Nashorn engine option, so it drives module mode here and is dropped
+        // before the remaining options reach the engine.
         boolean seenModuleOption = false;
-        for (int idx = 0; idx < args.length; idx++) {
-            final String opt = args[idx];
+        final java.util.List<String> engineArgs = new java.util.ArrayList<>(args.length + 1);
+        for (final String opt : args) {
             if (opt.equals("--es6-module")) {
                 seenModuleOption = true;
-                /*
-                 * Nashorn parser does not understand parser API specific
-                 * option. This option implies --language=es6. So, we change
-                 * the option to --language=es6. Note that if user specified
-                 * --language=es6 explicitly, that is okay. Nashorn tolerates
-                 * repeated options!
-                 */
-                args[idx] = "--language=es6";
-                break;
+            } else {
+                engineArgs.add(opt);
             }
         }
         this.moduleMode = seenModuleOption;
 
-        // append "--parse-only to signal to the Nashorn that it
+        // append "--parse-only" to signal to Nashorn that it
         // is being used in "parse only" mode.
-        final String[] newArgs = Arrays.copyOf(args, args.length + 1, String[].class);
-        newArgs[args.length] = "--parse-only";
+        engineArgs.add("--parse-only");
         final Options options = new Options("nashorn");
-        options.process(newArgs);
+        options.process(engineArgs.toArray(new String[0]));
         this.env = new ScriptEnvironment(options,
                 new PrintWriter(System.out), new PrintWriter(System.err));
     }

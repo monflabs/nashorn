@@ -135,8 +135,7 @@ public interface Parser {
      * <dt>"--no-syntax-extensions" or "-nse"</dt><dd>disable ECMAScript syntax extensions</dd>
      * <dt>"-scripting"</dt><dd>enable scripting mode extensions</dd>
      * <dt>"-strict"</dt><dd>enable ECMAScript strict mode</dd>
-     * <dt>"--language=es6"</dt><dd>enable ECMAScript 6 parsing mode</dd>
-     * <dt>"--es6-module"</dt><dd>enable ECMAScript 6 module parsing mode. This option implies --language=es6</dd>
+     * <dt>"--es6-module"</dt><dd>enable ECMAScript module parsing mode</dd>
      * </dl>
      *
      * @throws NullPointerException if options array or any of its element is null
@@ -158,7 +157,6 @@ public interface Parser {
                 case "-nse":
                 case "-scripting":
                 case "-strict":
-                case "--language=es6":
                 case "--es6-module":
                     break;
                 default:

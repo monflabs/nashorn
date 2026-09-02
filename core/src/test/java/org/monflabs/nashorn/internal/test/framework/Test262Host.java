@@ -74,7 +74,7 @@ public final class Test262Host {
             try {
                 final javax.script.ScriptEngine engine =
                         new org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory()
-                                .getScriptEngine("--language=es6");
+                                .getScriptEngine();
                 engine.eval(AGENT_HOST_OBJECT);
                 engine.eval(source);
             } catch (final Exception e) {

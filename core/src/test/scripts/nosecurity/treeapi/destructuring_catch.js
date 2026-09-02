@@ -1,10 +1,6 @@
 /*
  * Copyright (c) 2016, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2026, Philippe Riand.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * Modifications beginning 2026-08-17 by Philippe Riand:
- * moved to a new package and adapted for Nashorn-monflabs.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
@@ -47,7 +43,7 @@ try { throw { w: undefined } } catch ({ w: { x, y, z } = { x: 4, y: 5, z: 6 } })
 
 EOF
 
-parse("destructuring_catch.js", code, "--language=es6", new (Java.extend(visitor_es6, {
+parse("destructuring_catch.js", code, undefined, new (Java.extend(visitor_es6, {
     visitCatch : function (node, obj) {
         obj.push(convert(node))
     }
