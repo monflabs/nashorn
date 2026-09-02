@@ -258,6 +258,15 @@ any error, so the library cannot drift from the engine — when adding a sample,
 `EXPECTED_FAILURES` map. The three Galta-derived sample sets are this repo's own copies; edit them
 here, not in Galta.
 
+**Prefer JavaScript in the samples.** A sample should reach for a JavaScript or Node.js API before a
+Java one, and reach into `Java.type`/`java.*` only when there is no JavaScript equivalent in this
+engine (or when demonstrating Java interop *is* the point of the sample, as the whole `03 - Nashorn
+extensions` set is). The playground's `ScriptRunner` registers the `nashorn-node` resolver and the
+standard libraries on every engine, so `import os from 'os'`, `import { Buffer } from 'buffer'`,
+`fetch`, timers and the rest are available — use `os.tmpdir()` over `System.getProperty("java.io.tmpdir")`,
+`Buffer.from(s, 'latin1')` over `new java.lang.String(s).getBytes(...)`, and so on. Genuine Java-only
+reaches (the JVM version, a real background `Thread` for the Atomics sample) stay.
+
 ## The debugger
 
 `--debugger` (implied by `--inspect`/`--inspect-brk`) is the only thing that changes code generation:
