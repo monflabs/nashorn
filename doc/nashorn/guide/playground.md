@@ -28,7 +28,9 @@ The tree on the left holds three categories, read straight out of the jar's reso
   microtasks, Base64, and `fetch` against public APIs (Open-Meteo weather, GitHub).
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
-editor and console, sibling files appear as read-only editor tabs, and a leading `// @option -scripting`
+editor and console, sibling files appear as read-only editor tabs — and double as **modules**: the
+playground registers a module loader over them, so a `main.js` written as a module imports its
+siblings with `./name`, and a leading `// @option -scripting`
 line asks for engine options. The **Scratchpad** at the top of the tree is yours: it is kept in
 `~/.nashorn-playground/scratch.js` between sessions.
 

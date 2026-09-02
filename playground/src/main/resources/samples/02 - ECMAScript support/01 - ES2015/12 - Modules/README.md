@@ -4,16 +4,14 @@ The ES2015 module system - `import`/`export`, default and named exports, namespa
 **live bindings**, one evaluation per realm, module scope, cycles - is implemented in full and
 held to the module slice of the conformance suite.
 
-Modules are consumed with the language's own syntax: a source handed to `eval` that parses as a
-module runs as one, and its result is the module's **namespace object**. Where an `import` finds
-its modules is the engine's **module-loading chain** (`org.monflabs.nashorn.api.modules`),
-registered on the builder - every loader is asked in order, the first that answers wins, null
-means "not mine". This sample registers two: a loader written as a *script function* (the
-interface has one method, so a function converts) serving the sample's other tabs, and a
-`JavaModuleLoader` serving a module whose exports are pure Java values - no script behind
-`import { TAU } from "constants"` at all.
+`main.js` here **is a module**: `import` and `export` are reserved words, so a source that parses
+as a module runs as one - no setup, no wrapper. In the playground, an `import`'s specifier
+resolves to the sample's own tabs (the playground registers a module loader over them), so
+`./app.js` and `./counter.js` are the files next to this one; watch the live bindings move as
+`bump()` and `increment()` run, and the default export arrive from `counter.js`.
 
-`PathModuleLoader` (files under a root) and `ResourceModuleLoader` (class-path resources) ship
-too; with no loader registered, a specifier is a filesystem path relative to its importer. The
-*ES modules* guide (`doc/nashorn/guide/modules.md`) covers consumption; building a loader is the
-*Module loaders* page of *Extending the engine* (`doc/nashorn/extending/module-loaders.md`).
+Where imports come from is the engine's **module-loading chain** - files under a directory,
+class-path resources, modules whose exports are pure Java values, or a loader of your own. The
+*Module loaders* sample under *Nashorn extensions* builds such a chain, and
+`doc/nashorn/extending/module-loaders.md` is the developer's page; `doc/nashorn/guide/modules.md`
+covers writing and running modules.

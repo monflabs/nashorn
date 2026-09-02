@@ -88,6 +88,19 @@ public class EchoModeTest {
     }
 
     @Test
+    public void aModuleRunsWholeWithNoPerStatementValues() throws InterruptedException {
+        final Recorder recorder = new Recorder();
+        final Sample s = new Sample("echo-module", List.of(), "echo-module",
+                "import { x } from './dep.js';\nprint('got ' + x);\nexport const y = x + 1;\n",
+                null, Map.of("dep.js", "export const x = 41;"), List.of());
+        runner.run(s, s.source(), true, recorder, recorder);
+        final ScriptRunner.Result result = recorder.await(30);
+        assertTrue(result.ok(), result.failure() == null ? "" : ScriptRunner.describe(result.failure()));
+        assertEquals(recorder.out.toString(), "got 41\n");
+        assertEquals(recorder.values, List.of());
+    }
+
+    @Test
     public void aSyntaxErrorIsReportedNotThrownAsAnInternalError() throws InterruptedException {
         final Recorder recorder = new Recorder();
         final Sample s = sample("var x = ;\n");

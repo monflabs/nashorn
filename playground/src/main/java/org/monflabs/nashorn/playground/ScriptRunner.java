@@ -46,6 +46,7 @@ import org.monflabs.nashorn.api.debugger.InspectOptions;
 import org.monflabs.nashorn.api.debugger.PausedEvent;
 import org.monflabs.nashorn.api.debugger.ScriptTerminated;
 import org.monflabs.nashorn.api.scripting.NashornException;
+import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.debugger.CdpServer;
 
@@ -113,6 +114,8 @@ public final class ScriptRunner {
         return t;
     });
     private final AtomicReference<Run> current = new AtomicReference<>();
+    /** The running sample's sibling files, which its imports resolve to. */
+    private volatile Map<String, String> currentFiles = Map.of();
     private ScriptEngine engine;
     private List<String> engineOptions;
     private CdpServer.Handle debugServer;
@@ -219,6 +222,13 @@ public final class ScriptRunner {
             engine = new NashornScriptEngineBuilder()
                     .debugger(true)
                     .dumpStackOnError(true)
+                    // a sample's imports resolve to its own sibling files: main.js
+                    // may be a module, and 'import x from "./data.js"' finds the tab
+                    .moduleLoader((specifier, referrer) -> {
+                        final String clean = specifier.startsWith("./") ? specifier.substring(2) : specifier;
+                        final String text = currentFiles.get(clean);
+                        return text == null ? null : Module.source("sample:" + clean, text);
+                    })
                     .option(options.toArray(new String[0]))
                     .build();
             engineOptions = options;
@@ -247,13 +257,24 @@ public final class ScriptRunner {
             context.setErrorWriter(new PrintWriter(new ConsoleWriter(console, true), true));
             context.setAttribute(ScriptEngine.FILENAME, sample.fileName(), ScriptContext.ENGINE_SCOPE);
             context.setAttribute("snippet", new SnippetFiles(sample.files()), ScriptContext.ENGINE_SCOPE);
+            currentFiles = sample.files();
             eng.setContext(context);
             if (pauseOnNextRun) {
                 Debugger.of(eng).pauseOnStart();
             }
             if (echo) {
+                // a module does not split into script statements: run it whole,
+                // module detection and all, with no per-statement values
+                final java.util.List<StatementSplitter.Statement> statements;
+                try {
+                    statements = StatementSplitter.split(sample.fileName(), source, sample.options());
+                } catch (final IllegalArgumentException notAScript) {
+                    eng.eval(source);
+                    finish(run, listener, start, null);
+                    return;
+                }
                 eng.eval(FORMAT_PRELUDE);
-                for (final StatementSplitter.Statement statement : StatementSplitter.split(sample.fileName(), source, sample.options())) {
+                for (final StatementSplitter.Statement statement : statements) {
                     if (run.stopRequested) {
                         break;
                     }
@@ -270,12 +291,17 @@ public final class ScriptRunner {
             }
         } catch (final Throwable t) {
             failure = t;
-        } finally {
-            Thread.interrupted();
-            current.set(null);
         }
+        finish(run, listener, start, failure);
+    }
+
+    /** Reports how the run ended; always called exactly once per run. */
+    private Object finish(final Run run, final Listener listener, final long start, final Throwable failure) {
+        Thread.interrupted();
+        current.set(null);
         final boolean terminated = run.stopRequested || isTerminated(failure);
         listener.finished(new Result((System.nanoTime() - start) / 1_000_000, terminated ? null : failure, terminated));
+        return null;
     }
 
     private static boolean isTerminated(final Throwable t) {
