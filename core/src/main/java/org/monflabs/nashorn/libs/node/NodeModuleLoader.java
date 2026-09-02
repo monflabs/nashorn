@@ -21,7 +21,10 @@
 
 package org.monflabs.nashorn.libs.node;
 
-import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.modules.ModuleLoader;
 
@@ -33,13 +36,27 @@ import org.monflabs.nashorn.api.modules.ModuleLoader;
  * libraries ship in the engine. Only the modules it knows are answered; anything
  * else returns null so the next loader gets a turn.
  *
- * <p>The one module implemented so far is {@code fs} (see {@link NodeFs}).
+ * <p>The modules implemented so far are {@code fs} (see {@link NodeFs}) and
+ * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass).
  *
  * @since 2017.0.0
  */
 public final class NodeModuleLoader implements ModuleLoader {
 
     private static final Module FS = Module.values("fs", NodeFs.exports());
+    // Node's Buffer, a Uint8Array subclass, defined in buffer.js and compiled lazily on import.
+    private static final Module BUFFER = Module.source("buffer", read("buffer.js"));
+
+    private static String read(final String resource) {
+        try (InputStream in = NodeModuleLoader.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IllegalStateException("missing resource " + resource);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     /** Creates the resolver. */
     public NodeModuleLoader() {
@@ -51,6 +68,8 @@ public final class NodeModuleLoader implements ModuleLoader {
         switch (name) {
         case "fs":
             return FS;
+        case "buffer":
+            return BUFFER;
         default:
             return null;
         }
@@ -58,6 +77,6 @@ public final class NodeModuleLoader implements ModuleLoader {
 
     @Override
     public String toString() {
-        return "NodeModuleLoader[fs]";
+        return "NodeModuleLoader[fs, buffer]";
     }
 }

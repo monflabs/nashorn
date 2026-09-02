@@ -150,7 +150,9 @@ public final class NodeFs {
 
     private static Object readFile(final Object[] a) throws IOException {
         final byte[] bytes = Files.readAllBytes(path(a, 0));
-        return new String(bytes, charset(encodingOf(a, 1), StandardCharsets.UTF_8));
+        final String enc = encodingOf(a, 1);
+        // Node: no encoding yields a Buffer, an encoding yields a string
+        return enc == null ? bytes : new String(bytes, charset(enc, StandardCharsets.UTF_8));
     }
 
     private static Object writeFile(final Object[] a) throws IOException {
@@ -540,7 +542,30 @@ public final class NodeFs {
         if (raw instanceof Object[] arr) {
             return Global.instance().wrapAsObject(arr);
         }
+        if (raw instanceof byte[] bytes) {
+            return uint8array(bytes);
+        }
         return raw;
+    }
+
+    /**
+     * A {@code Uint8Array} over the bytes, created through the realm's own
+     * {@code Uint8Array}. Node's {@code Buffer} is a {@code Uint8Array}
+     * subclass, so a script can use the result directly or upgrade it with
+     * {@code Buffer.from(...)} from the {@code buffer} module.
+     */
+    private static Object uint8array(final byte[] bytes) {
+        final Global g = Global.instance();
+        final Object ctor = g.get("Uint8Array");
+        if (!(ctor instanceof org.monflabs.nashorn.internal.runtime.ScriptObject u8)) {
+            return new String(bytes, StandardCharsets.ISO_8859_1);
+        }
+        final Object from = u8.get("from");
+        final int[] ints = new int[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            ints[i] = bytes[i] & 0xff;
+        }
+        return ScriptRuntime.call(from, ctor, new Object[] {g.wrapAsObject(ints)});
     }
 
     private static Object errorObject(final String code, final String message) {

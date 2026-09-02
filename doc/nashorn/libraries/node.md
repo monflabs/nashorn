@@ -15,7 +15,7 @@ It is built into `nashorn-core` and consulted **before** your own [module loader
 and the filesystem, so a bare `fs` always means the built-in module — exactly as in Node. A specifier
 it does not recognise is passed on to the next loader, so it never shadows your own modules.
 
-The one module implemented so far is **`fs`**.
+The modules implemented so far are **`fs`** (file system) and **`buffer`** (Node's `Buffer`).
 
 ## `fs`
 
@@ -67,14 +67,35 @@ Each is available as `xSync`, `x` (callback) and `promises.x`, unless noted.
 `stat`/`lstat` return a **`Stats`** object with `size`, `mtimeMs`/`atimeMs`/`ctimeMs`/`birthtimeMs`,
 and the `isFile()`/`isDirectory()`/`isSymbolicLink()` predicates.
 
-### Text, not Buffer
+### Text and binary
 
-The engine has no Node `Buffer` type, so **`fs` is text-based**: `readFile` returns a **string** —
-UTF-8 by default, or the encoding you pass (`'utf8'`, `'latin1'`/`'binary'` for a byte-preserving
-round trip, `'ascii'`, `'utf16le'`, or any JDK charset name). `writeFile`/`appendFile` accept a
-string, or an array-like of byte values. This covers configuration, JSON, source and log files —
-the overwhelming majority of `fs` use — but binary formats that need a real `Buffer` are out of
-scope for now.
+With an **encoding**, `readFile` returns a **string** (`'utf8'` — the default — `'latin1'`/`'binary'`,
+`'ascii'`, `'utf16le'`, `'hex'`, `'base64'`, or any JDK charset name). With **no encoding** it returns
+a **`Uint8Array`** — the raw bytes, as Node returns a `Buffer` (which *is* a `Uint8Array`). `writeFile`
+and `appendFile` accept a string or any array-like of byte values, including a `Uint8Array` or `Buffer`.
+
+## `buffer`
+
+`import { Buffer } from 'buffer'` gives Node's **`Buffer`** — a `Uint8Array` subclass, so it is a real
+byte array (indexing, `length`, iteration, `slice`) with Node's extras on top:
+
+```js
+import { Buffer } from 'buffer';
+import fs from 'fs';
+
+const buf = Buffer.from('café', 'utf8');
+print(buf.length, buf.toString('hex'));            // 5  636166c3a9
+
+// upgrade a binary fs read to a Buffer for its accessors
+const bytes = fs.readFileSync('/tmp/data.bin');    // a Uint8Array
+const n = Buffer.from(bytes).readUInt32BE(0);
+```
+
+`Buffer` provides `from` (string/array/ArrayBuffer/Buffer), `alloc`/`allocUnsafe`, `isBuffer`,
+`concat`, `byteLength`, `compare`; `toString`/`write` in the encodings above plus `hex`/`base64`/
+`base64url`; `slice`, `copy`, `fill`, `equals`, `compare`, `indexOf`/`includes`; and the
+`readUInt8`…`readDoubleLE/BE` / `write…` numeric accessors (over a `DataView`). It is defined in
+`buffer.js` and compiled the first time it is imported.
 
 ### Errors
 

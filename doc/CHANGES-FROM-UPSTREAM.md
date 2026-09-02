@@ -141,8 +141,9 @@ See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
 A built-in **`node` module resolver** answers `import fs from "fs"` (or `"node:fs"`) with a Java
 implementation of Node's **`fs`** module - synchronous, error-first callback, and `fs.promises`
 forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
-consulted before the user's module loaders and the filesystem. See
-[nashorn/libraries/node.md](nashorn/libraries/node.md).
+consulted before the user's module loaders and the filesystem. `import { Buffer } from "node:buffer"`
+gives Node's `Buffer` - a `Uint8Array` subclass with Node's encodings and numeric accessors - and a
+binary `fs` read yields a `Uint8Array`. See [nashorn/libraries/node.md](nashorn/libraries/node.md).
 
 
 ## New reactor modules
