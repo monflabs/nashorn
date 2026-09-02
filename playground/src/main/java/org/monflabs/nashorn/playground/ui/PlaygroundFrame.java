@@ -86,7 +86,7 @@ public final class PlaygroundFrame extends JFrame {
     private final JButton runButton = new JButton("Run");
     private final JButton stopButton = new JButton("Stop");
     private final JCheckBox autoRun = new JCheckBox("Auto-run", true);
-    private final JCheckBox echo = new JCheckBox("Log expression values", false);
+    private final JCheckBox echo = new JCheckBox("Log expression values", true);
     private final JCheckBox wordWrap = new JCheckBox("Word wrap", true);
     private final JCheckBox preserve = new JCheckBox("Preserve console", false);
     private final JCheckBox debug = new JCheckBox("Debug in Chrome", false);
@@ -384,7 +384,7 @@ public final class PlaygroundFrame extends JFrame {
             setLocation(x, prefs.getInt("y", 0));
         }
         autoRun.setSelected(prefs.getBoolean("autoRun", true));
-        echo.setSelected(prefs.getBoolean("echo", false));
+        echo.setSelected(prefs.getBoolean("echo", true));
         wordWrap.setSelected(prefs.getBoolean("wordWrap", true));
         console.setWrap(wordWrap.isSelected());
         preserve.setSelected(prefs.getBoolean("preserve", false));
