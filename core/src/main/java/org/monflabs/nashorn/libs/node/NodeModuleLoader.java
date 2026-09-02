@@ -21,10 +21,6 @@
 
 package org.monflabs.nashorn.libs.node;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.modules.ModuleLoader;
 
@@ -45,20 +41,8 @@ import org.monflabs.nashorn.api.modules.ModuleLoader;
 public final class NodeModuleLoader implements ModuleLoader {
 
     private static final Module FS = Module.values("fs", NodeFs.exports());
-    // Node's Buffer, a Uint8Array subclass, defined in buffer.js and compiled lazily on import.
-    private static final Module BUFFER = Module.source("buffer", read("buffer.js"));
+    private static final Module BUFFER = Module.values("buffer", NodeBuffer.exports());
     private static final Module OS = Module.values("os", NodeOs.exports());
-
-    private static String read(final String resource) {
-        try (InputStream in = NodeModuleLoader.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new IllegalStateException("missing resource " + resource);
-            }
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 
     /** Creates the resolver. */
     public NodeModuleLoader() {

@@ -95,8 +95,9 @@ const n = Buffer.from(bytes).readUInt32BE(0);
 `Buffer` provides `from` (string/array/ArrayBuffer/Buffer), `alloc`/`allocUnsafe`, `isBuffer`,
 `concat`, `byteLength`, `compare`; `toString`/`write` in the encodings above plus `hex`/`base64`/
 `base64url`; `slice`, `copy`, `fill`, `equals`, `compare`, `indexOf`/`includes`; and the
-`readUInt8`…`readDoubleLE/BE` / `write…` numeric accessors (over a `DataView`). It is defined in
-`buffer.js` and compiled the first time it is imported.
+`readUInt8`…`readDoubleLE/BE` / `write…` numeric accessors. It is implemented in Java (no script
+compilation): each `Buffer` is a `Uint8Array` created through the realm's own constructor and reparented
+onto a `Buffer.prototype` that chains to `Uint8Array.prototype`.
 
 ### Errors
 
