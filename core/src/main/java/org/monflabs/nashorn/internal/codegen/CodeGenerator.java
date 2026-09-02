@@ -1890,10 +1890,36 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
         enterStatement(expressionStatement);
 
-        loadAndDiscard(expressionStatement.getExpression());
+        final Expression expression = expressionStatement.getExpression();
+        if (debugger && isCompletionStore(expression)) {
+            // Lower's ":return = expr" at program level: the assignment's own
+            // value is the completion value, handed to the debugger's
+            // completion hook instead of being discarded
+            loadExpressionAsObject(expression);
+            method.debuggerCompletion(expressionStatement.getLineNumber() - 1);
+        } else {
+            loadAndDiscard(expression);
+        }
         assert method.getStackSize() == 0 : "stack not empty in " + expressionStatement;
 
         return false;
+    }
+
+    /**
+     * Whether this is the {@code :return = expr} assignment Lower gives a
+     * program-level expression statement - excluding its {@code :return = void 0}
+     * completion resets, which carry no value of the program's.
+     */
+    private static boolean isCompletionStore(final Expression expression) {
+        if (!(expression instanceof BinaryNode binaryNode) || !binaryNode.isTokenType(TokenType.ASSIGN)) {
+            return false;
+        }
+        if (!(binaryNode.lhs() instanceof IdentNode ident) || !CompilerConstants.RETURN.symbolName().equals(ident.getName())) {
+            return false;
+        }
+        final Expression rhs = binaryNode.rhs();
+        return !(rhs instanceof UnaryNode unaryNode && unaryNode.isTokenType(TokenType.VOID)
+                && unaryNode.getExpression() instanceof LiteralNode);
     }
 
     @Override

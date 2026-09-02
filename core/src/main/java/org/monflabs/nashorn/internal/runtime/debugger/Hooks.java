@@ -69,6 +69,9 @@ public final class Hooks {
     /** Bootstrap for the exceptional exit hook: {@code (Throwable)V}. */
     public static final Call EXIT_THROW_BOOTSTRAP = staticCallNoLookup(Hooks.class, "exitThrow",
             CallSite.class, Lookup.class, String.class, MethodType.class);
+    /** Bootstrap for the completion-value hook: {@code (Object)V} with the line as a constant. */
+    public static final Call COMPLETION_BOOTSTRAP = staticCallNoLookup(Hooks.class, "completion",
+            CallSite.class, Lookup.class, String.class, MethodType.class, int.class);
 
     /**
      * Whether any debugger has a reason to stop a thread: a breakpoint, a
@@ -87,6 +90,7 @@ public final class Hooks {
     private static final MethodHandle ENTER;
     private static final MethodHandle EXIT;
     private static final MethodHandle EXIT_THROW;
+    private static final MethodHandle COMPLETION;
 
     static {
         try {
@@ -98,6 +102,8 @@ public final class Hooks {
                             ScriptObject.class, Object.class, ScriptFunction.class));
             EXIT = lookup.findStatic(Hooks.class, "exit", MethodType.methodType(void.class));
             EXIT_THROW = lookup.findStatic(Hooks.class, "exitThrow", MethodType.methodType(void.class, Throwable.class));
+            COMPLETION = lookup.findStatic(Hooks.class, "completion",
+                    MethodType.methodType(void.class, Source.class, int.class, Object.class));
         } catch (final ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -120,6 +126,35 @@ public final class Hooks {
     public static CallSite stmt(final Lookup lookup, final String name, final MethodType type, final int line, final int column) {
         final ScriptInfo.Entry entry = ScriptInfo.of(sourceOf(lookup)).add(line, column);
         return new ConstantCallSite(MethodHandles.insertArguments(STATEMENT, 0, entry).asType(type));
+    }
+
+    /**
+     * Bootstraps a completion-value hook.
+     * @param lookup the script class's lookup
+     * @param name the site name
+     * @param type the site type
+     * @param line the statement's line, zero based
+     * @return the site
+     */
+    public static CallSite completion(final Lookup lookup, final String name, final MethodType type, final int line) {
+        return new ConstantCallSite(MethodHandles.insertArguments(COMPLETION, 0, sourceOf(lookup), line).asType(type));
+    }
+
+    /**
+     * A program-level expression statement stored its completion value.
+     */
+    private static void completion(final Source source, final int line, final Object value) {
+        if (!interesting) {
+            return;
+        }
+        final ShadowStack stack = ShadowStack.current();
+        if (stack.top() == null || stack.inCommand) {
+            return;
+        }
+        final DebuggerImpl debugger = DebuggerImpl.current();
+        if (debugger != null) {
+            debugger.fireCompletion(stack, source, line, value);
+        }
     }
 
     /**
@@ -231,6 +266,8 @@ public final class Hooks {
         if (debugger == null || debugger.skipAllPauses) {
             return;
         }
+
+        debugger.fireStatementTrace(stack, frame, site);
 
         PauseReason reason = null;
         List<String> hits = null;

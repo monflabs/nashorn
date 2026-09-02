@@ -67,6 +67,7 @@ public final class DebuggerImpl implements Debugger {
 
     private final Context context;
     private final List<DebugListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<org.monflabs.nashorn.api.debugger.TraceListener> traceListeners = new CopyOnWriteArrayList<>();
     private final Map<Source, DebugScriptImpl> scripts = new LinkedHashMap<>();
     private final Map<Global, ExecutionContextImpl> contexts = new WeakHashMap<>();
     private final List<ExecutionContextImpl> contextList = new CopyOnWriteArrayList<>();
@@ -203,6 +204,56 @@ public final class DebuggerImpl implements Debugger {
 
     boolean hasListeners() {
         return !listeners.isEmpty();
+    }
+
+    @Override
+    public void addTraceListener(final org.monflabs.nashorn.api.debugger.TraceListener listener) {
+        traceListeners.add(listener);
+        recomputeInteresting();
+    }
+
+    @Override
+    public void removeTraceListener(final org.monflabs.nashorn.api.debugger.TraceListener listener) {
+        traceListeners.remove(listener);
+        recomputeInteresting();
+    }
+
+    /**
+     * A statement was reached; tell the trace listeners, with further hooks
+     * suppressed so a listener may read values through the safe paths.
+     */
+    void fireStatementTrace(final ShadowStack stack, final Frame frame, final ScriptInfo.Entry site) {
+        if (traceListeners.isEmpty()) {
+            return;
+        }
+        final DebugScriptImpl script = scriptFor(frame.source);
+        final int depth = stack.depth();
+        stack.inCommand = true;
+        try {
+            for (final org.monflabs.nashorn.api.debugger.TraceListener listener : traceListeners) {
+                listener.statementReached(script, site.line, site.column, depth);
+            }
+        } finally {
+            stack.inCommand = false;
+        }
+    }
+
+    /**
+     * A program-level expression statement produced its completion value.
+     */
+    void fireCompletion(final ShadowStack stack, final Source source, final int line, final Object value) {
+        if (traceListeners.isEmpty()) {
+            return;
+        }
+        final DebugScriptImpl script = scriptFor(source);
+        stack.inCommand = true;
+        try {
+            for (final org.monflabs.nashorn.api.debugger.TraceListener listener : traceListeners) {
+                listener.completionValue(script, line, value);
+            }
+        } finally {
+            stack.inCommand = false;
+        }
     }
 
     private static void recomputeAttached() {
@@ -356,6 +407,7 @@ public final class DebuggerImpl implements Debugger {
     private synchronized boolean isInteresting() {
         return pauseRequested.get() || pauseOnStart.get() || stepping.get() > 0
                 || pauseOnExceptions != PauseOnExceptions.NONE
+                || !traceListeners.isEmpty()
                 || (breakpointsActive && !breakpoints.isEmpty());
     }
 

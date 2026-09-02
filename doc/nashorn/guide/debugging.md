@@ -154,6 +154,32 @@ in case it is blocked inside a Java call. Over the protocol the same is
 `Runtime.terminateExecution`. The reactor's [playground](playground.md) wires exactly this to
 its Stop button, and its Debug button to `pauseOnStart()`.
 
+## Tracing without pausing
+
+`TraceListener` is the debugger's passive side: every statement as it is reached, and the
+completion value of every program-level expression statement — what `eval` would return if the
+program ended there — with nothing paused and no client attached.
+
+```java
+debugger.addTraceListener(new TraceListener() {
+    @Override public void statementReached(DebugScript script, int line, int column, int depth) {
+        System.out.println("at " + script.name() + ":" + (line + 1) + ", " + depth + " deep");
+    }
+    @Override public void completionValue(DebugScript script, int line, Object value) {
+        System.out.println("line " + (line + 1) + " = " + debugger.values().description(value));
+    }
+});
+```
+
+Both callbacks run on the script's own thread with further hooks suppressed for their duration,
+so a listener may read the value through `Debugger.values()` — `description`, `ownProperties`,
+or `evaluateWith(context, "JSON.stringify(this)", value)` — without re-triggering itself;
+calling back into script any other way is not safe there. `depth` counts the script frames on
+the stack, so `1` is a top-level statement of the program. Without a listener registered the
+stream costs one static field check per statement, like every other hook, and without
+`--debugger` it does not exist. The [playground](playground.md)'s *Log expression values* is
+exactly this listener.
+
 ## Limitations
 
 - **Generators and async functions** run their bodies on threads of their own, so a breakpoint

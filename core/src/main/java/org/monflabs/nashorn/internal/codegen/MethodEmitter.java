@@ -156,12 +156,14 @@ public class MethodEmitter {
     private static final DirectMethodHandleDesc DEBUGGER_ENTER_BOOTSTRAP = staticBootstrap(Hooks.ENTER_BOOTSTRAP);
     private static final DirectMethodHandleDesc DEBUGGER_EXIT_BOOTSTRAP = staticBootstrap(Hooks.EXIT_BOOTSTRAP);
     private static final DirectMethodHandleDesc DEBUGGER_EXIT_THROW_BOOTSTRAP = staticBootstrap(Hooks.EXIT_THROW_BOOTSTRAP);
+    private static final DirectMethodHandleDesc DEBUGGER_COMPLETION_BOOTSTRAP = staticBootstrap(Hooks.COMPLETION_BOOTSTRAP);
 
     private static final MethodTypeDesc DEBUGGER_STMT_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
             Type.classDesc(ScriptObject.class), ConstantDescs.CD_Object);
     private static final MethodTypeDesc DEBUGGER_ENTER_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
             Type.classDesc(ScriptObject.class), ConstantDescs.CD_Object, Type.classDesc(ScriptFunction.class));
     private static final MethodTypeDesc DEBUGGER_EXIT_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void);
+    private static final MethodTypeDesc DEBUGGER_COMPLETION_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void, ConstantDescs.CD_Object);
     private static final MethodTypeDesc DEBUGGER_EXIT_THROW_TYPE = MethodTypeDesc.of(ConstantDescs.CD_void,
             Type.classDesc(Throwable.class));
 
@@ -2144,6 +2146,17 @@ public class MethodEmitter {
         popType();
         popType();
         indy("stmt", DEBUGGER_STMT_TYPE, DEBUGGER_STMT_BOOTSTRAP, line, column);
+    }
+
+    /**
+     * Emits the debugger's completion-value hook. Pops the value.
+     *
+     * @param line the statement's line, zero based
+     */
+    void debuggerCompletion(final int line) {
+        debug("debugger_completion", line);
+        popType();
+        indy("completion", DEBUGGER_COMPLETION_TYPE, DEBUGGER_COMPLETION_BOOTSTRAP, line);
     }
 
     /**

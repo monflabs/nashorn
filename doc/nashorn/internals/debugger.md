@@ -15,7 +15,7 @@ third-party dependencies), a JSON codec, and the `Debugger` and `Runtime` domain
 API. Core finds a frontend through the `DebuggerFrontend` service when `--inspect` asks for one;
 nothing in core names the protocol.
 
-## Three hooks, emitted only under `--debugger`
+## Four hooks, emitted only under `--debugger`
 
 The code generator emits `invokedynamic` calls into `internal.runtime.debugger.Hooks`, each with its
 own bootstrap, so a site binds once to what it needs and thereafter costs a call:
@@ -32,6 +32,13 @@ own bootstrap, so a site binds once to what it needs and thereafter costs a call
 - **exit** — `exit()` before the `return` of every `ReturnNode` (the implicit return of a body is
   a real `ReturnNode` by the time code is generated), and a catch-all handler around the whole
   body whose target calls `exitThrow(throwable)` and rethrows.
+
+- **completion** — `CodeGenerator.enterExpressionStatement` recognises the `:return = expr`
+  assignment [the lowering pass](architecture.md) makes of every program-level expression
+  statement (the eval completion value; the `:return = void 0` resets it also plants are filtered
+  by shape), loads the value just stored and emits `completion(value)` with the statement's line.
+  Programs only — a function body stores no completion value — and consumed only by trace
+  listeners (below).
 
 Split functions (the pieces a >64 KB function is cut into) get statement hooks but no frame hooks:
 they are not calls the user made.
@@ -95,6 +102,14 @@ Everything that must touch the frame's objects — evaluation, property reads, b
 bound (the `ScopedValue` scope is never left). `resume` and the steps end the loop; a step sets a
 mode and the depth it was taken at, and the next statement hook compares: *into* stops anywhere,
 *over* at the same depth or shallower, *out* shallower only. A breakpoint met on the way wins.
+
+**Trace listeners** (`Debugger.addTraceListener`) ride the statement hook without pausing: after
+the guards and before any pause logic the hook hands the statement to the listeners, and the
+completion hook exists for them alone. Registering one raises `Hooks.interesting`, so an engine
+with neither breakpoints nor listeners still pays only the static read. Callbacks run on the
+script thread with the shadow stack's `inCommand` set — the same re-entry guard a paused
+command runs under — so a listener formatting a value through `DebugValues` cannot re-trigger
+the hooks.
 
 **Termination** rides the same machinery. `PausedEvent.terminate()` flags the thread's shadow
 stack and ends the pause loop by throwing `ScriptTerminated` — an `Error`, not an

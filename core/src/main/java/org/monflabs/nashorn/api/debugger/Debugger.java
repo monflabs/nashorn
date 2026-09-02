@@ -61,6 +61,24 @@ public interface Debugger {
     void removeListener(DebugListener listener);
 
     /**
+     * Adds a trace listener: a passive stream of statements and completion
+     * values, pausing nothing. Tracing keeps the statement hooks fully
+     * engaged while any trace listener is registered, which costs speed;
+     * remove the listener when done.
+     *
+     * @param listener the listener
+     * @since 2017.0.0
+     */
+    void addTraceListener(TraceListener listener);
+
+    /**
+     * Removes a trace listener.
+     * @param listener the listener
+     * @since 2017.0.0
+     */
+    void removeTraceListener(TraceListener listener);
+
+    /**
      * The execution contexts - one per global object the engine has created.
      * @return the contexts, in creation order
      */

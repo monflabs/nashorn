@@ -52,6 +52,7 @@ import org.monflabs.nashorn.api.debugger.DebugProperty;
 import org.monflabs.nashorn.api.debugger.DebugScope;
 import org.monflabs.nashorn.api.debugger.DebugScope.ScopeType;
 import org.monflabs.nashorn.api.debugger.DebugScript;
+import org.monflabs.nashorn.api.debugger.TraceListener;
 import org.monflabs.nashorn.api.debugger.DebugValues;
 import org.monflabs.nashorn.api.debugger.Debugger;
 import org.monflabs.nashorn.api.debugger.ExceptionEvent;
@@ -726,5 +727,123 @@ public class DebuggerTest {
         assertEquals(await(result), 3);
         assertTrue(event.isResumed());
         assertEquals(await(run("close.js", "var z = 4;", "z;")), 4, "the breakpoint is gone");
+    }
+
+    // -- tracing ------------------------------------------------------------------------
+
+    @Test
+    public void aTraceListenerSeesStatementsAndCompletionValues() throws Exception {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final Debugger debugger = Debugger.of(engine);
+        final List<String> events = new ArrayList<>();
+        final TraceListener listener = new TraceListener() {
+            @Override
+            public void statementReached(final DebugScript script, final int line, final int column, final int depth) {
+                if (script.name().endsWith("trace.js")) {
+                    events.add("s" + line);
+                }
+            }
+
+            @Override
+            public void completionValue(final DebugScript script, final int line, final Object value) {
+                if (script.name().endsWith("trace.js")) {
+                    events.add("c" + line + "=" + debugger.values().description(value));
+                }
+            }
+        };
+        debugger.addTraceListener(listener);
+        try {
+            engine.getContext().setAttribute(ScriptEngine.FILENAME, "trace.js", javax.script.ScriptContext.ENGINE_SCOPE);
+            engine.eval("1 + 1;\nvar x = 2;\n'a' + 'b';\nfor (var i = 0; i < 2; i++) {\n    x++;\n}\nx;");
+            // the loop head fires at entry and per iteration; x++ inside the loop is a
+            // program-level expression statement too, so its completion values - old
+            // values, as ++ returns - stream as well, exactly as eval's completion
+            // semantics have it
+            assertEquals(events, List.of(
+                    "s0", "c0=2",
+                    "s1",
+                    "s2", "c2=ab",
+                    "s3", "s3", "s4", "c4=2", "s3", "s4", "c4=3", "s3",
+                    "s6", "c6=4"));
+        } finally {
+            debugger.removeTraceListener(listener);
+        }
+    }
+
+    @Test
+    public void tracingIsSilentWithoutAListenerAndStopsWhenRemoved() throws Exception {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final Debugger debugger = Debugger.of(engine);
+        final List<String> events = new ArrayList<>();
+        engine.eval("1 + 1;");   // no listener: nothing anywhere to observe it, and nothing thrown
+        final TraceListener listener = new TraceListener() {
+            @Override
+            public void completionValue(final DebugScript script, final int line, final Object value) {
+                events.add(String.valueOf(value));
+            }
+        };
+        debugger.addTraceListener(listener);
+        engine.eval("21 * 2;");
+        debugger.removeTraceListener(listener);
+        engine.eval("'not seen';");
+        assertEquals(events, List.of("42"));
+    }
+
+    @Test
+    public void aTraceListenerMayReadValuesThroughTheSafePathsWithoutReentry() throws Exception {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final Debugger debugger = Debugger.of(engine);
+        final List<String> texts = new ArrayList<>();
+        final TraceListener listener = new TraceListener() {
+            @Override
+            public void completionValue(final DebugScript script, final int line, final Object value) {
+                try {
+                    final org.monflabs.nashorn.api.debugger.ExecutionContext context =
+                            debugger.executionContexts().get(debugger.executionContexts().size() - 1);
+                    texts.add(String.valueOf(debugger.values().evaluateWith(context, "JSON.stringify(this)", value)));
+                } catch (final Exception e) {
+                    texts.add("failed: " + e);
+                }
+            }
+        };
+        debugger.addTraceListener(listener);
+        try {
+            engine.eval("({ a: [1, 2], b: 'x' });");
+        } finally {
+            debugger.removeTraceListener(listener);
+        }
+        assertEquals(texts, List.of("{\"a\":[1,2],\"b\":\"x\"}"));
+    }
+
+    @Test
+    public void tracingCoexistsWithAPausedSession() throws Exception {
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final Debugger debugger = Debugger.of(engine);
+        final List<String> events = new ArrayList<>();
+        final TraceListener trace = new TraceListener() {
+            @Override
+            public void completionValue(final DebugScript script, final int line, final Object value) {
+                events.add("value " + debugger.values().description(value));
+            }
+        };
+        final List<String> pausedAt = new ArrayList<>();
+        final DebugListener pauser = new DebugListener() {
+            @Override
+            public void paused(final PausedEvent event) {
+                pausedAt.add("paused");
+                event.resume();
+            }
+        };
+        debugger.addTraceListener(trace);
+        debugger.addListener(pauser);
+        try {
+            debugger.pauseOnStart();
+            engine.eval("6 * 7;");
+        } finally {
+            debugger.removeListener(pauser);
+            debugger.removeTraceListener(trace);
+        }
+        assertEquals(pausedAt, List.of("paused"));
+        assertEquals(events, List.of("value 42"));
     }
 }
