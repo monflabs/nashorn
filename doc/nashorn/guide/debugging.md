@@ -152,7 +152,7 @@ re-throwing at every statement until the script's frames have unwound. Together 
 `debugger.pause()` this stops a runaway script: pause it, terminate it, and interrupt its thread
 in case it is blocked inside a Java call. Over the protocol the same is
 `Runtime.terminateExecution`. The reactor's [playground](playground.md) wires exactly this to
-its Stop button.
+its Stop button, and its Debug button to `pauseOnStart()`.
 
 ## Limitations
 

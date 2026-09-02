@@ -1,5 +1,5 @@
-// The playground runs every script with the debugger on. Tick "Debug in
-// Chrome", open chrome://inspect in Chrome, click "inspect" on the
+// The playground runs every script with the debugger on. Tick "Start the
+// debugger server", open chrome://inspect in Chrome, click "inspect" on the
 // nashorn target, and run again: the debugger statement below pauses here,
 // with the scopes, the call stack and the console in DevTools.
 

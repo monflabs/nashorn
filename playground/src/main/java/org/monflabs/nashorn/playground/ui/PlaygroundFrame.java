@@ -89,8 +89,8 @@ public final class PlaygroundFrame extends JFrame {
     private final JCheckBox echo = new JCheckBox("Log expression values", true);
     private final JCheckBox wordWrap = new JCheckBox("Word wrap", true);
     private final JCheckBox preserve = new JCheckBox("Preserve console", false);
-    private final JCheckBox debug = new JCheckBox("Debug in Chrome", false);
-    private final JCheckBox pauseOnRun = new JCheckBox("Pause on next run", false);
+    private final JCheckBox debug = new JCheckBox("Start the debugger server", false);
+    private final JButton debugRun = new JButton("Debug");
     private final JLabel debugInfo = new JLabel(" ");
     private final Timer autoRunTimer = new Timer(500, e -> run());
     private final Timer scratchTimer = new Timer(1000, e -> saveScratch());
@@ -192,8 +192,12 @@ public final class PlaygroundFrame extends JFrame {
         echo.addActionListener(e -> run());
         wordWrap.addActionListener(e -> console.setWrap(wordWrap.isSelected()));
         debug.addActionListener(e -> toggleDebug());
-        pauseOnRun.addActionListener(e -> runner.pauseOnNextRun(pauseOnRun.isSelected()));
-        pauseOnRun.setEnabled(false);
+        debugRun.addActionListener(e -> {
+            runner.pauseOnNextRun(true);   // this run only: it pauses at its first statement
+            run();
+        });
+        debugRun.setEnabled(false);
+        debugRun.setToolTipText("Run, paused at the first statement, for the attached DevTools");
         debugInfo.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 8));
         bar.add(runButton);
         bar.add(stopButton);
@@ -208,7 +212,7 @@ public final class PlaygroundFrame extends JFrame {
         bar.add(saveAs);
         bar.add(Box.createHorizontalGlue());
         bar.add(debug);
-        bar.add(pauseOnRun);
+        bar.add(debugRun);
         final JPanel north = new JPanel(new BorderLayout());
         north.add(bar, BorderLayout.CENTER);
         north.add(debugInfo, BorderLayout.SOUTH);
@@ -358,18 +362,17 @@ public final class PlaygroundFrame extends JFrame {
     private void toggleDebug() {
         try {
             final String url = runner.debugInChrome(debug.isSelected(), InspectOptions.DEFAULT_PORT);
-            pauseOnRun.setEnabled(url != null);
+            debugRun.setEnabled(url != null);
             if (url == null) {
-                pauseOnRun.setSelected(false);
                 runner.pauseOnNextRun(false);
                 debugInfo.setText(" ");
             } else {
-                debugInfo.setText("Debugger listening on " + url + "  \u2014  open chrome://inspect in Chrome and click \"inspect\" under Remote Target; "
-                        + "add a debugger; statement or tick \"Pause on next run\", then Run.");
+                debugInfo.setText("Debugger listening on " + url + "  \u2014  open chrome://inspect in Chrome and click \"inspect\" under Remote Target, "
+                        + "then press Debug to run paused at the first statement.");
             }
         } catch (final IOException e) {
             debug.setSelected(false);
-            JOptionPane.showMessageDialog(this, "Cannot start the debugger server: " + e.getMessage(), "Debug in Chrome", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Cannot start the debugger server: " + e.getMessage(), "Start the debugger server", JOptionPane.ERROR_MESSAGE);
         }
     }
 

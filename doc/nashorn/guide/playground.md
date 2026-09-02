@@ -53,10 +53,12 @@ pauses the script at its next statement and terminates it there — a `while (tr
 survive it, and neither does a script that catches everything. A script blocked inside a Java
 call is interrupted as well.
 
-## Debug in Chrome
+## Debugging in Chrome
 
-The **Debug in Chrome** toggle starts the [Chrome DevTools Protocol server](debugging.md) on the
-playground's engine — the status line shows the `ws://…` URL. Open `chrome://inspect` in Chrome,
-click **inspect** under *Remote Target*, and run a sample: a `debugger;` statement pauses there
-with scopes, call stack and console in DevTools, and **Pause on next run** stops at the first
-statement of scripts that have none.
+**Start the debugger server** serves the [Chrome DevTools Protocol](debugging.md) on the
+playground's engine — the status line shows the `ws://…` URL. Open `chrome://inspect` in Chrome
+and click **inspect** under *Remote Target*. From there, **Run** behaves as always — a
+`debugger;` statement pauses in DevTools with scopes, call stack and console — and the **Debug**
+button (enabled while the server runs) runs the sample paused at its first statement, so a script
+with no `debugger;` in it can get breakpoints before anything happens. The pause applies to that
+run only.

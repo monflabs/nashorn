@@ -239,7 +239,7 @@ public final class ScriptRunner {
         return debugServer.webSocketUrl();
     }
 
-    /** Makes the next run pause at its first statement, for a client that is attached. */
+    /** Makes the next run - and only it - pause at its first statement, for a client that is attached. */
     public void pauseOnNextRun(final boolean pause) {
         pauseOnNextRun = pause;
     }
@@ -307,6 +307,7 @@ public final class ScriptRunner {
             currentFiles = sample.files();
             eng.setContext(context);
             if (pauseOnNextRun) {
+                pauseOnNextRun = false;   // one shot: the Debug button arms it per run
                 Debugger.of(eng).pauseOnStart();
             }
             if (echo) {
