@@ -4,9 +4,10 @@
 // promise (fs.promises.readFile). The async forms run on a background thread
 // and settle on the event loop, so the run stays alive until they finish.
 import fs from 'fs';
+import os from 'os';
 
 // A private working directory under the system temp dir, cleaned up at the end.
-var tmp = Java.type('java.lang.System').getProperty('java.io.tmpdir');
+var tmp = os.tmpdir();
 var dir = fs.mkdtempSync(tmp + '/nashorn-fs-');
 print('working in', dir);
 

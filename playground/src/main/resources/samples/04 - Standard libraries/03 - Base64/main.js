@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+
 // btoa encodes a "binary string" - every char code 0..255 - as Base64;
 // atob decodes back, forgivingly.
 var encoded = btoa('Hello, Nashorn!');
@@ -19,9 +21,8 @@ function decodeUtf8(b) { return decodeURIComponent(escape(atob(b))); }
 var b64 = encodeUtf8(text);
 print(b64, '->', decodeUtf8(b64));
 
-// Bytes from Java round-trip the same way
-var bytes = new java.lang.String('binary ÿ').getBytes('ISO-8859-1');
-var asBinaryString = Array.prototype.map.call(Java.from(bytes), function (b) { return String.fromCharCode(b & 0xFF); }).join('');
+// Bytes via a Node Buffer round-trip the same way: latin1 is one byte per char
+var asBinaryString = Buffer.from('binary ÿ', 'latin1').toString('latin1');
 print(btoa(asBinaryString), atob(btoa(asBinaryString)).length, 'chars');
 
 // Bad input is an Error
