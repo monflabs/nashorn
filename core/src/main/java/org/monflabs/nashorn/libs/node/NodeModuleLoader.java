@@ -1,0 +1,63 @@
+/*
+ * Copyright (c) 2026, Philippe Riand. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.  Philippe Riand designates this
+ * particular file as subject to the "Classpath" exception as provided
+ * in the LICENSE file that accompanied this code.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+package org.monflabs.nashorn.libs.node;
+
+import java.util.Map;
+import org.monflabs.nashorn.api.modules.Module;
+import org.monflabs.nashorn.api.modules.ModuleLoader;
+
+/**
+ * Resolves Node's built-in modules by their bare or {@code node:} specifier -
+ * {@code import fs from "fs"} or {@code import fs from "node:fs"}. This is the
+ * fork's Node-compatibility resolver, shipped in the engine and consulted before
+ * the user's own module loaders and the filesystem, the way the standard
+ * libraries ship in the engine. Only the modules it knows are answered; anything
+ * else returns null so the next loader gets a turn.
+ *
+ * <p>The one module implemented so far is {@code fs} (see {@link NodeFs}).
+ *
+ * @since 2017.0.0
+ */
+public final class NodeModuleLoader implements ModuleLoader {
+
+    private static final Module FS = Module.values("fs", NodeFs.exports());
+
+    /** Creates the resolver. */
+    public NodeModuleLoader() {
+    }
+
+    @Override
+    public Module load(final String specifier, final Module referrer) {
+        final String name = specifier.startsWith("node:") ? specifier.substring(5) : specifier;
+        switch (name) {
+        case "fs":
+            return FS;
+        default:
+            return null;
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "NodeModuleLoader[fs]";
+    }
+}

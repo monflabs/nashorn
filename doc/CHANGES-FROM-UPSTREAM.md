@@ -136,6 +136,14 @@ The engine ships what a script expects from its host beyond the language, as
 
 See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
 
+### Node compatibility (new)
+
+A built-in **`node` module resolver** answers `import fs from "fs"` (or `"node:fs"`) with a Java
+implementation of Node's **`fs`** module - synchronous, error-first callback, and `fs.promises`
+forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
+consulted before the user's module loaders and the filesystem. See
+[nashorn/libraries/node.md](nashorn/libraries/node.md).
+
 
 ## New reactor modules
 

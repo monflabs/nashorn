@@ -543,6 +543,9 @@ public final class Context {
     /** The module-loading chain; empty means the default filesystem loading. */
     private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
 
+    /** Node built-in modules (fs, ...), resolved before the user's loaders and the filesystem. */
+    private static final org.monflabs.nashorn.libs.node.NodeModuleLoader NODE_MODULES = new org.monflabs.nashorn.libs.node.NodeModuleLoader();
+
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;
     private static final ConcurrentMap<String, Class<?>> structureClasses = new ConcurrentHashMap<>();
@@ -883,6 +886,11 @@ public final class Context {
      * @return the module it names, already loaded if it has been asked for before
      */
     public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
+        final org.monflabs.nashorn.api.modules.Module referrerViewForNode = referrer == null ? null : referrer.moduleView();
+        final org.monflabs.nashorn.api.modules.Module builtin = NODE_MODULES.load(specifier, referrerViewForNode);
+        if (builtin != null) {
+            return record(builtin);
+        }
         if (!moduleLoaders.isEmpty()) {
             final org.monflabs.nashorn.api.modules.Module referrerView = referrer == null ? null : referrer.moduleView();
             for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {

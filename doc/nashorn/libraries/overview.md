@@ -12,6 +12,10 @@ creates unless told otherwise.
 | `host` | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`, `atob`, `btoa` | [host](host.md) |
 | `fetch` | `fetch`, `Headers`, `Request`, `Response` | [fetch](fetch.md) |
 
+The engine also ships a **[Node module resolver](node.md)**: `import fs from 'fs'` reaches a built-in
+`fs` module (synchronous, callback and promise forms). Unlike the libraries above it is reached by
+`import` rather than as a global.
+
 ## Getting them
 
 There is nothing to add: they are part of `nashorn-core`, registered by the engine's own module
