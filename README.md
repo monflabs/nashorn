@@ -1,6 +1,11 @@
 Nashorn Engine
 ==============
 
+> This project is a fork of OpenJDK Nashorn. It is not affiliated with or
+> endorsed by Oracle or the OpenJDK project. It is distributed under the GNU
+> General Public License, version 2 only, with the Classpath Exception where
+> indicated in individual source files.
+
 Nashorn engine is an open source implementation of the
 [ECMAScript 2017 Language Specification](https://262.ecma-international.org/8.0/)
 (ECMAScript 8). It is written in Java and runs on the Java Virtual Machine.
