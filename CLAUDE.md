@@ -213,7 +213,7 @@ four global-enumerating tests quiet; `Test262Runner` passes `--libraries=none`. 
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 
-The engine also ships a **Node module resolver**, `org.monflabs.nashorn.libs.node.NodeModuleLoader`,
+The engine also ships a **Node module resolver**, `org.monflabs.nashorn.modules.node.NodeModuleLoader`,
 consulted first in `Context.loadModule` (before the embedder's loaders and the filesystem): `fs`
 (`NodeFs`), `buffer` (`NodeBuffer` — a real `Uint8Array` reparented onto a per-realm
 `Buffer.prototype`), and `os` (`NodeOs`), each a `Module.values(...)` of realm-agnostic `JSObject`

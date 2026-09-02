@@ -19,7 +19,7 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package org.monflabs.nashorn.libs.node;
+package org.monflabs.nashorn.modules.node;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

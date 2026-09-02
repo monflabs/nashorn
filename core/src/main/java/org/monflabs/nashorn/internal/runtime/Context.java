@@ -544,7 +544,7 @@ public final class Context {
     private final List<org.monflabs.nashorn.api.modules.ModuleLoader> moduleLoaders;
 
     /** Node built-in modules (fs, ...), resolved before the user's loaders and the filesystem. */
-    private static final org.monflabs.nashorn.libs.node.NodeModuleLoader NODE_MODULES = new org.monflabs.nashorn.libs.node.NodeModuleLoader();
+    private static final org.monflabs.nashorn.modules.node.NodeModuleLoader NODE_MODULES = new org.monflabs.nashorn.modules.node.NodeModuleLoader();
 
     /** Process-wide singleton structure loader */
     private static final StructureLoader theStructLoader;

@@ -139,7 +139,7 @@ system load in all three slots on platforms that expose only that.
 
 ## Extending it
 
-The resolver is `org.monflabs.nashorn.libs.node.NodeModuleLoader`, and `fs` is `NodeFs`. Another Node
+The resolver is `org.monflabs.nashorn.modules.node.NodeModuleLoader`, and `fs` is `NodeFs`. Another Node
 built-in would be a new `case` in the loader returning a `Module.values(...)` whose exports are
 [`JSObject`](../extending/apis.md) functions — the same shape `fs` uses. See
 [Module loaders](../extending/module-loaders.md) for the module SPI in general.

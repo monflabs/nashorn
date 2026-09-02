@@ -19,7 +19,7 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package org.monflabs.nashorn.libs.node.test;
+package org.monflabs.nashorn.modules.node.test;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;

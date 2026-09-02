@@ -19,7 +19,7 @@
  * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package org.monflabs.nashorn.libs.node;
+package org.monflabs.nashorn.modules.node;
 
 import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.modules.ModuleLoader;
