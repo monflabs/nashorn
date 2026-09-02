@@ -42,14 +42,11 @@ a technical guide to the engine's internals, and the option and built-in referen
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
 `mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2017.0.0-all.jar`.
 
-Making Nashorn standalone is still a work in progress. There is no
-standalone user's guides for it yet. The best current guides are
-Nashorn-related documents last published by Oracle with Java 14:
-
-  * [Nashorn User's Guide](https://docs.oracle.com/en/java/javase/14/nashorn/)
-  * [Java Scripting Programmer's Guide](https://docs.oracle.com/en/java/javase/14/scripting/index.html)
-
-(When browsing these guides, mentally substitute `org.monflabs.nashorn` in place of `jdk.scripting.nashorn` module name and `jdk.nashorn` package name.)
+For the original Nashorn language and scripting semantics this fork inherits, Oracle's
+documentation last published with Java 14 remains a useful supplementary reference: the
+[Nashorn User's Guide](https://docs.oracle.com/en/java/javase/14/nashorn/) and the
+[Java Scripting Programmer's Guide](https://docs.oracle.com/en/java/javase/14/scripting/index.html)
+(substitute `org.monflabs.nashorn` for the `jdk.scripting.nashorn` module and `jdk.nashorn` package names).
 
 
 Getting Started
