@@ -109,11 +109,6 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         append(new Chunk(plain, line, null));
     }
 
-    @Override
-    public void printAtLine(final int line, final String s) {
-        append(new Chunk(plain, line, s));
-    }
-
     private void append(final Chunk chunk) {
         synchronized (pending) {
             pending.add(chunk);
@@ -136,9 +131,6 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
             for (final Chunk chunk : chunks) {
                 if (chunk.text() == null) {
                     padToLine(doc, chunk.line());
-                } else if (chunk.line() >= 0 && chunk.style() == plain) {
-                    padToLine(doc, chunk.line());
-                    doc.insertString(doc.getLength(), chunk.text() + "\n", plain);
                 } else if (chunk.line() >= 0) {
                     padToLine(doc, chunk.line());
                     doc.insertString(doc.getLength(), "  // " + chunk.text() + "\n", value);

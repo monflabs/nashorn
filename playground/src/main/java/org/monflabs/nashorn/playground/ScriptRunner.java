@@ -35,16 +35,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
+import org.monflabs.nashorn.api.debugger.DebugException;
 import org.monflabs.nashorn.api.debugger.DebugListener;
+import org.monflabs.nashorn.api.debugger.DebugScript;
+import org.monflabs.nashorn.api.debugger.DebugValues;
 import org.monflabs.nashorn.api.debugger.Debugger;
+import org.monflabs.nashorn.api.debugger.ExecutionContext;
 import org.monflabs.nashorn.api.debugger.InspectOptions;
 import org.monflabs.nashorn.api.debugger.PausedEvent;
 import org.monflabs.nashorn.api.debugger.ScriptTerminated;
+import org.monflabs.nashorn.api.debugger.TraceListener;
 import org.monflabs.nashorn.api.scripting.NashornException;
 import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
@@ -75,17 +79,6 @@ public final class ScriptRunner {
          */
         default void statementAt(final int line) {
         }
-
-        /**
-         * A print whose source line is known, in the echo mode: inside a loop
-         * or a block, the line the call was written on rather than the
-         * statement's first. Falls back to plain output.
-         * @param line the call's line, zero based
-         * @param text one printed line, without its newline
-         */
-        default void printAtLine(final int line, final String text) {
-            out(text + "\n");
-        }
     }
 
     /** What happened to a run. Called on the worker thread. */
@@ -108,52 +101,6 @@ public final class ScriptRunner {
             return failure == null && !terminated;
         }
     }
-
-    /**
-     * The echo mode's script-side helpers: the value formatter, and print and
-     * console.log rerouted through __echoPrint with the line they were called
-     * on - found from an Error's stack, relative to the statement being
-     * evaluated (__stmtLine..__stmtEnd, maintained per statement), so output
-     * from inside a loop or block lands beside its own line rather than the
-     * statement's first.
-     */
-    private static final String FORMAT_PRELUDE = """
-            function __playground_format(v) {
-              if (typeof v === 'string') return JSON.stringify(v);
-              if (typeof v === 'function') { var s = String(v); var i = s.indexOf('\\n'); return i < 0 ? s : s.substring(0, i) + ' \u2026'; }
-              if (v !== null && typeof v === 'object') { try { var j = JSON.stringify(v); if (j !== undefined) return j; } catch (e) {} }
-              return String(v);
-            }
-            (function (global) {
-              var realPrint = global.print;
-              function callerLine() {
-                try { throw new Error(); } catch (e) {
-                  var frames = String(e.stack).split('\\n');
-                  // [Error, callerLine, the wrapper, the caller]
-                  var m = frames.length > 3 ? frames[3].match(/:(\\d+)\\)?\\s*$/) : null;
-                  if (!m) return -1;
-                  var line = global.__stmtLine + Number(m[1]) - 1;
-                  return line >= global.__stmtLine && line <= global.__stmtEnd ? line : -1;
-                }
-              }
-              function join(args) {
-                return Array.prototype.map.call(args, function (v) { return typeof v === 'symbol' ? v.toString() : String(v); }).join(' ');
-              }
-              global.print = function () {
-                var line = callerLine();
-                if (line < 0) { return realPrint.apply(null, arguments); }
-                __echoPrint.accept(line, join(arguments));
-              };
-              if (typeof global.console === 'object') {
-                var realLog = global.console.log;
-                global.console.log = function () {
-                  var line = callerLine();
-                  if (line < 0) { return realLog.apply(global.console, arguments); }
-                  __echoPrint.accept(line, join(arguments));
-                };
-              }
-            })(this);
-            """;
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         final Thread t = new Thread(r, "playground-script");
@@ -311,34 +258,33 @@ public final class ScriptRunner {
                 Debugger.of(eng).pauseOnStart();
             }
             if (echo) {
-                // a module does not split into script statements: run it whole,
-                // module detection and all, with no per-statement values
-                final java.util.List<StatementSplitter.Statement> statements;
+                // one eval of the untouched source: the engine's trace hooks
+                // announce each statement and each completion value, so nothing
+                // is rewritten and a debugging client sees one plain script
+                final Debugger debugger = Debugger.of(eng);
+                final TraceListener trace = new TraceListener() {
+                    @Override
+                    public void statementReached(final DebugScript script, final int line, final int column, final int depth) {
+                        if (depth == 1 && script.name().equals(sample.fileName())) {
+                            console.statementAt(line);
+                        }
+                    }
+
+                    @Override
+                    public void completionValue(final DebugScript script, final int line, final Object value) {
+                        if (script.name().equals(sample.fileName())) {
+                            final String text = format(debugger, value);
+                            if (text != null) {
+                                console.valueAtLine(line, text);
+                            }
+                        }
+                    }
+                };
+                debugger.addTraceListener(trace);
                 try {
-                    statements = StatementSplitter.split(sample.fileName(), source, sample.options());
-                } catch (final IllegalArgumentException notAScript) {
                     eng.eval(source);
-                    finish(run, listener, start, null);
-                    return;
-                }
-                context.setAttribute("__echoPrint",
-                        (java.util.function.BiConsumer<Object, Object>)(line, text) ->
-                                console.printAtLine(((Number)line).intValue(), String.valueOf(text)),
-                        ScriptContext.ENGINE_SCOPE);
-                eng.eval(FORMAT_PRELUDE);
-                for (final StatementSplitter.Statement statement : statements) {
-                    if (run.stopRequested) {
-                        break;
-                    }
-                    if (!statement.declaration()) {
-                        console.statementAt(statement.line());
-                    }
-                    context.setAttribute("__stmtLine", statement.line(), ScriptContext.ENGINE_SCOPE);
-                    context.setAttribute("__stmtEnd", statement.line() + (int)statement.text().chars().filter(c -> c == '\n').count(), ScriptContext.ENGINE_SCOPE);
-                    final Object value = eng.eval(statement.text());
-                    if (value != null && !statement.declaration()) {
-                        console.valueAtLine(statement.line(), String.valueOf(((Invocable)eng).invokeFunction("__playground_format", value)));
-                    }
+                } finally {
+                    debugger.removeTraceListener(trace);
                 }
             } else {
                 eng.eval(source);
@@ -347,6 +293,47 @@ public final class ScriptRunner {
             failure = t;
         }
         finish(run, listener, start, failure);
+    }
+
+    /**
+     * The echo mode's value formatting, on the script thread inside the trace
+     * callback, where the debugger's evaluate is safe: nothing for undefined
+     * and null (a statement run for its effect logs no value), a function as
+     * its first line, a string or an object as JSON when it stringifies, and
+     * anything else as the debugger describes it.
+     */
+    private static String format(final Debugger debugger, final Object value) {
+        if (value == null) {
+            return null;
+        }
+        final DebugValues values = debugger.values();
+        final String type = values.type(value);
+        switch (type) {
+        case "undefined":
+            return null;
+        case "function": {
+            final String text = values.description(value);
+            final int newline = text.indexOf('\n');
+            return newline < 0 ? text : text.substring(0, newline) + " \u2026";
+        }
+        case "string":
+        case "object": {
+            final List<ExecutionContext> contexts = debugger.executionContexts();
+            if (!contexts.isEmpty()) {
+                try {
+                    final Object json = values.evaluateWith(contexts.get(contexts.size() - 1), "JSON.stringify(this)", value);
+                    if (json instanceof CharSequence text) {
+                        return text.toString();
+                    }
+                } catch (final DebugException | RuntimeException unserializable) {
+                    // cyclic or host-only: fall through to the description
+                }
+            }
+            return values.description(value);
+        }
+        default:
+            return values.description(value);
+        }
     }
 
     /** Reports how the run ended; always called exactly once per run. */

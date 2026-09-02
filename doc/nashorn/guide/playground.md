@@ -40,13 +40,16 @@ line asks for engine options. The **Scratchpad** at the top of the tree is yours
 second after you stop typing. Output goes to the console — `print` and `console.log` in the text
 colour, the error stream in red — with the run's outcome and time on the status line.
 
-**Log expression values** (on by default) evaluates the program one top-level statement at a
-time. The console sits to the right of the script and, in this mode, mirrors it line by line: what
-a statement evaluates to (shown as `// value`) lands beside it, and `print`/`console.log` output
-lands beside the line of the *call* — inside a loop, a block or a catch, not merely at the
-statement's head — as far as possible, since output that has already run past a line stays where
-it is, and a loop that prints nine lines still takes nine rows. Function declarations are hoisted first, as the engine
-would.
+**Log expression values** (on by default) runs the program once, untouched, and listens to the
+engine instead: a [trace listener](debugging.md#tracing-without-pausing) on the debugger API
+announces each statement as it is reached and the completion value of each top-level expression
+statement. The console sits to the right of the script and, in this mode, mirrors it line by
+line: what a statement evaluates to (shown as `// value`) lands beside it, and
+`print`/`console.log` output lands beside the line being executed — inside a loop, per
+iteration, not merely at the loop's head — as far as possible, since output that has already run
+past a line stays where it is, and a loop that prints nine lines still takes nine rows. Because
+nothing is rewritten, the mode changes what a debugger sees not at all: one script, real line
+numbers, working breakpoints, values still logged.
 
 **Stop** (Esc) ends a runaway script. Every run is compiled with `--debugger`, so the playground
 pauses the script at its next statement and terminates it there — a `while (true) {}` does not

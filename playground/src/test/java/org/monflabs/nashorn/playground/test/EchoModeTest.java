@@ -94,8 +94,13 @@ public class EchoModeTest {
         runner.run(s, s.source(), true, recorder, recorder);
         final ScriptRunner.Result result = recorder.await(30);
         assertTrue(result.ok(), result.failure() == null ? "" : ScriptRunner.describe(result.failure()));
-        // the loop's prints carry the print's line (2), not the loop head's (1)
-        assertEquals(recorder.prints, List.of("2:tick 1", "2:tick 2", "4:done"));
+        // each print is announced by a statement event on the print's own line -
+        // the loop body's (2) per iteration, not the loop head's (1) - so a
+        // console that mirrors the script aligns it without rewriting the code
+        final List<String> interesting = recorder.events.stream()
+                .filter(e -> e.equals("@2") || e.equals("@4") || e.startsWith("tick") || e.startsWith("done"))
+                .toList();
+        assertEquals(interesting, List.of("@2", "tick 1", "@2", "tick 2", "@4", "done"));
     }
 
     @Test
@@ -122,12 +127,22 @@ public class EchoModeTest {
     }
 
     @Test
-    public void scriptingOptionsReachTheSplitter() throws InterruptedException {
+    public void scriptingModeHeredocsEchoTheirValues() throws InterruptedException {
         final Recorder recorder = new Recorder();
         final Sample s = sample("// @option -scripting\nvar t = <<EOF\nheredoc\nEOF\nt.trim();\n", "-scripting");
         runner.run(s, s.source(), true, recorder, recorder);
         final ScriptRunner.Result result = recorder.await(30);
         assertTrue(result.ok(), String.valueOf(result.failure()));
         assertEquals(recorder.values, List.of("4:\"heredoc\""));
+    }
+
+    @Test
+    public void letAndConstCarryAcrossStatements() throws InterruptedException {
+        final Recorder recorder = new Recorder();
+        final Sample s = sample("let a = 2;\nconst b = a * 3;\na + b;\n");
+        runner.run(s, s.source(), true, recorder, recorder);
+        final ScriptRunner.Result result = recorder.await(30);
+        assertTrue(result.ok(), result.failure() == null ? "" : ScriptRunner.describe(result.failure()));
+        assertEquals(recorder.values, List.of("2:8"));
     }
 }
