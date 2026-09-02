@@ -32,9 +32,9 @@ import org.monflabs.nashorn.api.modules.ModuleLoader;
  * libraries ship in the engine. Only the modules it knows are answered; anything
  * else returns null so the next loader gets a turn.
  *
- * <p>The modules implemented so far are {@code fs} (see {@link NodeFs}) and
- * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass) and
- * {@code os} (see {@link NodeOs}).
+ * <p>The modules implemented so far are {@code fs} (see {@link NodeFs}),
+ * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass),
+ * {@code os} (see {@link NodeOs}) and {@code path} (see {@link NodePath}).
  *
  * @since 2017.0.0
  */
@@ -43,6 +43,7 @@ public final class NodeModuleLoader implements ModuleLoader {
     private static final Module FS = Module.values("fs", NodeFs.exports());
     private static final Module BUFFER = Module.values("buffer", NodeBuffer.exports());
     private static final Module OS = Module.values("os", NodeOs.exports());
+    private static final Module PATH = Module.values("path", NodePath.exports());
 
     /** Creates the resolver. */
     public NodeModuleLoader() {
@@ -58,6 +59,8 @@ public final class NodeModuleLoader implements ModuleLoader {
             return BUFFER;
         case "os":
             return OS;
+        case "path":
+            return PATH;
         default:
             return null;
         }
@@ -65,6 +68,6 @@ public final class NodeModuleLoader implements ModuleLoader {
 
     @Override
     public String toString() {
-        return "NodeModuleLoader[fs, buffer, os]";
+        return "NodeModuleLoader[fs, buffer, os, path]";
     }
 }

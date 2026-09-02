@@ -216,8 +216,10 @@ timeout.
 The engine also ships a **Node module resolver**, `org.monflabs.nashorn.modules.node.NodeModuleLoader`,
 consulted first in `Context.loadModule` (before the embedder's loaders and the filesystem): `fs`
 (`NodeFs`), `buffer` (`NodeBuffer` — a real `Uint8Array` reparented onto a per-realm
-`Buffer.prototype`), and `os` (`NodeOs`), each a `Module.values(...)` of realm-agnostic `JSObject`
-functions that act on `Global.instance()` at call time.
+`Buffer.prototype`), `os` (`NodeOs`), and `path` (`NodePath` — a pure-string port of Node's
+algorithm, exposing both `path.posix` and `path.win32` and defaulting to the host flavour), each a
+`Module.values(...)` of realm-agnostic `JSObject` functions that act on `Global.instance()` at call
+time.
 
 **Every core library and built-in module must be implemented in pure Java (native), leveraging the
 JRE as far as it goes — never in JavaScript.** Use the JDK's own facilities (`java.nio.file`,

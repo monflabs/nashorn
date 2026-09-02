@@ -15,8 +15,8 @@ It is built into `nashorn-core` and consulted **before** your own [module loader
 and the filesystem, so a bare `fs` always means the built-in module — exactly as in Node. A specifier
 it does not recognise is passed on to the next loader, so it never shadows your own modules.
 
-The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's `Buffer`) and
-**`os`** (system information).
+The modules implemented so far are **`fs`** (file system), **`buffer`** (Node's `Buffer`),
+**`os`** (system information) and **`path`** (path-string manipulation).
 
 ## `fs`
 
@@ -136,6 +136,35 @@ print(os.homedir(), os.tmpdir());
 A few values approximate what Node reports on a real OS: `uptime()` is the **JVM's** uptime, `cpus()`
 reports the processor count with best-effort model and timing, and `loadavg()` carries the one-minute
 system load in all three slots on platforms that expose only that.
+
+## `path`
+
+A Java port of Node's `path` module - pure string manipulation, no filesystem access. Every
+operation is synchronous:
+
+```js
+import path from 'path';
+
+path.join('/foo', 'bar', 'baz/..', 'qux');     // /foo/bar/qux
+path.resolve('src', '../lib', 'index.js');     // <cwd>/lib/index.js
+path.basename('/a/b/c.html', '.html');         // c
+path.extname('archive.tar.gz');                // .gz
+path.parse('/home/user/file.txt');             // { root:'/', dir:'/home/user', base:'file.txt', ext:'.txt', name:'file' }
+```
+
+| Group | Operations |
+| --- | --- |
+| Build | `join`, `resolve`, `normalize`, `relative` |
+| Inspect | `dirname`, `basename` (with optional suffix), `extname`, `isAbsolute` |
+| Object form | `parse` → `{ root, dir, base, ext, name }`, `format` (its inverse) |
+| Values | `sep`, `delimiter` |
+| Windows | `toNamespacedPath` (an identity on POSIX) |
+
+Both flavours are always available regardless of host: **`path.posix`** (forward-slash, `:`
+delimiter) and **`path.win32`** (back-slash, drive letters, UNC paths, `;` delimiter). The default
+export - and the bare named exports such as `join` - are the flavour that matches the host operating
+system, exactly as in Node. Only `resolve` looks outside its arguments, at the process working
+directory; everything else is a pure function of its inputs.
 
 ## Extending it
 

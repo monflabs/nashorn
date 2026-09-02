@@ -144,7 +144,9 @@ forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node erro
 consulted before the user's module loaders and the filesystem. `import { Buffer } from "node:buffer"`
 gives Node's `Buffer` - a `Uint8Array` subclass with Node's encodings and numeric accessors - and a
 binary `fs` read yields a `Uint8Array`; `import os from "os"` gives system information (`platform`,
-`arch`, `cpus`, `totalmem`, `hostname`, `networkInterfaces`, ...). See
+`arch`, `cpus`, `totalmem`, `hostname`, `networkInterfaces`, ...); and `import path from "path"`
+gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., with `path.posix` and
+`path.win32` both always present). See
 [nashorn/libraries/node.md](nashorn/libraries/node.md).
 
 
