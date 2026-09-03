@@ -214,6 +214,24 @@ public class DebugSessionTest {
     }
 
     @Test
+    public void reattachingAfterAClearDoesNotReplayTheOldScripts() {
+        // debug one snippet, then detach - like closing the debugger window
+        attach();
+        runScript("old.js", "1 + 1;");
+        pumpUntil(() -> !session.scripts().isEmpty());
+        session.detach();
+        pumpUntil(() -> session.state() == DebugSession.State.DETACHED);
+
+        // the host clears the engine's registry before reopening on another snippet
+        Debugger.of(engine).clearScripts();
+
+        // reattaching replays nothing - the Sources do not show the previous snippet
+        session.attach(server.webSocketUrl());
+        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        assertTrue(session.scripts().isEmpty(), "the previous snippet's script must not be replayed");
+    }
+
+    @Test
     public void aBreakpointSetBeforeTheScriptHitsAfterRun() {
         attach();
         // the script does not exist yet; set the breakpoint by url

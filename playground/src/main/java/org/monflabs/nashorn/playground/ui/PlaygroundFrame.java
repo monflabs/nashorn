@@ -412,6 +412,10 @@ public final class PlaygroundFrame extends JFrame {
                         }
                     });
         }
+        // Drop the previous snippet's scripts before the panel attaches, or
+        // Debugger.enable would replay them and the Sources view would open on
+        // the snippet last debugged rather than this one.
+        runner.clearDebugScripts();
         debuggerFrame.show(url, () -> {
             runner.pauseOnNextRun(true);
             run();

@@ -73,7 +73,9 @@ Each run is independent — a fresh global — so the playground clears the debu
 before it, and the Sources list resets to just the current run's files rather than accumulating every
 snippet you have tried. This happens without dropping the connection (it is a
 `Runtime.executionContextsCleared` over the protocol), and your breakpoints survive it, re-resolving
-as the new run parses. Closing the window detaches but leaves the server running. Because the protocol allows **one client
+as the new run parses. The same clear runs when you reopen the debugger on another snippet — the
+registry is emptied before the panel re-attaches, so it opens on the new snippet rather than replaying
+the one you last debugged. Closing the window detaches but leaves the server running. Because the protocol allows **one client
 at a time**, the built-in debugger and an attached Chrome are mutually exclusive: detach one before
 the other.
 

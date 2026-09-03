@@ -200,6 +200,18 @@ public final class ScriptRunner {
         pauseOnNextRun = pause;
     }
 
+    /**
+     * Drops the debugger's record of parsed scripts on the current engine, so a
+     * debugger that attaches now sees a clean Sources list rather than replaying
+     * the previous snippet's scripts on {@code Debugger.enable}. Call it before
+     * (re)opening a debugger on a snippet. Breakpoints survive.
+     */
+    public synchronized void clearDebugScripts() {
+        if (engine != null) {
+            Debugger.of(engine).clearScripts();
+        }
+    }
+
     /** Shuts the worker and the server down. */
     public void close() {
         stop();
