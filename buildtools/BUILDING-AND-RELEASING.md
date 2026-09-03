@@ -133,6 +133,24 @@ No secret is ever passed on a command line: Maven reads the token from
 `settings.xml`, gpg-agent prompts for the passphrase at sign time, and `gh` uses
 its own keyring.
 
+### Dry run first
+
+Rehearse the whole thing without publishing, pushing or tagging anything:
+
+```bash
+RELEASE_DRY_RUN=1 buildtools/release.sh
+```
+
+It does the real release build and signs it (`mvn -Prelease verify`, no upload to
+Central), checks the tag name is free without creating it, lists the
+GitHub-release assets without creating the release, and stages the docs into a
+temporary directory (printing a `python3 -m http.server` command so you can
+preview the site) instead of touching `gh-pages`. Preconditions that only matter
+for a real run — a clean and synced `main`, a free tag, a GPG key, the Portal
+token — are downgraded to warnings, so you can rehearse from any branch and
+before the signing/token setup is done; without a GPG key it simply builds
+unsigned and says so. Nothing leaves your machine.
+
 ### Cutting the release
 
 Be on a clean, pushed `main` at the commit you want to release (the script
