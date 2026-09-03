@@ -254,7 +254,12 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
         <configuration>
           <publishingServerId>central</publishingServerId>
           <autoPublish>false</autoPublish>
-          <skipPublishing>true</skipPublishing>
+          <!--
+            Publish by default: the parent POM itself must go to Central, or the
+            published core/debugger/node POMs reference a parent that isn't there
+            and no consumer can resolve them. The non-library modules (nasgen,
+            shell, debugger-ui, playground) opt out with skipPublishing=true.
+          -->
         </configuration>
       </plugin>
     </plugins>

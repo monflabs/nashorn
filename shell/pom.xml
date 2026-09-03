@@ -178,6 +178,14 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
           <skip>true</skip>
         </configuration>
       </plugin>
+      <plugin>
+        <!-- not published to Maven Central -->
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <configuration>
+          <skipPublishing>true</skipPublishing>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 
