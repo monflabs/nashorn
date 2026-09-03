@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Copyright (c) 2026, Philippe Riand. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Philippe Riand designates this
+particular file as subject to the "Classpath" exception as provided
+in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    A STANDALONE consumer, on purpose: no <parent>, and NOT listed as a <module>
+    in the reactor. It resolves the published jars the way a real user does -
+    org.monflabs.nashorn:{nashorn-core,nashorn-debugger,nashorn-node} from the
+    local repository (~/.m2) - and checks they load and run. Install the jars
+    first (`mvn -DskipTests install` at the repo root), then `mvn test` here.
+  -->
+  <groupId>com.example.nashorn</groupId>
+  <artifactId>nashorn-smoke-test</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+  <name>nashorn-monflabs smoke test</name>
+  <description>Independent consumer that verifies the published nashorn-monflabs jars from ~/.m2.</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+    <!-- the released version to test; bump to match what you installed -->
+    <nashorn.version>2017.0.0</nashorn.version>
+    <junit.version>5.10.2</junit.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.monflabs.nashorn</groupId>
+      <artifactId>nashorn-core</artifactId>
+      <version>${nashorn.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.monflabs.nashorn</groupId>
+      <artifactId>nashorn-debugger</artifactId>
+      <version>${nashorn.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.monflabs.nashorn</groupId>
+      <artifactId>nashorn-node</artifactId>
+      <version>${nashorn.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
