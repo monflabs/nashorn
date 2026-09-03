@@ -275,14 +275,6 @@ public final class PlaygroundFrame extends JFrame {
         if (sample != null && sample == scratch) {
             saveScratch();
         }
-        if (sample != null && !sample.id().equals(s.id())) {
-            // switching to a different sample: drop the previous one's scripts from the
-            // debugger's registry so a debugger opened on this sample shows only its
-            // files, not the sample we just left. A run of this sample re-announces its
-            // own (uncached, different sources); re-running or reopening the same sample
-            // keeps them.
-            runner.clearDebugScripts();
-        }
         sample = s;
         editor.show(s.source(), s.files(), true);
         readme.show(s.readme() != null ? s.readme() : "## " + s.title());
@@ -420,6 +412,9 @@ public final class PlaygroundFrame extends JFrame {
                         }
                     });
         }
+        // a brand new, cleared context when the window is displayed: the panel
+        // attaches to an empty registry, then the run below repopulates it
+        runner.clearDebugScripts();
         debuggerFrame.show(url, () -> {
             runner.pauseOnNextRun(true);
             run();

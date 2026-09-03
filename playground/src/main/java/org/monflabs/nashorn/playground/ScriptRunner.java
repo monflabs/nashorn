@@ -202,10 +202,10 @@ public final class ScriptRunner {
 
     /**
      * Drops the debugger's record of parsed scripts on the current engine, so a
-     * debugger that attaches sees only what runs next rather than replaying an
-     * earlier sample's scripts on {@code Debugger.enable}. Call it when switching
-     * to a different sample; the next run re-announces its own (uncached) sources,
-     * while re-running or reopening the same sample keeps them. Breakpoints survive.
+     * debugger that attaches now sees a clean Sources list rather than replaying
+     * earlier scripts on {@code Debugger.enable}. Call it before opening a debugger
+     * window; each run clears in the same way, and since the engine has no class
+     * cache the next run re-announces its own scripts. Breakpoints survive.
      */
     public synchronized void clearDebugScripts() {
         if (engine != null) {
@@ -238,6 +238,11 @@ public final class ScriptRunner {
             engine = new NashornScriptEngineBuilder()
                     .debugger(true)
                     .dumpStackOnError(true)
+                    // no class cache: every run recompiles, so a cleared debugger
+                    // registry is repopulated with exactly this run's scripts (a
+                    // cache hit would skip compilation and never re-announce them).
+                    // The playground runs one script at a time, so the cost is moot.
+                    .classCacheSize(0)
                     // the standard libraries and the Node modules are contributed
                     // explicitly - the engine discovers nothing on its own
                     .library(new HostLibrary(), new FetchLibrary())
@@ -275,6 +280,11 @@ public final class ScriptRunner {
         final long start = System.nanoTime();
         Throwable failure = null;
         try {
+            // A fresh debugging context per run, even for the same sample: drop the
+            // last run's scripts, and since the engine has no class cache this run
+            // recompiles and re-announces its own. A connected debugger clears its
+            // Sources without dropping the connection; breakpoints survive by url.
+            Debugger.of(eng).clearScripts();
             final ScriptContext context = new SimpleScriptContext();
             context.setBindings(eng.createBindings(), ScriptContext.ENGINE_SCOPE);
             context.setWriter(new PrintWriter(new ConsoleWriter(console, false), true));

@@ -56,6 +56,7 @@ import org.monflabs.nashorn.api.debugger.Location;
 import org.monflabs.nashorn.api.debugger.PauseOnExceptions;
 import org.monflabs.nashorn.api.debugger.PauseReason;
 import org.monflabs.nashorn.api.debugger.PausedEvent;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -299,6 +300,29 @@ public class DebuggerTest {
         event.resume();
         assertEquals(await(result), 2);
         assertTrue(resolved.stream().anyMatch(r -> r.startsWith(keep.id() + "@")), "the surviving breakpoint re-resolved");
+    }
+
+    @Test
+    public void withNoClassCacheClearThenRerunReannouncesTheScripts() throws Exception {
+        // the playground runs with no class cache so a cleared registry repopulates:
+        // re-running the same source recompiles and re-announces it, where a cache hit
+        // would skip compilation and leave the Sources empty.
+        final ScriptEngine noCache = new NashornScriptEngineBuilder().debugger(true).classCacheSize(0).build();
+        final Debugger dbg = Debugger.of(noCache);
+        try {
+            noCache.put(ScriptEngine.FILENAME, "same.js");
+            noCache.eval("1 + 1;");
+            assertFalse(dbg.scripts().isEmpty(), "the first run announced the script");
+
+            dbg.clearScripts();
+            assertTrue(dbg.scripts().isEmpty(), "the registry was cleared");
+
+            noCache.put(ScriptEngine.FILENAME, "same.js");
+            noCache.eval("1 + 1;");   // same source again
+            assertFalse(dbg.scripts().isEmpty(), "with no class cache the re-run re-announced the script");
+        } finally {
+            dbg.close();
+        }
     }
 
     @Test
