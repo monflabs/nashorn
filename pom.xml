@@ -31,28 +31,30 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
   <packaging>pom</packaging>
 
   <name>OpenJDK-Monflabs (parent)</name>
-  <description>Nashorn is an Open Source JavaScript (ECMAScript 5.1 and some 6 features) engine for the JVM.</description>
-  <url>https://github.com/openjdk/nashorn</url>
+  <description>A standalone fork of OpenJDK Nashorn: a JavaScript engine (ECMAScript 2017) for the JVM that compiles to bytecode and links call sites with invokedynamic. Requires JDK 25 or newer.</description>
+  <url>https://github.com/monflabs/nashorn</url>
 
   <licenses>
     <license>
       <name>GNU General Public License v2.0 w/Classpath exception</name>
-      <url>https://github.com/openjdk/nashorn/blob/main/LICENSE</url>
+      <url>https://github.com/monflabs/nashorn/blob/main/LICENSE</url>
     </license>
   </licenses>
 
   <developers>
     <developer>
-      <name>Attila Szegedi</name>
-      <email>szegedia@gmail.com</email>
-      <url>http://github.com/szegedi</url>
+      <id>priand</id>
+      <name>Philippe Riand</name>
+      <url>https://github.com/priand</url>
+      <organization>Monflabs</organization>
+      <organizationUrl>https://github.com/monflabs</organizationUrl>
     </developer>
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/openjdk/nashorn.git</connection>
-    <developerConnection>scm:git:ssh://github.com:openjdk/nashorn.git</developerConnection>
-    <url>http://github.com/openjdk/nashorn/tree/main</url>
+    <connection>scm:git:https://github.com/monflabs/nashorn.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/monflabs/nashorn.git</developerConnection>
+    <url>https://github.com/monflabs/nashorn/tree/main</url>
   </scm>
 
   <modules>
@@ -108,6 +110,8 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
     <maven.dependency.plugin.version>3.6.1</maven.dependency.plugin.version>
     <maven.deploy.plugin.version>3.1.2</maven.deploy.plugin.version>
     <maven.gpg.plugin.version>3.2.4</maven.gpg.plugin.version>
+    <!-- Sonatype Central Portal publisher; confirm the latest before releasing. -->
+    <central.publishing.plugin.version>0.7.0</central.publishing.plugin.version>
     <exec.maven.plugin.version>3.2.0</exec.maven.plugin.version>
     <jacoco.maven.plugin.version>0.8.12</jacoco.maven.plugin.version>
   </properties>
@@ -231,6 +235,27 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <!--
+          Publishes to Maven Central through the Sonatype Central Portal. As a
+          build extension it binds to the deploy phase, so it is inert for
+          package/verify/test and acts only on `mvn -Prelease deploy`. It is
+          declared here for the whole reactor but skips publishing by default;
+          the two published modules (core, debugger) opt in with
+          skipPublishing=false. autoPublish=false holds the upload in the Portal
+          for a manual Publish. Credentials come from a <server id="central"> in
+          settings.xml.
+        -->
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>${central.publishing.plugin.version}</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+          <autoPublish>false</autoPublish>
+          <skipPublishing>true</skipPublishing>
+        </configuration>
       </plugin>
     </plugins>
   </build>

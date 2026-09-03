@@ -69,8 +69,8 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
-Unreleased
-----------
+2017.0.0 (2026.09.03)
+---------------------
 `   ` `           ` **Build system replaced: Ant is gone, the project now builds with Maven.** The sources moved to the standard Maven layout under a three-module reactor (`buildtools/nasgen`, `core`, `shell`), and the leftover in-JDK make files (`make/*.gmk`, `make/data/symbols`) and jtreg trees (`test/jdk`, `test/hotspot`) — unused since Nashorn was extracted from the JDK — were removed. See README.md for the new commands.
 
 `   ` `           ` **New coordinates: this fork publishes as `org.monflabs.nashorn:nashorn-core`, starting at version 2017.0.0 - the ECMAScript edition it implements, with room to patch -, and calls itself `OpenJDK-Monflabs`.** Upstream released up to `org.openjdk.nashorn:nashorn-core:15.7`; the two can sit side by side anywhere, because the Java packages and the module name are renamed too - see below.

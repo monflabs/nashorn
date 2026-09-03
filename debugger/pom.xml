@@ -104,6 +104,14 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
           <quiet>true</quiet>
         </configuration>
       </plugin>
+      <plugin>
+        <!-- a published artifact: opt in to the Central Portal publisher declared in the parent -->
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <configuration>
+          <skipPublishing>false</skipPublishing>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
