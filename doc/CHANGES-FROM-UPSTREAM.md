@@ -114,6 +114,8 @@ exports are Java values, `default` included), and the `Module` value type.
 
 A protocol-neutral debugging API behind `--debugger`: `Debugger.of(engine)`,
 breakpoints, stepping, frames, scopes, values, termination, a `console` bridge,
+`clearScripts()` (drop the parsed-script and context registry — a CDP
+`Runtime.executionContextsCleared` — for a host reusing one engine across runs),
 and a passive **`TraceListener`** (statements and completion values without
 pausing). `DebuggerFrontend` is the service the engine looks up for `--inspect`.
 

@@ -194,6 +194,13 @@ public final class DebuggerPanel extends JPanel implements AutoCloseable {
         }
 
         @Override
+        public void scriptsCleared() {
+            // the engine's script registry was cleared (e.g. a new run); drop the
+            // Sources view, keeping breakpoints, which re-resolve as scripts parse.
+            panels.clearScripts();
+        }
+
+        @Override
         public void paused(final PauseState pause) {
             final List<CallFrame> frames = pause.frames();
             panels.showFrames(frames, 0);

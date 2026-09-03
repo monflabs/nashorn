@@ -274,6 +274,18 @@ public final class DebuggerImpl implements Debugger {
     }
 
     @Override
+    public void clearScripts() {
+        synchronized (this) {
+            scripts.clear();
+            contexts.clear();
+            contextList.clear();
+        }
+        for (final DebugListener l : listeners) {
+            l.executionContextsCleared();
+        }
+    }
+
+    @Override
     public Breakpoint setBreakpoint(final BreakpointRequest request) {
         final BreakpointImpl bp;
         final List<Runnable> resolved = new ArrayList<>();

@@ -87,6 +87,17 @@ public interface Debugger {
     List<DebugScript> scripts();
 
     /**
+     * Discards the debugger's record of parsed scripts and execution contexts and
+     * fires {@link DebugListener#executionContextsCleared()} (over CDP, a
+     * {@code Runtime.executionContextsCleared} that makes a frontend drop its
+     * Sources view) - without closing the connection and without touching
+     * breakpoints, which re-resolve as scripts parse again. For a host that reuses
+     * one engine across independent runs and wants each run to start with a clean
+     * script list.
+     */
+    void clearScripts();
+
+    /**
      * Sets a breakpoint. A breakpoint whose url names a script not yet compiled
      * stays pending - its {@link Breakpoint#locations()} is empty - and resolves
      * when that script arrives, which {@link DebugListener#breakpointResolved} reports.

@@ -44,6 +44,13 @@ public interface DebugListener {
     default void scriptParsed(final DebugScript script) {}
 
     /**
+     * Every execution context and its parsed scripts were discarded - see
+     * {@link Debugger#clearScripts()}. Breakpoints are unaffected and re-resolve
+     * as scripts parse again.
+     */
+    default void executionContextsCleared() {}
+
+    /**
      * A pending breakpoint found its script.
      * @param breakpoint the breakpoint
      * @param location where it landed

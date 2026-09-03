@@ -75,6 +75,8 @@ public final class DebugSession {
         default void stateChanged(State state) { }
         /** A script was parsed (or replayed on attach). @param script the script */
         default void scriptAdded(ScriptInfo script) { }
+        /** Every parsed script was discarded; the Sources view should reset. */
+        default void scriptsCleared() { }
         /** The engine paused. @param pause where and why */
         default void paused(PauseState pause) { }
         /** The engine resumed. */
@@ -559,6 +561,16 @@ public final class DebugSession {
             scriptsById.put(script.scriptId(), script);
             for (final SessionListener l : listeners) {
                 l.scriptAdded(script);
+            }
+            break;
+        }
+        case "Runtime.executionContextsCleared": {
+            // the host cleared the engine's script registry (e.g. between runs);
+            // drop our scripts but keep breakpoints - they re-resolve as the next
+            // scripts parse.
+            scriptsById.clear();
+            for (final SessionListener l : listeners) {
+                l.scriptsCleared();
             }
             break;
         }

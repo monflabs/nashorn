@@ -175,6 +175,12 @@ public final class PanelFactory {
         console.clear();
     }
 
+    /** Drops the Sources view - the navigator and open source tabs - keeping breakpoints and console. */
+    public void clearScripts() {
+        navigator.clear();
+        source.clear();
+    }
+
     private final class BreakpointActions implements BreakpointListPanel.Actions {
         @Override
         public void reveal(final String url, final int line) {

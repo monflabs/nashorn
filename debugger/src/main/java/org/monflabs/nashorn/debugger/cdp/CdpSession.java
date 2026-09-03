@@ -255,6 +255,13 @@ public final class CdpSession implements DebugListener {
         }
     }
 
+    @Override
+    public void executionContextsCleared() {
+        if (runtimeEnabled) {
+            sendEvent("Runtime.executionContextsCleared", Json.object());
+        }
+    }
+
     static Map<String, Object> scriptParsedParams(final DebugScript script) {
         final Map<String, Object> params = Json.object(
                 "scriptId", script.id(),

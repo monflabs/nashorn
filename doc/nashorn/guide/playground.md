@@ -69,7 +69,11 @@ to give it a condition, and add watch expressions that re-evaluate at every paus
 
 The breakpoints are keyed by the script's url, which the playground keeps stable across runs (it
 appends a `//# sourceURL` directive), so a breakpoint set once keeps hitting on every **Debug here**.
-Closing the window detaches but leaves the server running. Because the protocol allows **one client
+Each run is independent — a fresh global — so the playground clears the debugger's script registry
+before it, and the Sources list resets to just the current run's files rather than accumulating every
+snippet you have tried. This happens without dropping the connection (it is a
+`Runtime.executionContextsCleared` over the protocol), and your breakpoints survive it, re-resolving
+as the new run parses. Closing the window detaches but leaves the server running. Because the protocol allows **one client
 at a time**, the built-in debugger and an attached Chrome are mutually exclusive: detach one before
 the other.
 

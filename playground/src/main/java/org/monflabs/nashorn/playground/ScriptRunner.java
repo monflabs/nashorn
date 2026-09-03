@@ -260,6 +260,11 @@ public final class ScriptRunner {
         final long start = System.nanoTime();
         Throwable failure = null;
         try {
+            // Each run is independent - a fresh global - so drop the scripts the
+            // previous runs left in the debugger's registry before this one parses.
+            // A connected debugger (the built-in panel or Chrome) clears its Sources
+            // view without the connection dropping; breakpoints survive by url.
+            Debugger.of(eng).clearScripts();
             final ScriptContext context = new SimpleScriptContext();
             context.setBindings(eng.createBindings(), ScriptContext.ENGINE_SCOPE);
             context.setWriter(new PrintWriter(new ConsoleWriter(console, false), true));

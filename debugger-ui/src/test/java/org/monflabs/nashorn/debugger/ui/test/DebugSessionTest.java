@@ -92,8 +92,11 @@ public class DebugSessionTest {
         volatile String closedReason;
         volatile DebugSession.State state = DebugSession.State.DETACHED;
 
+        volatile int cleared;
+
         @Override public void stateChanged(final DebugSession.State s) { state = s; }
         @Override public void scriptAdded(final ScriptInfo s) { scripts.add(s); }
+        @Override public void scriptsCleared() { cleared++; scripts.clear(); }
         @Override public void paused(final PauseState p) { lastPause = p; }
         @Override public void resumed() { resumeCount++; lastPause = null; }
         @Override public void breakpointsChanged(final List<Breakpoint> b) { breakpoints = b; }
@@ -187,6 +190,27 @@ public class DebugSessionTest {
         // after attach, Debugger.enable replays the parsed script
         pumpUntil(() -> recorder.scripts.stream().anyMatch(s -> s.url().endsWith("/first.js")));
         assertTrue(recorder.scripts.stream().anyMatch(s -> s.url().endsWith("/first.js")));
+    }
+
+    @Test
+    public void clearScriptsDropsScriptsButKeepsBreakpointsAndConnection() {
+        attach();
+        session.toggleBreakpoint("file:///work/keep.js", 1);
+        ui.pump();
+        runScript("gone.js", "1 + 1;");
+        pumpUntil(() -> !session.scripts().isEmpty());
+        assertTrue(recorder.scripts.stream().anyMatch(s -> s.url().endsWith("/gone.js")));
+        final int before = recorder.cleared;
+
+        // the host clears the engine's script registry - no disconnect
+        Debugger.of(engine).clearScripts();
+
+        pumpUntil(() -> recorder.cleared > before);
+        assertTrue(session.scripts().isEmpty(), "scripts should be cleared");
+        assertEquals(session.state(), DebugSession.State.RUNNING, "connection stays up");
+        // the breakpoint survives - it is client-owned and re-resolves as scripts parse
+        assertTrue(session.breakpoints().stream().anyMatch(b -> "file:///work/keep.js".equals(b.url()) && b.line() == 1),
+                "breakpoint should survive the clear");
     }
 
     @Test

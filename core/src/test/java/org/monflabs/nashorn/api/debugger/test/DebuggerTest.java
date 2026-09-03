@@ -79,6 +79,7 @@ public class DebuggerTest {
     private final List<ConsoleEvent> consoleCalls = new CopyOnWriteArrayList<>();
     private final List<ExceptionEvent> escaped = new CopyOnWriteArrayList<>();
     private int resumedCount;
+    private int clearedCount;
 
     @BeforeMethod
     public void setUp() {
@@ -91,11 +92,13 @@ public class DebuggerTest {
         consoleCalls.clear();
         escaped.clear();
         resumedCount = 0;
+        clearedCount = 0;
         debugger.addListener(new DebugListener() {
             @Override public void scriptParsed(final DebugScript script) { parsed.add(script); }
             @Override public void breakpointResolved(final Breakpoint bp, final Location l) { resolved.add(bp.id() + "@" + l.line() + ":" + l.column()); }
             @Override public void paused(final PausedEvent event) { pauses.add(event); }
             @Override public void resumed(final PausedEvent event) { resumedCount++; }
+            @Override public void executionContextsCleared() { clearedCount++; }
             @Override public void consoleCalled(final ConsoleEvent event) { consoleCalls.add(event); }
             @Override public void exceptionThrown(final ExceptionEvent event) { escaped.add(event); }
         });
@@ -275,6 +278,27 @@ public class DebuggerTest {
         event.resume();
         assertEquals(await(result), 5);
         assertTrue(pauses.isEmpty(), "only one iteration satisfies the condition");
+    }
+
+    @Test
+    public void clearScriptsEmptiesTheRegistryFiresTheEventAndKeepsBreakpoints() throws Exception {
+        final Breakpoint keep = breakpointAt("keep.js", 0);   // set, but its script has not run yet
+        assertEquals(await(run("gone.js", "1 + 1;")), 2);
+        assertFalse(debugger.scripts().isEmpty(), "gone.js was registered");
+        final int before = clearedCount;
+
+        debugger.clearScripts();
+
+        assertTrue(debugger.scripts().isEmpty(), "the registry was cleared");
+        assertEquals(clearedCount, before + 1, "listeners were told");
+
+        // the breakpoint survived the clear: a matching script run now re-resolves it and pauses
+        final Future<Object> result = run("keep.js", "var a = 1;", "a + 1;");
+        final PausedEvent event = awaitPause();
+        assertEquals(event.frames().get(0).location().line(), 0);
+        event.resume();
+        assertEquals(await(result), 2);
+        assertTrue(resolved.stream().anyMatch(r -> r.startsWith(keep.id() + "@")), "the surviving breakpoint re-resolved");
     }
 
     @Test
