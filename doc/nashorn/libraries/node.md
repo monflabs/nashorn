@@ -2,9 +2,10 @@
 
 > **Experimental and incomplete.** This is a small, partial Node-compatibility layer, provided as a
 > convenience and as a worked example of building built-in modules on the engine. It covers a handful
-> of modules (and not every corner of those), its API may change, and it is **not published** to Maven
-> Central. It ships as a separate artifact, `nashorn-node`, that you add yourself — see
-> [Enabling it](#enabling-it) — rather than as part of `nashorn-core`.
+> of modules (and not every corner of those), and its API may change. It ships as a **separate
+> artifact, `nashorn-node`**, that you add yourself — see [Enabling it](#enabling-it) — rather than as
+> part of `nashorn-core`. It is published to Maven Central, but because it reaches into engine
+> internals it is **version-locked**: always use the same version as your `nashorn-core`.
 
 Alongside the [standard libraries](overview.md) that install host functions into every global, this
 optional module provides a **resolver for Node's built-in modules**. Where the standard libraries

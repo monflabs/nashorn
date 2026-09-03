@@ -30,8 +30,8 @@
  * {@code new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build()};
  * it is not discovered. It implements its modules in pure Java over the engine's
  * internal object model, which {@code org.monflabs.nashorn} exports to this
- * module by name. Because of that coupling it is a companion to one specific
- * {@code nashorn-core} and is not published.
+ * module by name. Because of that coupling a given {@code nashorn-node} is a
+ * companion to the exact same version of {@code nashorn-core}; do not mix versions.
  *
  * @moduleGraph
  * @since 2017.0.0

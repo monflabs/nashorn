@@ -142,8 +142,9 @@ See [nashorn/libraries/overview.md](nashorn/libraries/overview.md).
 
 ### Node compatibility (new, experimental)
 
-An **experimental** `node` module resolver - the separate, unpublished **`nashorn-node`** artifact,
-provided as a convenience and an example - answers `import fs from "fs"` (or `"node:fs"`) with a Java
+An **experimental** `node` module resolver - the separate **`nashorn-node`** artifact (published, but
+version-locked to `nashorn-core`), provided as a convenience and an example - answers
+`import fs from "fs"` (or `"node:fs"`) with a Java
 implementation of Node's **`fs`** module - synchronous, error-first callback, and `fs.promises`
 forms over `java.nio.file`, with `Stats`, `Dirent`, `fs.constants` and Node error codes. It is
 registered on the engine builder explicitly - `.moduleLoader(new NodeModuleLoader())` - and consulted
@@ -164,7 +165,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 | `core` | `nashorn-core` | yes | the engine + standard libraries |
 | `debugger` | `nashorn-debugger` | yes | the Chrome DevTools Protocol server (`--inspect`) |
 | `debugger-ui` | `nashorn-debugger-ui` | no | an embeddable Swing debugger (a CDP client) |
-| `node` | `nashorn-node` | no | experimental Node-compat module resolver (`fs`, `buffer`, `os`, `path`) |
+| `node` | `nashorn-node` | yes | experimental Node-compat module resolver (`fs`, `buffer`, `os`, `path`); version-locked to core |
 | `shell` | — | no | the `jjs` REPL |
 | `playground` | — | no | a Swing sample browser / editor / console |
 | `buildtools/nasgen` | — | no | the build-time bytecode tool |

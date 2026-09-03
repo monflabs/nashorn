@@ -38,7 +38,8 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
     engine. Answers a handful of Node's built-in specifiers - fs, buffer, os,
     path - from bare or node: imports, in pure Java. It reaches into the
     engine's internal object model (core exports those packages to this module
-    by name), so it is a companion to a specific nashorn-core, not published.
+    by name), so a given nashorn-node is a companion to the exact same version of
+    nashorn-core; do not mix versions.
   </description>
   <dependencies>
     <dependency>
@@ -70,23 +71,27 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <!-- the engine discovers this module's resolver as a class-path service, as an embedder would -->
+          <!-- the tests build an engine and register the resolver explicitly, on the class path like an embedder -->
           <useModulePath>false</useModulePath>
           <argLine>-ea -esa</argLine>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-deploy-plugin</artifactId>
+        <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
-          <skip>true</skip>
+          <tags>
+            <tag><name>moduleGraph</name><placement>a</placement><head>Module Graph</head></tag>
+          </tags>
+          <quiet>true</quiet>
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-javadoc-plugin</artifactId>
+        <!-- a published artifact: opt in to the Central Portal publisher declared in the parent -->
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
         <configuration>
-          <skip>true</skip>
+          <skipPublishing>false</skipPublishing>
         </configuration>
       </plugin>
     </plugins>
