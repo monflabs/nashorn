@@ -69,13 +69,12 @@ to give it a condition, and add watch expressions that re-evaluate at every paus
 
 The breakpoints are keyed by the script's url, which the playground keeps stable across runs (it
 appends a `//# sourceURL` directive), so a breakpoint set once keeps hitting on every **Debug here**.
-Each run is independent — a fresh global — so the playground clears the debugger's script registry
-before it, and the Sources list resets to just the current run's files rather than accumulating every
-snippet you have tried. This happens without dropping the connection (it is a
-`Runtime.executionContextsCleared` over the protocol), and your breakpoints survive it, re-resolving
-as the new run parses. The same clear runs when you reopen the debugger on another snippet — the
-registry is emptied before the panel re-attaches, so it opens on the new snippet rather than replaying
-the one you last debugged. Closing the window detaches but leaves the server running. Because the protocol allows **one client
+The Sources list is scoped to the current sample: switching to a different sample clears the
+debugger's script registry (a `Runtime.executionContextsCleared` over the protocol — no dropped
+connection, and breakpoints survive), so a debugger opened on a sample shows only its files rather
+than accumulating every sample you have tried. Re-running or reopening the debugger on the same
+sample keeps its files — the engine still holds them, and they replay on re-attach. Closing the
+window detaches but leaves the server running. Because the protocol allows **one client
 at a time**, the built-in debugger and an attached Chrome are mutually exclusive: detach one before
 the other.
 

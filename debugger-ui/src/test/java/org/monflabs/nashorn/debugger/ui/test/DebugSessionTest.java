@@ -232,6 +232,23 @@ public class DebugSessionTest {
     }
 
     @Test
+    public void reattachingWithoutAClearReplaysTheScripts() {
+        // debugging the same sample again (no clear): the engine still holds its
+        // scripts, so Debugger.enable replays them - the Sources are not empty
+        attach();
+        runScript("keep.js", "1 + 1;");
+        pumpUntil(() -> !session.scripts().isEmpty());
+        session.detach();
+        pumpUntil(() -> session.state() == DebugSession.State.DETACHED);
+
+        session.attach(server.webSocketUrl());
+        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        pumpUntil(() -> session.scripts().stream().anyMatch(s -> s.url().endsWith("/keep.js")));
+        assertTrue(session.scripts().stream().anyMatch(s -> s.url().endsWith("/keep.js")),
+                "the script must be replayed on reattach");
+    }
+
+    @Test
     public void aBreakpointSetBeforeTheScriptHitsAfterRun() {
         attach();
         // the script does not exist yet; set the breakpoint by url

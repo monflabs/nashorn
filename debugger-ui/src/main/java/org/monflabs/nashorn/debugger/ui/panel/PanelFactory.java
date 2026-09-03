@@ -126,9 +126,10 @@ public final class PanelFactory {
         navigator.add(script);
     }
 
-    /** Opens a script in the source view. @param script the script */
+    /** Opens a script in the source view and selects it in the navigator. @param script the script */
     public void openScript(final ScriptInfo script) {
         source.open(script);
+        navigator.select(script);
     }
 
     /** Shows a paused stack and its scopes. @param frames the frames @param selected the selected index */

@@ -43,17 +43,39 @@ final class ScriptNavigatorPanel extends JPanel {
     private final transient Map<String, ScriptInfo> byUrl = new LinkedHashMap<>();
     private final DefaultListModel<ScriptInfo> model = new DefaultListModel<>();
     private final transient JList<ScriptInfo> list = new JList<>(model);
+    private transient boolean selecting;
 
     ScriptNavigatorPanel(final Consumer<ScriptInfo> onOpen) {
         super(new BorderLayout());
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setCellRenderer(new Renderer());
         list.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && list.getSelectedValue() != null) {
+            if (!selecting && !e.getValueIsAdjusting() && list.getSelectedValue() != null) {
                 onOpen.accept(list.getSelectedValue());
             }
         });
         add(new JScrollPane(list), BorderLayout.CENTER);
+    }
+
+    /** Selects the row for a script, if present, without re-firing {@code onOpen}. */
+    void select(final ScriptInfo script) {
+        if (script == null || script.url() == null) {
+            return;
+        }
+        for (int i = 0; i < model.size(); i++) {
+            if (model.get(i).url().equals(script.url())) {
+                if (i != list.getSelectedIndex()) {
+                    selecting = true;
+                    try {
+                        list.setSelectedIndex(i);
+                        list.ensureIndexIsVisible(i);
+                    } finally {
+                        selecting = false;
+                    }
+                }
+                return;
+            }
+        }
     }
 
     /** Adds or refreshes a script row, keyed by url. */

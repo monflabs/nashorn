@@ -202,9 +202,10 @@ public final class ScriptRunner {
 
     /**
      * Drops the debugger's record of parsed scripts on the current engine, so a
-     * debugger that attaches now sees a clean Sources list rather than replaying
-     * the previous snippet's scripts on {@code Debugger.enable}. Call it before
-     * (re)opening a debugger on a snippet. Breakpoints survive.
+     * debugger that attaches sees only what runs next rather than replaying an
+     * earlier sample's scripts on {@code Debugger.enable}. Call it when switching
+     * to a different sample; the next run re-announces its own (uncached) sources,
+     * while re-running or reopening the same sample keeps them. Breakpoints survive.
      */
     public synchronized void clearDebugScripts() {
         if (engine != null) {
@@ -248,7 +249,9 @@ public final class ScriptRunner {
                     .moduleLoader((specifier, referrer) -> {
                         final String clean = specifier.startsWith("./") ? specifier.substring(2) : specifier;
                         final String text = currentFiles.get(clean);
-                        return text == null ? null : Module.source("sample:" + clean, text);
+                        // give the module the same playground:/// url scheme as the main file, so a
+                        // debugger shows it as "counter.js", not a sanitized "nashorn://.../sample_counter.js"
+                        return text == null ? null : Module.source(clean, withStableUrl(clean, text));
                     })
                     .option(options.toArray(new String[0]))
                     .build();
@@ -272,11 +275,6 @@ public final class ScriptRunner {
         final long start = System.nanoTime();
         Throwable failure = null;
         try {
-            // Each run is independent - a fresh global - so drop the scripts the
-            // previous runs left in the debugger's registry before this one parses.
-            // A connected debugger (the built-in panel or Chrome) clears its Sources
-            // view without the connection dropping; breakpoints survive by url.
-            Debugger.of(eng).clearScripts();
             final ScriptContext context = new SimpleScriptContext();
             context.setBindings(eng.createBindings(), ScriptContext.ENGINE_SCOPE);
             context.setWriter(new PrintWriter(new ConsoleWriter(console, false), true));

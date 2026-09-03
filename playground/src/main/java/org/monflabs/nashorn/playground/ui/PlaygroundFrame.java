@@ -275,6 +275,14 @@ public final class PlaygroundFrame extends JFrame {
         if (sample != null && sample == scratch) {
             saveScratch();
         }
+        if (sample != null && !sample.id().equals(s.id())) {
+            // switching to a different sample: drop the previous one's scripts from the
+            // debugger's registry so a debugger opened on this sample shows only its
+            // files, not the sample we just left. A run of this sample re-announces its
+            // own (uncached, different sources); re-running or reopening the same sample
+            // keeps them.
+            runner.clearDebugScripts();
+        }
         sample = s;
         editor.show(s.source(), s.files(), true);
         readme.show(s.readme() != null ? s.readme() : "## " + s.title());
@@ -412,10 +420,6 @@ public final class PlaygroundFrame extends JFrame {
                         }
                     });
         }
-        // Drop the previous snippet's scripts before the panel attaches, or
-        // Debugger.enable would replay them and the Sources view would open on
-        // the snippet last debugged rather than this one.
-        runner.clearDebugScripts();
         debuggerFrame.show(url, () -> {
             runner.pauseOnNextRun(true);
             run();
