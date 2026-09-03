@@ -21,10 +21,12 @@
 #
 # Cuts a release, on macOS, in four moves:
 #
-#   1. Publishes the three library jars (core, debugger, node) to Maven Central
-#      through the Sonatype Central Portal (`mvn -Prelease deploy`). Because the
-#      poms keep autoPublish=false, this only *stages* a bundle; the script then
-#      pauses for you to review and click Publish in the Portal.
+#   1. Builds and (unless a dry run) *stages* the three library jars (core,
+#      debugger, node) to Maven Central through the Sonatype Central Portal
+#      (`mvn -Prelease deploy`; autoPublish=false, so nothing is public yet). It
+#      then installs those jars locally and runs the standalone smoke-test project
+#      against them, and only after that passes does it pause for you to review
+#      and click Publish in the Portal.
 #   2. Tags the release branch (main) with v<version> and pushes the tag.
 #   3. Creates a GitHub release carrying the three library jars and the runnable
 #      playground -all jar.
@@ -48,13 +50,14 @@
 # Dry run:
 #   RELEASE_DRY_RUN=1 buildtools/release.sh
 #     rehearses the whole thing locally and pushes NOTHING outward: it does the
-#     release build and signs (mvn -Prelease verify, no upload to Central), checks
+#     release build unsigned (mvn -Prelease verify, no upload to Central and no
+#     passphrase prompt), installs the jars locally and runs the smoke test, checks
 #     the tag name is free without creating it, lists the GitHub-release assets
 #     without creating the release, and stages the docs into a temp directory
 #     instead of the gh-pages branch. Preconditions that would only matter for a
-#     real run (clean/synced main, a free tag, a GPG key) are downgraded to
+#     real run (clean/synced main, a free tag, the token) are downgraded to
 #     warnings, so you can rehearse from any branch and before the secrets are set
-#     up. If there is no GPG key it builds unsigned and says so.
+#     up. Signing is exercised only by a real run.
 #
 # Environment (all optional):
 #   REPO_SLUG=monflabs/nashorn     the GitHub repository
@@ -64,6 +67,7 @@
 #                                  "have you clicked Publish" pause (for a hands
 #                                  -off run once you trust it)
 #   RELEASE_SKIP_CENTRAL=1         skip step 1 (e.g. Central already published)
+#   RELEASE_SKIP_SMOKE=1           skip the smoke test of the built jars
 #   RELEASE_SKIP_GHRELEASE=1       skip step 3
 #   RELEASE_SKIP_DOCS=1            skip step 4
 
@@ -112,14 +116,15 @@ done
 
 gh auth status >/dev/null 2>&1 || gate "gh is not authenticated (run: gh auth login)"
 
-# Signing: a real release must be signed (gpg + a secret key); a dry run without
-# them builds unsigned so you can rehearse before setting up signing.
+# Signing: a real release must be signed (gpg + a secret key). A dry run never
+# uploads, so it always builds UNSIGNED - no passphrase prompt, and it runs
+# unattended; signing is exercised only by a real run.
 GPG_SKIP=""
-if command -v gpg >/dev/null 2>&1 && [ -n "$(gpg --list-secret-keys 2>/dev/null)" ]; then
-  :
-elif dry; then
+if dry; then
   GPG_SKIP="-Dgpg.skip=true"
-  warn "gpg/secret key unavailable; the dry run will build unsigned (a real release must be signed)"
+  note "[dry] signing is skipped in a dry run (a real release signs)"
+elif command -v gpg >/dev/null 2>&1 && [ -n "$(gpg --list-secret-keys 2>/dev/null)" ]; then
+  :
 else
   die "gpg with a secret key is required; Central needs signed artifacts"
 fi
@@ -172,7 +177,7 @@ fi
 # --- 1. Maven Central (staged) ------------------------------------------------
 
 if dry; then
-  note "[dry] release build + sign, no upload:  mvn -Prelease ${GPG_SKIP:+$GPG_SKIP }-DskipTests clean verify"
+  note "[dry] release build (unsigned), no upload:  mvn -Prelease ${GPG_SKIP:+$GPG_SKIP }-DskipTests clean verify"
   # shellcheck disable=SC2086
   mvn -B -Prelease $GPG_SKIP -DskipTests clean verify
   note "[dry] would then deploy to the Central Portal and wait for a manual Publish"
@@ -182,6 +187,28 @@ elif [ "${RELEASE_SKIP_CENTRAL:-}" = "1" ]; then
 else
   note "building, signing and staging to the Central Portal (gpg-agent will prompt to sign)"
   mvn -B -Prelease clean deploy
+fi
+
+for j in "${JARS[@]}"; do [ -f "$j" ] || die "expected artifact missing: $j (did the build run?)"; done
+
+# --- 1b. smoke-test the built jars from ~/.m2 ---------------------------------
+# Installs the three library jars locally and runs the standalone smoke-test
+# project against them, so a functional break is caught BEFORE tagging and before
+# the Central Publish gate below (a real deploy has only staged at this point, so
+# it can still be dropped in the Portal).
+if [ "${RELEASE_SKIP_SMOKE:-}" = "1" ] || [ ! -d smoke-test ]; then
+  note "skipping smoke test${RELEASE_SKIP_SMOKE:+ (RELEASE_SKIP_SMOKE=1)}"
+else
+  note "smoke-testing the ${VERSION} jars from ~/.m2"
+  mvn -B -q -DskipTests -Dgpg.skip=true -pl core,debugger,node -am install
+  if ! mvn -B -q -f smoke-test/pom.xml -Dnashorn.version="${VERSION}" test; then
+    die "smoke test FAILED: the ${VERSION} jars do not work. Nothing was tagged or published.$(dry && echo '' || echo " If a Central deployment was staged, DROP it in the Portal: ${PORTAL_URL}")"
+  fi
+  note "smoke test passed"
+fi
+
+# --- 1c. Central manual Publish gate (real deploy only) -----------------------
+if ! dry && [ "${RELEASE_SKIP_CENTRAL:-}" != "1" ]; then
   echo
   note "A deployment has been STAGED (autoPublish=false). Review and Publish it here:"
   echo "    ${PORTAL_URL}"
@@ -190,8 +217,6 @@ else
     read -r _
   fi
 fi
-
-for j in "${JARS[@]}"; do [ -f "$j" ] || die "expected artifact missing: $j (did the build run?)"; done
 
 # --- 2. tag the release branch ------------------------------------------------
 

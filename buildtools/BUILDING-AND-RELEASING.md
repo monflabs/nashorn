@@ -143,15 +143,16 @@ Rehearse the whole thing without publishing, pushing or tagging anything:
 RELEASE_DRY_RUN=1 buildtools/release.sh
 ```
 
-It does the real release build and signs it (`mvn -Prelease verify`, no upload to
-Central), checks the tag name is free without creating it, lists the
-GitHub-release assets without creating the release, and stages the docs into a
-temporary directory (printing a `python3 -m http.server` command so you can
-preview the site) instead of touching `gh-pages`. Preconditions that only matter
-for a real run — a clean and synced `main`, a free tag, a GPG key, the Portal
-token — are downgraded to warnings, so you can rehearse from any branch and
-before the signing/token setup is done; without a GPG key it simply builds
-unsigned and says so. Nothing leaves your machine.
+It does the real release build unsigned (`mvn -Prelease verify`, no upload to
+Central and no passphrase prompt), **installs the jars locally and runs the
+`smoke-test` project against them**, checks the tag name is free without creating
+it, lists the GitHub-release assets without creating the release, and stages the
+docs into a temporary directory (printing a `python3 -m http.server` command so
+you can preview the site) instead of touching `gh-pages`. Preconditions that only
+matter for a real run — a clean and synced `main`, a free tag, the Portal token —
+are downgraded to warnings, so you can rehearse from any branch and before the
+token setup is done. Signing is exercised only by a real run. Nothing leaves your
+machine.
 
 ### Cutting the release
 
@@ -166,13 +167,18 @@ It will, in order:
 
 1. **Build, sign and stage to the Central Portal** (`mvn -Prelease clean deploy`)
    — the three library jars, each with sources, javadoc and signatures. Because
-   the poms keep `autoPublish=false`, this only *stages* a deployment; the script
-   pauses and prints the Portal URL. **Review the deployment and click Publish**
-   (that step is permanent), then press Enter.
-2. **Tag** `main` as `v<version>` and push the tag.
-3. **Create the GitHub release** with the three library jars **and** the runnable
+   the poms keep `autoPublish=false`, this only *stages* a deployment (nothing is
+   public yet).
+2. **Smoke-test the built jars** — installs them to `~/.m2` and runs the
+   `smoke-test` project against them. If it fails, the script stops **before**
+   tagging or the Publish step; drop the staged deployment in the Portal.
+   (Skip with `RELEASE_SKIP_SMOKE=1`.)
+3. **Review and Publish** — the script pauses and prints the Portal URL. **Review
+   the deployment and click Publish** (that step is permanent), then press Enter.
+4. **Tag** `main` as `v<version>` and push the tag.
+5. **Create the GitHub release** with the three library jars **and** the runnable
    `nashorn-playground-<version>-all.jar`.
-4. **Publish the docsify site** (`doc/nashorn`, with its `.nojekyll`) to the
+6. **Publish the docsify site** (`doc/nashorn`, with its `.nojekyll`) to the
    `gh-pages` branch, and — the first time — point GitHub Pages at it
    (`https://monflabs.github.io/nashorn/`). If the automatic Pages enablement is
    refused, set it once by hand: **Settings → Pages → source: `gh-pages`, `/`**.
