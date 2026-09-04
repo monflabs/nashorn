@@ -113,10 +113,10 @@ literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promi
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).
 
-Two things older Nashorn documentation promises are gone from this fork: the `$EXEC`/backquote
-process extension (the backquote now belongs to template literals — see
-[Scripting mode](scripting-mode.md)), and everything to do with the Security Manager, which the JDK
-itself removed.
+Two things older Nashorn documentation promises are gone from this fork: the **backquote-exec
+syntax** (the backquote now belongs to template literals — the `$EXEC` function itself is still there
+in scripting mode; see [Scripting mode](scripting-mode.md)), and everything to do with the Security
+Manager, which the JDK itself removed.
 
 ## Where next
 

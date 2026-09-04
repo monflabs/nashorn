@@ -82,5 +82,5 @@ docsify serve doc/nashorn          # or, with nothing installed: npx docsify-cli
 
 The classic Oracle *Java Scripting Programmer's Guide* and the upstream `DEVELOPER_README` are
 preserved untouched in [`doc/nashorn-original/`](../nashorn-original/ ':ignore'). They describe the
-engine as it was — parts of them (ECMAScript 5.1, `$EXEC`, the `--language` option) no longer apply to this
-fork; the pages here supersede them.
+engine as it was — parts of them (ECMAScript 5.1, the backquote-exec syntax, the `--language` option)
+no longer apply to this fork; the pages here supersede them.

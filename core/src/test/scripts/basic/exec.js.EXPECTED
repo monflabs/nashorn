@@ -1,0 +1,4 @@
+typeof $EXEC = function
+return  = [hello]
+$OUT    = [hello]
+$EXIT   = 0

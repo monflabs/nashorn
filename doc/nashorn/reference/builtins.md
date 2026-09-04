@@ -62,11 +62,16 @@ Scripting mode adds the following (and syntax besides — see
 | `$OPTIONS` | An object mirroring the engine's option settings — `$OPTIONS._scripting`, `$OPTIONS._annexB`, `$OPTIONS._timezone`, … |
 | `$ENV` | The process environment as an object, plus `$ENV.PWD` from `user.dir`. |
 | `$ARG` | A synonym for `arguments`. |
+| `$EXEC(cmd[, input])` | Run a command in a separate process; returns its stdout. |
+| `$OUT`, `$ERR`, `$EXIT` | The stdout, stderr and exit code of the last `$EXEC`. |
 
-!> The `$EXEC` function, its `$OUT`/`$ERR`/`$EXIT` companions and the backquote-exec syntax were
-**removed** in this fork — ECMAScript claimed the backquote for template literals. Scripts that
-shell out should use `java.lang.ProcessBuilder` through `Java.type`; a migration snippet is in
-[Scripting mode](../guide/scripting-mode.md#running-external-commands).
+`$EXEC` takes either a command string (`$EXEC("ls -l")`) or an array of argument tokens, plus an
+optional stdin string, and returns the command's standard output; it also leaves `$OUT`, `$ERR` and
+`$EXIT` on the global. A non-zero exit throws a `RangeError`.
+
+!> Only the **backquote-exec syntax** (`` `cmd` ``) was removed in this fork — ECMAScript claimed the
+backquote for template literals. The `$EXEC` function itself is present (in scripting mode), so call
+it explicitly rather than through backquotes.
 
 ## Present only in the `jjs` REPL
 

@@ -61,15 +61,30 @@ print(readFully($ARG[0]));
 
 ## Running external commands
 
-!> Upstream Nashorn's scripting mode let backquoted strings run shell commands and defined `$EXEC`,
-`$OUT`, `$ERR` and `$EXIT`. **All of that is removed in this fork** — ECMAScript 2015 gave the
-backquote to template literals, and the `$EXEC` machinery went with it. Old samples that use it
-(`samples/exec.js`, `weather.js`, `pgrep.js`) no longer run.
-
-The replacement is the JDK's own process API, which is scarcely longer:
+Scripting mode defines **`$EXEC`** — it runs a command in a separate process and returns its
+standard output, leaving the stderr and exit code on the globals `$ERR` and `$EXIT` (and the stdout
+also on `$OUT`). It takes a command string, or an array of argument tokens, plus an optional stdin
+string; a non-zero exit throws a `RangeError`.
 
 ```js
-function exec() {
+var listing = $EXEC("ls -l");        // or $EXEC(["ls", "-l"])
+print(listing);
+print("exit code: " + $EXIT);
+
+var sorted = $EXEC("sort", "banana\napple\ncherry\n");   // second arg is stdin
+print(sorted);
+```
+
+!> **The backquote-exec *syntax* is gone.** Upstream let a backquoted string run a shell command
+(`` `ls -l` ``); ECMAScript 2015 gave the backquote to template literals, so in this fork a backquote
+is *always* a template literal. Only the syntax was removed — call the `$EXEC` **function**
+explicitly instead. (Older samples that relied on the backquote form, or on `$EXEC` being absent, are
+the only ones affected.)
+
+If you would rather not depend on scripting mode, the JDK's own process API does the same in any mode:
+
+```js
+function run() {
     var pb = new (Java.type("java.lang.ProcessBuilder"))(
         Java.to(Array.prototype.slice.call(arguments), "java.lang.String[]"));
     pb.redirectErrorStream(true);
@@ -80,7 +95,7 @@ function exec() {
     return text;
 }
 
-print(exec("ls", "-l"));
+print(run("ls", "-l"));
 ```
 
 ## What scripting mode is not

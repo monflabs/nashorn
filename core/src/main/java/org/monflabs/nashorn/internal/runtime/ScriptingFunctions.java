@@ -4,7 +4,8 @@
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * Modifications beginning 2026-08-17 by Philippe Riand:
- * moved to a new package and adapted for Nashorn-monflabs.
+ * moved to a new package and adapted for Nashorn-monflabs; the $EXEC
+ * scripting function reinstated (without the removed backquote syntax).
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
@@ -61,6 +62,21 @@ public final class ScriptingFunctions {
     /** Handle to implementation of {@link ScriptingFunctions#readFully} - Nashorn extension */
     public static final MethodHandle READFULLY = findOwnMH("readFully",     Object.class, Object.class, Object.class);
 
+    /** Handle to implementation of {@link ScriptingFunctions#exec} - Nashorn extension */
+    public static final MethodHandle EXEC = findOwnMH("exec",     Object.class, Object.class, Object[].class);
+
+    /** EXEC name - special property used by $EXEC API. */
+    public static final String EXEC_NAME = "$EXEC";
+
+    /** OUT name - special property used by $EXEC API. */
+    public static final String OUT_NAME  = "$OUT";
+
+    /** ERR name - special property used by $EXEC API. */
+    public static final String ERR_NAME  = "$ERR";
+
+    /** EXIT name - special property used by $EXEC API. */
+    public static final String EXIT_NAME = "$EXIT";
+
     /** Names of special properties used by $ENV API. */
     public static final String ENV_NAME  = "$ENV";
 
@@ -109,6 +125,99 @@ public final class ScriptingFunctions {
         }
 
         return new String(Source.readFully(f));
+    }
+
+    /**
+     * Nashorn extension: exec a string in a separate process.
+     *
+     * @param self   self reference
+     * @param args   In one of four forms
+     *               1. String script, String input
+     *               2. String script, InputStream input, OutputStream output, OutputStream error
+     *               3. Array scriptTokens, String input
+     *               4. Array scriptTokens, InputStream input, OutputStream output, OutputStream error
+     *
+     * @return output string from the request if in form of 1. or 3., empty string otherwise
+     */
+    public static Object exec(final Object self, final Object... args) {
+        final Object arg0 = args.length > 0 ? args[0] : UNDEFINED;
+        final Object arg1 = args.length > 1 ? args[1] : UNDEFINED;
+        final Object arg2 = args.length > 2 ? args[2] : UNDEFINED;
+        final Object arg3 = args.length > 3 ? args[3] : UNDEFINED;
+
+        InputStream inputStream = null;
+        OutputStream outputStream = null;
+        OutputStream errorStream = null;
+        String script = null;
+        List<String> tokens = null;
+        String inputString = null;
+
+        if (arg0 instanceof NativeArray) {
+            final String[] array = (String[])JSType.toJavaArray(arg0, String.class);
+            tokens = new ArrayList<>(Arrays.asList(array));
+        } else {
+            script = JSType.toString(arg0);
+        }
+
+        if (arg1 instanceof InputStream) {
+            inputStream = (InputStream)arg1;
+        } else {
+            inputString = JSType.toString(arg1);
+        }
+
+        if (arg2 instanceof OutputStream) {
+            outputStream = (OutputStream)arg2;
+        }
+
+        if (arg3 instanceof OutputStream) {
+            errorStream = (OutputStream)arg3;
+        }
+
+        // Current global is need to fetch additional inputs and for additional results.
+        final ScriptObject global = Context.getGlobal();
+
+        // Capture ENV property state.
+        final Map<String, String> environment = new HashMap<>();
+        final Object env = global.get(ENV_NAME);
+
+        if (env instanceof ScriptObject) {
+            final ScriptObject envProperties = (ScriptObject)env;
+
+            // Copy ENV variables.
+            envProperties.entrySet().forEach((entry) ->
+                environment.put(JSType.toString(entry.getKey()), JSType.toString(entry.getValue()))
+            );
+        }
+
+        // get the $EXEC function object from the global object
+        final Object exec = global.get(EXEC_NAME);
+        assert exec instanceof ScriptObject : EXEC_NAME + " is not a script object!";
+
+        // Execute the commands
+        final CommandExecutor executor = new CommandExecutor();
+        executor.setInputString(inputString);
+        executor.setInputStream(inputStream);
+        executor.setOutputStream(outputStream);
+        executor.setErrorStream(errorStream);
+        executor.setEnvironment(environment);
+
+        if (tokens != null) {
+            executor.process(tokens);
+        } else {
+            executor.process(script);
+        }
+
+        final String outString = executor.getOutputString();
+        final String errString = executor.getErrorString();
+        final int exitCode = executor.getExitCode();
+
+        // Set globals for secondary results.
+        global.set(OUT_NAME, outString, 0);
+        global.set(ERR_NAME, errString, 0);
+        global.set(EXIT_NAME, exitCode, 0);
+
+        // Return the result from stdout.
+        return outString;
     }
 
     // Implementation for pluggable "readLine" functionality

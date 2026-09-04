@@ -190,8 +190,8 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
   hand each one to the builder's `library(...)` instead.
 - `--function-statement-error` / `--function-statement-warning` — block-level
   function declarations are simply legal now.
-- The `-scripting` **backquote process extension and `$EXEC`** — the backquote
-  belongs to template literals since ES2015.
+- The `-scripting` **backquote process extension** — the backquote belongs to
+  template literals since ES2015. (The `$EXEC` function itself is retained.)
 
 **Changed**
 

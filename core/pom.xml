@@ -429,6 +429,33 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
   <profiles>
     <profile>
       <!--
+        Defines the os.not.windows system property that @runif os.not.windows
+        script tests (e.g. exec.js, which spawns a process) gate on. Activated
+        by OS family negation, so the property is simply absent on Windows and
+        those tests skip there.
+      -->
+      <id>os-not-windows</id>
+      <activation>
+        <os>
+          <family>!windows</family>
+        </os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <systemPropertyVariables>
+                <os.not.windows>true</os.not.windows>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <!--
         Clones the external suites the benchmark and test262 profiles need.
         Was the get-test262 / get-octane / get-sunspider Ant targets. Run once:
           mvn -Pfetch-externals generate-test-resources

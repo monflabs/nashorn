@@ -3580,6 +3580,11 @@ public final class Global extends Scope {
         value = ScriptFunction.createBuiltin("readFully", ScriptingFunctions.READFULLY);
         addOwnProperty("readFully", Attribute.NOT_ENUMERABLE, value);
 
+        // Nashorn extension: global.$EXEC (scripting-mode-only)
+        final String execName = ScriptingFunctions.EXEC_NAME;
+        value = ScriptFunction.createBuiltin(execName, ScriptingFunctions.EXEC);
+        addOwnProperty(execName, Attribute.NOT_ENUMERABLE, value);
+
         // Nashorn extension: global.echo (scripting-mode-only)
         // alias for "print"
         value = (ScriptObject)get("print");
@@ -3599,6 +3604,11 @@ public final class Global extends Scope {
         // by the underlying platform.
         env.put(ScriptingFunctions.PWD_NAME, System.getProperty("user.dir"), scriptEnv._strict);
         addOwnProperty(ScriptingFunctions.ENV_NAME, Attribute.NOT_ENUMERABLE, env);
+
+        // Nashorn extension: $OUT, $ERR, $EXIT - secondary results of $EXEC
+        addOwnProperty(ScriptingFunctions.OUT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
+        addOwnProperty(ScriptingFunctions.ERR_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
+        addOwnProperty(ScriptingFunctions.EXIT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
     }
 
     private static void copyOptions(final ScriptObject options, final ScriptEnvironment scriptEnv) {
