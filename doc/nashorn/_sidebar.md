@@ -3,8 +3,7 @@
 - **User's Guide**
   - [Getting started](/guide/getting-started.md)
   - [Creating the engine](/guide/engine-setup.md)
-  - [Using the engine: javax.script](/guide/using-javax-script.md)
-  - [Using the engine: the builder](/guide/using-nashorn-builder.md)
+  - [Using the engine](/guide/using-the-engine.md)
   - [Connecting with Java](/guide/connecting-with-java.md)
   - [Custom objects and extensions](/guide/custom-objects.md)
   - [Dynalink custom linkers](/guide/dynalink-linkers.md)

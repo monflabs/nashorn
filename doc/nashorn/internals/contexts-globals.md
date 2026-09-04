@@ -43,7 +43,7 @@ generator's thread.
 multi-realm: compiling a `Source` yields the compiled class plus a hook that manufactures a
 per-Global program function — so one pile of bytecode serves every realm of the Context, and only
 the `ScriptFunction` and its scope are per-realm. That is exactly what the JSR-223 engine does when
-[each `Bindings` gets its own global](../guide/using-javax-script.md#the-scope-model), and why
+[each `Bindings` gets its own global](../guide/using-the-engine.md#the-scope-model), and why
 `CompiledScript` against many bindings is cheap.
 
 `loadWithNewGlobal` is the deliberate realm crossing: make a new Global, run the script inside a

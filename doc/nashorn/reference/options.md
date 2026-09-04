@@ -44,7 +44,7 @@ decade, but they are not part of the supported surface and can change without no
 | Option | What it does |
 | --- | --- |
 | `--no-java` (`-nj`) | Disable Java support: removes `Java`, `Packages`, `JavaImporter` and the package roots from the global. |
-| `--global-per-engine` | One shared global for all `ENGINE_SCOPE` bindings of an engine, instead of one global per bindings object. Changes the [scope model](../guide/using-javax-script.md#the-scope-model). |
+| `--global-per-engine` | One shared global for all `ENGINE_SCOPE` bindings of an engine, instead of one global per bindings object. Changes the [scope model](../guide/using-the-engine.md#the-scope-model). |
 | `--locale` (`-l`) | Locale for script execution (`toLocaleString` and friends). The documented sibling of `-timezone`. |
 | `--log=<system>[:<level>]` | Enable an internal logger — see [Logging and debugging](debugging.md). |
 | `--debug-lines` (default on), `--debug-scopes`, `--debug-locals` | Aids for a *JVM* debugger, from before the engine had one of its own: emit the bytecode line-number table; keep every variable in a scope object (what `--debugger` does too); and a local-variable-table switch that nothing reads any more. |
