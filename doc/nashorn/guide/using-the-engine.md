@@ -4,13 +4,39 @@ Everything on this page is plain `javax.script` — the engine implements `Scrip
 `Compilable` and `Invocable` — plus the Nashorn-specific types in
 `org.monflabs.nashorn.api.scripting` where the standard interfaces run out.
 
+## Getting an engine
+
+The examples below take the engine as a given; there are two ways to create it, and the rest of the
+page is identical whichever you pick. The short `javax.script` way, for a plain eval:
+
+```java
+ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+```
+
+Or the **`NashornScriptEngineBuilder`**, which is what you want as soon as scripts need options,
+[script libraries](../extending/script-libraries.md) or `import`
+[module loaders](../extending/module-loaders.md) — none of which the bare `javax.script` engine has:
+
+```java
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.FetchLibrary;
+import org.monflabs.nashorn.libs.HostLibrary;
+
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .library(new HostLibrary(), new FetchLibrary())     // fetch, timers, atob/btoa
+        .moduleLoader(new PathModuleLoader(scriptsDir))      // import resolves under scriptsDir
+        .build();
+```
+
+`build()` returns a `javax.script.ScriptEngine` like any other. Prefer the builder for real work;
+see [Creating the engine](engine-setup.md) for the whole story. The rest of this page uses whichever
+`engine` you built.
+
 ## Evaluating scripts
 
 From a string, a `Reader`, or a URL:
 
 ```java
-ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
-
 engine.eval("print('from a string')");
 engine.eval(new FileReader("script.js"));
 engine.eval(new URLReader(new URL("https://example.com/lib.js")));

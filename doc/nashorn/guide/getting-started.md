@@ -61,6 +61,43 @@ public class EvalScript {
 Compile, run, and `Hello, World` appears — the exception handling is elided here; `eval` throws
 `javax.script.ScriptException` on script errors.
 
+## Two ways to create an engine
+
+`Hello, world` above uses **`javax.script`** — `ScriptEngineManager.getEngineByName(...)`. That is
+the right choice for **simply evaluating scripts**: it is the standard JSR-223 entry point, needs no
+Nashorn-specific imports, and gives a working engine with the default configuration.
+
+That engine is deliberately **bare**, though: the defaults, and — importantly — **no script
+libraries and no module loaders**. When a script needs more than the language itself, build the
+engine with the fork's own **`NashornScriptEngineBuilder`** instead. It is the only way to configure:
+
+- **engine [options](../reference/options.md)** — strict mode, sandboxing, the time zone, the debugger…;
+- **[script libraries](../extending/script-libraries.md)** — the `host` timers and `fetch`, or your
+  own values installed into every realm (there is no discovery, so these come *only* from the builder);
+- **[module loaders](../extending/module-loaders.md)** — resolving `import` to files, class-path
+  resources, Java values, or the [Node modules](../libraries/node.md).
+
+```java
+import javax.script.ScriptEngine;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.FetchLibrary;
+import org.monflabs.nashorn.libs.HostLibrary;
+
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .strict(true)                                    // an engine option
+        .library(new HostLibrary(), new FetchLibrary())  // adds setTimeout, fetch, ...
+        .build();
+engine.eval("setTimeout(() => print('tick'), 10)");      // needs the host library above
+```
+
+`build()` returns an ordinary `javax.script.ScriptEngine`, so everything in
+[Using the engine](using-the-engine.md) works the same either way — the builder only decides *what
+the engine can do* before you run anything against it.
+
+**Rule of thumb:** `getEngineByName` for a quick eval; **`NashornScriptEngineBuilder` for anything
+real** — and always when scripts use libraries or `import`. [Creating the engine](engine-setup.md)
+covers the choice and every option in full.
+
 ## What language you get
 
 The engine speaks **ECMAScript 2017**, whole: `let`/`const`, classes, arrow functions, template

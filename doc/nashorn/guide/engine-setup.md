@@ -1,8 +1,17 @@
 # Creating the engine
 
-`ScriptEngineManager.getEngineByName("nashorn-monflabs")` is all most embedders need. When you want
-control — options, class loading, class filtering, script libraries — build the engine yourself with
-`org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder`.
+There are two entry points. The difference is what the engine can *do* — the API you run scripts
+against afterwards is the same `javax.script` either way (see [Using the engine](using-the-engine.md)).
+
+- **`NashornScriptEngineBuilder`** (`org.monflabs.nashorn.api.scripting`) — the fork's own builder,
+  and the one to reach for. It is the **only** way to set options, class loading and filtering,
+  **[script libraries](../extending/script-libraries.md)** and **[module loaders](../extending/module-loaders.md)**.
+- **`javax.script`** — `new ScriptEngineManager().getEngineByName("nashorn-monflabs")`, the standard
+  JSR-223 lookup, for **simple script evaluation**. It returns a *bare* engine: the defaults, and no
+  libraries or module loaders.
+
+Use `getEngineByName` for a quick eval; use the builder for anything that needs configuration or that
+runs scripts using libraries or `import`.
 
 ## The builder
 
@@ -32,18 +41,37 @@ sandbox, `classPath`, `modulePath(path, modules...)`), compilation (`optimisticT
 else - the diagnostic switches, `--log`, the `--print-*` family - in its command-line spelling. A builder can be reused, and every
 `build()` is a new engine with its own compiled-code cache and globals.
 
-The `javax.script` route still exists, of course — `new ScriptEngineManager().getEngineByName("nashorn-monflabs")`
-or `new NashornScriptEngineFactory().getScriptEngine()` — and gives the defaults plus `-doe`. The
-factory's other `getScriptEngine` overloads (options, class loader, filter, libraries, in every
-combination) are **deprecated** in favour of the builder and kept for compatibility.
-
 - The **class loader** is what scripts see when they reach for Java classes (`Java.type`,
   `Packages`). By default it is the current thread's context class loader.
 - The **[`ClassFilter`](custom-objects.md#classfilter)** is consulted before any Java class becomes
   visible to a script — one method, `exposeToScripts(String className)`.
 - The **options** are the same strings as the [command line](../reference/options.md).
-- The **[script libraries](../extending/script-libraries.md)** are bundles of globals and scripts installed into
-  every global the engine creates; the ones passed here join those discovered as services.
+- The **[script libraries](../extending/script-libraries.md)** are bundles of globals and scripts
+  installed into every global the engine creates. There is no discovery — a bare engine has none, so
+  the builder (or a deprecated factory overload) is the only way to add them.
+
+## The javax.script route, and its options
+
+`new ScriptEngineManager().getEngineByName("nashorn-monflabs")` (or `"js"`, `"JavaScript"`,
+`"ECMAScript"`) returns a working engine with the defaults — and **no way to pass options**: the
+JSR-223 lookup takes a name and nothing else. For evaluating scripts and nothing more, that is all
+you need.
+
+To pass an option while staying on the factory rather than the builder, `NashornScriptEngineFactory`
+has argument-taking `getScriptEngine` overloads that take the option strings directly:
+
+```java
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+
+ScriptEngine strict = new NashornScriptEngineFactory().getScriptEngine("-strict", "--no-java");
+```
+
+Those overloads (options, a class loader, a `ClassFilter`, libraries, in every combination) are
+**deprecated** in favour of the builder and kept only for compatibility — and note they still cannot
+register a **module loader**, which the builder alone can. So in practice: `getEngineByName` for the
+defaults, and `NashornScriptEngineBuilder` the moment you need an option, a library, or `import`. The
+plain no-argument `getScriptEngine()` and every `getEngineByName(...)` stay the JSR-223 entry points
+and give the defaults (the no-argument factory engine additionally sets `-doe`).
 
 !> The factory's no-argument engine has `-doe` (dump the Java stack on a script error) on; a
 builder starts without it — call `dumpStackOnError(true)` while developing if you want it.
