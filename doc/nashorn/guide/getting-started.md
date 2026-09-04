@@ -70,13 +70,19 @@ Nashorn-specific imports, and gives a working engine with the default configurat
 
 That engine is deliberately **bare**, though: the defaults, and — importantly — **no script
 libraries and no module loaders**. When a script needs more than the language itself, build the
-engine with the fork's own **`NashornScriptEngineBuilder`** instead. It is the only way to configure:
+engine with the fork's own **`NashornScriptEngineBuilder`** instead — the fluent, type-safe way to
+configure:
 
 - **engine [options](../reference/options.md)** — strict mode, sandboxing, the time zone, the debugger…;
 - **[script libraries](../extending/script-libraries.md)** — the `host` timers and `fetch`, or your
-  own values installed into every realm (there is no discovery, so these come *only* from the builder);
+  own values installed into every realm (there is no discovery, so a bare engine has none);
 - **[module loaders](../extending/module-loaders.md)** — resolving `import` to files, class-path
   resources, Java values, or the [Node modules](../libraries/node.md).
+
+`getEngineByName` configures none of these. Options *can* also be passed as raw `--option` strings
+(and libraries as varargs) to the deprecated `NashornScriptEngineFactory.getScriptEngine(...)`
+overloads — but the builder's typed methods are checked at compile time, and it alone can register a
+module loader.
 
 ```java
 import javax.script.ScriptEngine;

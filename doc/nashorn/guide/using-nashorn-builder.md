@@ -1,13 +1,19 @@
 # Using the engine: NashornScriptEngineBuilder
 
 `NashornScriptEngineBuilder` (`org.monflabs.nashorn.api.scripting`) is the fork's own way to create
-an engine, and the one to reach for as soon as a script needs more than the language itself. It is
-the **only** way to set three things the [`javax.script`](using-javax-script.md) lookup cannot:
+an engine, and the one to reach for as soon as a script needs more than the language itself. The
+plain [`getEngineByName`](using-javax-script.md) lookup gives a *bare* engine that can configure
+nothing; the builder is the type-safe way to set:
 
 - engine **[options](../reference/options.md)** — strict mode, sandboxing, the time zone, the debugger…;
 - **[script libraries](../extending/script-libraries.md)** — `fetch`, timers, or your own values
-  installed into every realm (there is no discovery, so these come *only* from the builder);
-- **[module loaders](../extending/module-loaders.md)** — where `import` resolves its specifiers.
+  installed into every realm (there is no discovery, so a bare engine has none);
+- **[module loaders](../extending/module-loaders.md)** — where `import` resolves its specifiers;
+  these the builder alone can register.
+
+Options and libraries can also be passed to the deprecated
+[factory overloads](#the-deprecated-factory-overloads) below, but as raw strings and varargs rather
+than checked methods.
 
 What it produces is an ordinary `javax.script.ScriptEngine`. So this page covers **building** the
 engine and using what the builder unlocks; for **running** scripts against it — `eval`, variables,

@@ -4,8 +4,10 @@ There are two entry points. The difference is what the engine can *do* — the A
 against afterwards is the same `javax.script` either way (see [Using the engine](using-javax-script.md)).
 
 - **`NashornScriptEngineBuilder`** (`org.monflabs.nashorn.api.scripting`) — the fork's own builder,
-  and the one to reach for. It is the **only** way to set options, class loading and filtering,
-  **[script libraries](../extending/script-libraries.md)** and **[module loaders](../extending/module-loaders.md)**.
+  and the one to reach for. It is the type-safe way to set options, class loading and filtering,
+  **[script libraries](../extending/script-libraries.md)** and **[module loaders](../extending/module-loaders.md)** —
+  and the only way to register a module loader. (Options, a loader, a filter and libraries can also
+  go to the deprecated factory overloads below, as raw strings and varargs.)
 - **`javax.script`** — `new ScriptEngineManager().getEngineByName("nashorn-monflabs")`, the standard
   JSR-223 lookup, for **simple script evaluation**. It returns a *bare* engine: the defaults, and no
   libraries or module loaders.

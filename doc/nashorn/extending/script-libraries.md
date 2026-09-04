@@ -197,9 +197,9 @@ Bindings other = engine.createBindings();
 engine.eval("print(typeof circumference)", other);       // function - every global has it
 ```
 
-`library(...)` takes any number, in the order they apply. It is the only way a library reaches the
-engine — there is no discovery and no option — so a bare engine has none. A later library replaces an
-earlier one of the same name.
+`library(...)` takes any number, in the order they apply. A library reaches the engine only by being
+handed in like this — there is no discovery and no option (the deprecated factory overloads aside), so
+a bare engine has none. A later library replaces an earlier one of the same name.
 
 ### No discovery — a library is just a class you pass
 
