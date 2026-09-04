@@ -49,7 +49,7 @@ public class JDK_8182996_Test {
 
     @BeforeClass
     public void setupTest() {
-        engine = new ScriptEngineManager().getEngineByName("js");
+        engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
         bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
 
         bindings.put("long1", 1L);

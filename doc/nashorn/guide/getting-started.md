@@ -37,10 +37,11 @@ rather than relying on discovery order.
 
 ## Hello, world
 
-The engine registers with `javax.script` under the names `nashorn-monflabs`, `js`, `JavaScript`
-and `ECMAScript` (each in both cases). It deliberately does **not** register as plain `nashorn` —
-just as the packages are renamed so the jars can coexist, the engine name is the fork's own so a
-lookup never resolves to the wrong engine when the official Nashorn library is also present:
+The engine registers with `javax.script` under only its own name — `nashorn-monflabs` (and the
+`Nashorn-Monflabs` casing). It deliberately does **not** register under the generic `js`,
+`JavaScript` or `ECMAScript`, nor under plain `nashorn` — so a `getEngineByName` lookup never
+resolves here by accident and never shadows another JavaScript engine on the path (the official
+Nashorn library included):
 
 ```java
 import javax.script.ScriptEngine;

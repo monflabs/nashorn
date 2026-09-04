@@ -30,6 +30,7 @@
 package org.monflabs.nashorn.api.scripting.test;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
@@ -149,20 +150,13 @@ public class ScriptEngineTest {
         final String str = fac.getMethodCallSyntax("obj", "foo", "x");
         assertEquals(str, "obj.foo(x)");
 
-        boolean seenNashorn = false, seenJavaScript = false, seenECMAScript = false;
-        for (final String name : fac.getNames()) {
-            switch (name) {
-                case "nashorn-monflabs": seenNashorn = true; break;
-                case "javascript": seenJavaScript = true; break;
-                case "ECMAScript": seenECMAScript = true; break;
-            default:
-                break;
-            }
-        }
-
-        assertTrue(seenNashorn);
-        assertTrue(seenJavaScript);
-        assertTrue(seenECMAScript);
+        // the engine registers ONLY under its own name, not the generic JS aliases
+        assertTrue(fac.getNames().contains("nashorn-monflabs"));
+        assertFalse(fac.getNames().contains("js"));
+        assertFalse(fac.getNames().contains("JavaScript"));
+        assertFalse(fac.getNames().contains("javascript"));
+        assertFalse(fac.getNames().contains("ECMAScript"));
+        assertFalse(fac.getNames().contains("nashorn"));
 
         boolean seenAppJS = false, seenAppECMA = false, seenTextJS = false, seenTextECMA = false;
         for (final String mime : fac.getMimeTypes()) {
@@ -251,7 +245,7 @@ public class ScriptEngineTest {
     @Test
     public void compileAndEvalInDiffContextTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine = m.getEngineByName("js");
+        final ScriptEngine engine = m.getEngineByName("nashorn-monflabs");
         final Compilable compilable = (Compilable) engine;
         final CompiledScript compiledScript = compilable.compile("foo");
         final ScriptContext ctxt = new SimpleScriptContext();

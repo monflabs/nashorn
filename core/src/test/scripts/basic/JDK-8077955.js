@@ -31,7 +31,7 @@
  */
 
 var m = new javax.script.ScriptEngineManager();
-var e = m.getEngineByName('js');
+var e = m.getEngineByName('nashorn-monflabs');
 
 // leave the whitespace - need both eval("e") at same column for this test!
 

@@ -52,9 +52,10 @@ else - the diagnostic switches, `--log`, the `--print-*` family - in its command
 
 ## The javax.script route, and its options
 
-`new ScriptEngineManager().getEngineByName("nashorn-monflabs")` (or `"js"`, `"JavaScript"`,
-`"ECMAScript"`) returns a working engine with the defaults — and **no way to pass options**: the
-JSR-223 lookup takes a name and nothing else. For evaluating scripts and nothing more, that is all
+`new ScriptEngineManager().getEngineByName("nashorn-monflabs")` returns a working engine with the
+defaults — and **no way to pass options**: the JSR-223 lookup takes a name and nothing else. (The
+name must be `nashorn-monflabs`; the engine does not answer to the generic `js`/`JavaScript`/
+`ECMAScript`.) For evaluating scripts and nothing more, that is all
 you need.
 
 To pass an option while staying on the factory rather than the builder, `NashornScriptEngineFactory`
@@ -136,12 +137,14 @@ tracing) that stay with `option(...)`.
 
 ## Engine metadata
 
-The factory answers the standard JSR-223 queries: names `nashorn-monflabs`/`Nashorn-Monflabs`,
-`js`/`JS`, `javascript`/`JavaScript`, `ecmascript`/`ECMAScript`; MIME types
-`application/javascript`, `application/ecmascript`, `text/javascript`, `text/ecmascript`;
-extension `js`. The engine deliberately does **not** answer to plain `nashorn`: that name belongs
-to the official Nashorn library, and keeping the two lookups distinct means an application with
-both on its class path always gets the engine it asked for. The
+The factory answers the standard JSR-223 queries: names `nashorn-monflabs`/`Nashorn-Monflabs` only;
+MIME types `application/javascript`, `application/ecmascript`, `text/javascript`, `text/ecmascript`;
+extension `js`. It deliberately does **not** register under the generic names `js`, `JavaScript` or
+`ECMAScript`, nor under plain `nashorn` — those belong to any JavaScript engine (and `nashorn` to
+the official library), so keeping this engine's name to its own means a `getEngineByName` lookup
+never resolves here by accident and an application with several engines always gets the one it asked
+for. (The MIME types and the `js` extension are unchanged, so `getEngineByMimeType`/`getEngineByExtension`
+still find it — only the *names* are restricted.) The
 `THREADING` parameter returns `null` — the engine makes no thread-safety promise; see
 [Threads and concurrency](concurrency.md).
 

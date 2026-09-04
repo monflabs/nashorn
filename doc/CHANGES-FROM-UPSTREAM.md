@@ -47,7 +47,7 @@ Deliberate exclusions (see CONFORMANCE.md): **proper tail calls** and **ECMA-402
 | Maven artifact | `org.openjdk.nashorn:nashorn-core` | `org.monflabs.nashorn:nashorn-core` |
 | Java packages | `org.openjdk.nashorn.*` | `org.monflabs.nashorn.*` |
 | JPMS module | `org.openjdk.nashorn` | `org.monflabs.nashorn` |
-| JSR-223 engine name | `nashorn` | `nashorn-monflabs` (aliases `js`/`JavaScript`/`ECMAScript` unchanged) |
+| JSR-223 engine name | `nashorn`, plus `js`/`JavaScript`/`ECMAScript` | `nashorn-monflabs` only (the generic `js`/`JavaScript`/`ECMAScript` names are not registered) |
 | Version scheme | JDK-derived `15.x` | ECMAScript-year semver, e.g. `2017.0.0` |
 
 The rename lets this artifact **coexist on one class or module path with an

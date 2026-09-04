@@ -44,7 +44,7 @@ public class JDK_8169050_Test {
 
     @BeforeClass
     public void setupTest() {
-        engine = new ScriptEngineManager().getEngineByName("js");
+        engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
     }
 
     @Test

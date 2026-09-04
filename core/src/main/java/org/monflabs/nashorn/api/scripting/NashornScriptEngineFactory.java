@@ -40,10 +40,10 @@ import org.monflabs.nashorn.internal.runtime.Version;
 /**
  * JSR-223 compliant script engine factory for Nashorn. The engine answers for:
  * <ul>
- * <li>names {@code "nashorn-monflabs"}, {@code "Nashorn-Monflabs"}, {@code "js"}, {@code "JS"}, {@code "JavaScript"},
- * {@code "javascript"}, {@code "ECMAScript"}, and {@code "ecmascript"} - the fork's own name rather
- * than plain {@code "nashorn"}, so that this engine and the official Nashorn library can be looked
- * up unambiguously when both are present;</li>
+ * <li>the names {@code "nashorn-monflabs"} and {@code "Nashorn-Monflabs"} - only the fork's own
+ * name, deliberately not the generic {@code "js"}, {@code "JavaScript"} or {@code "ECMAScript"} (nor
+ * plain {@code "nashorn"}), so a {@code getEngineByName} lookup never resolves here by accident and
+ * never shadows another JavaScript engine on the path;</li>
  * <li>MIME types {@code "application/javascript"}, {@code "application/ecmascript"}, {@code "text/javascript"}, and
  * {@code "text/ecmascript"};</li>
  * <li>as well as for the extension {@code "js"}.</li>
@@ -304,10 +304,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
     // -- Internals only below this point
 
     private static final List<String> names = List.of(
-        "nashorn-monflabs", "Nashorn-Monflabs",
-        "js", "JS",
-        "JavaScript", "javascript",
-        "ECMAScript", "ecmascript"
+        "nashorn-monflabs", "Nashorn-Monflabs"
     );
 
     private static final List<String> mimeTypes = List.of(
