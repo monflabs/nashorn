@@ -70,6 +70,14 @@ runtime, so opening `index.html` as a `file://` URL will not work. The equivalen
 python3 -m http.server 8000 --directory doc/nashorn
 ```
 
+If you have Node, the docsify CLI is nicer for editing — it serves on
+<http://localhost:3000/> **with livereload**, so the browser refreshes as you save (no more stale
+sidebar or hard reloads). From the repository root:
+
+```bash
+docsify serve doc/nashorn          # or, with nothing installed: npx docsify-cli serve doc/nashorn
+```
+
 ## Historical material
 
 The classic Oracle *Java Scripting Programmer's Guide* and the upstream `DEVELOPER_README` are
