@@ -26,12 +26,12 @@
 # vendored, so this runs fully offline.
 #
 # Usage:
-#   python/serve-docs.sh [port]      # default port 8000, or set PORT=...
+#   ./serve-docs.sh [port]      # default port 8000, or set PORT=...
 # then open the printed http://localhost:<port>/ ; Ctrl-C to stop.
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 DOCS="$ROOT/doc/nashorn"
 PORT="${1:-${PORT:-8000}}"
 
