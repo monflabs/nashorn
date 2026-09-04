@@ -22,7 +22,7 @@ var engine = new Builder()
                 ? ModuleClass.source('memory:virtual', "export const origin = 'an in-memory loader';")
                 : null;                                  // not mine: the chain moves on
         },
-        new ResourceModuleLoader(SampleLibrary.class, 'samples/03 - Nashorn extensions/18 - Module loaders'),
+        new ResourceModuleLoader(SampleLibrary.class, 'samples/05 - Nashorn extensions/18 - Module loaders'),
         new JavaModuleLoader().add('constants', { TAU: 2 * Math.PI, host: 'Nashorn' }))
     .build();
 

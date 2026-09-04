@@ -48,10 +48,10 @@ import org.testng.annotations.Test;
 public class SampleLibraryTest {
 
     @Test
-    public void theBundledLibraryHasTheFourCategoriesInOrder() throws IOException {
+    public void theBundledLibraryHasItsCategoriesInOrder() throws IOException {
         final SampleLibrary library = SampleLibrary.load();
         final List<String> categories = library.root().children().stream().map(SampleLibrary.Node::name).toList();
-        assertEquals(categories, List.of("Getting started", "ECMAScript support", "Nashorn extensions", "Standard libraries"));
+        assertEquals(categories, List.of("Getting started", "ECMAScript support", "Standard libraries", "Standard Packages", "Nashorn extensions"));
         assertTrue(library.samples().size() > 40, "samples: " + library.samples().size());
         final Sample first = library.samples().get(0);
         assertEquals(first.title(), "Hello");
@@ -62,11 +62,11 @@ public class SampleLibraryTest {
     @Test
     public void readmeTitleDirectivesAndSiblingFiles() throws IOException {
         final SampleLibrary library = SampleLibrary.load();
-        final Sample scripting = library.byId("03 - Nashorn extensions/14 - Scripting mode");
+        final Sample scripting = library.byId("05 - Nashorn extensions/14 - Scripting mode");
         assertNotNull(scripting);
         assertEquals(scripting.options(), List.of("-scripting"));
         assertEquals(scripting.title(), "Scripting mode");
-        final Sample load = library.byId("03 - Nashorn extensions/12 - load, __FILE__, __LINE__");
+        final Sample load = library.byId("05 - Nashorn extensions/12 - load, __FILE__, __LINE__");
         assertNotNull(load);
         assertEquals(load.files().keySet(), java.util.Set.of("helper.js"));
         assertTrue(load.readme().startsWith("# load"));

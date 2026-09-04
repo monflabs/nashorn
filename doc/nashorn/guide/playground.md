@@ -13,19 +13,21 @@ java -jar playground/target/nashorn-playground-2017.0.0-all.jar
 
 ## The samples
 
-The tree on the left holds three categories, read straight out of the jar's resources:
+The tree on the left holds five categories, read straight out of the jar's resources:
 
 * **Getting started** — `print` and `console`, values and types, functions and closures, the
   built-in objects, errors.
 * **ECMAScript support** — the ES2015, ES2016 and ES2017 feature sets, one sample per feature,
   plus an Annex B pair that is worth running twice: once as is, once with
   `// @option --annexB=false` as the first line.
+* **Standard libraries** — grouped by library: **host** (the event-loop functions — timers,
+  microtasks, Base64) and **fetch** (against public APIs: Open-Meteo weather, GitHub).
+* **Standard Packages** — the experimental Node-compatibility modules resolved by `nashorn-node`:
+  `fs`, `os` and `path`.
 * **Nashorn extensions** — `Java.type`, collections, `Java.extend` and `Java.super`,
   `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
   scripting mode, the JSR-223 engine driven from script, script libraries, module loaders, and a
   debugging sample.
-* **Standard libraries** — the host functions on the event loop: timers,
-  microtasks, Base64, and `fetch` against public APIs (Open-Meteo weather, GitHub).
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
 editor and console, sibling files appear as read-only editor tabs — and double as **modules**: the
