@@ -1,0 +1,17 @@
+/.idea
+target/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+
+# External benchmark and conformance suites, fetched with -Pfetch-externals
+/core/src/test/scripts/external/
+
+# Dropped by a Nashorn run when -Dnashorn.profilefile is in play
+NashornProfile.txt
+
+# heap dumps from -XX:+HeapDumpOnOutOfMemoryError in the test JVMs
+*.hprof
