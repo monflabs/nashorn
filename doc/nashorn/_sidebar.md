@@ -37,6 +37,7 @@
   - [Strings and type coercion](/internals/strings-and-types.md)
   - [SharedArrayBuffer and Atomics](/internals/atomics.md)
   - [Annex B](/internals/annex-b.md)
+  - [Non-standard functions](/internals/non-standard-functions.md)
   - [nasgen](/internals/nasgen.md)
   - [Regular expressions](/internals/regexp.md)
   - [The debugger](/internals/debugger.md)
