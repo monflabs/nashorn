@@ -56,12 +56,18 @@ globals beyond ECMAScript, `jjs`, logging and debugging switches, and the confor
 
 ## Viewing these docs
 
-The pages are plain markdown and read fine on GitHub. For the rendered site with search, serve the
-repository root and open the docs directory — everything is vendored, so no network is needed:
+The pages are plain markdown and read fine on GitHub. For the rendered site with search — everything
+is vendored, so no network is needed — run the helper from the repository root:
 
 ```bash
-python3 -m http.server 8000        # from the repository root
-# then open http://localhost:8000/doc/nashorn/
+./serve-docs.sh            # serves this site at http://localhost:8000/  (pass a port to change it)
+```
+
+Then open <http://localhost:8000/>. It is just a static file server: docsify fetches the markdown at
+runtime, so opening `index.html` as a `file://` URL will not work. The equivalent by hand is:
+
+```bash
+python3 -m http.server 8000 --directory doc/nashorn
 ```
 
 ## Historical material
