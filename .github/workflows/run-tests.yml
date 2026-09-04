@@ -53,8 +53,11 @@ jobs:
 
     # The ECMA-262 suite is not vendored; fetch it, then run it through
     # ParallelTestRunner. Was "ant get-test262" + "ant test262-parallel".
+    # nasgen must be in the reactor: generate-test-resources runs core's
+    # process-classes, which execs nasgen from buildtools/nasgen/target/classes;
+    # -pl core alone never builds it, so include it explicitly.
     - name: Fetch the ECMA-262 suite
-      run: mvn -B -Pfetch-externals -pl core generate-test-resources
+      run: mvn -B -Pfetch-externals -pl buildtools/nasgen,core generate-test-resources
 
     - name: Run ECMA-262 tests
       run: mvn -B -Ptest262 -DskipTests verify
@@ -97,9 +100,10 @@ jobs:
         fi
 
     # Only octane's pdfjs.js is wanted here, for the compile-time benchmark.
+    # Include nasgen: the fetch runs core's process-classes, which execs it.
     - name: Fetch the external suites
       if: steps.baseline.outputs.present == 'true'
-      run: mvn -B -Pfetch-externals -pl core generate-test-resources
+      run: mvn -B -Pfetch-externals -pl buildtools/nasgen,core generate-test-resources
 
     - name: Compare against the baseline
       if: steps.baseline.outputs.present == 'true'
