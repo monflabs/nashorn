@@ -25,7 +25,7 @@ ThreadLocal<ScriptEngine> engines = ThreadLocal.withInitial(
 
 **One engine, one realm per thread** — cheaper when scripts share compiled code. Compile once, then
 evaluate the `CompiledScript` against per-thread `Bindings`; each bindings object gets
-[its own global](using-the-engine.md#the-scope-model), so the *code* is shared but no mutable state
+[its own global](using-javax-script.md#the-scope-model), so the *code* is shared but no mutable state
 is:
 
 ```java

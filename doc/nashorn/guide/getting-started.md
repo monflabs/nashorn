@@ -92,7 +92,7 @@ engine.eval("setTimeout(() => print('tick'), 10)");      // needs the host libra
 ```
 
 `build()` returns an ordinary `javax.script.ScriptEngine`, so everything in
-[Using the engine](using-the-engine.md) works the same either way — the builder only decides *what
+[Using the engine](using-javax-script.md) works the same either way — the builder only decides *what
 the engine can do* before you run anything against it.
 
 **Rule of thumb:** `getEngineByName` for a quick eval; **`NashornScriptEngineBuilder` for anything
@@ -115,7 +115,9 @@ itself removed.
 ## Where next
 
 - [Creating the engine](engine-setup.md) — the builder, options, class filtering, script libraries.
-- [Using the engine](using-the-engine.md) — evaluating, invoking, bindings and scopes.
+- [Using the engine: javax.script](using-javax-script.md) — evaluating, invoking, bindings and scopes.
+- [Using the engine: the builder](using-nashorn-builder.md) — building a configured engine with
+  options, libraries and module loaders.
 - [Connecting with Java](connecting-with-java.md) — the `Java` object and everything interop.
 - Running scripts from the command line — [jjs and the shell](../reference/jjs.md).
 - Trying things out interactively — [the playground](playground.md), a sample browser built by the

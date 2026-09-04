@@ -1,7 +1,7 @@
 # Creating the engine
 
 There are two entry points. The difference is what the engine can *do* — the API you run scripts
-against afterwards is the same `javax.script` either way (see [Using the engine](using-the-engine.md)).
+against afterwards is the same `javax.script` either way (see [Using the engine](using-javax-script.md)).
 
 - **`NashornScriptEngineBuilder`** (`org.monflabs.nashorn.api.scripting`) — the fork's own builder,
   and the one to reach for. It is the **only** way to set options, class loading and filtering,
@@ -123,7 +123,7 @@ tracing) that stay with `option(...)`.
 | --- | --- | --- | --- |
 | `timeZone(TimeZone)` | `-timezone` | the JVM's | What `new Date()` and the local getters answer with. Pin it rather than inheriting the host's. |
 | `locale(Locale)` | `--locale` | the JVM's | What `toLocaleString` and its kin answer with. |
-| `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-the-engine.md#the-scope-model). |
+| `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-javax-script.md#the-scope-model). |
 | `library(libraries...)` | — | none | Which [script libraries](../extending/script-libraries.md) to install into every global. Contributed explicitly; a bare engine has none, including the standard `host` and `fetch`. |
 | `moduleLoader(loaders...)` | — | filesystem | Where `import` finds its modules: a [chain of loaders](../extending/module-loaders.md), first answer wins. Registering any loader replaces the default filesystem resolution. |
 

@@ -1,36 +1,27 @@
-# Using the engine
+# Using the engine: javax.script
 
-Everything on this page is plain `javax.script` — the engine implements `ScriptEngine`,
+This is the standard **JSR-223** path: ask `ScriptEngineManager` for the engine by name, then run
+scripts against it. Everything here is plain `javax.script` — the engine implements `ScriptEngine`,
 `Compilable` and `Invocable` — plus the Nashorn-specific types in
 `org.monflabs.nashorn.api.scripting` where the standard interfaces run out.
 
-## Getting an engine
+It is the right path for **simply evaluating scripts**. The moment a script needs an engine
+[option](../reference/options.md), a [script library](../extending/script-libraries.md) or `import`
+[module loaders](../extending/module-loaders.md), create the engine with the
+[**`NashornScriptEngineBuilder`**](using-nashorn-builder.md) instead — but a builder engine is an
+ordinary `ScriptEngine`, so once you have it, everything on this page works identically.
 
-The examples below take the engine as a given; there are two ways to create it, and the rest of the
-page is identical whichever you pick. The short `javax.script` way, for a plain eval:
+## Getting an engine
 
 ```java
 ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
 ```
 
-Or the **`NashornScriptEngineBuilder`**, which is what you want as soon as scripts need options,
-[script libraries](../extending/script-libraries.md) or `import`
-[module loaders](../extending/module-loaders.md) — none of which the bare `javax.script` engine has:
-
-```java
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
-import org.monflabs.nashorn.libs.FetchLibrary;
-import org.monflabs.nashorn.libs.HostLibrary;
-
-ScriptEngine engine = new NashornScriptEngineBuilder()
-        .library(new HostLibrary(), new FetchLibrary())     // fetch, timers, atob/btoa
-        .moduleLoader(new PathModuleLoader(scriptsDir))      // import resolves under scriptsDir
-        .build();
-```
-
-`build()` returns a `javax.script.ScriptEngine` like any other. Prefer the builder for real work;
-see [Creating the engine](engine-setup.md) for the whole story. The rest of this page uses whichever
-`engine` you built.
+The name must be `nashorn-monflabs` (or the `Nashorn-Monflabs` casing). The engine deliberately does
+**not** answer to the generic `js`, `JavaScript` or `ECMAScript`, nor to plain `nashorn` — see
+[Creating the engine](engine-setup.md#engine-metadata). The engine you get back is *bare*: the
+defaults, and no script libraries or module loaders. It carries `-doe` (dump the Java stack on a
+script error), which the builder leaves off.
 
 ## Evaluating scripts
 
@@ -140,7 +131,8 @@ engine.eval("print(x)", newContext);         // world — a different global
 ```
 
 The `--global-per-engine` option collapses the model: one global for the whole engine, whatever
-bindings are passed. Use it when you want JSR-223's bindings plumbing out of the picture.
+bindings are passed. Use it when you want JSR-223's bindings plumbing out of the picture. (It is set
+on the [builder](using-nashorn-builder.md), since it is an option.)
 
 ?> A fresh global per bindings is not free — each carries its own set of built-ins. Create bindings
 deliberately, reuse them, and prefer `CompiledScript` when running one script against many.
