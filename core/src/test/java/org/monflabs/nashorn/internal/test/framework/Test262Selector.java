@@ -189,9 +189,6 @@ public final class Test262Selector {
      * async-generator directories are.
      */
     private static final Set<String> LATER_FEATURES = Set.of(
-            // ES2018 template literal revision: an invalid escape in a tagged
-            // template is not an error, and the cooked value is undefined
-            "language/expressions/tagged-template/invalid-escape-sequences.js",
             // ES2019 Array.prototype.flat and flatMap
             "built-ins/Array/prototype/flat/call-with-boolean.js",
             "built-ins/Array/prototype/flat/not-a-constructor.js",

@@ -2029,6 +2029,33 @@ public class Lexer extends Scanner {
     }
 
     /**
+     * ES2018 template literal revision: the cooked value of a <em>tagged</em>
+     * template string part, or {@code null} (meaning the cooked value is
+     * {@code undefined}) when the part contains an invalid escape sequence.
+     *
+     * A tagged template tolerates an escape an untagged template rejects - the
+     * raw text is still available - so this catches the {@link ParserException}
+     * {@link #valueOfString} would throw and reports it as an absent cooked
+     * value instead. Untagged templates keep using the strict path and still
+     * fail on an invalid escape.
+     *
+     * @param token template string token
+     * @return the cooked string, or null if an escape made it invalid
+     */
+    public String valueOfTaggedTemplateString(final long token) {
+        final int start = Token.descPosition(token);
+        final int len   = Token.descLength(token);
+        final int savePosition = position;
+        try {
+            return valueOfString(start, len, true);
+        } catch (final ParserException e) {
+            return null;
+        } finally {
+            reset(savePosition);
+        }
+    }
+
+    /**
      * Get the raw string value of a template literal string part.
      *
      * @param token template string token

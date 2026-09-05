@@ -1,0 +1,7 @@
+cooked=undefined raw=\01
+cooked=undefined raw=\8
+cooked=undefined raw=\xg
+cooked=undefined raw=\u0g
+cooked=undefined raw=\u{g
+cooked=okA raw=okA
+untagged SyntaxError: true

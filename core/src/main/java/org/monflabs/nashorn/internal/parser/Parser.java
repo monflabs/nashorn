@@ -151,8 +151,10 @@ import org.monflabs.nashorn.internal.runtime.ParserException;
 import org.monflabs.nashorn.internal.runtime.RecompilableScriptFunctionData;
 import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
 import org.monflabs.nashorn.internal.runtime.ScriptFunctionData;
+import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.Source;
 import org.monflabs.nashorn.internal.runtime.Timing;
+import org.monflabs.nashorn.internal.runtime.Undefined;
 import org.monflabs.nashorn.internal.runtime.linker.NameCodec;
 import org.monflabs.nashorn.internal.runtime.logging.DebugLogger;
 import org.monflabs.nashorn.internal.runtime.logging.Loggable;
@@ -6305,10 +6307,16 @@ public class Parser extends AbstractParser implements Loggable {
     private void addTemplateLiteralString(final ArrayList<Expression> rawStrings, final ArrayList<Expression> cookedStrings) {
         final long stringToken = token;
         final String rawString = lexer.valueOfRawString(stringToken);
-        final String cookedString = (String) getValue();
+        // ES2018 template literal revision: in a tagged template an invalid
+        // escape does not fail the parse - the cooked value is undefined while
+        // the raw text is kept. (Untagged templates go through templateLiteral()
+        // and still reject an invalid escape.)
+        final String cookedString = lexer.valueOfTaggedTemplateString(stringToken);
         next();
         rawStrings.add(LiteralNode.newInstance(stringToken, finish, rawString));
-        cookedStrings.add(LiteralNode.newInstance(stringToken, finish, cookedString));
+        cookedStrings.add(cookedString == null
+                ? LiteralNode.newInstance(stringToken, finish, (Undefined) ScriptRuntime.UNDEFINED)
+                : LiteralNode.newInstance(stringToken, finish, cookedString));
     }
 
 
