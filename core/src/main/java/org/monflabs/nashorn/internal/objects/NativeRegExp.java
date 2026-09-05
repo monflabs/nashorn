@@ -549,16 +549,28 @@ public final class NativeRegExp extends ScriptObject {
                 captures[i] = capture == UNDEFINED ? UNDEFINED : JSType.toString(capture);
             }
 
+            // ES2018 21.2.5.8: the named-capture object, passed to a function
+            // replacement as its last argument and consulted for $<name>.
+            final Object namedCaptures = result.get("groups");
+
             final String replaced;
             if (callable) {
-                final Object[] arguments = new Object[captureCount + 3];
+                final boolean hasNamed = namedCaptures != UNDEFINED;
+                final Object[] arguments = new Object[captureCount + 3 + (hasNamed ? 1 : 0)];
                 arguments[0] = matched;
                 System.arraycopy(captures, 0, arguments, 1, captureCount);
                 arguments[captureCount + 1] = (double)position;
                 arguments[captureCount + 2] = str;
+                if (hasNamed) {
+                    arguments[captureCount + 3] = namedCaptures;
+                }
                 replaced = JSType.toString(ScriptRuntime.apply((ScriptFunction)replacement, UNDEFINED, arguments));
             } else {
-                replaced = getSubstitution(matched, str, position, captures, replaceText);
+                // ES2018 21.2.5.8: for a string replacement the named-capture
+                // value is coerced with ToObject (which throws for null), and
+                // $<name> reads a property of it.
+                final Object named = namedCaptures == UNDEFINED ? UNDEFINED : Global.toObject(namedCaptures);
+                replaced = getSubstitution(matched, str, position, captures, named, replaceText);
             }
 
             if (position >= nextSourcePosition) {
@@ -728,7 +740,7 @@ public final class NativeRegExp extends ScriptObject {
      * replacement string stand for.
      */
     private static String getSubstitution(final String matched, final String str, final int position,
-            final Object[] captures, final String replacement) {
+            final Object[] captures, final Object namedCaptures, final String replacement) {
         final StringBuilder sb = new StringBuilder();
         final int tail = position + matched.length();
 
@@ -743,6 +755,21 @@ public final class NativeRegExp extends ScriptObject {
             case '$' -> {
                 sb.append('$');
                 i++;
+            }
+            case '<' -> {
+                // ES2018 $<name>: only meaningful when the pattern has named
+                // groups; otherwise the sequence is literal.
+                final int close = namedCaptures == UNDEFINED ? -1 : replacement.indexOf('>', i + 2);
+                if (close < 0) {
+                    sb.append(c);
+                    break;
+                }
+                final String name = replacement.substring(i + 2, close);
+                final Object capture = ((ScriptObject)namedCaptures).get(name);
+                if (capture != UNDEFINED) {
+                    sb.append(JSType.toString(capture));
+                }
+                i = close;
             }
             case '&' -> {
                 sb.append(matched);
@@ -1188,9 +1215,29 @@ public final class NativeRegExp extends ScriptObject {
             writeLastIndex(matcher.end());
         }
 
-        final RegExpResult match = new RegExpResult(string, matcher.start(), groups(matcher));
+        final Object[] gs = groups(matcher);
+        final RegExpResult match = new RegExpResult(string, matcher.start(), gs, buildGroupObject(gs));
         globalObject.setLastRegExpResult(match);
         return match;
+    }
+
+    /**
+     * ES2018 {@code groups} object for a match: name to captured value (or
+     * undefined), with a null prototype (OrdinaryObjectCreate(null)). Returns
+     * undefined when the pattern declared no named groups.
+     */
+    private Object buildGroupObject(final Object[] numberedGroups) {
+        final java.util.Map<String, Integer> names = regexp.getGroupNames();
+        if (names.isEmpty()) {
+            return UNDEFINED;
+        }
+        final ScriptObject groups = globalObject.newObject();
+        groups.setProto(null);
+        for (final java.util.Map.Entry<String, Integer> e : names.entrySet()) {
+            final int idx = e.getValue();
+            groups.set(e.getKey(), idx >= 0 && idx < numberedGroups.length ? numberedGroups[idx] : UNDEFINED, 0);
+        }
+        return groups;
     }
 
     /**
@@ -1388,6 +1435,24 @@ public final class NativeRegExp extends ScriptObject {
                 } else if (nextChar == '\'') {
                     sb.append(text, matcher.end(), text.length());
                     cursor++;
+                } else if (nextChar == '<' && !regexp.getGroupNames().isEmpty()) {
+                    // ES2018 $<name>
+                    final int close = replacement.indexOf('>', cursor + 1);
+                    if (close < 0) {
+                        sb.append('$');
+                    } else {
+                        final Integer idx = regexp.getGroupNames().get(replacement.substring(cursor + 1, close));
+                        if (idx != null) {
+                            if (groups == null) {
+                                groups = groups(matcher);
+                            }
+                            if (groups[idx] != UNDEFINED) {
+                                sb.append((String) groups[idx]);
+                            }
+                        }
+                        // an unknown name (or a matched-but-empty group) contributes nothing
+                        cursor = close + 1;
+                    }
                 } else {
                     // unknown substitution or $n with n>m. skip.
                     sb.append('$');
@@ -1409,10 +1474,17 @@ public final class NativeRegExp extends ScriptObject {
 
     private String callReplaceValue(final MethodHandle invoker, final Object function, final Object self, final RegExpMatcher matcher, final String string) throws Throwable {
         final Object[] groups = groups(matcher);
-        final Object[] args   = Arrays.copyOf(groups, groups.length + 2);
+        // ES2018: a function replacement receives the named-capture object as
+        // its last argument when the pattern declares named groups.
+        final Object groupObject = buildGroupObject(groups);
+        final boolean hasNamed = groupObject != UNDEFINED;
+        final Object[] args   = Arrays.copyOf(groups, groups.length + 2 + (hasNamed ? 1 : 0));
 
         args[groups.length]     = matcher.start();
         args[groups.length + 1] = string;
+        if (hasNamed) {
+            args[groups.length + 2] = groupObject;
+        }
 
         return (String)invoker.invokeExact(function, self, args);
     }

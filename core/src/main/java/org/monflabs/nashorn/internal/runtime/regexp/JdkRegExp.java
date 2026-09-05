@@ -97,6 +97,7 @@ public class JdkRegExp extends RegExp {
                         : parsed.getJavaPattern();
                 this.pattern = Pattern.compile(javaPattern, intFlags);
                 this.groupsInNegativeLookahead = parsed.getGroupsInNegativeLookahead();
+                setGroupNames(parsed.getNamedGroups());
             }
         } catch (final PatternSyntaxException e2) {
             throwParserException("syntax", e2.getMessage());

@@ -36,6 +36,7 @@ public final class RegExpResult {
     final Object[] groups;
     final int      index;
     final String   input;
+    final Object   groupObject;
 
     /**
      * Constructor
@@ -45,9 +46,32 @@ public final class RegExpResult {
      * @param groups groups vector
      */
     public RegExpResult(final String input, final int index, final Object[] groups) {
-        this.input  = input;
-        this.index  = index;
-        this.groups = groups;
+        this(input, index, groups, org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED);
+    }
+
+    /**
+     * Constructor carrying the ES2018 named-group object.
+     *
+     * @param input       regexp input
+     * @param index       index of match
+     * @param groups      groups vector (by number)
+     * @param groupObject the named-group object, or {@code undefined} if the pattern has no names
+     */
+    public RegExpResult(final String input, final int index, final Object[] groups, final Object groupObject) {
+        this.input       = input;
+        this.index       = index;
+        this.groups      = groups;
+        this.groupObject = groupObject;
+    }
+
+    /**
+     * The ES2018 {@code groups} object for the match - name to captured value,
+     * or {@code undefined} if the pattern declared no named groups.
+     *
+     * @return the named-group object or undefined
+     */
+    public Object getGroupObject() {
+        return groupObject;
     }
 
     /**

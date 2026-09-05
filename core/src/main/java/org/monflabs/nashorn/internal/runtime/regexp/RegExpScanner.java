@@ -68,6 +68,24 @@ final class RegExpScanner extends Scanner {
     /** Are we currently inside a character class? */
     private boolean inCharClass = false;
 
+    /**
+     * ES2018 named capture groups: the (decoded) group name to its 1-based
+     * capture index, in source order. Empty unless the pattern uses {@code
+     * (?<name>...)}.
+     */
+    private final java.util.LinkedHashMap<String, Integer> namedGroups = new java.util.LinkedHashMap<>();
+
+    /**
+     * Every named group in the whole pattern to its 1-based capture index,
+     * computed up front so a {@code \k<name>} that references a group defined
+     * later resolves, and so {@code \k} is known to be a named backreference
+     * (ES2018) rather than, under Annex B, a legacy identity escape.
+     */
+    private final java.util.Map<String, Integer> namedGroupIndices;
+
+    /** Whether the whole pattern contains at least one named group. */
+    private final boolean hasNamedGroups;
+
     /** Are we currently inside a negated character class? */
     private boolean inNegativeClass = false;
 
@@ -128,10 +146,166 @@ final class RegExpScanner extends Scanner {
         super(string);
         this.unicode = unicode;
         this.annexB = annexB;
+        this.namedGroupIndices = collectNamedGroups(string);
+        this.hasNamedGroups = !namedGroupIndices.isEmpty();
         sb = new StringBuilder(limit);
         reset(0);
         expected.put(']', 0);
         expected.put('}', 0);
+    }
+
+    /**
+     * Pre-scan the whole pattern for its named groups, mapping each (decoded)
+     * name to its 1-based capture index. Capturing groups are counted in source
+     * order - a plain {@code (} and a named {@code (?<name>} each take an index,
+     * while {@code (?:}, lookahead and lookbehind do not. Escapes and character
+     * classes are respected. The main scan validates the names; this only needs
+     * name -> index so that a forward {@code \k<name>} resolves.
+     */
+    private static java.util.Map<String, Integer> collectNamedGroups(final String s) {
+        final java.util.LinkedHashMap<String, Integer> map = new java.util.LinkedHashMap<>();
+        int index = 0;
+        boolean escaped = false;
+        boolean inClass = false;
+        int i = 0;
+        while (i < s.length()) {
+            final char c = s.charAt(i);
+            if (escaped) {
+                escaped = false;
+                i++;
+            } else if (c == '\\') {
+                escaped = true;
+                i++;
+            } else if (inClass) {
+                if (c == ']') {
+                    inClass = false;
+                }
+                i++;
+            } else if (c == '[') {
+                inClass = true;
+                i++;
+            } else if (c == '(') {
+                if (i + 1 < s.length() && s.charAt(i + 1) == '?') {
+                    final char c2 = i + 2 < s.length() ? s.charAt(i + 2) : '\0';
+                    final char c3 = i + 3 < s.length() ? s.charAt(i + 3) : '\0';
+                    if (c2 == '<' && c3 != '=' && c3 != '!') {
+                        // (?<name> - a capturing group; read the name
+                        index++;
+                        final StringBuilder name = new StringBuilder();
+                        int j = i + 3;
+                        while (j < s.length() && s.charAt(j) != '>') {
+                            if (s.charAt(j) == '\\' && j + 1 < s.length() && s.charAt(j + 1) == 'u') {
+                                j += 2;
+                                if (j < s.length() && s.charAt(j) == '{') {
+                                    j++;
+                                    int v = 0;
+                                    while (j < s.length() && Character.digit(s.charAt(j), 16) != -1) {
+                                        v = (v << 4) | Character.digit(s.charAt(j), 16);
+                                        j++;
+                                    }
+                                    if (j < s.length() && s.charAt(j) == '}') {
+                                        j++;
+                                    }
+                                    name.appendCodePoint(v);
+                                } else {
+                                    int v = 0;
+                                    for (int k = 0; k < 4 && j < s.length() && Character.digit(s.charAt(j), 16) != -1; k++) {
+                                        v = (v << 4) | Character.digit(s.charAt(j), 16);
+                                        j++;
+                                    }
+                                    name.appendCodePoint(v);
+                                }
+                            } else {
+                                name.append(s.charAt(j));
+                                j++;
+                            }
+                        }
+                        map.putIfAbsent(name.toString(), index);
+                        i = j; // at '>' or end
+                    }
+                    // (?:, (?=, (?!, (?<=, (?<! are non-capturing
+                    i++;
+                } else {
+                    index++; // plain capturing group
+                    i++;
+                }
+            } else {
+                i++;
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Read a RegExpIdentifierName up to the closing {@code >} (which is
+     * consumed), decoding {@code \\u} escapes so that {@code (?<\\u0061>)} and
+     * {@code (?<a>)} are the same name. The name is validated as a
+     * RegExpIdentifierName. The decoded name is returned.
+     */
+    private String scanGroupName() {
+        final StringBuilder name = new StringBuilder();
+        while (!atEOF() && ch0 != '>') {
+            if (ch0 == '\\' && ch1 == 'u') {
+                skip(2);
+                final int cp;
+                if (ch0 == '{') {
+                    skip(1);
+                    int v = 0;
+                    boolean any = false;
+                    while (isHexDigit(ch0)) {
+                        v = (v << 4) | Character.digit(ch0, 16);
+                        any = true;
+                        skip(1);
+                    }
+                    if (!any || ch0 != '}' || v > Character.MAX_CODE_POINT) {
+                        throw new RuntimeException("Invalid group name");
+                    }
+                    skip(1);
+                    cp = v;
+                } else {
+                    int v = 0;
+                    for (int i = 0; i < 4; i++) {
+                        if (!isHexDigit(ch0)) {
+                            throw new RuntimeException("Invalid group name");
+                        }
+                        v = (v << 4) | Character.digit(ch0, 16);
+                        skip(1);
+                    }
+                    cp = v;
+                }
+                name.appendCodePoint(cp);
+            } else {
+                name.appendCodePoint(Character.codePointAt(new char[] { ch0, ch1 }, 0));
+                skip(Character.isHighSurrogate(ch0) && Character.isLowSurrogate(ch1) ? 2 : 1);
+            }
+        }
+        if (ch0 != '>' || name.length() == 0) {
+            throw new RuntimeException("Invalid or empty group name");
+        }
+        skip(1); // consume '>'
+        final String result = name.toString();
+        validateGroupName(result);
+        return result;
+    }
+
+    /**
+     * A RegExpIdentifierName: the first code point is an IdentifierStart (or
+     * {@code $}/{@code _}), the rest IdentifierPart (or {@code $}/{@code _} or a
+     * zero-width joiner). Anything else is a syntax error.
+     */
+    private static void validateGroupName(final String name) {
+        final int first = name.codePointAt(0);
+        if (!(first == '$' || first == '_' || Character.isUnicodeIdentifierStart(first))) {
+            throw new RuntimeException("Invalid group name start: " + name);
+        }
+        int i = Character.charCount(first);
+        while (i < name.length()) {
+            final int cp = name.codePointAt(i);
+            if (!(cp == '$' || cp == '_' || cp == 0x200C || cp == 0x200D || Character.isUnicodeIdentifierPart(cp))) {
+                throw new RuntimeException("Invalid group name character: " + name);
+            }
+            i += Character.charCount(cp);
+        }
     }
 
     private void processForwardReferences() {
@@ -199,6 +373,16 @@ final class RegExpScanner extends Scanner {
         }
 
         return scanner;
+    }
+
+    /**
+     * The ES2018 named capture groups of this pattern: the (decoded) group name
+     * to its 1-based capture index, in source order. Empty if there are none.
+     *
+     * @return the named-group map
+     */
+    java.util.Map<String, Integer> getNamedGroups() {
+        return namedGroups;
     }
 
     final StringBuilder getStringBuilder() {
@@ -360,6 +544,17 @@ final class RegExpScanner extends Scanner {
 
         case '(':
             if (ch1 != '?') {
+                break;
+            }
+            // ES2018 lookbehind: (?<=...) and (?<!...). Both JDK and Joni accept
+            // the syntax verbatim; a lookbehind is not a QuantifiableAssertion.
+            if (ch2 == '<' && (ch3 == '=' || ch3 == '!')) {
+                commit(3); // (?<
+                commit(1); // = or !
+                disjunction();
+                if (ch0 == ')') {
+                    return commit(1);
+                }
                 break;
             }
             if (ch2 != '=' && ch2 != '!') {
@@ -524,6 +719,30 @@ final class RegExpScanner extends Scanner {
         }
 
         if (ch0 == '(') {
+            // ES2018 named capture group (?<name>...). Lookbehind (?<=/(?<! is
+            // handled in assertion() before we get here. The ES name may be
+            // anything JDK's group-name grammar is not, so emit a mangled name
+            // and record the ES name -> index for the .groups object.
+            if (ch1 == '?' && ch2 == '<' && ch3 != '=' && ch3 != '!') {
+                skip(3); // (?<
+                final String name = scanGroupName();
+                caps.add(new Capture(negLookaheadGroup, negLookaheadLevel));
+                if (namedGroups.putIfAbsent(name, caps.size()) != null) {
+                    throw new RuntimeException("Duplicate capture group name: " + name);
+                }
+                // Emit a plain numbered capture: .groups is built from the
+                // name -> index map, and \k<name> is emitted as a numbered
+                // backreference - so the backend never sees an ES group name
+                // (JDK's name grammar is narrower) and forward references work.
+                sb.append('(');
+                disjunction();
+                if (ch0 == ')') {
+                    return commit(1);
+                }
+                restart(startIn, startOut);
+                return false;
+            }
+
             commit(1);
             if (ch0 == '?' && ch1 == ':') {
                 commit(2);
@@ -604,8 +823,46 @@ final class RegExpScanner extends Scanner {
      *      CharacterClassEscape
      */
     private boolean atomEscape() {
-        // Note that contrary to ES 5.1 spec we put identityEscape() last because it acts as a catch-all
-        return decimalEscape() || characterClassEscape() || characterEscape() || identityEscape();
+        // Note that contrary to ES 5.1 spec we put identityEscape() last because it acts as a catch-all.
+        // namedBackReference() sits before it so a \k<name> is not eaten as a literal k.
+        return decimalEscape() || characterClassEscape() || characterEscape() || namedBackReference() || identityEscape();
+    }
+
+    /**
+     * ES2018 named backreference {@code \k<name>}. The backslash has already
+     * been emitted by the caller, so {@code ch0} is {@code k}. Only a pattern
+     * that contains a named group treats {@code \k} this way; otherwise it is a
+     * legacy identity escape (Annex B) and this returns false.
+     */
+    private boolean namedBackReference() {
+        if (!hasNamedGroups || ch0 != 'k') {
+            return false;
+        }
+        if (ch1 != '<') {
+            throw new RuntimeException("\\k not followed by a group name");
+        }
+        skip(2); // k<
+        final String name = scanGroupName();
+        final Integer indexObj = namedGroupIndices.get(name);
+        if (indexObj == null) {
+            throw new RuntimeException("Reference to undefined group name " + name);
+        }
+        // The backslash is already emitted by the caller. Emit a numbered
+        // backreference, following decimalEscape() exactly: a forward reference
+        // (or one to a capture in a negative lookahead) is always undefined, so
+        // it is omitted from the output and matches empty.
+        final int index = indexObj;
+        if (index <= caps.size()) {
+            final Capture capture = caps.get(index - 1);
+            if (!capture.canBeReferencedFrom(negLookaheadGroup, negLookaheadLevel)) {
+                sb.setLength(sb.length() - 1);
+            } else {
+                sb.append(index);
+            }
+        } else {
+            sb.setLength(sb.length() - 1);
+        }
+        return true;
     }
 
     /*

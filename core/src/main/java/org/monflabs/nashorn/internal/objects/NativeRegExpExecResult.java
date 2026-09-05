@@ -54,6 +54,10 @@ public final class NativeRegExpExecResult extends ScriptObject {
     @Property
     public Object input;
 
+    /** ES2018 named-capture-groups property */
+    @Property
+    public Object groups;
+
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
@@ -63,6 +67,7 @@ public final class NativeRegExpExecResult extends ScriptObject {
         this.setArray(ArrayData.allocate(result.getGroups().clone()));
         this.index = result.getIndex();
         this.input = result.getInput();
+        this.groups = result.getGroupObject();
     }
 
     @Override

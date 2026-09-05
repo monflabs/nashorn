@@ -98,6 +98,41 @@ public class RegExpFactory {
     }
 
     /**
+     * Whether a pattern uses ES2018 syntax the bundled Joni engine's JAVASCRIPT
+     * flavour does not have - named groups / lookbehind ({@code (?<...}) and
+     * named backreferences ({@code \k<...}) - and so must be compiled with the
+     * JDK engine. Backslashes and character classes are respected so a literal
+     * {@code (?<} inside {@code [...]} or after {@code \} is not mistaken for one.
+     */
+    private static boolean usesJdkOnlySyntax(final String pattern) {
+        if (pattern == null) {
+            return false;
+        }
+        boolean escaped = false;
+        boolean inClass = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            final char c = pattern.charAt(i);
+            if (escaped) {
+                if (c == 'k' && !inClass && i + 1 < pattern.length() && pattern.charAt(i + 1) == '<') {
+                    return true; // \k<name>
+                }
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (inClass) {
+                if (c == ']') {
+                    inClass = false;
+                }
+            } else if (c == '[') {
+                inClass = true;
+            } else if (c == '(' && i + 2 < pattern.length() && pattern.charAt(i + 1) == '?' && pattern.charAt(i + 2) == '<') {
+                return true; // (?<name>, (?<=, (?<!
+            }
+        }
+        return false;
+    }
+
+    /**
      * Compile a regexp with the given {@code source} and {@code flags}.
      *
      * @param pattern RegExp pattern string
@@ -117,7 +152,11 @@ public class RegExpFactory {
             // cross the surrogate boundary, and case folding is the full Unicode
             // one. The JDK's engine is code point based, so a unicode pattern is
             // compiled with it whatever the configured factory is.
-            regexp = flags != null && flags.indexOf('u') >= 0
+            // The bundled Joni uses the ES5-era JAVASCRIPT syntax, which has no
+            // named groups or lookbehind; the JDK engine has both. So an ES2018
+            // pattern that uses them is compiled with the JDK engine too - the
+            // scanner emits JDK-compatible syntax for those constructs.
+            regexp = (flags != null && flags.indexOf('u') >= 0) || usesJdkOnlySyntax(pattern)
                     ? new JdkRegExp(pattern, flags)
                     : instance.compile(pattern, flags);
             REGEXP_CACHE.put(key, regexp);

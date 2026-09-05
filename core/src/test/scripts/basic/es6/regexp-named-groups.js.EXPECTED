@@ -1,0 +1,11 @@
+groups: 2024 01 15
+null proto: true
+no groups: undefined
+backref: true false
+forward: ["bab","b"]
+unicode name: a
+replace: 15/01/2024
+lookbehind: 5
+neg lookbehind: a#b#
+dup: true
+badname: true

@@ -65,6 +65,9 @@ public abstract class RegExp {
     /** BitVector that keeps track of groups in negative lookahead */
     protected BitVector groupsInNegativeLookahead;
 
+    /** ES2018 named capture groups: name to 1-based index, in source order; empty if none. */
+    private java.util.Map<String, Integer> groupNames = java.util.Collections.emptyMap();
+
     /**
      * Constructor.
      *
@@ -200,6 +203,27 @@ public abstract class RegExp {
      */
     public BitVector getGroupsInNegativeLookahead() {
         return groupsInNegativeLookahead;
+    }
+
+    /**
+     * The ES2018 named capture groups of this regexp: group name to its 1-based
+     * capture index, in source order. Empty when the pattern has none.
+     *
+     * @return the named-group map
+     */
+    public java.util.Map<String, Integer> getGroupNames() {
+        return groupNames;
+    }
+
+    /**
+     * Record the named capture groups discovered while scanning the pattern.
+     *
+     * @param groupNames name to 1-based index
+     */
+    protected void setGroupNames(final java.util.Map<String, Integer> groupNames) {
+        if (groupNames != null && !groupNames.isEmpty()) {
+            this.groupNames = groupNames;
+        }
     }
 
     /**
