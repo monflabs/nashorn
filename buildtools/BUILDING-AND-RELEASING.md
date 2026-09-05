@@ -41,9 +41,9 @@ library POMs declare it as their `<parent>` — leave it in the published set.
 ## Setting a new version number
 
 The version uses **semantic versioning with a twist: the major number is the
-ECMAScript specification year the engine implements** (so `2017.0.0` targets
-ECMAScript 2017). Bump the **major** only when adopting a later edition (e.g.
-`2018.0.0`); bump **minor**/**patch** for backward-compatible features and fixes
+ECMAScript specification year the engine implements** (so `2018.0.0` targets
+ECMAScript 2018). Bump the **major** only when adopting a later edition (e.g.
+`2019.0.0`); bump **minor**/**patch** for backward-compatible features and fixes
 within the same edition. Never publish a `-SNAPSHOT`.
 
 The version lives in three kinds of place. Change all three:

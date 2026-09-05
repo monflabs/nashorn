@@ -69,6 +69,24 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2018.0.0 (2026.09.05)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2018 (ECMA-262, 9th edition).** Everything the 2017 release implemented is unchanged; ES2018 is added on top, and the `tc39/test262` slice is retargeted to the 9th edition.
+
+`   ` `           ` **Object rest and spread.** `{ ...source }` in an object literal copies a source's own enumerable properties (string- and symbol-keyed), and `const { a, ...rest } = o` gathers the remainder in destructuring. The non-spread object-literal path is byte-for-byte unchanged, so the `properties` benchmark does not move.
+
+`   ` `           ` **Async iteration.** `async function*` is now a distinct function kind - an async generator that may both `yield` and `await` - whose `next`/`return`/`throw` return promises, driven by a new `AsyncGeneratorSupport` that fuses the generator handoff with the async promise driver on one virtual thread. `for await (x of source)` consumes an async iterator, adapting a synchronous iterable through `%AsyncFromSyncIteratorPrototype%`; `yield*` delegates over an async iterable; and `Symbol.asyncIterator` is registered, with `%AsyncIteratorPrototype%` the shared parent of the async-generator and async-from-sync prototypes. The existing generator and async paths are untouched.
+
+`   ` `           ` **`Promise.prototype.finally`** was already present and is now part of the claimed edition.
+
+`   ` `           ` **Template literal revision.** An invalid escape sequence in a *tagged* template no longer throws a `SyntaxError`: that element's cooked value becomes `undefined` while `raw` keeps the text, so a tag may define its own escape language. An untagged template still throws.
+
+`   ` `           ` **RegExp: `s`, named groups, lookbehind, property escapes.** The `s` (dotAll) flag makes `.` match line terminators (`re.dotAll`, in `flags`). Named capture groups - `(?<name>…)`, `\k<name>`, the `.groups` object on a match, and `$<name>` in `replace()` - are collected at scan time and threaded through whichever backend compiles the pattern. Lookbehind assertions `(?<=…)`/`(?<!…)` pass through. Unicode property escapes `\p{…}`/`\P{…}` under `/u` translate the ES property names and aliases (General_Category, Script) to the JDK engine. Two substrate limits are documented rather than worked around: patterns neither backend can compile with ES semantics (unbounded lookbehind, open-group backreferences, a subclassable `exec`), and the `\p{…}` binary properties and `Script_Extensions`, which need a bundled Unicode Character Database the JDK does not expose.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the ES2017→ES2018 boundary: the async-generator directories are back in scope, the ES2018 feature tags are recognised, and the RegExp substrate limits and the exhaustive property-escape data (keyed to a Unicode newer than the JDK's) are held out with recorded reasons. Of the 58,805 selected executions, 126 fail in two settled groups named in the expectations file: the 8 Annex B eval-scope cases carried over from 2017, and 118 ES2018 async-iteration edge cases (iterator-close on an abrupt `for await`, the `%AsyncGeneratorFunction%` intrinsic, the async-from-sync adaptor's exact `return`/`throw` semantics, and a few early errors). `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the internals notes (a new async-iteration section, ES2018 RegExp notes), the conformance document and the change-from-upstream summary are updated for the 9th edition, and the playground gains an `ES2018` sample category - one runnable sample per feature - run headlessly by the build like the rest.
+
 2017.0.0 (2026.09.03)
 ---------------------
 `   ` `           ` **Build system replaced: Ant is gone, the project now builds with Maven.** The sources moved to the standard Maven layout under a three-module reactor (`buildtools/nasgen`, `core`, `shell`), and the leftover in-JDK make files (`make/*.gmk`, `make/data/symbols`) and jtreg trees (`test/jdk`, `test/hotspot`) — unused since Nashorn was extracted from the JDK — were removed. See README.md for the new commands.
