@@ -5039,6 +5039,10 @@ public class Parser extends AbstractParser implements Loggable {
                     } finally {
                         defaultNames.pop();
                     }
+                    // yield/await in a default initializer is an early error, the
+                    // same as in an arrow's parameters (the current function is
+                    // still on the lexical context here)
+                    verifyNoYieldOrAwaitInParameters(initializer, false);
 
                     final ParserContextFunctionNode currentFunction = lc.getCurrentFunction();
                     if (currentFunction != null) {
@@ -5077,6 +5081,7 @@ public class Parser extends AbstractParser implements Loggable {
 
                     // binding pattern with initializer. desugar to: (param === undefined) ? initializer : param
                     final Expression initializer = assignmentExpression(false);
+                    verifyNoYieldOrAwaitInParameters(initializer, false);
 
                     if (env._parse_only) {
                         // we don't want the synthetic identifier in parse only mode
@@ -5992,25 +5997,40 @@ public class Parser extends AbstractParser implements Loggable {
      * the one it is written in.
      */
     private void verifyNoYieldInParameters(final Expression paramListExpr) {
+        verifyNoYieldOrAwaitInParameters(paramListExpr, true);
+    }
+
+    /**
+     * A yield in a generator's parameters, or an await in an async function's,
+     * is an early SyntaxError (ES2015 14.1.19 / ES2017 14.7.1) - and the same in
+     * an async generator's, which is both. This serves two callers: the arrow
+     * path, whose whole parameter list was read as a parenthesized expression
+     * before the arrow turned up ({@code arrow} true, arrow-specific messages);
+     * and the non-arrow path, which checks each default-parameter initializer as
+     * it is parsed ({@code arrow} false), with the current function still on the
+     * lexical context so {@link #insideGenerator()}/{@link #inAsyncFunction()}
+     * name it and not its encloser.
+     */
+    private void verifyNoYieldOrAwaitInParameters(final Expression paramExpr, final boolean arrow) {
         final boolean generator = insideGenerator();
         final boolean async = inAsyncFunction();
-        if (paramListExpr == null || !generator && !async) {
+        if (paramExpr == null || !generator && !async) {
             return;
         }
-        paramListExpr.accept(new NodeVisitor<>(new LexicalContext()) {
+        paramExpr.accept(new NodeVisitor<>(new LexicalContext()) {
             @Override
             public boolean enterFunctionNode(final FunctionNode functionNode) {
-                // a function written in a parameter has a yield of its own
+                // a function written in a parameter has a yield/await of its own
                 return false;
             }
 
             @Override
             public boolean enterUnaryNode(final UnaryNode unaryNode) {
                 if (generator && (unaryNode.isTokenType(YIELD) || unaryNode.isTokenType(YIELD_STAR))) {
-                    throw error(AbstractParser.message("yield.in.arrow.parameters"), unaryNode.getToken());
+                    throw error(AbstractParser.message(arrow ? "yield.in.arrow.parameters" : "yield.in.parameters"), unaryNode.getToken());
                 }
                 if (async && unaryNode.isTokenType(TokenType.AWAIT)) {
-                    throw error(AbstractParser.message("await.in.arrow.parameters"), unaryNode.getToken());
+                    throw error(AbstractParser.message(arrow ? "await.in.arrow.parameters" : "await.in.parameters"), unaryNode.getToken());
                 }
                 return true;
             }
