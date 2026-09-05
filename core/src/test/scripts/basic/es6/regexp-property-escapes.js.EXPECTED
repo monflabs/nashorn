@@ -1,0 +1,11 @@
+gc L: ok
+gc long name: ok
+gc=code: ok
+General_Category=long: ok
+script: ok
+script alias: ok
+negated: ok
+in class: ok
+no u -> literal: ok
+loose rejected: ok
+scx unsupported: ok

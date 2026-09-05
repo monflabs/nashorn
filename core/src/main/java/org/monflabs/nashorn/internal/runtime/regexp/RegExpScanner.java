@@ -1203,9 +1203,46 @@ final class RegExpScanner extends Scanner {
         case 'W':
             return commit(1);
 
+        case 'p':
+        case 'P':
+            // ES2018 Unicode property escapes \p{...} / \P{...}, only under the
+            // unicode flag (without it the web grammar reads \p as a literal p).
+            if (unicode) {
+                return unicodePropertyEscape();
+            }
+            return false;
+
         default:
             return false;
         }
+    }
+
+    /**
+     * ES2018 21.2.2.7 \p{...}/\P{...}. The backslash is already emitted; ch0 is
+     * {@code p} or {@code P}. The ES property (a General_Category or Script
+     * value, or a binary property name, with their aliases) is translated to the
+     * form the JDK engine - which a unicode pattern always uses - accepts.
+     */
+    private boolean unicodePropertyEscape() {
+        final boolean negated = ch0 == 'P';
+        skip(1); // p or P
+        if (ch0 != '{') {
+            throw new RuntimeException("\\" + (negated ? 'P' : 'p') + " not followed by a property");
+        }
+        skip(1); // {
+        final StringBuilder raw = new StringBuilder();
+        while (!atEOF() && ch0 != '}') {
+            raw.append(ch0);
+            skip(1);
+        }
+        if (ch0 != '}') {
+            throw new RuntimeException("Unterminated \\p{...}");
+        }
+        skip(1); // }
+        final String jdk = UnicodeProperty.toJavaProperty(raw.toString());
+        // sb already holds the leading backslash
+        sb.append(negated ? 'P' : 'p').append('{').append(jdk).append('}');
+        return true;
     }
 
     /*

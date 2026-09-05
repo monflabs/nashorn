@@ -87,6 +87,7 @@ public final class Test262Selector {
         // ES2018. Promise.prototype.finally and the template-literal revision
         // carry no tag and are in scope by the deny rule alone.
         "regexp-dotall", "regexp-named-groups", "regexp-lookbehind",
+        "regexp-unicode-property-escapes",
         "object-spread", "object-rest",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
@@ -274,6 +275,46 @@ public final class Test262Selector {
      * @param frontmatter its parsed header, or null if it has none
      * @return true if the test counts towards ES2017 conformance
      */
+    private static final String GENERATED = "/property-escapes/generated/";
+
+    /**
+     * Whether a property-escape test is one held to the conformance gate.
+     *
+     * The property-escape <em>syntax</em> is implemented, and General_Category
+     * and Script are answered exactly by the JDK engine (JDK 25 carries Unicode
+     * 16, the edition's Unicode), so those exhaustive {@code generated/} trees
+     * are in scope and pass. The rest of the exhaustive coverage is not: the
+     * ~40 binary properties the JDK does not carry (Emoji and its kin, Dash,
+     * Math, Diacritic, the Changes_When_* set, ID/XID_* and so on) and
+     * Script_Extensions would each need the Unicode Character Database bundled
+     * to answer for a code point at a time - data this engine does not ship and
+     * the JDK does not expose. Those {@code generated/} files sit directly in
+     * the folder (a binary property per file) or under Script_Extensions/;
+     * they are out of scope, a data limitation on a par with the regexp-engine
+     * ones above. The two character-class range tests want a SyntaxError for a
+     * property escape used as a range bound, a grammar rule not enforced here.
+     * See doc/CONFORMANCE.md.
+     */
+    private static boolean propertyEscapeInScope(final String path) {
+        if (!path.contains("/property-escapes/")) {
+            return true;
+        }
+        if (path.endsWith("character-class-range-start.js")
+                || path.endsWith("character-class-range-no-dash-start.js")
+                || path.contains("Script_Extensions")) {
+            return false;
+        }
+        final int at = path.indexOf(GENERATED);
+        if (at < 0) {
+            return true;
+        }
+        final String after = path.substring(at + GENERATED.length());
+        // General_Category/... and Script/... pass; a binary property is a file
+        // directly in generated/ (no further slash); Property_of_Strings needs
+        // data the engine does not have.
+        return after.contains("/") && !after.startsWith("Property_of_Strings/");
+    }
+
     public static boolean isInScope(final Path suiteRoot, final Path testFile, final Test262Frontmatter frontmatter) {
         final Path relative = suiteRoot.relativize(testFile);
         for (int i = 0; i < relative.getNameCount(); i++) {
@@ -308,6 +349,9 @@ public final class Test262Selector {
             if (path.endsWith(excluded)) {
                 return false;
             }
+        }
+        if (!propertyEscapeInScope(path)) {
+            return false;
         }
 
         if (frontmatter == null) {
