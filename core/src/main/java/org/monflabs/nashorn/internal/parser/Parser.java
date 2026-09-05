@@ -2592,10 +2592,14 @@ public class Parser extends AbstractParser implements Loggable {
                         if (headType == LET) {
                             throw error(AbstractParser.message("let.binding.for"), headToken);
                         }
-                        if (headIsAsync && init instanceof IdentNode ident
+                        if (!forAwait && headIsAsync && init instanceof IdentNode ident
                                 && ASYNC_NAME.equals(ident.getName())) {
                             // only the bare word: "for (async.x of ...)" is a
-                            // member expression and means what it says
+                            // member expression and means what it says. The
+                            // restriction is a sync for-of's alone (13.7.5): a
+                            // "for await (async of ...)" wants async as its
+                            // binding and there is no "for await (async =>...)"
+                            // to be ambiguous with
                             throw error(AbstractParser.message("expected.stmt", "async of"), headToken);
                         }
                     }
