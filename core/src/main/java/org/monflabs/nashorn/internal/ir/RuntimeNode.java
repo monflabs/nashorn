@@ -103,6 +103,12 @@ public class RuntimeNode extends Expression {
         /** ES6 7.2.1 RequireObjectCoercible, the first step of object destructuring. */
         REQUIRE_OBJECT_COERCIBLE(TokenType.VOID, Type.OBJECT, 1),
         /**
+         * ES2018 7.3.24 CopyDataProperties into a fresh object - the object rest
+         * element {@code {...rest}}. Takes the source and an array of the keys
+         * already bound (excluded), and returns the new object.
+         */
+        COPY_OWN_ENUMERABLE(TokenType.VOID, Type.SCRIPT_OBJECT, 2),
+        /**
          * The array a rest parameter collects. Takes the number of parameters
          * declared before it; the argument array itself is pushed by the code
          * generator, straight from the frame.

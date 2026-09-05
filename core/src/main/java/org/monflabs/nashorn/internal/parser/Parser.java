@@ -69,6 +69,7 @@ import static org.monflabs.nashorn.internal.parser.TokenType.RBRACKET;
 import static org.monflabs.nashorn.internal.parser.TokenType.RPAREN;
 import static org.monflabs.nashorn.internal.parser.TokenType.SEMICOLON;
 import static org.monflabs.nashorn.internal.parser.TokenType.SPREAD_ARRAY;
+import static org.monflabs.nashorn.internal.parser.TokenType.SPREAD_OBJECT;
 import static org.monflabs.nashorn.internal.parser.TokenType.STATIC;
 import static org.monflabs.nashorn.internal.parser.TokenType.STRING;
 import static org.monflabs.nashorn.internal.parser.TokenType.SUPER;
@@ -205,6 +206,14 @@ public class Parser extends AbstractParser implements Loggable {
      * when there is none outstanding. See {@link #verifyNoDuplicateProto}.
      */
     private long duplicateProtoKey;
+
+    /**
+     * The tokens of object spread elements {@code ...x} that were followed by a
+     * comma. Harmless in an object literal (a trailing comma is allowed there),
+     * but an object rest element in a destructuring pattern may not be followed
+     * by one - which is only known once the object is verified as a pattern.
+     */
+    private final java.util.Set<Long> objectRestFollowedByComma = new java.util.HashSet<>();
 
     /**
      * The expression parentheses were last read around, which is the one an
@@ -2221,11 +2230,30 @@ public class Parser extends AbstractParser implements Loggable {
 
         @Override
         public boolean enterObjectNode(final ObjectNode objectNode) {
+            // ES2018: a rest element (...target) must be the last property.
+            final List<PropertyNode> els = objectNode.getElements();
+            for (int i = 0; i < els.size() - 1; i++) {
+                if (els.get(i).getKey() instanceof UnaryNode u && u.isTokenType(SPREAD_OBJECT)) {
+                    throw error("Rest element must be last", els.get(i).getToken());
+                }
+            }
             return true;
         }
 
         @Override
         public boolean enterPropertyNode(final PropertyNode propertyNode) {
+            // ES2018 object rest {...target}: the target is in the key. Check
+            // its shape, then descend so the traversal reports the names it
+            // binds (as the array rest element does).
+            if (propertyNode.getKey() instanceof UnaryNode u && u.isTokenType(SPREAD_OBJECT)) {
+                // ES2018: a rest element in a pattern may not be followed by a comma
+                if (objectRestFollowedByComma.contains(propertyNode.getToken())) {
+                    throw error("Rest element must be last", propertyNode.getToken());
+                }
+                verifySpreadElement(u.getExpression());
+                u.getExpression().accept(this);
+                return false;
+            }
             if (propertyNode.getValue() != null) {
                 propertyNode.getValue().accept(this);
                 return false;
@@ -3672,6 +3700,30 @@ public class Parser extends AbstractParser implements Loggable {
                     }
                     next();
                     commaSeen = true;
+                    break;
+
+                case ELLIPSIS:
+                    // ES2018 object spread {...expr} in a literal, and object
+                    // rest {...target} in the destructuring cover grammar. Held
+                    // as a PropertyNode whose key is a SPREAD_OBJECT unary of the
+                    // operand and whose value is null.
+                    if (!commaSeen) {
+                        throw error(AbstractParser.message("expected.comma", type.getNameOrType()));
+                    }
+                    commaSeen = false;
+                    final long spreadToken = token;
+                    next();
+                    final Expression spreadExpr = assignmentExpression(false);
+                    if (type == COMMARIGHT) {
+                        objectRestFollowedByComma.add(spreadToken);
+                    }
+                    // computed=true so the compilation phases resolve the
+                    // spread operand as a value expression (its symbols, scope),
+                    // the way a computed key is resolved - a plain key would be
+                    // treated as a name and its identifiers left unresolved.
+                    elements.add(new PropertyNode(spreadToken, finish,
+                            new UnaryNode(Token.recast(spreadToken, SPREAD_OBJECT), spreadExpr),
+                            null, null, null, false, true));
                     break;
 
                 default:

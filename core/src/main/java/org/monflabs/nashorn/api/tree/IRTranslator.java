@@ -420,7 +420,8 @@ final class IRTranslator extends SimpleNodeVisitor {
             curExpr = new YieldTreeImpl(unaryNode,
                     translateExpr(unaryNode.getExpression()));
         } else if (unaryNode.isTokenType(TokenType.SPREAD_ARGUMENT) ||
-                unaryNode.isTokenType(TokenType.SPREAD_ARRAY)) {
+                unaryNode.isTokenType(TokenType.SPREAD_ARRAY) ||
+                unaryNode.isTokenType(TokenType.SPREAD_OBJECT)) {
             curExpr = new SpreadTreeImpl(unaryNode,
                     translateExpr(unaryNode.getExpression()));
         } else {

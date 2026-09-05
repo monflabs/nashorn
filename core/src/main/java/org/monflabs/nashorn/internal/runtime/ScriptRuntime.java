@@ -2242,6 +2242,66 @@ public final class ScriptRuntime {
         sobj.set(name, value, 0);
     }
 
+    /** {@link #copyDataProperties} as a call. */
+    public static final Call COPY_DATA_PROPERTIES = staticCallNoLookup(ScriptRuntime.class,
+            "copyDataProperties", void.class, Object.class, Object.class);
+
+    /**
+     * ES2018 7.3.24 CopyDataProperties - the object spread {@code {...src}}:
+     * copy the own enumerable properties (strings and symbols) of source onto
+     * target. A null or undefined source is a no-op; a primitive is coerced.
+     *
+     * @param target the object literal being built
+     * @param source the value being spread
+     */
+    public static void copyDataProperties(final Object target, final Object source) {
+        copyOwnEnumerable((ScriptObject) target, source, null);
+    }
+
+    /**
+     * ES2018 object rest {@code {...rest}}: a fresh object holding the own
+     * enumerable properties of source except those whose keys are excluded
+     * (the keys already bound by name).
+     *
+     * @param source       the object being destructured
+     * @param excludedKeys an array of the keys to skip
+     * @return the rest object
+     */
+    public static ScriptObject COPY_OWN_ENUMERABLE(final Object source, final Object excludedKeys) {
+        final ScriptObject target = Global.instance().newObject();
+        final java.util.Set<Object> excluded = new java.util.HashSet<>();
+        if (excludedKeys instanceof ScriptObject keys) {
+            final long length = JSType.toUint32(keys.getLength());
+            for (long i = 0; i < length; i++) {
+                excluded.add(JSType.toPropertyKey(keys.get(i)));
+            }
+        }
+        copyOwnEnumerable(target, source, excluded);
+        return target;
+    }
+
+    private static void copyOwnEnumerable(final ScriptObject target, final Object source, final java.util.Set<Object> excluded) {
+        if (source == null || source == UNDEFINED) {
+            return;
+        }
+        final Object from = JSType.toScriptObject(Context.getGlobal(), source);
+        if (!(from instanceof ScriptObject src)) {
+            return;
+        }
+        // Own enumerable keys, strings and symbols alike, in own-key order - and
+        // asked for the descriptor of each, so a proxy's traps see what 7.3.24
+        // entitles them to. Excluded keys are skipped before the value is read,
+        // so a rest never runs an excluded getter.
+        for (final Object key : src.getOwnKeysAndSymbols(true)) {
+            if (excluded != null && excluded.contains(key)) {
+                continue;
+            }
+            if (src.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor described && described.isEnumerable()) {
+                target.set(key, src.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
+            }
+        }
+    }
+
     /**
      * ES2015 9.2.6: a named function expression's own name is an immutable
      * binding of a scope holding nothing else, so an assignment to it does not

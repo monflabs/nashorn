@@ -3067,6 +3067,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         return false;
     }
 
+    /** Whether a property is an ES2018 object spread {@code ...expr}. */
+    private static boolean isObjectSpread(final PropertyNode propertyNode) {
+        return propertyNode.getKey() instanceof UnaryNode unary && unary.isTokenType(TokenType.SPREAD_OBJECT);
+    }
+
     private void loadObjectNode(final ObjectNode objectNode) {
         final List<PropertyNode> elements = objectNode.getElements();
 
@@ -3167,6 +3172,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         for (final PropertyNode propertyNode : specialProperties) {
 
             method.dup();
+
+            if (isObjectSpread(propertyNode)) {
+                // ES2018 {...src}: copy src's own enumerable properties onto the
+                // object built so far, in the order the spread was written.
+                loadExpressionAsObject(((UnaryNode) propertyNode.getKey()).getExpression());
+                method.invoke(ScriptRuntime.COPY_DATA_PROPERTIES);
+                continue;
+            }
 
             final boolean computed = propertyNode.isComputed();
             if (computed) {

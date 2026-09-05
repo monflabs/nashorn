@@ -87,6 +87,7 @@ public final class Test262Selector {
         // ES2018. Promise.prototype.finally and the template-literal revision
         // carry no tag and are in scope by the deny rule alone.
         "regexp-dotall", "regexp-named-groups", "regexp-lookbehind",
+        "object-spread", "object-rest",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory

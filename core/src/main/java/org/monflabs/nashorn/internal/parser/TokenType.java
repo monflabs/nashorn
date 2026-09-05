@@ -205,6 +205,7 @@ public enum TokenType {
     INCPOSTFIX     (IR,       null),
     SPREAD_ARGUMENT(IR,       null),
     SPREAD_ARRAY   (IR,       null),
+    SPREAD_OBJECT  (IR,       null),
     YIELD_STAR     (IR,       null);
 
     /** Next token kind in token lookup table. */

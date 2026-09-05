@@ -1,0 +1,9 @@
+spread: {"x":1,"y":2,"z":3}
+override: {"x":9,"y":2}
+skip null: {"ok":1}
+fn spread: {"x":1,"y":2}
+rest decl: x=1 rest={"y":2,"z":3}
+rest param: 1 / {"y":2,"z":3}
+rest assign: p=1 q={"y":2}
+getters: x,y gr={"y":2}
+rest+comma throws: true

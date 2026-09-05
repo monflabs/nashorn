@@ -299,9 +299,19 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             }
         } else if (pattern instanceof ObjectNode object) {
             for (final PropertyNode property : object.getElements()) {
-                markTarget(property.getValue());
+                markTarget(objectPatternTarget(property));
             }
         }
+    }
+
+    /** Whether a property is an ES2018 object spread/rest {@code ...target}. */
+    private static boolean isObjectSpread(final PropertyNode property) {
+        return property.getKey() instanceof UnaryNode unary && unary.isTokenType(TokenType.SPREAD_OBJECT);
+    }
+
+    /** The target an object-pattern property binds - the value, or, for a rest, the spread operand. */
+    private static Expression objectPatternTarget(final PropertyNode property) {
+        return isObjectSpread(property) ? ((UnaryNode) property.getKey()).getExpression() : property.getValue();
     }
 
     /** Declares, as lets, every name a binding pattern binds. */
@@ -312,7 +322,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             }
         } else if (pattern instanceof ObjectNode object) {
             for (final PropertyNode property : object.getElements()) {
-                declareBoundName(at, property.getValue(), statements);
+                declareBoundName(at, objectPatternTarget(property), statements);
             }
         }
     }
@@ -1772,7 +1782,21 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(temporaryFor(at, source,
                 runtime(at, RuntimeNode.Request.REQUIRE_OBJECT_COERCIBLE, value)));
 
+        // ES2018: the keys bound by name, excluded from a trailing ...rest.
+        final List<Expression> excludedKeys = new ArrayList<>();
         for (final PropertyNode property : pattern.getElements()) {
+            if (isObjectSpread(property)) {
+                // ...rest - the grammar guarantees it is the last element. It
+                // gets a fresh object of source's own enumerable properties
+                // except the ones already bound.
+                final Expression restTarget = ((UnaryNode) property.getKey()).getExpression();
+                final Expression keysArray = LiteralNode.newInstance(at.getToken(), at.getFinish(),
+                        new ArrayList<>(excludedKeys));
+                bindWithDefault(at, restTarget,
+                        runtime(at, RuntimeNode.Request.COPY_OWN_ENUMERABLE, ref(at, source), keysArray),
+                        statements);
+                continue;
+            }
             Expression key = property.getKey();
             if (property.isComputed()) {
                 // 12.15.5.3 evaluates the property name, and makes a property
@@ -1782,7 +1806,14 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                 final String held = newTemporary();
                 statements.add(temporaryFor(at, held,
                         runtime(at, RuntimeNode.Request.TO_PROPERTY_KEY, key)));
+                excludedKeys.add(ref(at, held));
                 key = ref(at, held);
+            } else {
+                // a written name stands for a string; a numeric/string literal
+                // key is already a value the runtime coerces to a property key
+                excludedKeys.add(key instanceof IdentNode name
+                        ? LiteralNode.newInstance(key.getToken(), key.getFinish(), name.getName())
+                        : key);
             }
             final Expression read = property.isComputed() || !(key instanceof LiteralNode<?> || key instanceof IdentNode)
                     ? new IndexNode(Token.recast(at.getToken(), TokenType.LBRACKET), at.getFinish(), ref(at, source), key)
