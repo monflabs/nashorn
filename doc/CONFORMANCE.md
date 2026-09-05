@@ -4,13 +4,14 @@ ECMAScript 2018 conformance
 This engine implements [ECMAScript 2018](https://262.ecma-international.org/9.0/)
 (ECMA-262, 9th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 58,805 executions **126
+selected at runtime by `Test262Selector`, and of its 58,803 executions **12
 fail**, in two settled groups, each named in
 `core/src/test/resources/test262-expectations.txt` with the reason: **8** are one
 shape — an indirect `eval` whose block-level function declaration must update a
-`var` the global already had — and **118** are ES2018 async-iteration edge cases
-(see below). The run fails on an unexpected pass as well as an unexpected failure,
-so conformance can only move forwards.
+`var` the global already had — and **4** are two ES2018 async-iteration tests that
+assert on the exact ordering of microtask turns (see below). The run fails on an
+unexpected pass as well as an unexpected failure, so conformance can only move
+forwards.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their
 tests are held out of the slice — not counted as failures — with the reason
@@ -27,8 +28,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 58805 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 126   expected to fail: 126
+    test262: 58803 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 12   expected to fail: 12
 
 What is not measured, and why
 -----------------------------
@@ -119,26 +120,27 @@ Annex B's built-ins are seventeen more properties on two prototypes, and every g
 `startup.50globals` measured 6.6% slower with them than without, in nine interleaved pairs. That is
 inside the metric's band and the gate passes with it.
 
-ES2018 async iteration: the 118
--------------------------------
+ES2018 async iteration: the 4
+-----------------------------
 
-Async iteration — `async function*`, `for await…of`, `yield*` delegation over an async iterable, the
-async-generator methods on classes and objects, `Symbol.asyncIterator`, and the async-from-sync
-adaptor — is implemented and passes the bulk of the suite. 118 executions are held in the
-expectations file as refinements not yet complete. They are corners, not the feature:
+Async iteration — `async function*`, `for await…of`, `yield*` delegation over an async or a
+sync-wrapped iterable, the async-generator methods on classes and objects, `Symbol.asyncIterator`,
+the `%AsyncGeneratorFunction%` constructor, the `%AsyncFromSyncIterator%` adaptor with its exact
+`return`/`throw` and poisoned-wrapper semantics, `for await` iterator-close on an abrupt completion,
+and `return()`'s AwaitReturn — is implemented and passes the suite. **Four** executions (two tests,
+strict and sloppy) remain, and they are of one kind: an assertion on the exact number and order of
+**microtask turns**.
 
-- closing the iterator on an **abrupt `for await`** completion (`for-await-of/iterator-close-*`);
-- the **`%AsyncGeneratorFunction%`** constructor intrinsic and its `prototype` wiring
-  (`built-ins/AsyncGeneratorFunction/*`);
-- the **`%AsyncFromSyncIteratorPrototype%`** adaptor's exact `return`/`throw` semantics, argument
-  passing and poisoned-wrapper handling (`built-ins/AsyncFromSyncIteratorPrototype/*`);
-- the **`%AsyncGeneratorPrototype%`** `return`/`throw`/`next` request-queue ordering in a few
-  adversarial `yield*` and getter-tick cases (`built-ins/AsyncGeneratorPrototype/*`,
-  `async-generator/yield-star-*`);
-- a handful of **early errors** and `Function.prototype.toString` exactness.
+- `async-generator/return-undefined-implicit-and-explicit.js` — that an implicit or bare `return`
+  completes one turn earlier than a `return Expression` (which awaits its value).
+- `async-generator/yield-star-return-then-getter-ticks.js` — the precise getter-tick sequence when a
+  `yield*`'d `return()` reads `then` and `return`.
 
-Each is a line in `test262-expectations.txt`, held in scope so it can only move forwards: fixing one
-removes its line, and a regression cannot hide. None blocks the ordinary use of async iteration.
+In this engine an async body runs on a virtual thread and its completion reaches the job queue
+through the event loop rather than as a synchronous microtask, so the number and order of turns
+differs from the specification's in these adversarial cases. Ordinary async iteration is unaffected;
+matching the tick log exactly is a change to how *every* async result is delivered, not a local fix,
+and is held here so conformance can only move forwards.
 
 ES2018 RegExp: what the backends cannot do
 ------------------------------------------

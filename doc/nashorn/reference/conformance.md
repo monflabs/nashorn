@@ -4,15 +4,16 @@ This engine implements ECMAScript 2018 — ECMA-262, 9th edition — together wi
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 58,805 selected executions, 126 expected failures.** Everything else passes,
-in both of the engine's typing modes. The 126 fall into two settled groups, each named in the
+**The headline numbers: 58,803 selected executions, 12 expected failures.** Everything else passes,
+in both of the engine's typing modes. The 12 fall into two settled groups, each named in the
 checked-in expectations file with its reason: **8** are one shape — an indirect `eval` whose
 block-level function declaration must update a `var` the global already had, rooted in how the
-engine merges eval scopes — and the remaining **118** are ES2018 async-iteration edge cases
-(iterator-close on an abrupt `for await`, the `%AsyncGeneratorFunction%` and
-`%AsyncFromSyncIterator%` corner semantics, and a handful of early-error positions). The run fails
-on an unexpected *pass* as well as an unexpected failure, so conformance can only move forwards: a
-fix must remove its expectation line, and a regression cannot hide.
+engine merges eval scopes (the feature works in ordinary use; the failures need the runner's
+pre-populated global) — and the remaining **4** are two ES2018 async-iteration tests that assert on
+the exact ordering of microtask turns, which differs here because an async body's completion reaches
+the job queue through the event loop rather than as a synchronous microtask. The run fails on an
+unexpected *pass* as well as an unexpected failure, so conformance can only move forwards: a fix must
+remove its expectation line, and a regression cannot hide.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their tests are held out
 of the slice (not counted as failures) with the reason recorded in the selector: a set of RegExp
@@ -56,5 +57,5 @@ mvn -Pfetch-externals -pl core generate-test-resources    # clone test262, once
 mvn -Ptest262 -DskipTests verify                          # the full conformance run
 ```
 
-The run reports `failing: 126   expected to fail: 126` on a healthy tree. Narrow it while working
+The run reports `failing: 12   expected to fail: 12` on a healthy tree. Narrow it while working
 with `-Dnashorn.test262.include=/built-ins/Math/`.

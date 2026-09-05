@@ -153,8 +153,9 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — the 8 Annex B eval-scope cases and the ES2018 async-iteration edge
-  cases whose reasons `doc/CONFORMANCE.md` records — so any failure *not* in it fails the build, and a
+  lists the settled failures — 12 of the 58,803 executions: the 8 Annex B eval-scope cases and the 4
+  ES2018 async-iteration microtask-tick cases whose reasons `doc/CONFORMANCE.md` records — so any
+  failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with
   `-Dnashorn.test262.include=/built-ins/Math/`. Regenerate through Maven, never by running
