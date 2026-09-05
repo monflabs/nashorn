@@ -1599,7 +1599,11 @@ public final class ScriptRuntime {
         if (!(syncIter instanceof ScriptObject syncIterObj)) {
             throw typeError("cannot.get.iterator", safeToString(iterable));
         }
-        return new NativeAsyncFromSyncIterator(syncIterObj, global, global.getAsyncFromSyncIteratorPrototype());
+        // CreateAsyncFromSyncIterator wraps a sync iterator record, whose "next"
+        // method is fetched once here (GetIteratorFromMethod) and reused by the
+        // adaptor - the "get next" a program observes happens once, now.
+        final Object syncNext = syncIterObj.get("next");
+        return new NativeAsyncFromSyncIterator(syncIterObj, syncNext, global, global.getAsyncFromSyncIteratorPrototype());
     }
 
     /**
@@ -1618,6 +1622,40 @@ public final class ScriptRuntime {
             throw typeError("not.a.function", "next");
         }
         return apply(fn, sobj);
+    }
+
+    /**
+     * ES2018 AsyncIteratorClose for {@code for await} leaving abruptly: fetch the
+     * iterator's {@code return}, call it, and return its result to be awaited by
+     * the caller. A missing/null {@code return} yields undefined (nothing to
+     * await). When a throw is already on its way out ({@code threw} is true) a
+     * throwing {@code return} getter or call is swallowed; otherwise it
+     * propagates, taking the place of a normal completion.
+     *
+     * @param iter  the async iterator
+     * @param threw whether the loop is leaving by a throw already
+     * @return the promise return() produced, or undefined if there was nothing to call
+     */
+    public static Object ASYNC_ITERATOR_RETURN(final Object iter, final Object threw) {
+        if (!(iter instanceof ScriptObject sobj)) {
+            return UNDEFINED;
+        }
+        final boolean swallow = JSType.toBoolean(threw);
+        try {
+            final Object returner = sobj.get("return");
+            if (returner == UNDEFINED || returner == null) {
+                return UNDEFINED;
+            }
+            if (!(returner instanceof ScriptFunction fn)) {
+                throw typeError("not.a.function", "return");
+            }
+            return apply(fn, sobj);
+        } catch (final ECMAException e) {
+            if (swallow) {
+                return UNDEFINED;
+            }
+            throw e;
+        }
     }
 
     public static Object GET_ITERATOR(final Object iterable) {

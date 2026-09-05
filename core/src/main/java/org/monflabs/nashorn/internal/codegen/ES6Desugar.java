@@ -1607,11 +1607,30 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final int finish = forNode.getFinish();
         final String aiter = newTemporary();
         final String ares = newTemporary();
+        // :done guards the close: leaving with it true (a rejected next, or a done
+        // result) must not close; leaving with it false (break/return/throw once the
+        // body was reached) closes. :threw records a throw so the close is swallowed.
+        final String doneFlag = newTemporary();
+        final String threwFlag = newTemporary();
+        final String caught = newTemporary();
 
         final Statement getIter = temporaryFor(forNode, aiter,
                 runtime(forNode, RuntimeNode.Request.GET_ASYNC_ITERATOR, forNode.getModify().getExpression()));
 
+        // The body (with any head destructuring) is guarded so a throw records
+        // :threw and rethrows - the async counterpart of the sync for-of catch.
+        final Block rethrow = new Block(token, finish,
+                new ExpressionStatement(line, token, finish, assignTemporary(forNode, threwFlag,
+                        LiteralNode.newInstance(token, finish, true))),
+                new ThrowNode(line, token, finish, ref(forNode, caught), false));
+        final Block catches = new Block(token, finish,
+                new CatchNode(line, token, finish, ref(forNode, caught), null, rethrow, false));
+        final TryNode guardedBody = new TryNode(line, token, finish, forNode.getBody(), List.of(catches), null);
+
         final List<Statement> whileBody = new ArrayList<>();
+        // :done = true  (assume the body is not reached this turn)
+        whileBody.add(new ExpressionStatement(line, token, finish,
+                assignTemporary(forNode, doneFlag, LiteralNode.newInstance(token, finish, true))));
         // var :ares = await :aiter.next();
         whileBody.add(temporaryFor(forNode, ares,
                 runtime(forNode, RuntimeNode.Request.AWAIT,
@@ -1619,15 +1638,34 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // if (:ares.done) break;
         whileBody.add(new IfNode(line, token, finish, member(forNode, ares, "done"),
                 new Block(token, finish, new BreakNode(line, token, finish, null)), null));
-        // bind the loop variable to :ares.value
+        // :done = false  (the body region is reached - close on an abrupt exit)
+        whileBody.add(new ExpressionStatement(line, token, finish,
+                assignTemporary(forNode, doneFlag, LiteralNode.newInstance(token, finish, false))));
+        // bind the loop variable to :ares.value (kept outside the guard so the
+        // loop variable keeps its per-iteration scope)
         whileBody.add(bindLoopTarget(forNode, member(forNode, ares, "value"), pattern));
-        whileBody.addAll(forNode.getBody().getStatements());
+        whileBody.add(guardedBody);
 
         final WhileNode loop = new WhileNode(line, token, finish, false,
                 new JoinPredecessorExpression(LiteralNode.newInstance(token, finish, true)),
                 new Block(forNode.getBody().getToken(), forNode.getBody().getFinish(), whileBody));
 
-        return List.of(getIter, loop);
+        // finally { if (!:done) await ASYNC_ITERATOR_RETURN(:aiter, :threw); }
+        final Block close = new Block(token, finish,
+                new IfNode(line, token, finish,
+                        new UnaryNode(Token.recast(token, TokenType.NOT), ref(forNode, doneFlag)),
+                        new Block(token, finish, new ExpressionStatement(line, token, finish,
+                                runtime(forNode, RuntimeNode.Request.AWAIT,
+                                        runtime(forNode, RuntimeNode.Request.ASYNC_ITERATOR_RETURN,
+                                                ref(forNode, aiter), ref(forNode, threwFlag))))),
+                        null));
+
+        return List.of(getIter,
+                new VarNode(line, Token.recast(token, TokenType.VAR), finish, ref(forNode, doneFlag),
+                        LiteralNode.newInstance(token, finish, false)),
+                new VarNode(line, Token.recast(token, TokenType.VAR), finish, ref(forNode, threwFlag),
+                        LiteralNode.newInstance(token, finish, false)),
+                new TryNode(line, token, finish, new Block(token, finish, loop), List.of(), close));
     }
 
     /** {@code holder[name]} - reads a property of the iterator result. */

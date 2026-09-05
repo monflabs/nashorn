@@ -94,6 +94,10 @@ public class RuntimeNode extends Expression {
         GET_ASYNC_ITERATOR(TokenType.VOID, Type.OBJECT, 1),
         /** ES2018 one step of an async iterator: calls next(), returning its promise. */
         ASYNC_ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2018 AsyncIteratorClose: calls the async iterator's return(), returning its
+         *  promise (or undefined) to be awaited; swallows errors when a throw is already
+         *  on its way out. Second argument is the "already threw" flag. */
+        ASYNC_ITERATOR_RETURN(TokenType.VOID, Type.OBJECT, 2),
         /** One element of an array destructuring pattern; undefined when exhausted. */
         ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
         /** Everything an iterator has left, as an array - the {@code ...rest} case. */
