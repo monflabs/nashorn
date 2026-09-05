@@ -3020,7 +3020,9 @@ public final class ScriptRuntime {
             default -> {
                 final Object returner = iterator.get("return");
                 if (returner == UNDEFINED || returner == null) {
-                    throw AsyncGeneratorSupport.returning(received);
+                    // no return on the inner iterator: the delegated return value
+                    // is awaited before completing (14.4.14 with Await)
+                    throw AsyncGeneratorSupport.returning(generator.await(received));
                 }
                 result = iterationResult(generator.await(call(returner, iterator, new Object[] { received })));
                 if (JSType.toBoolean(result.get("done"))) {

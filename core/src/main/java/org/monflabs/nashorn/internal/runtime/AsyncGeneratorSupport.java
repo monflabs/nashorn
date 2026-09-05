@@ -148,7 +148,20 @@ public final class AsyncGeneratorSupport {
     public Object yield(final Object value) {
         final Object awaited = await(value);
         deliver(new Step.Yielded(awaited));
-        return afterResume(take(toBody));
+        return afterYieldResume(take(toBody));
+    }
+
+    /**
+     * The resumption of a suspended {@code yield}: like {@link #afterResume}, but
+     * a return completion awaits its value first (25.5.3.7 AsyncGeneratorYield -
+     * a {@code return()} at a yield resumes with {@code Await(resumptionValue)}
+     * before the body unwinds).
+     */
+    private Object afterYieldResume(final Resume resume) {
+        if (resume instanceof Resume.Return ret) {
+            throw new Abort(await(ret.value()));
+        }
+        return afterResume(resume);
     }
 
     /**
@@ -160,8 +173,10 @@ public final class AsyncGeneratorSupport {
      * @return two elements: "next"/"throw"/"return" and the value sent in
      */
     public Object[] yieldStarStep(final Object value) {
-        final Object awaited = await(value);
-        deliver(new Step.Yielded(awaited));
+        // The delegated value is yielded as-is: a value from an async inner
+        // iterator is not unwrapped, and a value from a sync one was already
+        // awaited by the async-from-sync adaptor. (Only a plain yield awaits.)
+        deliver(new Step.Yielded(value));
         final Resume resume = take(toBody);
         if (resume instanceof Resume.Return ret) {
             return new Object[] { "return", ret.value() };
@@ -260,7 +275,6 @@ public final class AsyncGeneratorSupport {
         if (done) {
             queue.poll();
             settleDone(req);
-            pumpFront();
             return;
         }
         if (thread == null && req.kind() != NEXT) {
@@ -269,7 +283,6 @@ public final class AsyncGeneratorSupport {
             queue.poll();
             done = true;
             settleDone(req);
-            pumpFront();
             return;
         }
         advanceFront(req, toResume(req));
@@ -283,9 +296,15 @@ public final class AsyncGeneratorSupport {
     private void advanceFront(final Request req, final Resume resume) {
         final Step step = resumeBody(resume);
         if (step instanceof Step.Awaiting awaiting) {
-            NativePromise.await(global, awaiting.value(),
-                    value -> advanceFront(req, new Resume.Value(value)),
-                    error -> advanceFront(req, new Resume.Error(error)));
+            try {
+                NativePromise.await(global, awaiting.value(),
+                        value -> advanceFront(req, new Resume.Value(value)),
+                        error -> advanceFront(req, new Resume.Error(error)));
+            } catch (final ECMAException wrapperError) {
+                // PromiseResolve threw (a poisoned constructor): the await is a
+                // throw completion, delivered back into the body at its await point
+                advanceFront(req, new Resume.Error(wrapperError.getThrown()));
+            }
             return;
         }
         queue.poll();
@@ -323,12 +342,39 @@ public final class AsyncGeneratorSupport {
         };
     }
 
-    /** Settle a request against an already-finished generator (25.5.3.4). */
+    /**
+     * Settle a request against an already-finished (or never-started) generator
+     * (25.5.3.4 AsyncGeneratorResumeNext), then serve the next queued request. A
+     * return awaits its value first (AwaitReturn), which suspends the drain until
+     * it settles - so the pump is continued from the await's callbacks, not here.
+     */
     private void settleDone(final Request req) {
         switch (req.kind()) {
-            case RETURN -> resolve(req.promise(), req.value(), true);
-            case THROW -> NativePromise.rejectAsyncPromise(req.promise(), req.value());
-            default -> resolve(req.promise(), ScriptRuntime.UNDEFINED, true);
+            case RETURN -> {
+                try {
+                    NativePromise.await(global, req.value(),
+                            awaited -> {
+                                resolve(req.promise(), awaited, true);
+                                pumpFront();
+                            },
+                            error -> {
+                                NativePromise.rejectAsyncPromise(req.promise(), error);
+                                pumpFront();
+                            });
+                } catch (final ECMAException wrapperError) {
+                    // PromiseResolve threw (a poisoned constructor): reject and drain on
+                    NativePromise.rejectAsyncPromise(req.promise(), wrapperError.getThrown());
+                    pumpFront();
+                }
+            }
+            case THROW -> {
+                NativePromise.rejectAsyncPromise(req.promise(), req.value());
+                pumpFront();
+            }
+            default -> {
+                resolve(req.promise(), ScriptRuntime.UNDEFINED, true);
+                pumpFront();
+            }
         }
     }
 
