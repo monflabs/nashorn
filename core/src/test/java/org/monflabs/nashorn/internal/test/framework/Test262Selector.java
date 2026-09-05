@@ -143,6 +143,7 @@ public final class Test262Selector {
      */
     private static final Set<String> LATER_SYNTAX = Set.of(
             // BigInt literals
+            "built-ins/AsyncIteratorPrototype/Symbol.asyncIterator/return-val.js",
             "built-ins/Iterator/prototype/Symbol.iterator/return-val.js",
             "built-ins/Promise/all/resolve-throws-iterator-return-is-not-callable.js",
             "built-ins/Promise/allSettled/resolve-throws-iterator-return-is-not-callable.js",
