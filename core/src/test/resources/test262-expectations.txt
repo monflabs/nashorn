@@ -21,17 +21,3 @@ test/annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-exist
 test/annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-existing-var-update.js (sloppy)
 test/annexB/language/eval-code/indirect/global-switch-case-eval-global-existing-var-update.js (sloppy)
 test/annexB/language/eval-code/indirect/global-switch-dflt-eval-global-existing-var-update.js (sloppy)
-
-# ---- ECMAScript 2018 async iteration: microtask-tick exactness ----
-# Async generators, for-await-of, yield* delegation and the async-from-sync
-# adaptor are implemented and pass the suite. These two assert on the exact
-# ordering of microtask turns - the getter-tick sequence of a yield*'d return,
-# and the interleaving of implicit vs explicit "return undefined". In this
-# engine an async body runs on a virtual thread and its completion reaches the
-# job queue through the event loop rather than as a synchronous microtask, so
-# the number and order of turns differs from the specification's here. Matching
-# it exactly is a change to how every async result is delivered, not a local fix.
-test/language/statements/async-generator/return-undefined-implicit-and-explicit.js (sloppy)
-test/language/statements/async-generator/return-undefined-implicit-and-explicit.js (strict)
-test/language/statements/async-generator/yield-star-return-then-getter-ticks.js (sloppy)
-test/language/statements/async-generator/yield-star-return-then-getter-ticks.js (strict)

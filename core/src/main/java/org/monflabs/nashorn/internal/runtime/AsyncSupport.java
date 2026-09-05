@@ -170,6 +170,7 @@ public final class AsyncSupport {
         thread = Thread.ofVirtual().name("nashorn-async").unstarted(() -> {
             ENTERING.set(this);
             RUNNING.set(this);
+            JobQueue.markWorkerThread();
             // Context.getGlobal is scoped per thread, so the body's realm has to
             // be established on this thread before anything script-visible runs -
             // scoped values are not inherited by an unstructured thread start.

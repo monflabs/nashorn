@@ -838,7 +838,18 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveReturnNode(final ReturnNode returnNode) {
-        if (!lc.getCurrentFunction().isSubclassConstructor()) {
+        final FunctionNode current = lc.getCurrentFunction();
+        if (current.isAsyncGenerator() && returnNode.getExpression() != null) {
+            // 13.10.1 step 3: "return Expression" in an async context awaits the
+            // value. An async function gets this from promise adoption when its
+            // result settles; an async generator wraps the value in
+            // {value, done:true} instead, so the await must be spelled out here -
+            // it also costs the extra microtask turn the specification requires.
+            return super.leaveReturnNode(returnNode.setExpression(
+                    new RuntimeNode(returnNode.getToken(), returnNode.getFinish(),
+                            RuntimeNode.Request.AWAIT, returnNode.getExpression())));
+        }
+        if (!current.isSubclassConstructor()) {
             return super.leaveReturnNode(returnNode);
         }
         // What the constructor answers with is worked out at the end of the body

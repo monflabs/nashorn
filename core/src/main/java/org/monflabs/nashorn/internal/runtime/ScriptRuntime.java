@@ -726,7 +726,11 @@ public final class ScriptRuntime {
         } catch (final Throwable t) {
             throw new RuntimeException(t);
         } finally {
-            if (JobQueue.exitScript()) {
+            // A coroutine worker (a generator/async body on its own virtual
+            // thread) reaches depth zero when its body ends, but it must not
+            // drain: the thread that is parked waiting for it owns the event
+            // loop and drains in order. Only the outermost eval/invoke thread does.
+            if (JobQueue.exitScriptShouldDrain()) {
                 final Global global = Context.getGlobal();
                 if (global != null) {
                     global.getJobQueue().drain();

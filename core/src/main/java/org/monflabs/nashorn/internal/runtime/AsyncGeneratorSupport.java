@@ -179,7 +179,10 @@ public final class AsyncGeneratorSupport {
         deliver(new Step.Yielded(value));
         final Resume resume = take(toBody);
         if (resume instanceof Resume.Return ret) {
-            return new Object[] { "return", ret.value() };
+            // AsyncGeneratorYield step 8: a return resumption awaits its value
+            // before the delegation acts on it (the delegation then awaits again
+            // when forwarding to the inner iterator, or completing without one).
+            return new Object[] { "return", await(ret.value()) };
         }
         if (resume instanceof Resume.Error thrown) {
             return new Object[] { "throw", thrown.error() };
@@ -402,6 +405,7 @@ public final class AsyncGeneratorSupport {
         thread = Thread.ofVirtual().name("nashorn-async-generator").unstarted(() -> {
             ENTERING.set(this);
             RUNNING.set(this);
+            JobQueue.markWorkerThread();
             try {
                 Context.runWithGlobal(global, () ->
                     deliver(new Step.Returned(ScriptRuntime.apply(body, self, args))));

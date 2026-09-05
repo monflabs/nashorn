@@ -108,11 +108,21 @@ prologues are unchanged, and only a body that is both `async` and a generator ta
 ## The job queue, and the event loop behind it
 
 Promise reactions never run inline — `then` always enqueues. The queue is an `ArrayDeque` **per
-Global** (per realm), touched only by the thread running that realm, so it needs no locks. Draining
-is tied to script depth: the runtime counts script entries per thread, and when the count returns
-to zero — the outermost `eval`/`invoke` is unwinding — the current realm's queue drains. The
-embedder-visible contract: **microtasks have run by the time your `eval` returns, and never
-before the synchronous code finished**.
+Global** (per realm). Draining is tied to script depth: the runtime counts script entries per thread
+(`JobQueue.enterScript`/`exitScript`), and when the count returns to zero — the outermost
+`eval`/`invoke` is unwinding — the current realm's queue drains. The embedder-visible contract:
+**microtasks have run by the time your `eval` returns, and never before the synchronous code
+finished**.
+
+**Only the event-loop thread drains.** A generator/async body runs on its own virtual thread, whose
+script depth also returns to zero when the body ends — but that worker must *not* drain the shared
+queue. If it did, then while the caller is parked waiting for the body's first step, the worker would
+run the caller's already-queued microtasks off the wrong thread, out of order — and the exact
+microtask-turn count the specification prescribes (which test262's async-generator tick tests pin)
+would drift. So each body's thread is marked a worker (`JobQueue.markWorkerThread`, set in the three
+`*Support.start()` methods), and `ScriptRuntime.apply` skips the drain for it: the worker hands its
+result back, and the event-loop thread that owns the drain schedules the continuation as an ordinary
+microtask. `await`, resume and completion are then plain FIFO microtasks.
 
 Behind the microtasks, the same `JobQueue` is the realm's **event loop** for the macrotasks a host
 library adds through the public `EventLoop` API: *timers* (a priority queue by due time, scheduled

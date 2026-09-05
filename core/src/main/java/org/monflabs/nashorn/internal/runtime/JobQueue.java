@@ -53,8 +53,20 @@ import java.util.concurrent.locks.ReentrantLock;
 public final class JobQueue {
     private final Deque<Runnable> jobs = new ArrayDeque<>();
 
-    /** How deep the current thread is inside script called from Java. */
-    private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
+    /**
+     * Per-thread state, in one array so the hot exit path takes a single
+     * ThreadLocal lookup: {@code [0]} is how deep the thread is inside script
+     * called from Java, {@code [1]} is a worker flag.
+     *
+     * The worker flag is set on a generator/async body's own virtual thread.
+     * Such a thread is a coroutine worker driven by the event loop, never the
+     * event loop itself: it must not drain the (per-realm, shared) job queue when
+     * its script depth returns to zero, or it would run the microtasks of the
+     * thread that is parked waiting for it - out of order, off the wrong thread.
+     * Only the outermost eval/invoke thread drains; a worker hands its result
+     * back and that thread schedules the continuation as an ordinary microtask.
+     */
+    private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[2]);
 
     /** Guards against a job scheduling a job forever while already draining. */
     private boolean draining;
@@ -173,12 +185,24 @@ public final class JobQueue {
     }
 
     /**
-     * Marks the matching exit, and reports whether the stack is now empty.
+     * Marks the matching exit and reports whether this thread should now drain
+     * the job queue: it was the outermost entry <em>and</em> this is not a
+     * coroutine worker thread (see {@link #DEPTH}). One ThreadLocal lookup.
      *
-     * @return true if this was the outermost entry
+     * @return true if the current thread should drain the queue
      */
-    public static boolean exitScript() {
-        return --DEPTH.get()[0] == 0;
+    public static boolean exitScriptShouldDrain() {
+        final int[] state = DEPTH.get();
+        return --state[0] == 0 && state[1] == 0;
+    }
+
+    /**
+     * Marks the current thread as a generator/async coroutine worker, which must
+     * never drain the job queue (see {@link #DEPTH}). Called once when a body's
+     * virtual thread starts.
+     */
+    public static void markWorkerThread() {
+        DEPTH.get()[1] = 1;
     }
 
     /**

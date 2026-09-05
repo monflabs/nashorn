@@ -102,9 +102,10 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2018 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2018. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 12 of the 58,803 selected executions fail, in two settled groups
-named in the file with the reason (8 Annex B eval-scope cases and 4 ES2018
-async-iteration microtask-tick cases); everything else passes. Three things are excluded,
+moves forwards. 8 of the 58,803 selected executions fail — one shape, an indirect
+`eval` whose block-level function declaration must update a `var` the global
+already had (a documented eval-scope-merge divergence); everything else passes.
+Three things are excluded,
 all outside ECMA-262 9th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
