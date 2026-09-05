@@ -63,6 +63,7 @@ import org.monflabs.nashorn.internal.ir.TernaryNode;
 import org.monflabs.nashorn.internal.ir.TryNode;
 import org.monflabs.nashorn.internal.ir.UnaryNode;
 import org.monflabs.nashorn.internal.ir.VarNode;
+import org.monflabs.nashorn.internal.ir.WhileNode;
 import org.monflabs.nashorn.internal.ir.visitor.NodeVisitor;
 import org.monflabs.nashorn.internal.parser.Token;
 import org.monflabs.nashorn.internal.parser.TokenType;
@@ -1387,7 +1388,9 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * and lets it through.
      */
     private FunctionNode addAsyncPrologue(final FunctionNode functionNode) {
-        if (!functionNode.isAsync()) {
+        // an async generator gets the generator prologue instead (it both yields
+        // and awaits, and its parameters are bound at the call like a generator)
+        if (!functionNode.isAsync() || functionNode.isAsyncGenerator()) {
             return functionNode;
         }
 
@@ -1417,9 +1420,14 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
     }
 
     private FunctionNode addGeneratorPrologue(final FunctionNode functionNode) {
-        if (functionNode.getKind() != FunctionNode.Kind.GENERATOR) {
+        // Both generators and async generators use this: the body is re-entered
+        // on its own thread with its parameters bound at the call, before the
+        // (async) generator object exists. An async generator's entry request
+        // differs, since it also drives awaits and hands back promises.
+        if (!functionNode.isGenerator()) {
             return functionNode;
         }
+        final boolean asyncGen = functionNode.isAsyncGenerator();
 
         final long token = functionNode.getToken();
         final int finish = functionNode.getFinish();
@@ -1450,8 +1458,10 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         statements.add(new VarNode(line, Token.recast(token, TokenType.VAR), finish,
                 new IdentNode(token, finish, created),
                 new RuntimeNode(token, finish, parameterised
-                        ? RuntimeNode.Request.GENERATOR_ENTER_PARAMETERS
-                        : RuntimeNode.Request.GENERATOR_ENTER)));
+                        ? (asyncGen ? RuntimeNode.Request.ASYNC_GENERATOR_ENTER_PARAMETERS
+                                    : RuntimeNode.Request.GENERATOR_ENTER_PARAMETERS)
+                        : (asyncGen ? RuntimeNode.Request.ASYNC_GENERATOR_ENTER
+                                    : RuntimeNode.Request.GENERATOR_ENTER))));
 
         // if (:generator !== undefined) { return :generator; }
         final Expression isNotUndefined = new RuntimeNode(token, finish, RuntimeNode.Request.IS_NOT_UNDEFINED,
@@ -1576,12 +1586,71 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
                        .setBody(lc, body.setStatements(lc, statements));
         }
 
-        if (forNode.isForOf()) {
+        if (forNode.isForAwait()) {
+            hoisted.addAll(asyncIteration(loop, pattern));
+        } else if (forNode.isForOf()) {
             hoisted.addAll(closingIteration(loop));
         } else {
             hoisted.add(loop);
         }
         return hoisted;
+    }
+
+    /**
+     * ES2018 {@code for await (x of xs) body} - the async iteration protocol,
+     * spelled out: obtain the async iterator (wrapping a sync one if the source
+     * has no @@asyncIterator), then loop awaiting each next() until it is done.
+     */
+    private List<Statement> asyncIteration(final ForNode forNode, final boolean pattern) {
+        final int line = forNode.getLineNumber();
+        final long token = forNode.getToken();
+        final int finish = forNode.getFinish();
+        final String aiter = newTemporary();
+        final String ares = newTemporary();
+
+        final Statement getIter = temporaryFor(forNode, aiter,
+                runtime(forNode, RuntimeNode.Request.GET_ASYNC_ITERATOR, forNode.getModify().getExpression()));
+
+        final List<Statement> whileBody = new ArrayList<>();
+        // var :ares = await :aiter.next();
+        whileBody.add(temporaryFor(forNode, ares,
+                runtime(forNode, RuntimeNode.Request.AWAIT,
+                        runtime(forNode, RuntimeNode.Request.ASYNC_ITERATOR_NEXT, ref(forNode, aiter)))));
+        // if (:ares.done) break;
+        whileBody.add(new IfNode(line, token, finish, member(forNode, ares, "done"),
+                new Block(token, finish, new BreakNode(line, token, finish, null)), null));
+        // bind the loop variable to :ares.value
+        whileBody.add(bindLoopTarget(forNode, member(forNode, ares, "value"), pattern));
+        whileBody.addAll(forNode.getBody().getStatements());
+
+        final WhileNode loop = new WhileNode(line, token, finish, false,
+                new JoinPredecessorExpression(LiteralNode.newInstance(token, finish, true)),
+                new Block(forNode.getBody().getToken(), forNode.getBody().getFinish(), whileBody));
+
+        return List.of(getIter, loop);
+    }
+
+    /** {@code holder[name]} - reads a property of the iterator result. */
+    private static Expression member(final Statement at, final String holder, final String name) {
+        return new IndexNode(Token.recast(at.getToken(), TokenType.LBRACKET), at.getFinish(),
+                ref(at, holder), LiteralNode.newInstance(at.getToken(), at.getFinish(), name));
+    }
+
+    /** Binds a for-await loop variable to the iterator value: a declaration or an assignment. */
+    private Statement bindLoopTarget(final ForNode forNode, final Expression value, final boolean pattern) {
+        final int line = forNode.getLineNumber();
+        final long token = forNode.getToken();
+        final int finish = forNode.getFinish();
+        final Expression init = forNode.getInit();
+        // A pattern's target is a temporary the pattern branch already declared
+        // (and whose destructuring is now in the body); assign to it.
+        if (!pattern && forNode.declaresHead() && init instanceof IdentNode name) {
+            final boolean perIteration = forNode.hasPerIterationScope();
+            return new VarNode(line, Token.recast(token, perIteration ? TokenType.LET : TokenType.VAR), finish,
+                    new IdentNode(name).setIsDeclaredHere(), value, perIteration ? VarNode.IS_LET : 0);
+        }
+        return new ExpressionStatement(line, token, finish,
+                new BinaryNode(Token.recast(token, TokenType.ASSIGN), init, value));
     }
 
     /**

@@ -447,7 +447,7 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         if (functionNode.isSubclassConstructor()) {
             flags |= IS_ES6_SUBCLASS_CONSTRUCTOR;
         }
-        if (functionNode.getKind() == FunctionNode.Kind.GENERATOR) {
+        if (functionNode.isGenerator()) {
             flags |= IS_ES6_GENERATOR;
         }
         if (functionNode.isAsync()) {

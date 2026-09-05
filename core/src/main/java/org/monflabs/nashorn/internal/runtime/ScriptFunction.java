@@ -237,7 +237,8 @@ public class ScriptFunction extends ScriptObject {
         this.scope = scope;
         // ES2015 25.2.4: a generator function inherits from
         // %GeneratorFunction.prototype%, not from Function.prototype directly
-        this.setInitialProto(data.isGenerator() ? global.getGeneratorFunctionPrototype()
+        this.setInitialProto(data.isAsyncGenerator() ? global.getAsyncGeneratorFunctionPrototype()
+                : data.isGenerator() ? global.getGeneratorFunctionPrototype()
                 : data.isAsync() ? global.getAsyncFunctionPrototype()
                 : global.getFunctionPrototype());
         this.prototype = LAZY_PROTOTYPE;
@@ -918,7 +919,15 @@ public class ScriptFunction extends ScriptObject {
     public final Object getPrototype() {
         if (prototype == LAZY_PROTOTYPE) {
             final PrototypeObject made = new PrototypeObject(this);
-            if (data.isGenerator()) {
+            if (data.isAsyncGenerator()) {
+                // ES2018 25.3: an async generator's objects inherit from
+                // %AsyncGeneratorPrototype% and the prototype has no constructor
+                made.setProto(Global.instance().getAsyncGeneratorPrototype());
+                final Property ctor = made.getMap().findProperty("constructor");
+                if (ctor != null) {
+                    made.deleteOwnProperty(ctor);
+                }
+            } else if (data.isGenerator()) {
                 // ES2015 25.2.4.2: what a generator function's generators
                 // inherit from sits below %GeneratorPrototype%, where next,
                 // return and throw are - and unlike an ordinary function's

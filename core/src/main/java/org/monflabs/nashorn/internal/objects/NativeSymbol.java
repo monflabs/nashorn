@@ -78,6 +78,10 @@ public final class NativeSymbol extends ScriptObject {
     @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "iterator")
     public static final Symbol iterator = new Symbol("Symbol.iterator");
 
+    /** ECMAScript 2018 Symbol.asyncIterator, the method for-await-of asks for. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "asyncIterator")
+    public static final Symbol asyncIterator = new Symbol("Symbol.asyncIterator");
+
     /** ECMAScript 2015 Symbol.hasInstance, consulted by instanceof. */
     @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "hasInstance")
     public static final Symbol hasInstance = new Symbol("Symbol.hasInstance");

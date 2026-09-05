@@ -88,6 +88,8 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
          * does. The two are one enum because every flag bit is spoken for.
          */
         ASYNC_ARROW,
+        /** an async generator function - {@code async function*} (ES2018) */
+        ASYNC_GENERATOR,
         /** a module function */
         MODULE
     }
@@ -1290,9 +1292,19 @@ public final class FunctionNode extends LexicalContextExpression implements Flag
         return getFlag(ES6_IS_METHOD);
     }
 
-    /** @return true if this is an async function, in either of its shapes */
+    /** @return true if this is an async function, in any of its shapes */
     public boolean isAsync() {
-        return kind == Kind.ASYNC || kind == Kind.ASYNC_ARROW;
+        return kind == Kind.ASYNC || kind == Kind.ASYNC_ARROW || kind == Kind.ASYNC_GENERATOR;
+    }
+
+    /** @return true if this is a generator, ordinary or async (ES2018) */
+    public boolean isGenerator() {
+        return kind == Kind.GENERATOR || kind == Kind.ASYNC_GENERATOR;
+    }
+
+    /** @return true if this is an async generator - {@code async function*} */
+    public boolean isAsyncGenerator() {
+        return kind == Kind.ASYNC_GENERATOR;
     }
 
     /**

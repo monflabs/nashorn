@@ -89,6 +89,7 @@ public final class Test262Selector {
         "regexp-dotall", "regexp-named-groups", "regexp-lookbehind",
         "regexp-unicode-property-escapes",
         "object-spread", "object-rest",
+        "async-iteration", "Symbol.asyncIterator",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -118,13 +119,12 @@ public final class Test262Selector {
      * accord. Widening this set would mean chasing semantics nobody has
      * ratified.
      *
-     * The async-generator directories are ECMAScript 2018 - async iteration,
-     * not async functions. They are named here rather than caught by the feature
-     * rule because the tests in them predate the {@code features:} convention
-     * and declare nothing.
+     * The async-generator directories are ECMAScript 2018 and are now in scope -
+     * async iteration is implemented (see the async-iteration and
+     * Symbol.asyncIterator feature tags above); its remaining conformance
+     * refinements are tracked in the expectations file rather than excluded here.
      */
-    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging",
-            "async-generator", "async-generators");
+    private static final Set<String> EXCLUDED_DIRS = Set.of("intl402", "staging");
 
     /**
      * Tests about something in scope whose bodies are written in syntax that is

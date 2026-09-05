@@ -1147,6 +1147,10 @@ public final class Global extends Scope {
     private ScriptObject   builtinGeneratorPrototype;
     private ScriptObject   builtinGeneratorFunctionPrototype;
     private ScriptObject   builtinAsyncFunctionPrototype;
+    private ScriptObject   builtinAsyncGeneratorPrototype;
+    private ScriptObject   builtinAsyncGeneratorFunctionPrototype;
+    private ScriptObject   builtinAsyncIteratorPrototype;
+    private ScriptObject   builtinAsyncFromSyncIteratorPrototype;
     private ScriptFunction builtinNumber;
     private ScriptFunction builtinRegExp;
     private ScriptFunction builtinString;
@@ -2313,6 +2317,68 @@ public final class Global extends Scope {
             builtinGeneratorPrototype = initPrototype("NativeGenerator", getIteratorPrototype());
         }
         return builtinGeneratorPrototype;
+    }
+
+    /**
+     * ES2018 25.5.1 %AsyncGeneratorPrototype% - what an async generator object
+     * inherits next/return/throw and @@asyncIterator from.
+     *
+     * @return the %AsyncGeneratorPrototype% intrinsic
+     */
+    /**
+     * ES2018 25.1.3 %AsyncIteratorPrototype% - the parent of every async
+     * iterator, holding {@code [Symbol.asyncIterator]}.
+     *
+     * @return the %AsyncIteratorPrototype% intrinsic
+     */
+    public ScriptObject getAsyncIteratorPrototype() {
+        if (builtinAsyncIteratorPrototype == null) {
+            builtinAsyncIteratorPrototype = initPrototype("AbstractAsyncIterator", getObjectPrototype());
+        }
+        return builtinAsyncIteratorPrototype;
+    }
+
+    public ScriptObject getAsyncGeneratorPrototype() {
+        if (builtinAsyncGeneratorPrototype == null) {
+            builtinAsyncGeneratorPrototype = initPrototype("NativeAsyncGenerator", getAsyncIteratorPrototype());
+        }
+        return builtinAsyncGeneratorPrototype;
+    }
+
+    /**
+     * ES2018 25.1.4 %AsyncFromSyncIteratorPrototype% - the adaptor a for-await
+     * over a synchronous iterable uses.
+     *
+     * @return the %AsyncFromSyncIteratorPrototype% intrinsic
+     */
+    public ScriptObject getAsyncFromSyncIteratorPrototype() {
+        if (builtinAsyncFromSyncIteratorPrototype == null) {
+            builtinAsyncFromSyncIteratorPrototype = initPrototype("NativeAsyncFromSyncIterator", getAsyncIteratorPrototype());
+        }
+        return builtinAsyncFromSyncIteratorPrototype;
+    }
+
+    /**
+     * ES2018 25.3.3 %AsyncGeneratorFunction.prototype% - what an async generator
+     * function inherits from; it carries the "prototype" naming
+     * %AsyncGeneratorPrototype%.
+     *
+     * @return the %AsyncGeneratorFunction.prototype% intrinsic
+     */
+    public ScriptObject getAsyncGeneratorFunctionPrototype() {
+        if (builtinAsyncGeneratorFunctionPrototype == null) {
+            final ScriptObject proto = newEmptyInstance();
+            proto.setInitialProto(getFunctionPrototype());
+            proto.addOwnProperty("prototype", Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                    getAsyncGeneratorPrototype());
+            proto.addOwnProperty(NativeSymbol.toStringTag, Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE,
+                    "AsyncGeneratorFunction");
+            proto.setIsBuiltin();
+            builtinAsyncGeneratorFunctionPrototype = proto;
+            getAsyncGeneratorPrototype().addOwnProperty("constructor",
+                    Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, proto);
+        }
+        return builtinAsyncGeneratorFunctionPrototype;
     }
 
     /**

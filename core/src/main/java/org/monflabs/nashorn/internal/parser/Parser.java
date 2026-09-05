@@ -1361,13 +1361,15 @@ public class Parser extends AbstractParser implements Loggable {
         // range starts at the name, so the flag is the authority and the star is
         // merely consumed if present.
         final boolean generator = (reparseFlags & ScriptFunctionData.IS_ES6_GENERATOR) != 0;
-        if (type == MUL) {
-            next();
-        }
         // An async method's recorded range starts at the name too, so the flag
         // is the authority here as well; an "async" in front is merely consumed.
+        // It comes before the star of an async generator method (async *m), so
+        // it is consumed first.
         final boolean async = (reparseFlags & ScriptFunctionData.IS_ES6_ASYNC) != 0;
         if (lookaheadIsAsyncMethod()) {
+            next();
+        }
+        if (type == MUL) {
             next();
         }
         // A computed key is read the same way as a written one and can name the
@@ -1921,7 +1923,7 @@ public class Parser extends AbstractParser implements Loggable {
     /** Whether the function being parsed is a generator, arrows being transparent. */
     private boolean insideGenerator() {
         final ParserContextFunctionNode function = getCurrentNonArrowFunction();
-        return function != null && function.getKind() == FunctionNode.Kind.GENERATOR;
+        return function != null && function.isGenerator();
     }
 
     /**
@@ -2484,9 +2486,17 @@ public class Parser extends AbstractParser implements Loggable {
         int flags = 0;
         boolean isForOf = false;
 
+        boolean forAwait = false;
         try {
             // FOR tested in caller.
             next();
+
+            // ES2018 for await (... of ...), valid only in an async context.
+            if (type == IDENT && "await".equals(getValue()) && inAsyncFunction()) {
+                forAwait = true;
+                flags |= ForNode.IS_FOR_AWAIT;
+                next();
+            }
 
             // Nashorn extension: for each expression.
             // iterate property values rather than property names.
@@ -2638,6 +2648,10 @@ public class Parser extends AbstractParser implements Loggable {
             default:
                 expect(SEMICOLON);
                 break;
+            }
+
+            if (forAwait && (flags & ForNode.IS_FOR_OF) == 0) {
+                throw error(AbstractParser.message("expected.stmt", "for await"), forToken);
             }
 
             expect(RPAREN);
@@ -4148,7 +4162,8 @@ public class Parser extends AbstractParser implements Loggable {
                 : getDefaultValidFunctionName(methodLine, false);
         final IdentNode methodNameNode = createIdentNode(key.getToken(), finish, methodName);
 
-        final FunctionNode.Kind functionKind = async ? FunctionNode.Kind.ASYNC
+        final FunctionNode.Kind functionKind = async && generator ? FunctionNode.Kind.ASYNC_GENERATOR
+                : async ? FunctionNode.Kind.ASYNC
                 : generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
         final ParserContextFunctionNode functionNode = createParserContextFunctionNode(methodNameNode, methodToken, functionKind, methodLine, null);
         functionNode.setFlag(flags);
@@ -4683,7 +4698,8 @@ public class Parser extends AbstractParser implements Loggable {
             hasInferredName = defaultNameIsBinding && !isStatement;
         }
 
-        final FunctionNode.Kind functionKind = async ? FunctionNode.Kind.ASYNC
+        final FunctionNode.Kind functionKind = async && generator ? FunctionNode.Kind.ASYNC_GENERATOR
+                : async ? FunctionNode.Kind.ASYNC
                 : generator ? FunctionNode.Kind.GENERATOR : FunctionNode.Kind.NORMAL;
         List<IdentNode> parameters = Collections.emptyList();
         final ParserContextFunctionNode functionNode = createParserContextFunctionNode(name, functionToken, functionKind, functionLine, parameters);
@@ -7045,7 +7061,7 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     private boolean inGeneratorFunction() {
-        return reparsingPropertyKey || lc.getCurrentFunction().getKind() == FunctionNode.Kind.GENERATOR;
+        return reparsingPropertyKey || lc.getCurrentFunction().isGenerator();
     }
 
     /**
@@ -7062,7 +7078,7 @@ public class Parser extends AbstractParser implements Loggable {
         final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
         while (iter.hasNext()) {
             final FunctionNode.Kind kind = iter.next().getKind();
-            if (kind == FunctionNode.Kind.ASYNC || kind == FunctionNode.Kind.ASYNC_ARROW) {
+            if (kind == FunctionNode.Kind.ASYNC || kind == FunctionNode.Kind.ASYNC_ARROW || kind == FunctionNode.Kind.ASYNC_GENERATOR) {
                 return true;
             }
             if (kind != FunctionNode.Kind.ARROW) {

@@ -166,6 +166,16 @@ class ParserContextFunctionNode extends ParserContextBaseNode {
         return kind;
     }
 
+    /** @return true if this is a generator, ordinary or async (ES2018) */
+    public boolean isGenerator() {
+        return kind == FunctionNode.Kind.GENERATOR || kind == FunctionNode.Kind.ASYNC_GENERATOR;
+    }
+
+    /** @return true if this is an async generator - {@code async function*} */
+    public boolean isAsyncGenerator() {
+        return kind == FunctionNode.Kind.ASYNC_GENERATOR;
+    }
+
     /**
      * Get parameters
      * @return The parameters of the function

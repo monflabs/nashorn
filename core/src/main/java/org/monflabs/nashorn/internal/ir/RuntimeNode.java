@@ -90,6 +90,10 @@ public class RuntimeNode extends Expression {
         TO_PROPERTY_KEY(TokenType.VOID, Type.OBJECT, 1),
         /** ES6 7.4.1 GetIterator, for array destructuring and spread. */
         GET_ITERATOR(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2018 GetIterator with the async hint, for {@code for await}. */
+        GET_ASYNC_ITERATOR(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2018 one step of an async iterator: calls next(), returning its promise. */
+        ASYNC_ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
         /** One element of an array destructuring pattern; undefined when exhausted. */
         ITERATOR_NEXT(TokenType.VOID, Type.OBJECT, 1),
         /** Everything an iterator has left, as an array - the {@code ...rest} case. */
@@ -156,6 +160,10 @@ public class RuntimeNode extends Expression {
         YIELD_STAR(TokenType.VOID, Type.OBJECT, 1),
         /** The first thing an async function does: start its body, hand back its promise. */
         ASYNC_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** ES2018 async generator entry - makes and returns the async generator object. */
+        ASYNC_GENERATOR_ENTER(TokenType.VOID, Type.OBJECT, 0),
+        /** The same, for one whose parameter list is bound at the call. */
+        ASYNC_GENERATOR_ENTER_PARAMETERS(TokenType.VOID, Type.OBJECT, 0),
         /** await - suspends the async function body until a value settles. */
         AWAIT(TokenType.VOID, Type.OBJECT, 1);
 

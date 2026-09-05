@@ -3523,7 +3523,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         // on the generator's thread, its receiver, and the arguments to replay.
         final boolean pushesFrame = request == Request.GENERATOR_ENTER
                 || request == Request.GENERATOR_ENTER_PARAMETERS
-                || request == Request.ASYNC_ENTER;
+                || request == Request.ASYNC_ENTER
+                || request == Request.ASYNC_GENERATOR_ENTER
+                || request == Request.ASYNC_GENERATOR_ENTER_PARAMETERS;
         if (pushesFrame) {
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);

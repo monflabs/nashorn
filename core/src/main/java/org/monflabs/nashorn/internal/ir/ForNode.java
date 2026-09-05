@@ -70,6 +70,9 @@ public final class ForNode extends LoopNode {
      */
     public static final int DECLARES_HEAD = 1 << 4;
 
+    /** Is this an ES2018 {@code for await (... of ...)} loop? */
+    public static final int IS_FOR_AWAIT = 1 << 5;
+
     private final int flags;
 
     /**
@@ -211,6 +214,11 @@ public final class ForNode extends LoopNode {
      */
     public boolean isForOf() {
         return (flags & IS_FOR_OF) != 0;
+    }
+
+    /** @return true if this is an ES2018 {@code for await} loop */
+    public boolean isForAwait() {
+        return (flags & IS_FOR_AWAIT) != 0;
     }
 
     /**

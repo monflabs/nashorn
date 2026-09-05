@@ -63,6 +63,8 @@ import org.monflabs.nashorn.internal.ir.debug.JSONWriter;
 import org.monflabs.nashorn.internal.objects.AbstractIterator;
 import org.monflabs.nashorn.internal.objects.ArrayBufferView;
 import org.monflabs.nashorn.internal.objects.Global;
+import org.monflabs.nashorn.internal.objects.NativeAsyncFromSyncIterator;
+import org.monflabs.nashorn.internal.objects.NativeAsyncGenerator;
 import org.monflabs.nashorn.internal.objects.NativeGenerator;
 import org.monflabs.nashorn.internal.objects.NativeProxy;
 import org.monflabs.nashorn.internal.objects.NativeSymbol;
@@ -1562,6 +1564,62 @@ public final class ScriptRuntime {
      * @param iterable the value being destructured or spread
      * @return an iterator over it
      */
+    /**
+     * ES2018 GetIterator(obj, async), for {@code for await}: the object's own
+     * @@asyncIterator if it has one, otherwise its @@iterator wrapped so each
+     * step answers with a promise.
+     *
+     * @param iterable the value being iterated
+     * @return the async iterator object
+     */
+    public static Object GET_ASYNC_ITERATOR(final Object iterable) {
+        final Global global = Context.getGlobal();
+        final Object obj = Global.toObject(iterable);
+        if (!(obj instanceof ScriptObject sobj)) {
+            throw typeError("cannot.get.iterator", safeToString(iterable));
+        }
+        final Object asyncMethod = sobj.get(NativeSymbol.asyncIterator);
+        if (asyncMethod != UNDEFINED && asyncMethod != null) {
+            // present but not callable is a TypeError; it does not fall back to
+            // the sync iterator (25.1.3.1)
+            if (!(asyncMethod instanceof ScriptFunction fn)) {
+                throw typeError("not.a.function", safeToString(asyncMethod));
+            }
+            final Object iter = apply(fn, sobj);
+            if (!(iter instanceof ScriptObject)) {
+                throw typeError("cannot.get.iterator", safeToString(iterable));
+            }
+            return iter;
+        }
+        final Object syncMethod = sobj.get(NativeSymbol.iterator);
+        if (!(syncMethod instanceof ScriptFunction syncFn)) {
+            throw typeError("cannot.get.iterator", safeToString(iterable));
+        }
+        final Object syncIter = apply(syncFn, sobj);
+        if (!(syncIter instanceof ScriptObject syncIterObj)) {
+            throw typeError("cannot.get.iterator", safeToString(iterable));
+        }
+        return new NativeAsyncFromSyncIterator(syncIterObj, global, global.getAsyncFromSyncIteratorPrototype());
+    }
+
+    /**
+     * ES2018 one step of an async iterator: calls its next(), returning the
+     * promise (which {@code for await} awaits).
+     *
+     * @param iter the async iterator
+     * @return the promise next() returned
+     */
+    public static Object ASYNC_ITERATOR_NEXT(final Object iter) {
+        if (!(iter instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", safeToString(iter));
+        }
+        final Object next = sobj.get("next");
+        if (!(next instanceof ScriptFunction fn)) {
+            throw typeError("not.a.function", "next");
+        }
+        return apply(fn, sobj);
+    }
+
     public static Object GET_ITERATOR(final Object iterable) {
         final Iterator<?> iterator = toES6Iterator(iterable);
         if (iterator instanceof CloseableIterator) {
@@ -2581,8 +2639,61 @@ public final class ScriptRuntime {
         final GeneratorSupport support = GeneratorSupport.running();
         if (support != null) {
             support.parametersBound();
+        } else {
+            final AsyncGeneratorSupport async = AsyncGeneratorSupport.running();
+            if (async != null) {
+                async.parametersBound();
+            }
         }
         return UNDEFINED;
+    }
+
+    /**
+     * ES2018 async generator entry - makes and returns the async generator object.
+     *
+     * @param callee the async generator function
+     * @param self   its this value
+     * @param args   its arguments
+     * @return the async generator object, or undefined on its own thread
+     */
+    public static Object ASYNC_GENERATOR_ENTER(final Object callee, final Object self, final Object args) {
+        if (AsyncGeneratorSupport.entering()) {
+            return UNDEFINED;
+        }
+        final Global global = Context.getGlobal();
+        final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
+        final AsyncGeneratorSupport support = new AsyncGeneratorSupport((ScriptFunction)callee, self, arguments, global);
+        return new NativeAsyncGenerator(support, asyncGeneratorPrototype((ScriptFunction)callee, global));
+    }
+
+    /**
+     * The same, for an async generator whose parameters are bound at the call.
+     *
+     * @param callee the async generator function
+     * @param self   its this value
+     * @param args   its arguments
+     * @return the async generator object, or undefined on its own thread
+     */
+    public static Object ASYNC_GENERATOR_ENTER_PARAMETERS(final Object callee, final Object self, final Object args) {
+        if (AsyncGeneratorSupport.entering()) {
+            return UNDEFINED;
+        }
+        final Global global = Context.getGlobal();
+        final Object[] arguments = args instanceof Object[] array ? array : ScriptRuntime.EMPTY_ARRAY;
+        final AsyncGeneratorSupport support = new AsyncGeneratorSupport((ScriptFunction)callee, self, arguments, global);
+        support.bindParameters();
+        return new NativeAsyncGenerator(support, asyncGeneratorPrototype((ScriptFunction)callee, global));
+    }
+
+    private static ScriptObject asyncGeneratorPrototype(final ScriptFunction generatorFunction, final Global global) {
+        final Object own = generatorFunction.getPrototype();
+        if (!(own instanceof ScriptObject prototype)) {
+            return global.getAsyncGeneratorPrototype();
+        }
+        if (prototype.getProto() != global.getAsyncGeneratorPrototype()) {
+            prototype.setProto(global.getAsyncGeneratorPrototype());
+        }
+        return prototype;
     }
 
     /**
@@ -2776,6 +2887,10 @@ public final class ScriptRuntime {
      * @return the value the inner iterator finished with
      */
     public static Object YIELD_STAR(final Object iterable) {
+        final AsyncGeneratorSupport asyncGenerator = AsyncGeneratorSupport.running();
+        if (asyncGenerator != null) {
+            return asyncYieldStar(asyncGenerator, iterable);
+        }
         final GeneratorSupport generator = GeneratorSupport.running();
         if (generator == null) {
             throw typeError("yield.outside.generator");
@@ -2831,6 +2946,57 @@ public final class ScriptRuntime {
 
             final Object[] resumed = generator.yieldDelegating(result);
             how = (String)resumed[0];
+            received = resumed[1];
+        }
+    }
+
+    /**
+     * ES2018 {@code yield* iterable} in an async generator (14.4.14 with Await):
+     * delegates to an async iterator (or a sync one wrapped), awaiting every
+     * step, and yielding each awaited value through the async generator.
+     */
+    private static Object asyncYieldStar(final AsyncGeneratorSupport generator, final Object iterable) {
+        final Object delegate = GET_ASYNC_ITERATOR(iterable);
+        if (!(delegate instanceof ScriptObject iterator)) {
+            throw typeError("cannot.get.iterator", safeToString(iterable));
+        }
+        final Object next = iterator.get("next");
+        Object received = UNDEFINED;
+        String how = "next";
+
+        while (true) {
+            final ScriptObject result;
+            switch (how) {
+            case "next" -> result = iterationResult(generator.await(call(next, iterator, new Object[] { received })));
+            case "throw" -> {
+                final Object thrower = iterator.get("throw");
+                if (thrower == UNDEFINED || thrower == null) {
+                    final Object returner = iterator.get("return");
+                    if (returner != UNDEFINED && returner != null) {
+                        generator.await(call(returner, iterator, new Object[0]));
+                    }
+                    throw typeError("not.a.function", "throw");
+                }
+                result = iterationResult(generator.await(call(thrower, iterator, new Object[] { received })));
+            }
+            default -> {
+                final Object returner = iterator.get("return");
+                if (returner == UNDEFINED || returner == null) {
+                    throw AsyncGeneratorSupport.returning(received);
+                }
+                result = iterationResult(generator.await(call(returner, iterator, new Object[] { received })));
+                if (JSType.toBoolean(result.get("done"))) {
+                    throw AsyncGeneratorSupport.returning(result.get("value"));
+                }
+            }
+            }
+
+            if (!"return".equals(how) && JSType.toBoolean(result.get("done"))) {
+                return result.get("value");
+            }
+
+            final Object[] resumed = generator.yieldStarStep(result.get("value"));
+            how = (String) resumed[0];
             received = resumed[1];
         }
     }
@@ -2896,6 +3062,10 @@ public final class ScriptRuntime {
      * @return what it fulfilled with
      */
     public static Object AWAIT(final Object value) {
+        final AsyncGeneratorSupport asyncGenerator = AsyncGeneratorSupport.running();
+        if (asyncGenerator != null) {
+            return asyncGenerator.await(value);
+        }
         final AsyncSupport async = AsyncSupport.running();
         if (async == null) {
             throw typeError("await.outside.async");
@@ -2904,6 +3074,10 @@ public final class ScriptRuntime {
     }
 
     public static Object YIELD(final Object value) {
+        final AsyncGeneratorSupport asyncGenerator = AsyncGeneratorSupport.running();
+        if (asyncGenerator != null) {
+            return asyncGenerator.yield(value);
+        }
         final GeneratorSupport generator = GeneratorSupport.running();
         if (generator == null) {
             throw typeError("yield.outside.generator");
