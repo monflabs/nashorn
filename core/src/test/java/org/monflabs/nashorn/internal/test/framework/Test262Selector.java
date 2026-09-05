@@ -273,27 +273,34 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2017 conformance
+     * @return true if the test counts towards ES2018 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 
     /**
      * Whether a property-escape test is one held to the conformance gate.
      *
-     * The property-escape <em>syntax</em> is implemented, and General_Category
-     * and Script are answered exactly by the JDK engine (JDK 25 carries Unicode
-     * 16, the edition's Unicode), so those exhaustive {@code generated/} trees
-     * are in scope and pass. The rest of the exhaustive coverage is not: the
-     * ~40 binary properties the JDK does not carry (Emoji and its kin, Dash,
-     * Math, Diacritic, the Changes_When_* set, ID/XID_* and so on) and
-     * Script_Extensions would each need the Unicode Character Database bundled
-     * to answer for a code point at a time - data this engine does not ship and
-     * the JDK does not expose. Those {@code generated/} files sit directly in
-     * the folder (a binary property per file) or under Script_Extensions/;
-     * they are out of scope, a data limitation on a par with the regexp-engine
-     * ones above. The two character-class range tests want a SyntaxError for a
-     * property escape used as a range bound, a grammar rule not enforced here.
-     * See doc/CONFORMANCE.md.
+     * The property-escape <em>syntax</em> and mechanism are implemented and
+     * verified by the hand-written tests in the {@code property-escapes/}
+     * directory (loose matching, the grammar extensions, character classes,
+     * unsupported-property errors), which are in scope and pass. The exhaustive
+     * {@code generated/} trees are not, for two data reasons that both come down
+     * to the Unicode Character Database this engine does not ship:
+     * <ul>
+     *   <li>General_Category and Script are answered by the JDK's regex engine,
+     *       but the suite's {@code generated/} data is keyed to a Unicode version
+     *       newer than the JDK's (JDK 25 is Unicode 16), so their code-point lists
+     *       disagree over the characters that version added - the same situation
+     *       as {@link #LATER_UNICODE} for the identifier tables;</li>
+     *   <li>the ~40 binary properties the JDK does not carry (Emoji and its kin,
+     *       Dash, Math, Diacritic, the Changes_When_* set, ID/XID_* and so on)
+     *       and Script_Extensions would each need the UCD bundled to answer a
+     *       code point at a time.</li>
+     * </ul>
+     * The two character-class range tests want a SyntaxError for a property
+     * escape used as a range bound, a grammar rule not enforced here. See
+     * doc/CONFORMANCE.md. ({@code generated/strings/} is Property_of_Strings, the
+     * RegExp {@code v} flag - a later edition, also excluded by feature tag.)
      */
     private static boolean propertyEscapeInScope(final String path) {
         if (!path.contains("/property-escapes/")) {
@@ -302,17 +309,13 @@ public final class Test262Selector {
         if (path.endsWith("character-class-range-start.js")
                 || path.endsWith("character-class-range-no-dash-start.js")
                 || path.contains("Script_Extensions")) {
+            // Script_Extensions (hand-written cases included) needs the UCD; the
+            // two range tests want a SyntaxError not enforced here.
             return false;
         }
-        final int at = path.indexOf(GENERATED);
-        if (at < 0) {
-            return true;
-        }
-        final String after = path.substring(at + GENERATED.length());
-        // General_Category/... and Script/... pass; a binary property is a file
-        // directly in generated/ (no further slash); Property_of_Strings needs
-        // data the engine does not have.
-        return after.contains("/") && !after.startsWith("Property_of_Strings/");
+        // the exhaustive generated/ trees are out of scope (Unicode-version and
+        // UCD-data limitations); the hand-written tests beside them are in scope.
+        return !path.contains(GENERATED);
     }
 
     public static boolean isInScope(final Path suiteRoot, final Path testFile, final Test262Frontmatter frontmatter) {
