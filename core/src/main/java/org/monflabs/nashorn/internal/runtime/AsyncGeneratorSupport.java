@@ -198,6 +198,19 @@ public final class AsyncGeneratorSupport {
         return new Abort(value);
     }
 
+    /**
+     * Rethrows an async-generator return unwind, so a generated {@code catch}
+     * (or a synthetic one, such as a destructuring's iterator-close guard) cannot
+     * swallow it and turn a {@code return()} into an ordinary completion.
+     *
+     * @param thrown whatever the catch block caught
+     */
+    static void rethrowIfAbort(final Throwable thrown) {
+        if (thrown instanceof Abort abort) {
+            throw abort;
+        }
+    }
+
     private Object afterResume(final Resume resume) {
         if (resume instanceof Resume.Return ret) {
             throw new Abort(ret.value());

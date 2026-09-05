@@ -86,6 +86,10 @@ public final class GeneratorSupport {
         if (thrown instanceof Abort abort) {
             throw abort;
         }
+        // An async generator's return() unwinds with its own Abort; a generated
+        // catch must not swallow that one either (e.g. a return() through a
+        // destructuring's iterator-close in a for-await).
+        AsyncGeneratorSupport.rethrowIfAbort(thrown);
     }
 
     /** Thrown inside the body to unwind it when the caller calls return(). */
