@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2017 Language Specification](https://262.ecma-international.org/8.0/)
-(ECMAScript 8). It is written in Java and runs on the Java Virtual Machine.
+[ECMAScript 2018 Language Specification](https://262.ecma-international.org/9.0/)
+(ECMAScript 9). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2017 together with its Annex B - the additional
+This fork implements ECMAScript 2018 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -19,9 +19,11 @@ There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols, the
 `Map`/`Set` family, which upstream hid behind a language switch, and the
 editions after them - `**`, `Object.values`, `String.prototype.padStart`,
-async functions, `SharedArrayBuffer` and `Atomics` - are simply the language.
-Proper tail calls are a documented exclusion, as is ECMA-402. Annex B is
-implemented, behind `--annexB`.
+async functions, `SharedArrayBuffer` and `Atomics`, and the ES2018 additions
+(object rest/spread, async iteration with `for await`, `Promise.prototype.finally`,
+and the RegExp `s` flag, named groups, lookbehind and `\p{…}` property escapes) -
+are simply the language. Proper tail calls are a documented exclusion, as is
+ECMA-402. Annex B is implemented, behind `--annexB`.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.
@@ -40,7 +42,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2017.0.0-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2018.0.0-all.jar`.
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
@@ -49,19 +51,20 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2017.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2018.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 ### Versioning
 
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
-implements, rather than a sequential number. So `2017.0.0` is the first release
-targeting [ECMAScript 2017](https://262.ecma-international.org/8.0/) (ES8); minor and
-patch increment as usual for backward-compatible features and fixes within that spec
-target. When the engine adopts a later edition of the language, the major number moves
-to that edition's year (for example `2018.x.x` for ECMAScript 2018). This replaces the
-upstream `15.x` scheme, which tracked the JDK release Nashorn was extracted from rather
-than the language it implements.
+implements, rather than a sequential number. So `2018.0.0` targets
+[ECMAScript 2018](https://262.ecma-international.org/9.0/) (ES9), just as the earlier
+`2017.0.0` targeted ECMAScript 2017; minor and patch increment as usual for
+backward-compatible features and fixes within that spec target. When the engine adopts
+a later edition of the language, the major number moves to that edition's year (for
+example `2019.x.x` for ECMAScript 2019). This replaces the upstream `15.x` scheme,
+which tracked the JDK release Nashorn was extracted from rather than the language it
+implements.
 
 Nashorn is a JPMS module with no dependencies of its own - it generates bytecode with the JDK's own `java.lang.classfile` API - so make sure it is on your application's module path, or appropriately added to a module layer, or otherwise configured as a module.
 
@@ -96,12 +99,13 @@ mvn -Ptest262 -DskipTests verify
 ```
 
 test262 has no branch for any edition, so the suite is pinned by commit and the
-ES2017 slice is selected out of it: a test counts unless it needs a feature that
-postdates ES2017. The run is compared against a checked-in expectations file and
+ES2018 slice is selected out of it: a test counts unless it needs a feature that
+postdates ES2018. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. Eight of the 50,339 selected executions fail, all of one shape
-and named in the file with the reason; everything else passes. Three things are
-excluded, all outside ECMA-262 8th edition proper: proper tail calls, ECMA-402
+moves forwards. 126 of the 58,805 selected executions fail, in two settled groups
+named in the file with the reason (8 Annex B eval-scope cases and 118 ES2018
+async-iteration edge cases); everything else passes. Three things are excluded,
+all outside ECMA-262 9th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

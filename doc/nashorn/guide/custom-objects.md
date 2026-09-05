@@ -75,7 +75,7 @@ logged.foo;          // prints "get foo", yields "FOO"
 logged.greet("hi");  // prints "call greet(hi)"
 ```
 
-New code targeting ECMAScript 2017 should usually prefer the standard `Proxy`, which this engine
+New code targeting ECMAScript 2018 should usually prefer the standard `Proxy`, which this engine
 implements in full; `JSAdapter` remains for the large body of existing code written against it.
 
 ## ClassFilter

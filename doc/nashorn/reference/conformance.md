@@ -1,15 +1,26 @@
 # Conformance
 
-This engine implements ECMAScript 2017 — ECMA-262, 8th edition — together with its Annex B, and is
+This engine implements ECMAScript 2018 — ECMA-262, 9th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 50,339 selected executions, 8 expected failures.** Everything else passes,
-in both of the engine's typing modes. The eight are one shape — an indirect `eval` whose
-block-level function declaration must update a `var` the global already had — rooted in how the
-engine merges eval scopes, and each is named in the checked-in expectations file with the reason.
-The run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only
-move forwards: a fix must remove its expectation line, and a regression cannot hide.
+**The headline numbers: 58,805 selected executions, 126 expected failures.** Everything else passes,
+in both of the engine's typing modes. The 126 fall into two settled groups, each named in the
+checked-in expectations file with its reason: **8** are one shape — an indirect `eval` whose
+block-level function declaration must update a `var` the global already had, rooted in how the
+engine merges eval scopes — and the remaining **118** are ES2018 async-iteration edge cases
+(iterator-close on an abrupt `for await`, the `%AsyncGeneratorFunction%` and
+`%AsyncFromSyncIterator%` corner semantics, and a handful of early-error positions). The run fails
+on an unexpected *pass* as well as an unexpected failure, so conformance can only move forwards: a
+fix must remove its expectation line, and a regression cannot hide.
+
+Two ES2018 surfaces are limited by the substrate rather than by choice, and their tests are held out
+of the slice (not counted as failures) with the reason recorded in the selector: a set of RegExp
+patterns that neither backend can compile with ES semantics — unbounded lookbehind, open-group
+backreferences, a subclassable `exec` — and the `\p{…}` Unicode **binary properties** and
+`Script_Extensions`, which the JDK's regex engine does not expose without a bundled Unicode Character
+Database. General-category and `Script` property escapes, named groups, the `s` flag, and bounded
+lookbehind all work on both backends.
 
 ## Annex B
 
@@ -31,7 +42,7 @@ an engine with none of it. 1,078 of the annex's 1,086 test files pass.
 | `legacy-regexp` | `RegExp.$1` and its kin are a Stage 3 proposal the suite files under Annex B; the properties themselves have always been present, but the proposal's tests are out of scope. |
 | `[[IsHTMLDDA]]` | `document.all` emulation can only be produced by a web host. |
 
-Everything else outside the selected slice is simply a later edition — ES2018 and beyond — which
+Everything else outside the selected slice is simply a later edition — ES2019 and beyond — which
 this engine does not claim.
 
 The full report — how the slice is selected, the exact exclusion lists, what Annex B costs, and how
@@ -45,5 +56,5 @@ mvn -Pfetch-externals -pl core generate-test-resources    # clone test262, once
 mvn -Ptest262 -DskipTests verify                          # the full conformance run
 ```
 
-The run reports `failing: 8   expected to fail: 8` on a healthy tree. Narrow it while working with
-`-Dnashorn.test262.include=/built-ins/Math/`.
+The run reports `failing: 126   expected to fail: 126` on a healthy tree. Narrow it while working
+with `-Dnashorn.test262.include=/built-ins/Math/`.

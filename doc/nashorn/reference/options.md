@@ -65,7 +65,7 @@ decade, but they are not part of the supported surface and can change without no
 | `--early-lvalue-error` | Report invalid assignment targets at parse time (default true; Annex B relaxes one case). |
 
 Options removed in this fork, kept here so old command lines can be diagnosed:
-the `--language` version switch (the engine is ES2017; there is no ES5 mode), `--function-statement-error` and `--function-statement-warning`
+the `--language` version switch (the engine is ES2018; there is no ES5 mode), `--function-statement-error` and `--function-statement-warning`
 (block-level function declarations are simply legal now).
 
 ## Internal system properties

@@ -34,6 +34,33 @@ surrogate boundary, folding is full Unicode — and Joni's code-unit model canno
 JDK engine is code-point based, so `/u` patterns are compiled there, with `UNICODE_CASE` when `i`
 is present. `-Dnashorn.regexp.impl=jdk` opts everything into it.
 
+## ES2018 additions
+
+The ES2018 RegExp features are carried by the same rewrite-and-delegate design; both backends accept
+the syntax natively, so the scanner mostly passes it through while enforcing the ES rules and
+threading a little extra state:
+
+- **`s` (dotAll)** — a new flag; `.` matches line terminators too. Mapped to `Pattern.DOTALL` on the
+  JDK backend and Joni's dot-all option, and reported in `flags`/`getFlagString`.
+- **Named groups** — `(?<name>…)`, `\k<name>`, the `.groups` object on a match, and `$<name>` in
+  `String.prototype.replace`. The scanner passes the group syntax through, collects a
+  `name → index` map (rejecting duplicate names), and threads it via `RegExp.getGroupNames()` set by
+  each backend; `NativeRegExp` builds the null-prototype `.groups` object from it. A **forward**
+  named backreference — to a group that appears later — is emitted as a numbered reference mirroring
+  the numeric-escape rule, since a forward reference can never have matched.
+- **Lookbehind** — `(?<=…)` and `(?<!…)` pass straight to the backend.
+- **Unicode property escapes** — `\p{…}`/`\P{…}` under `/u` (so always the JDK backend). A
+  translation layer maps the ES canonical property names and aliases (`General_Category`/`gc`,
+  `Script`/`sc`, and the ES binary-property list) to what `java.util.regex` accepts, matching names
+  exactly rather than loosely.
+
+Two limits are the substrate's, not the design's, and are documented as such (both in
+`doc/CONFORMANCE.md` and the conformance selector, which holds their tests out of the slice rather
+than counting them as failures): a set of patterns neither backend can compile with ES semantics —
+**unbounded lookbehind** (the JDK's is bounded and left-to-right), open-group backreferences, a
+subclassable `exec` — and the `\p{…}` **binary properties** and `Script_Extensions`, which
+`java.util.regex` does not expose without a bundled Unicode Character Database.
+
 ## Caching
 
 Compiled patterns are cached in a weak map keyed on *pattern + flags + the Annex B setting* — the

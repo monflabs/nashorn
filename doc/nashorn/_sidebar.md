@@ -31,7 +31,7 @@
   - [Objects and property maps](/internals/objects.md)
   - [Arrays](/internals/arrays.md)
   - [Call sites and linking](/internals/linking.md)
-  - [Generators and async functions](/internals/generators-async.md)
+  - [Generators, async, iteration](/internals/generators-async.md)
   - [Module system internals](/internals/modules.md)
   - [Contexts, globals and realms](/internals/contexts-globals.md)
   - [Strings and type coercion](/internals/strings-and-types.md)

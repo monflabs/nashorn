@@ -1,4 +1,4 @@
-# Generators and async functions
+# Generators, async functions, and async iteration
 
 Most engines compile a generator by rewriting its body into a state machine. Nashorn does not — a
 generator body is compiled as a **completely ordinary function** and run on a **virtual thread**,
@@ -79,6 +79,31 @@ directly, and anything else is wrapped and resolved first, so an `await` costs e
 queue turn** either way. The settlement re-enters with `Resume.Value` or `Resume.Error`;
 `Step.Returned` resolves the async function's promise (adopting thenables), `Step.Failed` rejects
 it.
+
+## Async generators and `for await`
+
+An `async function*` both `yield`s and `await`s, so `AsyncGeneratorSupport` is the two mechanisms
+above fused on one virtual thread: the generator handoff of the first section, plus the promise
+driver of the second. It differs from a plain generator in one structural way — its `next`,
+`return` and `throw` do not hand a value straight across the baton; they **return a promise** and
+append a request to a per-generator queue. The driver pumps that queue one entry at a time: it
+resumes the body until the body reaches a `yield` (settle this request's promise with
+`{value, done:false}`), an `await` (park, subscribe, resume on settlement — the request stays
+open), or completion (settle with `{value, done:true}`), then advances to the next queued request.
+Serialising requests this way is what keeps a second `next()` from re-entering a body that is still
+awaiting. `yield*` over an async iterable is delegated step by step (`asyncYieldStar`), awaiting
+each inner result.
+
+`for await (x of it)` is desugared in `ES6Desugar` to an explicit loop over the **async iterator
+protocol**: `GET_ASYNC_ITERATOR` fetches `it[Symbol.asyncIterator]()`, or — when the source has
+only a synchronous `Symbol.iterator` — wraps it in a `%AsyncFromSyncIterator%`
+(`NativeAsyncFromSyncIterator`) whose every `next` awaits the value the sync iterator produced. Each
+turn does `await ASYNC_ITERATOR_NEXT(iterator)` and reads `{value, done}`. `Symbol.asyncIterator`
+itself is registered in `NativeSymbol`; `%AsyncIteratorPrototype%` (`AbstractAsyncIterator`, whose
+only member is `[Symbol.asyncIterator]() { return this; }`) is the shared parent of both
+`%AsyncGeneratorPrototype%` and `%AsyncFromSyncIteratorPrototype%`. Because it is additive over the
+existing coroutine machinery, none of this perturbs the plain generator or async paths — the plain
+prologues are unchanged, and only a body that is both `async` and a generator takes the fused route.
 
 ## The job queue, and the event loop behind it
 

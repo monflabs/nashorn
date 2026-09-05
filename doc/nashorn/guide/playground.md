@@ -6,7 +6,7 @@ application rather than a library — built as an executable jar, not published 
 
 ```
 mvn -pl playground -am package
-java -jar playground/target/nashorn-playground-2017.0.0-all.jar
+java -jar playground/target/nashorn-playground-2018.0.0-all.jar
 ```
 
 (`--dark` or `--light` forces the theme; by default it follows the system.)
@@ -17,7 +17,7 @@ The tree on the left holds five categories, read straight out of the jar's resou
 
 * **Getting started** — `print` and `console`, values and types, functions and closures, the
   built-in objects, errors.
-* **ECMAScript support** — the ES2015, ES2016 and ES2017 feature sets, one sample per feature,
+* **ECMAScript support** — the ES2015, ES2016, ES2017 and ES2018 feature sets, one sample per feature,
   plus an Annex B pair that is worth running twice: once as is, once with
   `// @option --annexB=false` as the first line.
 * **Standard libraries** — grouped by library: **host** (the event-loop functions — timers,

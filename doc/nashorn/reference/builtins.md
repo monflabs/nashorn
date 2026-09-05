@@ -1,6 +1,6 @@
 # Built-in globals
 
-Beyond the objects ECMAScript 2017 defines, Nashorn's global carries a small set of its own
+Beyond the objects ECMAScript 2018 defines, Nashorn's global carries a small set of its own
 functions and properties. This page lists all of them; the Java-access globals (`Java`, `Packages`,
 `JavaImporter` and the package roots) have a [page of their own](../guide/connecting-with-java.md).
 

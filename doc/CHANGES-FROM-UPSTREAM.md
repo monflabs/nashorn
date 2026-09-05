@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2017
+## Language: ES5.1 → ECMAScript 2018
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2017](https://262.ecma-international.org/8.0/) (ES8) as the only
+**[ECMAScript 2018](https://262.ecma-international.org/9.0/) (ES9) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -31,6 +31,14 @@ Added on top of the ES5.1 baseline:
 - **ES2017:** `async`/`await`, `Object.values`/`entries`/`getOwnPropertyDescriptors`,
   `String.prototype.padStart`/`padEnd`, trailing commas in parameter and argument
   lists, `SharedArrayBuffer` and `Atomics`.
+- **ES2018:** object rest/spread (`{...o}`, `const {a, ...rest} = o`), async
+  iteration (`async function*`, `for await…of`, `Symbol.asyncIterator`,
+  async-from-sync adaptation), `Promise.prototype.finally`, the template-literal
+  revision (invalid escapes in tagged templates yield `undefined` cooked rather
+  than a `SyntaxError`), and the RegExp additions — the `s` (dotAll) flag, named
+  capture groups (`(?<name>)`, `\k<name>`, the `.groups` object, `$<name>`
+  replacement), lookbehind assertions, and Unicode property escapes (`\p{…}`,
+  `\P{…}` under `/u`).
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -48,7 +56,7 @@ Deliberate exclusions (see CONFORMANCE.md): **proper tail calls** and **ECMA-402
 | Java packages | `org.openjdk.nashorn.*` | `org.monflabs.nashorn.*` |
 | JPMS module | `org.openjdk.nashorn` | `org.monflabs.nashorn` |
 | JSR-223 engine name | `nashorn`, plus `js`/`JavaScript`/`ECMAScript` | `nashorn-monflabs` only (the generic `js`/`JavaScript`/`ECMAScript` names are not registered) |
-| Version scheme | JDK-derived `15.x` | ECMAScript-year semver, e.g. `2017.0.0` |
+| Version scheme | JDK-derived `15.x` | ECMAScript-year semver, e.g. `2018.0.0` |
 
 The rename lets this artifact **coexist on one class or module path with an
 upstream `nashorn-core`** — different module, different packages. The engine
@@ -184,7 +192,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2017
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2018
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

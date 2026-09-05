@@ -1,14 +1,23 @@
-ECMAScript 2017 conformance
+ECMAScript 2018 conformance
 ===========================
 
-This engine implements [ECMAScript 2017](https://262.ecma-international.org/8.0/)
-(ECMA-262, 8th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2018](https://262.ecma-international.org/9.0/)
+(ECMA-262, 9th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 50,339 executions **eight
-fail**, all of one shape and named in
-`core/src/test/resources/test262-expectations.txt` with the reason. The run fails
-on an unexpected pass as well as an unexpected failure, so conformance can only
-move forwards.
+selected at runtime by `Test262Selector`, and of its 58,805 executions **126
+fail**, in two settled groups, each named in
+`core/src/test/resources/test262-expectations.txt` with the reason: **8** are one
+shape — an indirect `eval` whose block-level function declaration must update a
+`var` the global already had — and **118** are ES2018 async-iteration edge cases
+(see below). The run fails on an unexpected pass as well as an unexpected failure,
+so conformance can only move forwards.
+
+Two ES2018 surfaces are limited by the substrate rather than by choice, and their
+tests are held out of the slice — not counted as failures — with the reason
+recorded in `Test262Selector`: a set of RegExp patterns neither backend can
+compile with ES semantics, and the `\p{…}` Unicode binary properties and
+`Script_Extensions`. Both are detailed under [ES2018 RegExp](#es2018-regexp-what-the-backends-cannot-do)
+below.
 
 Annex B is normative-optional and lives behind `--annexB`, which is on by
 default. An engine built with `--annexB=false` has none of it.
@@ -18,8 +27,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 50339 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 8   expected to fail: 8
+    test262: 58805 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 126   expected to fail: 126
 
 What is not measured, and why
 -----------------------------
@@ -27,25 +36,31 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2017.
+everything else outside the slice is simply later than ECMAScript 2018.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
 | `tail-call-optimization` | 35 | Proper tail calls | **Never.** A settled decision, not a task - see below |
 | `intl402/` | 3,357 | ECMA-402, a separate standard | Open, but it is a different standard and a different body of work |
-| `staging/` | 1,491 | Proposals and unreviewed tests, not part of any edition | **Never.** This engine targets the approved standard - see below |
+| `staging/` | 1,483 | Proposals and unreviewed tests, not part of any edition | **Never.** This engine targets the approved standard - see below |
 | `legacy-regexp` tagged | 24 | `RegExp.$1`, `lastMatch` and their kin - a separate Stage 3 proposal, `esid: pending`, filed under `annexB/` by the suite but not part of Annex B | **Never**, on staging's reasoning |
 
 `annexB/` is **no longer excluded**: Annex B is implemented, behind `--annexB`, and its
-directory is measured with the rest. See below.
+directory is measured with the rest. See below. The `async-generator` directories,
+excluded at the ES2017 target, are **now in scope**: async iteration is ES2018 and is
+implemented.
 
-Everything else the selector leaves out is a later edition: the
-`async-generator` directories (1,054 files, ECMAScript 2018) and every test whose
-`features:` tag names something introduced after ES2017 - object rest and
-spread, async iteration, lookbehind and named groups, optional catch binding,
-`BigInt`, optional chaining, class fields, and the rest. Those are not failures;
-they are outside the target. Most would fail if run, because the features are
-not implemented.
+Everything else the selector leaves out is a later edition: every test whose
+`features:` tag names something introduced after ES2018 - optional catch binding
+(ES2019), `BigInt`, `Array.prototype.flat`, optional chaining and nullish
+coalescing, `String.prototype.replaceAll`, class fields, the RegExp `v` flag, and
+the rest. Those are not failures; they are outside the target. Most would fail if
+run, because the features are not implemented.
+
+Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
+their tests is held out of the slice with the reason recorded in the selector -
+neither a decision like tail calls nor a later edition, but a data or engine limit
+this host cannot cross. See [ES2018 RegExp](#es2018-regexp-what-the-backends-cannot-do).
 
 ECMA-262 Annex B, behind `--annexB`
 -----------------------------------
@@ -104,6 +119,65 @@ Annex B's built-ins are seventeen more properties on two prototypes, and every g
 `startup.50globals` measured 6.6% slower with them than without, in nine interleaved pairs. That is
 inside the metric's band and the gate passes with it.
 
+ES2018 async iteration: the 118
+-------------------------------
+
+Async iteration — `async function*`, `for await…of`, `yield*` delegation over an async iterable, the
+async-generator methods on classes and objects, `Symbol.asyncIterator`, and the async-from-sync
+adaptor — is implemented and passes the bulk of the suite. 118 executions are held in the
+expectations file as refinements not yet complete. They are corners, not the feature:
+
+- closing the iterator on an **abrupt `for await`** completion (`for-await-of/iterator-close-*`);
+- the **`%AsyncGeneratorFunction%`** constructor intrinsic and its `prototype` wiring
+  (`built-ins/AsyncGeneratorFunction/*`);
+- the **`%AsyncFromSyncIteratorPrototype%`** adaptor's exact `return`/`throw` semantics, argument
+  passing and poisoned-wrapper handling (`built-ins/AsyncFromSyncIteratorPrototype/*`);
+- the **`%AsyncGeneratorPrototype%`** `return`/`throw`/`next` request-queue ordering in a few
+  adversarial `yield*` and getter-tick cases (`built-ins/AsyncGeneratorPrototype/*`,
+  `async-generator/yield-star-*`);
+- a handful of **early errors** and `Function.prototype.toString` exactness.
+
+Each is a line in `test262-expectations.txt`, held in scope so it can only move forwards: fixing one
+removes its line, and a regression cannot hide. None blocks the ordinary use of async iteration.
+
+ES2018 RegExp: what the backends cannot do
+------------------------------------------
+
+The ES2018 RegExp features — the `s` (dotAll) flag, named capture groups, lookbehind, and Unicode
+property escapes — are implemented over the two backends
+([Joni by default, `java.util.regex` for `/u`](nashorn/internals/regexp.md)). Most of the conformance
+surface passes; two bounded sets of tests are held out of the slice in `Test262Selector`, because
+the substrate cannot meet ES semantics there. These are neither settled exclusions like tail calls
+nor later editions — they are the limits of the host's regex engines and Unicode data, recorded so
+the boundary is honest.
+
+**Patterns neither backend can compile (`REGEXP_ENGINE_LIMITS`, 15 files).** ECMAScript lookbehind
+is variable-width and matches right-to-left; `java.util.regex`'s is bounded and left-to-right, so the
+adversarial lookbehind corpus (`RegExp/lookBehind/*` — greedy loops, mutual recursion, captures and
+back-references *inside* a lookbehind) and the named-group tests that lean on those same shapes
+(`named-groups/lookbehind.js`, `named-groups/*-references.js`) cannot be honoured. Two
+`named-groups/groups-object-subclass*` tests require a subclassable `exec`, which this object model
+does not expose. Joni, the non-`/u` backend, does not offer ES lookbehind or named groups on its
+JavaScript syntax at all, so these are `/u`-forced to the JDK and still hit its limit.
+
+**Unicode property escapes needing data the JDK does not carry (`propertyEscapeInScope`).** The
+property-escape *syntax* and mechanism are implemented and verified by the hand-written tests in
+`built-ins/RegExp/property-escapes/` (loose matching, the grammar extensions, character classes, the
+unsupported-property errors). The exhaustive `generated/` trees are held out for two data reasons:
+
+- **General_Category and Script** are answered by `java.util.regex`, but the suite's `generated/`
+  data is keyed to a Unicode version newer than the JDK's (JDK 25 is Unicode 16), so their code-point
+  lists disagree over the characters that version added — the same situation as the `LATER_UNICODE`
+  identifier tables. The engine is correct for its own Unicode; the exhaustive data is simply newer.
+- The **~40 binary properties** the JDK does not carry (`Emoji` and its kin, `Dash`, `Math`,
+  `Diacritic`, the `Changes_When_*` set, `ID`/`XID_*`, …) and **`Script_Extensions`** would each need
+  the Unicode Character Database bundled to answer a code point at a time — data this engine does not
+  ship and the JDK does not expose.
+
+Full property-escape support in the exhaustive sense would mean bundling and version-pinning the UCD;
+that is a deliberate non-goal, on a par with the regexp-engine limits above rather than a defect to
+fix.
+
 Tail calls: never
 -----------------
 
@@ -146,7 +220,7 @@ Staging: never
 
 **The `staging/` directory is not a conformance target and will not become
 one.** This engine implements the latest *approved* edition of ECMA-262 - today
-that is the 8th, ECMAScript 2017 - and staging tests things that no edition has
+that is the 9th, ECMAScript 2018 - and staging tests things that no edition has
 approved.
 
 test262's own contributing guide is explicit about what the directory is for:

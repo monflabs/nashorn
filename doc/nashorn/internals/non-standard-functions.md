@@ -1,6 +1,6 @@
 # Non-standard functions
 
-The engine's language is **ECMAScript 2017** (plus [Annex B](annex-b.md)). Everything a conforming
+The engine's language is **ECMAScript 2018** (plus [Annex B](annex-b.md)). Everything a conforming
 ECMAScript host must provide is there; this page catalogues what the engine adds *on top* — the
 functions and objects a script can call that are **not** part of the language standard. It is the
 architectural map; the [built-in globals reference](../reference/builtins.md) has the per-function
