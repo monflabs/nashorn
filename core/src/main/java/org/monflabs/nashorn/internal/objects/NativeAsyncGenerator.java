@@ -59,26 +59,41 @@ public final class NativeAsyncGenerator extends ScriptObject {
 
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static Object next(final Object self, final Object value) {
-        return check(self).support.next(value);
+        if (self instanceof NativeAsyncGenerator generator) {
+            return generator.support.next(value);
+        }
+        return rejectBadThis(self);
     }
 
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "return")
     public static Object _return(final Object self, final Object value) {
-        return check(self).support.doReturn(value);
+        if (self instanceof NativeAsyncGenerator generator) {
+            return generator.support.doReturn(value);
+        }
+        return rejectBadThis(self);
     }
 
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "throw")
     public static Object _throw(final Object self, final Object exception) {
-        return check(self).support.doThrow(exception);
+        if (self instanceof NativeAsyncGenerator generator) {
+            return generator.support.doThrow(exception);
+        }
+        return rejectBadThis(self);
     }
 
     @Property(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, name = "@@toStringTag")
     public static final String toStringTag = "AsyncGenerator";
 
-    private static NativeAsyncGenerator check(final Object self) {
-        if (self instanceof NativeAsyncGenerator generator) {
-            return generator;
-        }
-        throw ECMAErrors.typeError("not.a.generator", ScriptRuntime.safeToString(self));
+    /**
+     * An AsyncGeneratorValidate failure is IfAbruptRejectPromise (25.5.1.2/.3/.4):
+     * next/return/throw with a bad {@code this} must return a <em>rejected
+     * promise</em>, never throw synchronously.
+     */
+    private static NativePromise rejectBadThis(final Object self) {
+        final Global global = Global.instance();
+        final NativePromise promise = NativePromise.newAsyncPromise(global);
+        NativePromise.rejectAsyncPromise(promise,
+                ECMAErrors.typeError("not.a.generator", ScriptRuntime.safeToString(self)).getThrown());
+        return promise;
     }
 }
