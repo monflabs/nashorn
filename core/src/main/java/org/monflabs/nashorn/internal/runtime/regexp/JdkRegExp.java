@@ -30,6 +30,7 @@
 package org.monflabs.nashorn.internal.runtime.regexp;
 
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
+import static java.util.regex.Pattern.DOTALL;
 import static java.util.regex.Pattern.MULTILINE;
 import static java.util.regex.Pattern.UNICODE_CASE;
 
@@ -73,6 +74,9 @@ public class JdkRegExp extends RegExp {
         }
         if (isMultiline()) {
             intFlags |= MULTILINE;
+        }
+        if (isDotAll()) {
+            intFlags |= DOTALL;
         }
 
         try {

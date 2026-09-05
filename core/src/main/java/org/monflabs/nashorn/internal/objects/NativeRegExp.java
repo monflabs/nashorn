@@ -330,6 +330,9 @@ public final class NativeRegExp extends ScriptObject {
         if (regexp.isMultiline()) {
             sb.append('m');
         }
+        if (regexp.isDotAll()) {
+            sb.append('s');
+        }
 
         return sb.toString();
     }
@@ -892,6 +895,9 @@ public final class NativeRegExp extends ScriptObject {
         if (JSType.toBoolean(rx.get("multiline"))) {
             sb.append('m');
         }
+        if (JSType.toBoolean(rx.get("dotAll"))) {
+            sb.append('s');
+        }
         if (JSType.toBoolean(rx.get("unicode"))) {
             sb.append('u');
         }
@@ -954,6 +960,17 @@ public final class NativeRegExp extends ScriptObject {
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object multiline(final Object self) {
         return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isMultiline();
+    }
+
+    /**
+     * ECMAScript 2018 21.2.5.3 dotAll
+     *
+     * @param self self reference
+     * @return true if this regexp has the s flag, so that {@code .} matches line terminators
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object dotAll(final Object self) {
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isDotAll();
     }
 
     /**

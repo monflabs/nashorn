@@ -59,6 +59,9 @@ public abstract class RegExp {
     /** Is this regexp in unicode mode? */
     private boolean unicode;
 
+    /** ES2018 dotAll flag: does {@code .} match line terminators too? */
+    private boolean dotAll;
+
     /** BitVector that keeps track of groups in negative lookahead */
     protected BitVector groupsInNegativeLookahead;
 
@@ -102,6 +105,12 @@ public abstract class RegExp {
                     throwParserException("repeated.flag", "u");
                 }
                 this.unicode = true;
+                break;
+            case 's':
+                if (this.dotAll) {
+                    throwParserException("repeated.flag", "s");
+                }
+                this.dotAll = true;
                 break;
             default:
                 throwParserException("unsupported.flag", Character.toString(ch));
@@ -172,6 +181,16 @@ public abstract class RegExp {
 
     public boolean isMultiline() {
         return multiline;
+    }
+
+    /**
+     * Whether this regexp has the ES2018 dotAll ({@code s}) flag, where
+     * {@code .} matches any character including line terminators.
+     *
+     * @return true if the s flag was given
+     */
+    public boolean isDotAll() {
+        return dotAll;
     }
 
     /**

@@ -1,0 +1,9 @@
+dotAll=true
+flags=s
+match=true
+noFlag=false
+noMatch=false
+order=gimsy
+unicode=su true
+proto=undefined
+dupThrows=true

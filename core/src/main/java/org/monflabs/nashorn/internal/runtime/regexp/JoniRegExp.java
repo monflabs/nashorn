@@ -66,6 +66,12 @@ public class JoniRegExp extends RegExp {
             option &= ~Option.SINGLELINE;
             option |= Option.NEGATE_SINGLELINE;
         }
+        // ES2018 dotAll: '.' matches line terminators too. In Joni's Ruby
+        // syntax that is MULTILINE (dot-matches-newline), distinct from JS's
+        // 'm' handled above.
+        if (this.isDotAll()) {
+            option |= Option.MULTILINE;
+        }
 
         try {
             RegExpScanner parsed;

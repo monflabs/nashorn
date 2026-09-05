@@ -84,6 +84,9 @@ public final class Test262Selector {
         // ES2017. The library additions of that edition carry no tag of their
         // own and are in scope by the deny rule alone.
         "async-functions", "SharedArrayBuffer", "Atomics",
+        // ES2018. Promise.prototype.finally and the template-literal revision
+        // carry no tag and are in scope by the deny rule alone.
+        "regexp-dotall",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -148,6 +151,7 @@ public final class Test262Selector {
             "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-integer-separators.js",
             "language/statements/class/cpn-class-decl-computed-property-name-from-integer-separators.js",
             "language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js",
+            "built-ins/RegExp/prototype/dotAll/this-val-non-obj.js",
             "built-ins/RegExp/prototype/flags/this-val-non-obj.js",
             "built-ins/RegExp/prototype/global/this-val-non-obj.js",
             "built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js",
