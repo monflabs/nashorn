@@ -50,9 +50,12 @@ ScriptEngine nashornEngine = new ScriptEngineManager().getEngineByName("nashorn-
  * and then use it just as you would any other JSR-223 script engine. See
  * {@link org.monflabs.nashorn.api.scripting} package for details.
  * <h2>Compatibility</h2>
- * Nashorn is 100% compliant with the
- * <a href="http://www.ecma-international.org/publications/standards/Ecma-262.htm"
- * target="_top">ECMA-262 Standard, Edition 5.1</a>.
+ * Nashorn implements the
+ * <a href="https://262.ecma-international.org/9.0/"
+ * target="_top">ECMA-262 Standard, 9th Edition (ECMAScript 2018)</a>, together
+ * with its Annex B (behind an option, on by default). A small set of documented
+ * exclusions - proper tail calls and ECMA-402 among them - is described in the
+ * project's conformance notes.
  * It requires a Java Virtual Machine that implements the
  * <a href="http://jcp.org/en/jsr/detail?id=292" target="_top">
  * JSR-292 "Supporting Dynamically Typed Languages on the Java Platform"</a>

@@ -84,7 +84,7 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
 
     @Override
     public String getLanguageVersion() {
-        return "ECMA - 262 Edition 5.1";
+        return "ECMA - 262 Edition 9";
     }
 
     @Override

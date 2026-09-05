@@ -139,7 +139,7 @@ public class ScriptEngineTest {
 
         assertEquals(fac.getLanguageName(), "ECMAScript");
         assertEquals(fac.getParameter(ScriptEngine.NAME), "javascript");
-        assertEquals(fac.getLanguageVersion(), "ECMA - 262 Edition 5.1");
+        assertEquals(fac.getLanguageVersion(), "ECMA - 262 Edition 9");
         assertEquals(fac.getEngineName(), "OpenJDK-Monflabs");
         assertEquals(fac.getOutputStatement("context"), "print(\"context\")");
         assertEquals(fac.getOutputStatement("\"\\\b\f\n\r\t"), "print(\"\\\"\\\\\\b\\f\\n\\r\\t\")");
