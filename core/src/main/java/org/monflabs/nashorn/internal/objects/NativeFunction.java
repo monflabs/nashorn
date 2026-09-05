@@ -310,6 +310,20 @@ public final class NativeFunction {
         return createDynamicFunction("async function", args);
     }
 
+    /**
+     * ES2018 25.3.1.1 AsyncGeneratorFunction(p1, p2, ... , pn, body), reached the
+     * same way through the constructor property of what an async generator
+     * function inherits from.
+     *
+     * @param newObj is the new operator used for constructing this function
+     * @param self   self reference
+     * @param args   arguments
+     * @return the async generator function
+     */
+    public static ScriptFunction asyncGeneratorFunction(final boolean newObj, final Object self, final Object... args) {
+        return createDynamicFunction("async function*", args);
+    }
+
     private static ScriptFunction createDynamicFunction(final String kind, final Object... args) {
         // ES2017 19.2.1.1.1 CreateDynamicFunction builds the source in one exact
         // shape, and Function.prototype.toString hands that shape back: the

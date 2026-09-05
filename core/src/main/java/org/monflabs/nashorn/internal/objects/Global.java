@@ -2377,6 +2377,10 @@ public final class Global extends Scope {
             builtinAsyncGeneratorFunctionPrototype = proto;
             getAsyncGeneratorPrototype().addOwnProperty("constructor",
                     Attribute.NOT_ENUMERABLE | Attribute.NOT_WRITABLE, proto);
+            // the %AsyncGeneratorFunction% constructor itself: reachable only
+            // through this prototype's "constructor", exactly as GeneratorFunction
+            // and AsyncFunction are. This also gives proto its own "constructor".
+            intrinsicFunctionConstructor("AsyncGeneratorFunction", proto, ASYNC_GENERATOR_FUNCTION);
         }
         return builtinAsyncGeneratorFunctionPrototype;
     }
@@ -2450,6 +2454,7 @@ public final class Global extends Scope {
 
     private static final MethodHandle GENERATOR_FUNCTION = findDynamicFunction("generatorFunction");
     private static final MethodHandle ASYNC_FUNCTION = findDynamicFunction("asyncFunction");
+    private static final MethodHandle ASYNC_GENERATOR_FUNCTION = findDynamicFunction("asyncGeneratorFunction");
 
     private static MethodHandle findDynamicFunction(final String name) {
         try {
