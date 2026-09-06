@@ -239,7 +239,17 @@ public final class NativeJSON extends ScriptObject {
         // not its number. The lookup above still goes by the number.
         final Object name = key instanceof Integer ? JSType.toString(key) : key;
         try {
-            if (value instanceof ScriptObject) {
+            if (value instanceof java.math.BigInteger) {
+                // ES2020 SerializeJSONProperty: Type(value) is Object *or BigInt*
+                // gets its toJSON consulted (found on BigInt.prototype through the
+                // primitive), before the "cannot serialize a BigInt" TypeError
+                final ScriptObject svalue = (ScriptObject)Global.instance().wrapAsObject(value);
+                final InvokeByName toJSONInvoker = getTO_JSON();
+                final Object toJSON = toJSONInvoker.getGetter().invokeExact(svalue);
+                if (Bootstrap.isCallable(toJSON)) {
+                    value = toJSONInvoker.getInvoker().invokeExact(toJSON, svalue, name);
+                }
+            } else if (value instanceof ScriptObject) {
                 final InvokeByName toJSONInvoker = getTO_JSON();
                 final ScriptObject svalue = (ScriptObject)value;
                 final Object toJSON = toJSONInvoker.getGetter().invokeExact(svalue);

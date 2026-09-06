@@ -29,6 +29,7 @@
 
 package org.monflabs.nashorn.internal.runtime.arrays;
 
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.runtime.ConsString;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
@@ -106,6 +107,10 @@ public final class ArrayIndex {
             return getArrayIndex(((Long) key).longValue());
         } else if (key instanceof ConsString) {
             return (int)fromString(key.toString());
+        } else if (key instanceof BigInteger big) {
+            // ES2020: a BigInt key names an array element when its integer value
+            // is one - 1n reaches the same element as "1"
+            return big.signum() >= 0 && big.bitLength() <= 32 ? getArrayIndex(big.longValue()) : INVALID_ARRAY_INDEX;
         }
 
         assert !(key instanceof ScriptObject);

@@ -3930,6 +3930,9 @@ public class Parser extends AbstractParser implements Loggable {
         case OCTAL:
         case BINARY_NUMBER:
         case FLOATING:
+        case BIGINT:
+            // ES2020: a BigInt literal is a valid property name; its key is the
+            // integer's string form ({0n: 1} has the own property "0")
             return getLiteral();
         default:
             return getIdentifierName().setIsPropertyName();

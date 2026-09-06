@@ -60,6 +60,8 @@ public final class NativeAtomics extends ScriptObject {
             MethodHandles.byteBufferViewVarHandle(short[].class, ByteOrder.nativeOrder());
     private static final VarHandle INTS =
             MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.nativeOrder());
+    private static final VarHandle LONGS =
+            MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
     /** Serialises the element widths that have no atomic update of their own. */
     private static final Object NARROW = new Object();
@@ -115,6 +117,11 @@ public final class NativeAtomics extends ScriptObject {
     public static Object compareExchange(final Object self, final Object array, final Object index,
             final Object expected, final Object replacement) {
         final Access at = access(array, index);
+        if (at.bigint) {
+            final long want = NativeBigInt.toBigInt(expected).longValue();
+            final long replaceWith = NativeBigInt.toBigInt(replacement).longValue();
+            return at.resultBig(at.compareExchangeLong(want, replaceWith));
+        }
         final int want = at.narrow(JSType.toInt32(expected));
         final int replaceWith = at.narrow(JSType.toInt32(replacement));
         return at.result(at.compareExchange(want, replaceWith));
@@ -158,6 +165,9 @@ public final class NativeAtomics extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
     public static Object load(final Object self, final Object array, final Object index) {
         final Access at = access(array, index);
+        if (at.bigint) {
+            return at.resultBig(at.getLong());
+        }
         return at.result(at.get());
     }
 
@@ -191,6 +201,13 @@ public final class NativeAtomics extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 3)
     public static Object store(final Object self, final Object array, final Object index, final Object value) {
         final Access at = access(array, index);
+        if (at.bigint) {
+            // 25.4.9: for a BigInt array, ToBigInt(value) is stored (wrapped to
+            // 64 bits) and the un-wrapped BigInt is returned
+            final java.math.BigInteger v = NativeBigInt.toBigInt(value);
+            at.setLong(v.longValue());
+            return v;
+        }
         // 24.4.9 step 5 converts with ToInteger and answers with that, so a
         // fractional argument is answered as the whole number it was truncated
         // to and a negative zero as a positive one
@@ -247,12 +264,18 @@ public final class NativeAtomics extends ScriptObject {
         final Object timeout = args.length > 3 ? args[3] : ScriptRuntime.UNDEFINED;
 
         final Access at = access(array, index, true, true);
-        final int want = JSType.toInt32(value);
+        // ES2020: for a BigInt64Array the awaited value is a BigInt (ToBigInt),
+        // for an Int32Array it is ToInt32 - converted before the timeout either way
+        final long wantBig = at.bigint ? NativeBigInt.toBigInt(value).longValue() : 0;
+        final int want = at.bigint ? 0 : JSType.toInt32(value);
         // 24.4.11 step 6: a timeout that is not a number at all is forever, the
         // same as none, rather than none at all
         final double asNumber = timeout == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
                 : JSType.toNumber(timeout);
         final double millis = Double.isNaN(asNumber) ? Double.POSITIVE_INFINITY : Math.max(asNumber, 0);
+        if (at.bigint) {
+            return SharedMemory.wait(at.storage, at.absoluteOffset, wantBig, millis, at::getLong);
+        }
         return SharedMemory.wait(at.storage, at.absoluteOffset, want, millis, at::get);
     }
 
@@ -294,10 +317,31 @@ public final class NativeAtomics extends ScriptObject {
                 case XOR -> was ^ operand;
             };
         }
+
+        long combine(final long was, final long operand) {
+            return switch (this) {
+                case ADD -> was + operand;
+                case AND -> was & operand;
+                case EXCHANGE -> operand;
+                case OR -> was | operand;
+                case SUB -> was - operand;
+                case XOR -> was ^ operand;
+            };
+        }
     }
 
     private static Object apply(final Object array, final Object index, final Object value, final Op op) {
         final Access at = access(array, index);
+        if (at.bigint) {
+            // ES2020: a BigInt64/BigUint64 element is a 64-bit BigInt. The stored
+            // long is the low 64 bits, which is the correct wrap for both.
+            final long operand = NativeBigInt.toBigInt(value).longValue();
+            long was;
+            do {
+                was = at.getLong();
+            } while (!at.weakCompareAndSetLong(was, op.combine(was, operand)));
+            return at.resultBig(was);
+        }
         final int operand = at.narrow(JSType.toInt32(value));
         int was;
         do {
@@ -310,7 +354,7 @@ public final class NativeAtomics extends ScriptObject {
      * One element of one integer typed array, resolved once so that the
      * operation itself is a single access.
      */
-    private record Access(ByteBuffer bytes, int offset, int width, boolean signed, Object storage,
+    private record Access(ByteBuffer bytes, int offset, int width, boolean signed, boolean bigint, Object storage,
             int absoluteOffset, boolean shared) {
         /** The element as its own array reads it, which for an unsigned one is not the raw byte. */
         int get() {
@@ -378,6 +422,40 @@ public final class NativeAtomics extends ScriptObject {
             }
             return value;
         }
+
+        // --- the 64-bit BigInt element path (BigInt64Array / BigUint64Array) ---
+
+        long getLong() {
+            return (long)LONGS.getVolatile(bytes, offset);
+        }
+
+        void setLong(final long value) {
+            LONGS.setVolatile(bytes, offset, value);
+        }
+
+        boolean weakCompareAndSetLong(final long was, final long value) {
+            return LONGS.compareAndSet(bytes, offset, was, value);
+        }
+
+        long compareExchangeLong(final long want, final long replacement) {
+            long was;
+            do {
+                was = getLong();
+                if (was != want) {
+                    return was;
+                }
+            } while (!weakCompareAndSetLong(was, replacement));
+            return was;
+        }
+
+        /** The 64-bit element as a BigInt, signed or unsigned per the array type. */
+        Object resultBig(final long value) {
+            if (signed) {
+                return java.math.BigInteger.valueOf(value);
+            }
+            return value >= 0 ? java.math.BigInteger.valueOf(value)
+                    : java.math.BigInteger.valueOf(value).add(java.math.BigInteger.ONE.shiftLeft(64));
+        }
     }
 
     private static Access access(final Object array, final Object index) {
@@ -400,18 +478,24 @@ public final class NativeAtomics extends ScriptObject {
         }
         final int width;
         final boolean signed;
+        final boolean bigint;
         switch (view.getClassName()) {
-            case "Int8Array" -> { width = 1; signed = true; }
-            case "Uint8Array" -> { width = 1; signed = false; }
-            case "Int16Array" -> { width = 2; signed = true; }
-            case "Uint16Array" -> { width = 2; signed = false; }
-            case "Int32Array" -> { width = 4; signed = true; }
-            case "Uint32Array" -> { width = 4; signed = false; }
+            case "Int8Array" -> { width = 1; signed = true; bigint = false; }
+            case "Uint8Array" -> { width = 1; signed = false; bigint = false; }
+            case "Int16Array" -> { width = 2; signed = true; bigint = false; }
+            case "Uint16Array" -> { width = 2; signed = false; bigint = false; }
+            case "Int32Array" -> { width = 4; signed = true; bigint = false; }
+            case "Uint32Array" -> { width = 4; signed = false; bigint = false; }
+            // ES2020: the two BigInt-element integer typed arrays
+            case "BigInt64Array" -> { width = 8; signed = true; bigint = true; }
+            case "BigUint64Array" -> { width = 8; signed = false; bigint = true; }
             default -> throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
         }
         // asked before the index is converted, because 24.4.11 and 24.4.12
-        // validate the array first and a converting index can run script
-        if (mustBeInt32 && (width != 4 || !signed)) {
+        // validate the array first and a converting index can run script.
+        // ES2020: wait/notify take a "waitable" array - an Int32Array or a
+        // BigInt64Array (not the unsigned kinds).
+        if (mustBeInt32 && !((width == 4 && signed) || (width == 8 && signed && bigint))) {
             throw typeError("atomics.not.shared.int32", ScriptRuntime.safeToString(array));
         }
         if (mustBeShared && !view.getArrayBuffer().isShared()) {
@@ -436,9 +520,9 @@ public final class NativeAtomics extends ScriptObject {
             if (!answersWhenDetached) {
                 throw typeError("atomics.not.integer.typed.array", ScriptRuntime.safeToString(array));
             }
-            return new Access(null, 0, width, signed, null, 0, false);
+            return new Access(null, 0, width, signed, bigint, null, 0, false);
         }
-        return new Access(view.viewedBytes(), (int)asIndex * width, width, signed,
+        return new Access(view.viewedBytes(), (int)asIndex * width, width, signed, bigint,
                 // the storage rather than the wrapper: every realm sharing a
                 // buffer has a wrapper of its own over the same bytes
                 NativeSharedArrayBuffer.storageOf(view.getArrayBuffer()),

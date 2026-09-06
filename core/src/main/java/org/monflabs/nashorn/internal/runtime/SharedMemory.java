@@ -25,7 +25,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 /**
  * The wait queues behind {@code Atomics.wait} and {@code Atomics.notify}
@@ -113,6 +115,26 @@ public final class SharedMemory {
      */
     public static String wait(final Object storage, final int offset, final int expected, final double millis,
             final IntSupplier current) {
+        return wait(storage, offset, millis, () -> current.getAsInt() == expected);
+    }
+
+    /**
+     * The 64-bit form, for a wait on a {@code BigInt64Array} element (ES2020).
+     *
+     * @param storage the buffer the address belongs to
+     * @param offset  the byte offset into it
+     * @param expected what the element must still hold for the wait to happen
+     * @param millis   how long to wait, or infinity
+     * @param current  reads the 64-bit element
+     * @return "not-equal", "timed-out" or "ok"
+     */
+    public static String wait(final Object storage, final int offset, final long expected, final double millis,
+            final LongSupplier current) {
+        return wait(storage, offset, millis, () -> current.getAsLong() == expected);
+    }
+
+    private static String wait(final Object storage, final int offset, final double millis,
+            final BooleanSupplier stillExpected) {
         final Address address = new Address(storage, offset);
         final Queue queue = acquire(address);
         final Waiter waiter = new Waiter();
@@ -121,7 +143,7 @@ public final class SharedMemory {
             synchronized (queue.monitor) {
                 // the value is read under the queue, so a notify that has already
                 // happened cannot be missed between the read and the wait
-                if (current.getAsInt() != expected) {
+                if (!stillExpected.getAsBoolean()) {
                     return "not-equal";
                 }
                 final long deadline = millis == Double.POSITIVE_INFINITY ? Long.MAX_VALUE

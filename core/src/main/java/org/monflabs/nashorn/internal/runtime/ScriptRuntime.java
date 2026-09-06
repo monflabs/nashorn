@@ -268,16 +268,26 @@ public final class ScriptRuntime {
      * specification has an opinion about those.
      */
     private static String builtinTag(final ScriptObject sobj) {
-        if (sobj instanceof NativeProxy proxy && proxy.isRevoked()) {
-            // IsArray, which 19.1.3.6 performs first, throws for one of these
-            throw typeError("proxy.revoked");
+        if (sobj instanceof NativeProxy proxy) {
+            // IsArray, which 19.1.3.6 performs first, throws for a revoked one
+            if (proxy.isRevoked()) {
+                throw typeError("proxy.revoked");
+            }
+            // A proxy has none of the specific internal slots the kinds below
+            // name (they belong to its target, not to it); only IsArray - which
+            // sees through the proxy - and [[Call]] apply, so a proxy for a Date
+            // or an Error is "[object Object]", not "[object Date]".
+            if (NativeArray.isArray(null, sobj)) {
+                return "Array";
+            }
+            return Bootstrap.isCallable(sobj) ? "Function" : "Object";
         }
         if (sobj instanceof ArrayBufferView) {
             return "Object";
         }
         final String className = sobj.getClassName();
         return switch (className) {
-            case "Math", "JSON", "Symbol", "Map", "Set", "WeakMap", "WeakSet", "Promise",
+            case "Math", "JSON", "Symbol", "BigInt", "Map", "Set", "WeakMap", "WeakSet", "Promise",
                  "ArrayBuffer", "DataView", "Generator", "Iterator",
                  "ArrayIterator", "StringIterator", "MapIterator", "SetIterator" -> "Object";
             // 19.1.3.6 asks for the internal slot rather than for the class,
@@ -1226,7 +1236,8 @@ public final class ScriptRuntime {
             }
             final double d = JSType.toNumber(py);
             if (Double.isNaN(d)) { return 2; }
-            return Integer.signum(new BigDecimal(bx).compareTo(BigDecimal.valueOf(d)));
+            if (Double.isInfinite(d)) { return d > 0 ? -1 : 1; } // bx is finite
+            return Integer.signum(new BigDecimal(bx).compareTo(new BigDecimal(d)));
         }
         if (isString(px)) {
             final BigInteger n = parseBigInt(px.toString());
@@ -1234,7 +1245,8 @@ public final class ScriptRuntime {
         }
         final double d = JSType.toNumber(px);
         if (Double.isNaN(d)) { return 2; }
-        return Integer.signum(BigDecimal.valueOf(d).compareTo(new BigDecimal((BigInteger) py)));
+        if (Double.isInfinite(d)) { return d > 0 ? 1 : -1; } // py is finite
+        return Integer.signum(new BigDecimal(d).compareTo(new BigDecimal((BigInteger) py)));
     }
 
     /**
