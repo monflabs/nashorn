@@ -107,7 +107,7 @@ covers the choice and every option in full.
 
 ## What language you get
 
-The engine speaks **ECMAScript 2019**, whole: `let`/`const`, classes, arrow functions, template
+The engine speaks **ECMAScript 2020**, whole: `let`/`const`, classes, arrow functions, template
 literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
 `SharedArrayBuffer` and `Atomics`, plus the ES2018 additions — object rest/spread (`{...o}`), async
 iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the
@@ -115,7 +115,10 @@ iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the
 ES2019 additions: `Array.prototype.flat`/`flatMap`, `Object.fromEntries`,
 `String.prototype.trimStart`/`trimEnd`, `Symbol.prototype.description`, optional catch binding
 (`catch {}`), stable `Array.prototype.sort`, the JSON superset (raw U+2028/U+2029 in strings) and
-well-formed `JSON.stringify`. There is
+well-formed `JSON.stringify` — and the ES2020 additions: nullish coalescing (`??`), optional chaining
+(`?.`), `String.prototype.matchAll`, `export * as ns from`, dynamic `import()`, `import.meta`,
+`globalThis`, `Promise.allSettled`, and `BigInt` (with `BigInt64Array`/`BigUint64Array` and the
+`DataView`/`Atomics` big-64 operations). There is
 no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).

@@ -1,16 +1,41 @@
-ECMAScript 2019 conformance
+ECMAScript 2020 conformance
 ===========================
 
-This engine implements [ECMAScript 2019](https://262.ecma-international.org/10.0/)
-(ECMA-262, 10th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2020](https://262.ecma-international.org/11.0/)
+(ECMA-262, 11th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 59,074 executions **8
-fail**, all of one shape, named in
-`core/src/test/resources/test262-expectations.txt` with the reason: an indirect
-`eval` whose block-level function declaration must update a `var` the global
-already had, rooted in how the engine merges eval scopes (see below). The run
+selected at runtime by `Test262Selector`, and of its 62,890 executions **25
+fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards.
+
+Of those 25, **8** are the carried-over Annex B shape: an indirect `eval` whose
+block-level function declaration must update a `var` the global already had,
+rooted in how the engine merges eval scopes (see below). The other **17** are a
+handful of settled ES2020 corners:
+
+- **A wrapped BigInt object as a bitwise operand, read from a call**
+  (`bitwise-and`/`-or`/`-xor`, `left-shift`, `right-shift`, `unsigned-right-shift`,
+  12 executions). `Object(1n) & 1` should be a `TypeError`; when the wrapped
+  BigInt is the result of a *call* feeding a bitwise operator, the fused
+  optimistic call-return-to-int narrowing coerces it silently instead. Every
+  other operand form — a variable, an index, a parenthesised value, the bare
+  primitive `1n & 1` — throws correctly; only the call-result path slips through.
+- **`(a?.b)()` `this`** (`optional-call-preserves-this`, 2 executions). A
+  *parenthesised* optional chain that is then called loses the base as the call's
+  `this`; the unparenthesised `a?.b()` and `a.b?.()` bind `this` correctly.
+- **`JSON.stringify` `toJSON` receiver** (`value-bigint-tojson-receiver`, 2
+  executions). A BigInt's `toJSON` is called with the boxed wrapper as `this`
+  rather than the primitive; `toJSON` is honoured and the value serialised
+  either way.
+- **A circular module and dynamic import** (`verify-dfs`, 1 execution). A
+  fixture that imports a hoisted function export back from the still-evaluating
+  entry module does not see the binding under the DFS evaluation order this test
+  pins.
+
+Each is a narrow, documented divergence rather than a missing feature: the whole
+of BigInt, `Atomics` over `BigInt64Array`, optional chaining and the rest are in
+scope and pass.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their
 tests are held out of the slice — not counted as failures — with the reason
@@ -27,8 +52,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 59074 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 8   expected to fail: 8
+    test262: 62890 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 25   expected to fail: 25
 
 What is not measured, and why
 -----------------------------
@@ -36,7 +61,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2019.
+everything else outside the slice is simply later than ECMAScript 2020.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -53,13 +78,21 @@ and `flatMap` (and their `@@unscopables` entries), `Object.fromEntries`,
 `String.prototype.trimStart`/`trimEnd` (with the Annex B `trimLeft`/`trimRight` as the
 same function objects), `Symbol.prototype.description` (nullable), optional catch
 binding, the guaranteed-stable `Array.prototype.sort`, the JSON superset (raw
-U+2028/U+2029 in string literals) and well-formed `JSON.stringify`.
+U+2028/U+2029 in string literals) and well-formed `JSON.stringify`. The ES2020
+additions are in scope too: nullish coalescing (`??`), optional chaining
+(`?.`/`?.[]`/`?.()`), `String.prototype.matchAll` and `Symbol.matchAll`,
+`export * as ns from`, dynamic `import()`, `import.meta`, `globalThis`,
+`Promise.allSettled`, `for`-`in` order, and the whole of **BigInt** - the
+primitive and its operators, `BigInt.asIntN`/`asUintN`, the `BigInt64Array`/
+`BigUint64Array` typed arrays, the `DataView` big-64 accessors, and `Atomics` over
+them. A handful of BigInt corner cases are settled divergences, named in the
+expectations file (see below).
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after ES2019 - `BigInt`, optional chaining
-and nullish coalescing, `String.prototype.replaceAll`, class fields, the RegExp `v`
-flag, and the rest. Those are not failures; they are outside the target. Most would
-fail if run, because the features are not implemented.
+`features:` tag names something introduced after ES2020 - `String.prototype.replaceAll`,
+class fields, top-level await, the RegExp `v` flag, and the rest. Those are not
+failures; they are outside the target. Most would fail if run, because the features
+are not implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -

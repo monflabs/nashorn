@@ -1,6 +1,6 @@
 # Conformance
 
-This engine implements ECMAScript 2019 — ECMA-262, 10th edition — together with its Annex B, and is
+This engine implements ECMAScript 2020 — ECMA-262, 11th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
