@@ -3465,6 +3465,13 @@ public final class Global extends Scope {
 
         if (!env._annexB) {
             removeAnnexB();
+        } else {
+            // B.2.3: String.prototype.trimLeft/trimRight are not merely the same
+            // code as trimStart/trimEnd but the SAME function object - point the
+            // (nasgen-created, non-enumerable) properties at the ES2019 ones.
+            final ScriptObject stringProto = getStringPrototype();
+            stringProto.set("trimLeft", stringProto.get("trimStart"), 0);
+            stringProto.set("trimRight", stringProto.get("trimEnd"), 0);
         }
 
         if (! env._no_typed_arrays) {

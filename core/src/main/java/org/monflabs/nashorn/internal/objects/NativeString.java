@@ -1505,12 +1505,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
-     * Nashorn extension: String.prototype.trimLeft ( )
+     * ECMAScript 2019 String.prototype.trimStart ( )
      * @param self self reference
-     * @return string trimmed left from whitespace
+     * @return string with leading whitespace removed
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static String trimLeft(final Object self) {
+    public static String trimStart(final Object self) {
 
         final String str = checkObjectToString(self);
         int start = 0;
@@ -1524,12 +1524,12 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
-     * Nashorn extension: String.prototype.trimRight ( )
+     * ECMAScript 2019 String.prototype.trimEnd ( )
      * @param self self reference
-     * @return string trimmed right from whitespace
+     * @return string with trailing whitespace removed
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
-    public static String trimRight(final Object self) {
+    public static String trimEnd(final Object self) {
 
         final String str = checkObjectToString(self);
         final int start = 0;
@@ -1540,6 +1540,28 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         }
 
         return str.substring(start, end + 1);
+    }
+
+    /**
+     * Annex B B.2.3 String.prototype.trimLeft ( ) - the same function object as
+     * {@code trimStart} (Global re-points the property); this body is a fallback.
+     * @param self self reference
+     * @return string with leading whitespace removed
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String trimLeft(final Object self) {
+        return trimStart(self);
+    }
+
+    /**
+     * Annex B B.2.3 String.prototype.trimRight ( ) - the same function object as
+     * {@code trimEnd} (Global re-points the property); this body is a fallback.
+     * @param self self reference
+     * @return string with trailing whitespace removed
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String trimRight(final Object self) {
+        return trimEnd(self);
     }
 
     private static ScriptObject newObj(final CharSequence str) {
