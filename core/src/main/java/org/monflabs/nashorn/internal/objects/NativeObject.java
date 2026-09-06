@@ -252,6 +252,26 @@ public final class NativeObject {
     }
 
     /**
+     * ECMAScript 2022 20.1.2.13 Object.hasOwn ( O, P )
+     *
+     * The ergonomic own-property test: {@code Object.hasOwn(o, k)} is
+     * {@code Object.prototype.hasOwnProperty.call(o, k)} without the pitfalls of
+     * a shadowed or absent {@code hasOwnProperty} on {@code o}. ToObject runs
+     * first, so a null or undefined target is a TypeError.
+     *
+     * @param self self reference
+     * @param obj  object to query
+     * @param prop the property key
+     * @return whether obj has it as an own property
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static boolean hasOwn(final Object self, final Object obj, final Object prop) {
+        final Object target = Global.toObject(obj);
+        final Object key    = JSType.toPropertyKey(prop);
+        return target instanceof ScriptObject && ((ScriptObject)target).hasOwnProperty(key);
+    }
+
+    /**
      * ECMA 15.2.3.4 Object.getOwnPropertyNames ( O )
      *
      * @param self self reference

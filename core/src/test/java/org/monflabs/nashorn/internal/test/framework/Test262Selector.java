@@ -108,6 +108,7 @@ public final class Test262Selector {
         "Promise.any", "AggregateError", "WeakRef", "FinalizationRegistry",
         // ES2022
         "Array.prototype.at", "String.prototype.at", "TypedArray.prototype.at",
+        "Object.hasOwn",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -175,16 +176,16 @@ public final class Test262Selector {
      * when Nashorn does.
      */
     /**
-     * Tests about a feature that postdates ES2021 and says so nowhere.
+     * Tests about a feature that postdates ES2022 and says so nowhere.
      *
      * The deny rule reads {@code features:}, and a test written before that
      * convention - or one whose author saw no feature worth naming - declares
-     * nothing to deny. These are named one by one for the same reason the
-     * async-generator directories are.
+     * nothing to deny, so it would be named here one by one for the same reason
+     * the async-generator directories are. At the ES2022 target the set is empty:
+     * the one former entry, a harness self-test written with {@code Object.hasOwn},
+     * is in scope now that the method is implemented.
      */
-    private static final Set<String> LATER_FEATURES = Set.of(
-            // ES2022 Object.hasOwn, which the harness test is written with
-            "harness/asyncHelpers-asyncTest-without-async-flag.js");
+    private static final Set<String> LATER_FEATURES = Set.of();
 
     /**
      * ES2018 RegExp tests the JavaScript regexp engines this fork can use - the
