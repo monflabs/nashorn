@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2018 Language Specification](https://262.ecma-international.org/9.0/)
+[ECMAScript 2019 Language Specification](https://262.ecma-international.org/10.0/)
 (ECMAScript 9). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2018 together with its Annex B - the additional
+This fork implements ECMAScript 2019 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -42,7 +42,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2018.0.0-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2019.0.0-all.jar`.
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
@@ -51,15 +51,15 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2018.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2019.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 ### Versioning
 
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
-implements, rather than a sequential number. So `2018.0.0` targets
-[ECMAScript 2018](https://262.ecma-international.org/9.0/) (ES9), just as the earlier
-`2017.0.0` targeted ECMAScript 2017; minor and patch increment as usual for
+implements, rather than a sequential number. So `2019.0.0` targets
+[ECMAScript 2019](https://262.ecma-international.org/10.0/) (ES10), just as the earlier
+`2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
 a later edition of the language, the major number moves to that edition's year (for
 example `2019.x.x` for ECMAScript 2019). This replaces the upstream `15.x` scheme,
@@ -106,7 +106,7 @@ moves forwards. 8 of the 58,803 selected executions fail — one shape, an indir
 `eval` whose block-level function declaration must update a `var` the global
 already had (a documented eval-scope-merge divergence); everything else passes.
 Three things are excluded,
-all outside ECMA-262 9th edition proper: proper tail calls, ECMA-402
+all outside ECMA-262 10th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

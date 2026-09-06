@@ -69,6 +69,26 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2019.0.0 (2026.09.05)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2019 (ECMA-262, 10th edition).** Everything the 2018 release implemented is unchanged; the ES2019 additions are layered on top, and the `tc39/test262` slice is retargeted to the 10th edition.
+
+`   ` `           ` **`Array.prototype.flat` / `flatMap`.** `flat(depth = 1)` flattens nested arrays up to a depth (`Infinity` for all the way down), skipping holes; `flatMap` maps then flattens one level in a single pass. Both are added to `Array.prototype[@@unscopables]`.
+
+`   ` `           ` **`Object.fromEntries`.** The inverse of `Object.entries`: any iterable of `[key, value]` pairs - an array of pairs, or a `Map` - becomes a plain object, each pair defined as an own enumerable data property.
+
+`   ` `           ` **`String.prototype.trimStart` / `trimEnd`.** The standard one-sided trims; the long-shipped `trimLeft`/`trimRight` become Annex B aliases bound to the very same function objects (B.2.3), and are removed with the rest of Annex B under `--annexB=false`.
+
+`   ` `           ` **`Symbol.prototype.description`.** A nullable accessor for a symbol's description: `Symbol('x').description` is `'x'`, `Symbol().description` is `undefined` (distinct from `Symbol('').description`, `''`), and well-known symbols report their spec name. The runtime `Symbol` gained a description distinct from its display name; `toString` is unchanged. A latent bug this exposed is fixed too: `PrimitiveLookup` no longer constant-folds an accessor read on a primitive to the value it produced at link time, which had made every symbol read as the first one seen at a call site.
+
+`   ` `           ` **Optional catch binding.** A catch clause may omit its parameter - `catch { … }` - binding nothing. The parser, IR, symbol assignment, local-variable typing, codegen, the debug JSON writer and the tree API all tolerate the absent binding; the parenthesised form (condition extension included) is unchanged.
+
+`   ` `           ` **JSON revisions.** `JSON.stringify` now escapes a lone surrogate as `\uXXXX`, so its output is always well-formed UTF-16 (a valid pair still passes through raw); and U+2028/U+2029 may appear unescaped inside a string literal (the JSON superset), the string scan stopping only on a raw CR/LF. `Array.prototype.sort`, already a stable TimSort, meets the now-normative stability guarantee, and the `Function.prototype.toString` verbatim-source revision was already satisfied.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2018 to ES2019: the ten ES2019 feature tags are recognised and the now-in-scope ES2019 tests dropped from the deny lists. Of the 59,074 selected executions, **8** fail, unchanged from 2018.0.0 - the Annex B indirect-eval "existing var update" cases, a documented eval-scope-merge divergence. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 10th edition, and the playground gains an `ES2019` sample category - one runnable sample per feature - run headlessly by the build like the rest.
+
 2018.0.0 (2026.09.05)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2018 (ECMA-262, 9th edition).** Everything the 2017 release implemented is unchanged; ES2018 is added on top, and the `tc39/test262` slice is retargeted to the 9th edition.

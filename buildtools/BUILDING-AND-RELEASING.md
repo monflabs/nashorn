@@ -51,7 +51,7 @@ The version lives in three kinds of place. Change all three:
 1. **The poms** (parent + every module's parent reference) — done for you:
 
    ```bash
-   mvn versions:set -DnewVersion=2018.0.0 -DgenerateBackupPoms=false
+   mvn versions:set -DnewVersion=2019.0.0 -DgenerateBackupPoms=false
    ```
 
 2. **Hardcoded strings in the docs and README** — `versions:set` does *not* touch
@@ -60,23 +60,23 @@ The version lives in three kinds of place. Change all three:
    changelog's historical headings alone:
 
    ```bash
-   grep -rl '2017\.0\.0' --include='*.md' --include='*.html' . \
+   grep -rl '2018\.0\.0' --include='*.md' --include='*.html' . \
      | grep -v CHANGELOG.md \
-     | xargs sed -i '' 's/2017\.0\.0/2018.0.0/g'
+     | xargs sed -i '' 's/2018\.0\.0/2019.0.0/g'
    ```
 
    Then re-grep to be sure nothing stale remains (and that no unrelated `2017`
    was caught):
 
    ```bash
-   grep -rn '2017\.0\.0' --include='*.md' --include='*.html' --include='pom.xml' . | grep -v CHANGELOG.md
+   grep -rn '2018\.0\.0' --include='*.md' --include='*.html' --include='pom.xml' . | grep -v CHANGELOG.md
    ```
 
 3. **`CHANGELOG.md`** — add a new dated section at the top for the release, in the
    existing format:
 
    ```
-   2018.0.0 (2026.11.01)
+   2019.0.0 (2026.11.01)
    ---------------------
    ...what changed...
    ```
