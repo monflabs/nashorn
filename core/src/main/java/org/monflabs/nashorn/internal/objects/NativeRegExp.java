@@ -935,7 +935,10 @@ public final class NativeRegExp extends ScriptObject {
         // that order, so a subclass that overrides one of them is honoured and an
         // object that is not a regular expression at all still gets an answer
         final ScriptObject rx = matcherObject(self);
-        final StringBuilder sb = new StringBuilder(5);
+        final StringBuilder sb = new StringBuilder(7);
+        if (JSType.toBoolean(rx.get("hasIndices"))) {
+            sb.append('d');
+        }
         if (JSType.toBoolean(rx.get("global"))) {
             sb.append('g');
         }
@@ -1021,6 +1024,17 @@ public final class NativeRegExp extends ScriptObject {
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object dotAll(final Object self) {
         return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isDotAll();
+    }
+
+    /**
+     * ECMAScript 2022 22.2.6.6 hasIndices
+     *
+     * @param self self reference
+     * @return true if this regexp has the d flag, so a match carries group indices
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object hasIndices(final Object self) {
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isHasIndices();
     }
 
     /**
@@ -1240,8 +1254,33 @@ public final class NativeRegExp extends ScriptObject {
 
         final Object[] gs = groups(matcher);
         final RegExpResult match = new RegExpResult(string, matcher.start(), gs, buildGroupObject(gs));
+        if (regexp.isHasIndices()) {
+            match.setIndices(buildIndices(matcher, gs));
+        }
         globalObject.setLastRegExpResult(match);
         return match;
+    }
+
+    /**
+     * ES2022 22.2.7.6 MakeMatchIndicesIndexPairArray: for each group, a two-element
+     * {@code [start, end]} array of its bounds in the input, or undefined for a
+     * group that did not match, with a {@code groups} property of its own carrying
+     * the same pairs by name. Only built when the regexp has the {@code d} flag.
+     */
+    private NativeArray buildIndices(final RegExpMatcher matcher, final Object[] gs) {
+        final Object[] pairs = new Object[gs.length];
+        for (int i = 0; i < gs.length; i++) {
+            if (gs[i] == UNDEFINED) {
+                pairs[i] = UNDEFINED;
+            } else {
+                pairs[i] = new NativeArray(new Object[] { (double) matcher.start(i), (double) matcher.end(i) });
+            }
+        }
+        final NativeArray indices = new NativeArray(pairs);
+        // 22.2.7.8 step 13: groups is created with CreateDataProperty, so an
+        // inherited "groups" setter on Array.prototype must not be invoked
+        indices.addOwnProperty("groups", 0, buildGroupObject(pairs));
+        return indices;
     }
 
     /**

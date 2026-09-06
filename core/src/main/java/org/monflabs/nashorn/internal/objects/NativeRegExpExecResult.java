@@ -68,6 +68,12 @@ public final class NativeRegExpExecResult extends ScriptObject {
         this.index = result.getIndex();
         this.input = result.getInput();
         this.groups = result.getGroupObject();
+        // ES2022 the indices array is present only when the regexp had the d
+        // flag; it is added after groups, so it enumerates last of the named
+        // properties, and it is absent (not undefined) otherwise
+        if (result.getIndices() != org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED) {
+            addOwnProperty("indices", 0, result.getIndices());
+        }
     }
 
     @Override

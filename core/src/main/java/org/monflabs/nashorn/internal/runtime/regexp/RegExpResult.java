@@ -38,6 +38,9 @@ public final class RegExpResult {
     final String   input;
     final Object   groupObject;
 
+    /** ES2022 match indices ({@code d} flag): the built indices array, or undefined without the flag. */
+    private Object indices = org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
+
     /**
      * Constructor
      *
@@ -72,6 +75,28 @@ public final class RegExpResult {
      */
     public Object getGroupObject() {
         return groupObject;
+    }
+
+    /**
+     * The ES2022 {@code indices} array for the match (the {@code d} flag): each
+     * element the {@code [start, end]} of a group, or undefined for one that did
+     * not match, with a {@code groups} property of its own for named groups.
+     * Undefined when the regexp had no {@code d} flag.
+     *
+     * @return the indices array, or undefined
+     */
+    public Object getIndices() {
+        return indices;
+    }
+
+    /**
+     * Records the ES2022 {@code indices} array, built by the caller that has the
+     * matcher and the realm to make it in.
+     *
+     * @param indices the indices array
+     */
+    public void setIndices(final Object indices) {
+        this.indices = indices;
     }
 
     /**

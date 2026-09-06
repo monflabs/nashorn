@@ -62,6 +62,9 @@ public abstract class RegExp {
     /** ES2018 dotAll flag: does {@code .} match line terminators too? */
     private boolean dotAll;
 
+    /** ES2022 hasIndices ({@code d}) flag: does a match carry the {@code indices} of its groups? */
+    private boolean hasIndices;
+
     /** BitVector that keeps track of groups in negative lookahead */
     protected BitVector groupsInNegativeLookahead;
 
@@ -114,6 +117,12 @@ public abstract class RegExp {
                     throwParserException("repeated.flag", "s");
                 }
                 this.dotAll = true;
+                break;
+            case 'd':
+                if (this.hasIndices) {
+                    throwParserException("repeated.flag", "d");
+                }
+                this.hasIndices = true;
                 break;
             default:
                 throwParserException("unsupported.flag", Character.toString(ch));
@@ -194,6 +203,16 @@ public abstract class RegExp {
      */
     public boolean isDotAll() {
         return dotAll;
+    }
+
+    /**
+     * Whether this regexp has the ES2022 hasIndices ({@code d}) flag, where a
+     * successful match carries an {@code indices} array of its groups' bounds.
+     *
+     * @return true if the d flag was given
+     */
+    public boolean isHasIndices() {
+        return hasIndices;
     }
 
     /**
