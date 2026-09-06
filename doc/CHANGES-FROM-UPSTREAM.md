@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2018
+## Language: ES5.1 → ECMAScript 2019
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2018](https://262.ecma-international.org/9.0/) (ES9) as the only
+**[ECMAScript 2019](https://262.ecma-international.org/10.0/) (ES10) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -39,6 +39,15 @@ Added on top of the ES5.1 baseline:
   capture groups (`(?<name>)`, `\k<name>`, the `.groups` object, `$<name>`
   replacement), lookbehind assertions, and Unicode property escapes (`\p{…}`,
   `\P{…}` under `/u`).
+- **ES2019:** `Array.prototype.flat` and `flatMap` (both added to
+  `Array.prototype[@@unscopables]`), `Object.fromEntries`,
+  `String.prototype.trimStart`/`trimEnd` (with the Annex B `trimLeft`/`trimRight`
+  as the same function objects), `Symbol.prototype.description` (nullable —
+  `Symbol().description` is `undefined`), optional catch binding (`catch {}` with
+  no parameter), the now-normative guaranteed-stable `Array.prototype.sort`, the
+  JSON superset (unescaped U+2028/U+2029 allowed in string literals), well-formed
+  `JSON.stringify` (lone surrogates escaped as `\uXXXX`), and the
+  `Function.prototype.toString` revision (verbatim source).
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -192,7 +201,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2018
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2019
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

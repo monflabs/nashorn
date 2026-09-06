@@ -1,10 +1,10 @@
-ECMAScript 2018 conformance
+ECMAScript 2019 conformance
 ===========================
 
-This engine implements [ECMAScript 2018](https://262.ecma-international.org/9.0/)
-(ECMA-262, 9th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2019](https://262.ecma-international.org/10.0/)
+(ECMA-262, 10th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 58,803 executions **8
+selected at runtime by `Test262Selector`, and of its 59,074 executions **8
 fail**, all of one shape, named in
 `core/src/test/resources/test262-expectations.txt` with the reason: an indirect
 `eval` whose block-level function declaration must update a `var` the global
@@ -27,7 +27,7 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 58803 executions from src/test/scripts/external/test262-main, in 12 processes
+    test262: 59074 executions from src/test/scripts/external/test262-main, in 12 processes
     failing: 8   expected to fail: 8
 
 What is not measured, and why
@@ -36,7 +36,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2018.
+everything else outside the slice is simply later than ECMAScript 2019.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -48,14 +48,18 @@ everything else outside the slice is simply later than ECMAScript 2018.
 `annexB/` is **no longer excluded**: Annex B is implemented, behind `--annexB`, and its
 directory is measured with the rest. See below. The `async-generator` directories,
 excluded at the ES2017 target, are **now in scope**: async iteration is ES2018 and is
-implemented.
+implemented. The ES2019 additions are all in scope and pass: `Array.prototype.flat`
+and `flatMap` (and their `@@unscopables` entries), `Object.fromEntries`,
+`String.prototype.trimStart`/`trimEnd` (with the Annex B `trimLeft`/`trimRight` as the
+same function objects), `Symbol.prototype.description` (nullable), optional catch
+binding, the guaranteed-stable `Array.prototype.sort`, the JSON superset (raw
+U+2028/U+2029 in string literals) and well-formed `JSON.stringify`.
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after ES2018 - optional catch binding
-(ES2019), `BigInt`, `Array.prototype.flat`, optional chaining and nullish
-coalescing, `String.prototype.replaceAll`, class fields, the RegExp `v` flag, and
-the rest. Those are not failures; they are outside the target. Most would fail if
-run, because the features are not implemented.
+`features:` tag names something introduced after ES2019 - `BigInt`, optional chaining
+and nullish coalescing, `String.prototype.replaceAll`, class fields, the RegExp `v`
+flag, and the rest. Those are not failures; they are outside the target. Most would
+fail if run, because the features are not implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -
@@ -217,7 +221,7 @@ Staging: never
 
 **The `staging/` directory is not a conformance target and will not become
 one.** This engine implements the latest *approved* edition of ECMA-262 - today
-that is the 9th, ECMAScript 2018 - and staging tests things that no edition has
+that is the 10th, ECMAScript 2019 - and staging tests things that no edition has
 approved.
 
 test262's own contributing guide is explicit about what the directory is for:

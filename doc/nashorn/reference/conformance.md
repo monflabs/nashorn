@@ -1,10 +1,10 @@
 # Conformance
 
-This engine implements ECMAScript 2018 — ECMA-262, 9th edition — together with its Annex B, and is
+This engine implements ECMAScript 2019 — ECMA-262, 10th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 58,803 selected executions, 8 expected failures.** Everything else passes,
+**The headline numbers: 59,074 selected executions, 8 expected failures.** Everything else passes,
 in both of the engine's typing modes. The 8 are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
 scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). The
@@ -39,7 +39,7 @@ an engine with none of it. 1,078 of the annex's 1,086 test files pass.
 | `legacy-regexp` | `RegExp.$1` and its kin are a Stage 3 proposal the suite files under Annex B; the properties themselves have always been present, but the proposal's tests are out of scope. |
 | `[[IsHTMLDDA]]` | `document.all` emulation can only be produced by a web host. |
 
-Everything else outside the selected slice is simply a later edition — ES2019 and beyond — which
+Everything else outside the selected slice is simply a later edition — ES2020 and beyond — which
 this engine does not claim.
 
 The full report — how the slice is selected, the exact exclusion lists, what Annex B costs, and how
