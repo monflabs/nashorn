@@ -39,14 +39,34 @@ public final class Symbol implements Serializable {
 
     private final String name;
 
+    /**
+     * The description as passed to the {@code Symbol()} call, distinct from
+     * {@link #name}: {@code null} when there was none (so ES2019
+     * {@code Symbol.prototype.description} answers {@code undefined}), the empty
+     * string for {@code Symbol("")}. Well-known and registered symbols carry
+     * their name here too.
+     */
+    private final String description;
+
     private static final long serialVersionUID = -2988436597549486913L;
 
     /**
-     * Symbol constructor
+     * Symbol constructor, for a symbol whose description is its name (well-known
+     * and globally registered symbols).
      * @param name symbol name
      */
     public Symbol(final String name) {
+        this(name, name);
+    }
+
+    /**
+     * Symbol constructor.
+     * @param name        symbol name (never null; drives {@code toString})
+     * @param description the ES description, or {@code null} when there was none
+     */
+    public Symbol(final String name, final String description) {
         this.name = name;
+        this.description = description;
     }
 
     @Override
@@ -73,6 +93,15 @@ public final class Symbol implements Serializable {
 
     public final String getName() {
         return name;
+    }
+
+    /**
+     * The ES2019 {@code description}: the argument the {@code Symbol()} call was
+     * given, or {@code null} when it was given none.
+     * @return the description, possibly null
+     */
+    public final String getDescription() {
+        return description;
     }
 
     private Object writeReplace() {

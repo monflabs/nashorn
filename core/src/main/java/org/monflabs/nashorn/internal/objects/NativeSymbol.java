@@ -41,6 +41,7 @@ import org.monflabs.nashorn.internal.WeakValueCache;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Constructor;
 import org.monflabs.nashorn.internal.objects.annotations.Function;
+import org.monflabs.nashorn.internal.objects.annotations.Getter;
 import org.monflabs.nashorn.internal.objects.annotations.Property;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.objects.annotations.Where;
@@ -198,6 +199,18 @@ public final class NativeSymbol extends ScriptObject {
         return getSymbolValue(self).toString();
     }
 
+    /**
+     * ES2019 19.4.3.2 get Symbol.prototype.description
+     *
+     * @param self self reference
+     * @return the symbol's description, or undefined if it has none
+     */
+    @Getter(name = "description", where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object description(final Object self) {
+        final String description = getSymbolValue(self).getDescription();
+        return description == null ? Undefined.getUndefined() : description;
+    }
+
 
     /**
      * ECMA 6 19.4.3.3  Symbol.prototype.valueOf ( )
@@ -224,9 +237,12 @@ public final class NativeSymbol extends ScriptObject {
         if (newObj) {
             throw typeError("symbol.as.constructor");
         }
-        final String description = args.length > 0 && args[0] != Undefined.getUndefined() ?
-                JSType.toString(args[0]) : "";
-        return new Symbol(description);
+        // ES2019 19.4.1.1: an absent/undefined argument leaves the description
+        // as undefined (a null internal [[Description]]); Symbol("") keeps "".
+        final boolean hasDescription = args.length > 0 && args[0] != Undefined.getUndefined();
+        final String description = hasDescription ? JSType.toString(args[0]) : null;
+        final String name = hasDescription ? description : "";
+        return new Symbol(name, description);
     }
 
     /**
