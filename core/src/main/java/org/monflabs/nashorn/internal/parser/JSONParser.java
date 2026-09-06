@@ -104,7 +104,9 @@ public class JSONParser {
 
         product.append("\"");
 
-        for (final char ch : value.toCharArray()) {
+        final int len = value.length();
+        for (int i = 0; i < len; i++) {
+            final char ch = value.charAt(i);
             // TODO: should use a table?
             switch (ch) {
             case '\\':
@@ -131,6 +133,20 @@ public class JSONParser {
             default:
                 if (ch < ' ') {
                     product.append(Lexer.unicodeEscape(ch));
+                    break;
+                }
+
+                if (Character.isSurrogate(ch)) {
+                    // ES2019 24.5.2.2 QuoteJSONString: a lone surrogate is
+                    // escaped so stringify always produces well-formed UTF-16; a
+                    // valid pair passes through as its two code units.
+                    if (Character.isHighSurrogate(ch) && i + 1 < len
+                            && Character.isLowSurrogate(value.charAt(i + 1))) {
+                        product.append(ch);
+                        product.append(value.charAt(++i));
+                    } else {
+                        product.append(Lexer.unicodeEscape(ch));
+                    }
                     break;
                 }
 

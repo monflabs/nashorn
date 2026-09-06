@@ -421,6 +421,17 @@ public class Lexer extends Scanner {
     }
 
     /**
+     * Test whether a char closes a string literal. ES2019's JSON-superset change
+     * (25.5) lets U+2028/U+2029 appear unescaped in a string literal, so - unlike
+     * {@link #isJSEOL} - they do not end it; a raw CR or LF still does.
+     * @param ch a char
+     * @return true if the char ends a string literal
+     */
+    public static boolean isStringLiteralEOL(final char ch) {
+        return ch == '\n' || ch == '\r';
+    }
+
+    /**
      * Test if char is a string delimiter, e.g. '\' or '"'.
      * @param ch a char
      * @return true if string delimiter
@@ -1161,7 +1172,7 @@ public class Lexer extends Scanner {
         final State stringState = saveState();
 
         // Scan until close quote or end of line.
-        while (!atEOF() && ch0 != quote && !isEOL(ch0)) {
+        while (!atEOF() && ch0 != quote && !isStringLiteralEOL(ch0)) {
             // Skip over escaped character.
             if (ch0 == '\\') {
                 type = ESCSTRING;
