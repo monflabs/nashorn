@@ -25,14 +25,14 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2019 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2020 conformance.
  *
  * test262 has no branch or tag for any edition - only the frozen
  * {@code es5-tests} branch and {@code main}, which tracks the current draft
  * spec. The suite for an edition has to be selected out of {@code main}, and the
  * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2019.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2020.</b>
  *
  * <p>That is deliberate. An allow rule - take only tests tagged with a feature
  * of the edition - would quietly drop the thousands of untagged tests covering
@@ -49,7 +49,7 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015 through ES2019 introduced. A
+     * Every {@code features:} tag that ES2015 through ES2020 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
@@ -96,6 +96,12 @@ public final class Test262Selector {
         "Symbol.prototype.description", "string-trimming",
         "String.prototype.trimStart", "String.prototype.trimEnd",
         "optional-catch-binding", "json-superset", "well-formed-json-stringify",
+        // ES2020
+        "coalesce-expression", "optional-chaining",
+        "export-star-as-namespace-from-module",
+        "String.prototype.matchAll", "Symbol.matchAll",
+        "Promise.allSettled", "globalThis", "for-in-order",
+        "dynamic-import", "import.meta", "BigInt",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -137,7 +143,7 @@ public final class Test262Selector {
      * not.
      *
      * A BigInt literal and the nullish coalescing operator are ECMAScript 2020,
-     * and a file using one cannot be parsed by an engine that stops at 2019 -
+     * and a file using one cannot be parsed by an engine that stops at 2020 -
      * whatever the file is about. These are named one by one rather than caught
      * by a rule because there is nothing in their frontmatter to catch: what
      * each declares is the in-scope thing it tests, and the later syntax is
@@ -148,41 +154,16 @@ public final class Test262Selector {
      * would hide real failures.
      */
     private static final Set<String> LATER_SYNTAX = Set.of(
-            // BigInt literals
-            "built-ins/AsyncIteratorPrototype/Symbol.asyncIterator/return-val.js",
-            "built-ins/Iterator/prototype/Symbol.iterator/return-val.js",
-            "built-ins/Promise/all/resolve-throws-iterator-return-is-not-callable.js",
-            "built-ins/Promise/allSettled/resolve-throws-iterator-return-is-not-callable.js",
-            "built-ins/Promise/any/resolve-throws-iterator-return-is-not-callable.js",
-            "built-ins/Promise/race/resolve-throws-iterator-return-is-not-callable.js",
+            // ES2021 numeric separators (1_000), whose literals these tests use
             "language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-integer-separators.js",
             "language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js",
             "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-integer-separators.js",
             "language/statements/class/cpn-class-decl-computed-property-name-from-integer-separators.js",
             "language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js",
-            "built-ins/RegExp/prototype/dotAll/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/flags/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/global/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/ignoreCase/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/multiline/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/source/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/sticky/this-val-non-obj.js",
-            "built-ins/RegExp/prototype/unicode/this-val-non-obj.js",
-            "language/expressions/assignment/destructuring/default-expr-throws-iterator-return-is-not-callable.js",
-            "language/expressions/assignment/destructuring/target-assign-throws-iterator-return-is-not-callable.js",
-            "built-ins/String/prototype/match/cstm-matcher-on-bigint-primitive.js",
-            "built-ins/String/prototype/replace/cstm-replace-on-bigint-primitive.js",
-            "built-ins/String/prototype/search/cstm-search-on-bigint-primitive.js",
-            "built-ins/String/prototype/split/cstm-split-on-bigint-primitive.js",
-            // nullish coalescing
-            "language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-expression-coalesce.js",
-            "language/expressions/class/cpn-class-expr-computed-property-name-from-expression-coalesce.js",
-            "language/expressions/object/cpn-obj-lit-computed-property-name-from-expression-coalesce.js",
-            "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-expression-coalesce.js",
-            "language/statements/class/cpn-class-decl-computed-property-name-from-expression-coalesce.js",
-            // export * as ns from "mod", which is ECMAScript 2020
-            "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from.js",
-            "language/module-code/ambiguous-export-bindings/namespace-unambiguous-if-export-star-as-from-and-import-star-as-and-export.js");
+            // ES2022 top-level await: this test lives under top-level-await/ and
+            // is written with a module-top-level await, but is tagged only
+            // dynamic-import, so the feature deny rule does not catch it
+            "language/module-code/top-level-await/dynamic-import-of-waiting-module.js");
 
     /**
      * Tests keyed to a Unicode version newer than the one the JDK carries.
@@ -194,7 +175,7 @@ public final class Test262Selector {
      * when Nashorn does.
      */
     /**
-     * Tests about a feature that postdates ES2019 and says so nowhere.
+     * Tests about a feature that postdates ES2020 and says so nowhere.
      *
      * The deny rule reads {@code features:}, and a test written before that
      * convention - or one whose author saw no feature worth naming - declares
@@ -202,13 +183,6 @@ public final class Test262Selector {
      * async-generator directories are.
      */
     private static final Set<String> LATER_FEATURES = Set.of(
-            // ES2020 BigInt, and the typed arrays and views that carry it
-            "built-ins/DataView/prototype/getBigUint64/not-a-constructor.js",
-            "built-ins/DataView/prototype/setBigUint64/not-a-constructor.js",
-            "built-ins/Object/seal/seal-bigint64array.js",
-            "built-ins/Object/seal/seal-biguint64array.js",
-            "built-ins/TypedArrayConstructors/BigUint64Array/is-a-constructor.js",
-            "built-ins/BigInt/prototype/toString/radix-tointegerorinfinity-throws-symbol.js",
             // ES2021 String.prototype.replaceAll
             "built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js",
             "built-ins/String/prototype/replaceAll/not-a-constructor.js",
@@ -272,7 +246,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2019 conformance
+     * @return true if the test counts towards ES2020 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 
