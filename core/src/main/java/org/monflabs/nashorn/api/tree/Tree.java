@@ -551,6 +551,24 @@ public interface Tree {
         OR_ASSIGNMENT(CompoundAssignmentTree.class),
 
         /**
+         * Used for instances of {@link CompoundAssignmentTree} representing
+         * ES2021 logical "and" assignment {@code &&=}.
+         */
+        CONDITIONAL_AND_ASSIGNMENT(CompoundAssignmentTree.class),
+
+        /**
+         * Used for instances of {@link CompoundAssignmentTree} representing
+         * ES2021 logical "or" assignment {@code ||=}.
+         */
+        CONDITIONAL_OR_ASSIGNMENT(CompoundAssignmentTree.class),
+
+        /**
+         * Used for instances of {@link CompoundAssignmentTree} representing
+         * ES2021 nullish-coalescing assignment {@code ??=}.
+         */
+        NULLISH_COALESCING_ASSIGNMENT(CompoundAssignmentTree.class),
+
+        /**
          * Used for instances of {@link SpreadTree} representing
          * spread "operator" for arrays and function call arguments.
          */

@@ -147,6 +147,12 @@ abstract class TreeImpl implements Tree {
                 return Kind.OR;
             case ASSIGN_BIT_OR:
                 return Kind.OR_ASSIGNMENT;
+            case ASSIGN_AND:
+                return Kind.CONDITIONAL_AND_ASSIGNMENT;
+            case ASSIGN_OR:
+                return Kind.CONDITIONAL_OR_ASSIGNMENT;
+            case ASSIGN_NULLISH:
+                return Kind.NULLISH_COALESCING_ASSIGNMENT;
             case OR:
                 return Kind.CONDITIONAL_OR;
             case BIT_NOT:

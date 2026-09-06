@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import org.monflabs.nashorn.internal.ir.AccessNode;
 import org.monflabs.nashorn.internal.ir.BinaryNode;
 import org.monflabs.nashorn.internal.ir.CallNode;
 import org.monflabs.nashorn.internal.ir.Block;
@@ -387,12 +388,80 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveBinaryNode(final BinaryNode binaryNode) {
+        switch (binaryNode.tokenType()) {
+        case ASSIGN_AND:
+        case ASSIGN_OR:
+        case ASSIGN_NULLISH:
+            return logicalAssignment(binaryNode);
+        default:
+            break;
+        }
         if (!binaryNode.isTokenType(TokenType.ASSIGN)
                 || !isPattern(binaryNode.lhs())
                 || handledElsewhere.contains(binaryNode.getToken())) {
             return super.leaveBinaryNode(binaryNode);
         }
         return destructuringExpression(binaryNode);
+    }
+
+    /**
+     * ES2021 logical assignment: {@code a &&= b} / {@code a ||= b} / {@code a ??= b}
+     * become the short-circuit expression {@code a <op> (a = b)}, so the assignment
+     * (and any setter it would call) happens only when the operator does not
+     * short-circuit. A member target's base - and an index target's key - is read
+     * into a temporary first, so {@code f().p ||= b} evaluates {@code f()} once.
+     */
+    private Expression logicalAssignment(final BinaryNode node) {
+        final long token = node.getToken();
+        final TokenType shortCircuit = switch (node.tokenType()) {
+            case ASSIGN_AND -> TokenType.AND;
+            case ASSIGN_OR  -> TokenType.OR;
+            default         -> TokenType.NULLISH;
+        };
+        final Expression target = node.lhs();
+        final Expression rhs = node.rhs();
+        final Statement at = new ExpressionStatement(lc.getCurrentFunction().getLineNumber(),
+                token, node.getFinish(), node);
+
+        if (target instanceof IdentNode ident) {
+            // a <op>= b  ->  a <op> (a = b)
+            final Expression read = new IdentNode(ident);
+            final Expression assign = new BinaryNode(Token.recast(token, TokenType.ASSIGN), ident, rhs);
+            return shortCircuitOf(token, shortCircuit, read, assign);
+        }
+        if (target instanceof AccessNode access) {
+            // base is read once into a temp: (:t = base, :t.p <op> (:t.p = b))
+            final String baseTemp = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+            pendingDeclarations.add(declareTemporary(at, baseTemp));
+            final Expression baseInit = assignTemporary(at, baseTemp, access.getBase());
+            final AccessNode read  = new AccessNode(token, access.getFinish(), ref(at, baseTemp), access.getProperty());
+            final AccessNode write = new AccessNode(token, access.getFinish(), ref(at, baseTemp), access.getProperty());
+            final Expression assign = new BinaryNode(Token.recast(token, TokenType.ASSIGN), write, rhs);
+            return sequence(at, baseInit, shortCircuitOf(token, shortCircuit, read, assign));
+        }
+        if (target instanceof IndexNode index) {
+            // base and key are each read once: (:t = base, :k = key, :t[:k] <op> (:t[:k] = b))
+            final String baseTemp = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+            final String keyTemp  = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+            pendingDeclarations.add(declareTemporary(at, baseTemp));
+            pendingDeclarations.add(declareTemporary(at, keyTemp));
+            final Expression baseInit = assignTemporary(at, baseTemp, index.getBase());
+            final Expression keyInit  = assignTemporary(at, keyTemp, index.getIndex());
+            final IndexNode read  = new IndexNode(token, index.getFinish(), ref(at, baseTemp), ref(at, keyTemp));
+            final IndexNode write = new IndexNode(token, index.getFinish(), ref(at, baseTemp), ref(at, keyTemp));
+            final Expression assign = new BinaryNode(Token.recast(token, TokenType.ASSIGN), write, rhs);
+            return sequence(at, baseInit,
+                    sequence(at, keyInit, shortCircuitOf(token, shortCircuit, read, assign)));
+        }
+        // no other target survives verifyAssignment
+        return super.leaveBinaryNode(node) instanceof Expression e ? e : node;
+    }
+
+    /** {@code lhs <op> rhs} for a short-circuit operator, both sides join-predecessors. */
+    private static Expression shortCircuitOf(final long token, final TokenType op,
+            final Expression lhs, final Expression rhs) {
+        return new BinaryNode(Token.recast(token, op),
+                new JoinPredecessorExpression(lhs), new JoinPredecessorExpression(rhs));
     }
 
     private Expression destructuringExpression(final BinaryNode assignment) {

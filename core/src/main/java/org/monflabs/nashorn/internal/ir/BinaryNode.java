@@ -350,6 +350,10 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case ASSIGN_SHL:
         case ASSIGN_SHR:
         case ASSIGN_SUB:
+        // ES2021 logical assignment (desugared away before symbol assignment)
+        case ASSIGN_AND:
+        case ASSIGN_OR:
+        case ASSIGN_NULLISH:
            return true;
         default:
            return false;

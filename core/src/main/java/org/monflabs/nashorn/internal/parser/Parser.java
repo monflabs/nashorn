@@ -839,6 +839,11 @@ public class Parser extends AbstractParser implements Loggable {
         case ASSIGN_SHL:
         case ASSIGN_SHR:
         case ASSIGN_SUB:
+        // ES2021 logical assignment: an lvalue target like the others, but never
+        // a destructuring pattern
+        case ASSIGN_AND:
+        case ASSIGN_OR:
+        case ASSIGN_NULLISH:
             if (lhs instanceof IdentNode) {
                 if (isReservedTarget(lhs)) {
                     return referenceError(lhs, rhs, env._early_lvalue_error);
@@ -853,6 +858,10 @@ public class Parser extends AbstractParser implements Loggable {
             } else if (opType == ASSIGN && isDestructuringLhs(lhs) && lhs != parenthesized) {
                 verifyDestructuringAssignmentPattern(lhs, "assignment");
                 break;
+            } else if (opType == TokenType.ASSIGN_AND || opType == TokenType.ASSIGN_OR || opType == TokenType.ASSIGN_NULLISH) {
+                // ES2021: a logical assignment gets no Annex B call-target
+                // relaxation - a non-simple target is always an early SyntaxError
+                return referenceError(lhs, rhs, true);
             } else if (isAnnexBAssignmentTarget(lhs)) {
                 // the right hand side is not evaluated: the reference is made
                 // first, and making it is what fails
@@ -5972,11 +5981,11 @@ public class Parser extends AbstractParser implements Loggable {
         assert !(exprLhs instanceof ExpressionList);
 
         if (isAssignmentOperator(type)) {
-            final boolean isAssign = type == ASSIGN;
-            if (isAssign) {
-                // 12.15.4 names the function after the target only when the
-                // target is written as a plain reference: "(f) = function(){}"
-                // assigns a function that has no name
+            // 12.15.4 / ES2021: "=" and the logical assignments &&=/||=/??= name
+            // the function after the target, but only when the target is a plain
+            // reference: "(f) = function(){}" assigns a function that has no name
+            final boolean names = type == ASSIGN || type == TokenType.ASSIGN_AND || type == TokenType.ASSIGN_OR || type == TokenType.ASSIGN_NULLISH;
+            if (names) {
                 defaultNames.push(exprLhs == parenthesized ? "" : exprLhs);
             }
             try {
@@ -5985,7 +5994,7 @@ public class Parser extends AbstractParser implements Loggable {
                 final Expression exprRhs = assignmentExpression(noIn);
                 return verifyAssignment(assignToken, exprLhs, exprRhs);
             } finally {
-                if (isAssign) {
+                if (names) {
                     defaultNames.pop();
                 }
             }
@@ -6012,6 +6021,10 @@ public class Parser extends AbstractParser implements Loggable {
         case ASSIGN_SHL:
         case ASSIGN_SHR:
         case ASSIGN_SUB:
+        // ES2021 logical assignment
+        case ASSIGN_AND:
+        case ASSIGN_OR:
+        case ASSIGN_NULLISH:
             return true;
         }
         return false;
