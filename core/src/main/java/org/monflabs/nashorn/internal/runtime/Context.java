@@ -908,6 +908,36 @@ public final class Context {
         }
     }
 
+    /**
+     * Resolves a module specifier against a base name rather than a
+     * {@link ModuleRecord} - used by dynamic {@code import()} whose referrer may
+     * be a plain script that was never registered as a module.
+     *
+     * @param specifier the text between the quotes
+     * @param base      the name of the source the import was written in, or null
+     * @return the module it names
+     */
+    public ModuleRecord loadModuleWithBase(final String specifier, final String base) {
+        if (!moduleLoaders.isEmpty()) {
+            for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {
+                final org.monflabs.nashorn.api.modules.Module loaded = loader.load(specifier, null);
+                if (loaded != null) {
+                    return record(loaded);
+                }
+            }
+            return null;
+        }
+        final Path resolved = resolveModule(specifier, base);
+        if (resolved == null) {
+            return null;
+        }
+        try {
+            return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString(), resolved);
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /** The record for what a loader answered: known already, Java values, or script to compile. */
     private ModuleRecord record(final org.monflabs.nashorn.api.modules.Module loaded) {
         final Global global = getGlobal();

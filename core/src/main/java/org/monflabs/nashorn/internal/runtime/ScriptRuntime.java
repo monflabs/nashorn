@@ -35,6 +35,7 @@ import static org.monflabs.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.referenceError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.syntaxError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
+import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 import static org.monflabs.nashorn.internal.runtime.JSType.isRepresentableAsInt;
 import static org.monflabs.nashorn.internal.runtime.JSType.isString;
 
@@ -2836,6 +2837,63 @@ public final class ScriptRuntime {
      */
     public static boolean IS_NULLISH(final Object value) {
         return value == null || value == UNDEFINED;
+    }
+
+    /**
+     * ES2020 the {@code import.meta} meta-property: the host-populated object of
+     * the module whose name is given.
+     *
+     * @param moduleName the name of the module the import.meta appears in
+     * @return the module's import.meta object
+     */
+    public static Object IMPORT_META(final Object moduleName) {
+        final ModuleRecord record = Global.instance().getModule(JSType.toString(moduleName));
+        return record == null ? UNDEFINED : record.getImportMeta();
+    }
+
+    /**
+     * ES2020 dynamic {@code import(specifier)}: resolves the specifier against the
+     * module it was written in, loads and evaluates it, and answers a promise of
+     * its namespace object. The load is synchronous here, so the promise is
+     * already settled when returned; its reactions still run as microtasks.
+     *
+     * @param referrerName the name of the module the import() appears in, or null
+     * @param specifier    the module specifier expression's value
+     * @return a promise of the imported module's namespace
+     */
+    public static Object DYNAMIC_IMPORT(final Object referrerName, final Object specifier) {
+        final Global global = Global.instance();
+        final org.monflabs.nashorn.internal.objects.NativePromise promise =
+                org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
+        String spec = null;
+        try {
+            spec = JSType.toString(specifier);
+            final String refName = referrerName == null ? null : JSType.toString(referrerName);
+            final ModuleRecord referrer = refName == null ? null : global.getModule(refName);
+            // A registered module referrer keeps its loader view; a plain script
+            // referrer resolves by its base name instead.
+            final ModuleRecord loaded = referrer != null
+                    ? Context.getContext().loadModule(spec, referrer)
+                    : Context.getContext().loadModuleWithBase(spec, refName);
+            if (loaded == null) {
+                throw typeError("cant.load.module", spec, "not found");
+            }
+            loaded.link().evaluate();
+            org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, loaded.namespace());
+        } catch (final Throwable t) {
+            final Object reason;
+            if (t instanceof ECMAException ee) {
+                reason = ee.getThrown();
+            } else if (t instanceof ParserException pe) {
+                // a module that fails to parse rejects with the SyntaxError it is,
+                // not a generic wrapper
+                reason = ECMAErrors.asEcmaException(global, pe).getThrown();
+            } else {
+                reason = typeError("cant.load.module", String.valueOf(spec), String.valueOf(t.getMessage())).getThrown();
+            }
+            org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason);
+        }
+        return promise;
     }
 
     /**

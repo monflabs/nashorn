@@ -64,6 +64,8 @@ import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
 import org.monflabs.nashorn.internal.ir.OptionalChainNode;
+import org.monflabs.nashorn.internal.ir.ImportMetaNode;
+import org.monflabs.nashorn.internal.ir.ImportCallNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessor;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpStatement;
@@ -511,6 +513,17 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
     public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
         visitExpression(optionalChainNode.getExpression());
         return pushExpressionType(optionalChainNode);
+    }
+
+    @Override
+    public boolean enterImportMetaNode(final ImportMetaNode importMetaNode) {
+        return pushExpressionType(importMetaNode);
+    }
+
+    @Override
+    public boolean enterImportCallNode(final ImportCallNode importCallNode) {
+        visitExpression(importCallNode.getArgument());
+        return pushExpressionType(importCallNode);
     }
 
     @Override

@@ -104,6 +104,8 @@ import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
 import org.monflabs.nashorn.internal.ir.OptionalChainNode;
+import org.monflabs.nashorn.internal.ir.ImportMetaNode;
+import org.monflabs.nashorn.internal.ir.ImportCallNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpStatement;
 import org.monflabs.nashorn.internal.ir.JumpToInlinedFinally;
@@ -1016,6 +1018,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             @Override
             public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
                 loadOptionalChain(optionalChainNode, resultBounds);
+                return false;
+            }
+
+            @Override
+            public boolean enterImportMetaNode(final ImportMetaNode importMetaNode) {
+                loadImportMeta(importMetaNode, resultBounds);
+                return false;
+            }
+
+            @Override
+            public boolean enterImportCallNode(final ImportCallNode importCallNode) {
+                loadImportCall(importCallNode, resultBounds);
                 return false;
             }
 
@@ -4875,6 +4889,39 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         method._goto(currentOptionalChainEnd);
         method.label(notNullish);
         method.swap();
+    }
+
+    /**
+     * ES2020 import.meta: the enclosing module's import.meta object, looked up by
+     * the compile-time source name (which is the module name).
+     */
+    private void loadImportMeta(final ImportMetaNode importMetaNode, final TypeBounds resultBounds) {
+        final boolean discard = lc.popDiscardIfCurrent(importMetaNode);
+        method.load(compiler.getSource().getName());
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "IMPORT_META",
+                new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+        if (discard) {
+            method.pop();
+        } else {
+            coerceStackTop(resultBounds);
+        }
+    }
+
+    /**
+     * ES2020 dynamic import(specifier): a promise of the module's namespace, the
+     * specifier resolved against the compile-time source name (the referrer).
+     */
+    private void loadImportCall(final ImportCallNode importCallNode, final TypeBounds resultBounds) {
+        final boolean discard = lc.popDiscardIfCurrent(importCallNode);
+        method.load(compiler.getSource().getName());
+        loadExpressionAsObject(importCallNode.getArgument());
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "DYNAMIC_IMPORT",
+                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+        if (discard) {
+            method.pop();
+        } else {
+            coerceStackTop(resultBounds);
+        }
     }
 
     private static boolean isLocalVariable(final Expression lhs) {

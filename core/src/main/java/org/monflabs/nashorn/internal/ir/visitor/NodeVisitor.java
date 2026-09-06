@@ -50,6 +50,8 @@ import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
 import org.monflabs.nashorn.internal.ir.OptionalChainNode;
+import org.monflabs.nashorn.internal.ir.ImportMetaNode;
+import org.monflabs.nashorn.internal.ir.ImportCallNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpToInlinedFinally;
 import org.monflabs.nashorn.internal.ir.LabelNode;
@@ -180,6 +182,46 @@ public abstract class NodeVisitor<T extends LexicalContext> {
      */
     public Node leaveOptionalChainNode(final OptionalChainNode optionalChainNode) {
         return leaveDefault(optionalChainNode);
+    }
+
+    /**
+     * Callback for entering an ImportMetaNode
+     *
+     * @param  importMetaNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterImportMetaNode(final ImportMetaNode importMetaNode) {
+        return enterDefault(importMetaNode);
+    }
+
+    /**
+     * Callback for leaving an ImportMetaNode
+     *
+     * @param  importMetaNode the node
+     * @return processed node, null if traversal should end
+     */
+    public Node leaveImportMetaNode(final ImportMetaNode importMetaNode) {
+        return leaveDefault(importMetaNode);
+    }
+
+    /**
+     * Callback for entering an ImportCallNode
+     *
+     * @param  importCallNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterImportCallNode(final ImportCallNode importCallNode) {
+        return enterDefault(importCallNode);
+    }
+
+    /**
+     * Callback for leaving an ImportCallNode
+     *
+     * @param  importCallNode the node
+     * @return processed node, null if traversal should end
+     */
+    public Node leaveImportCallNode(final ImportCallNode importCallNode) {
+        return leaveDefault(importCallNode);
     }
 
     /**

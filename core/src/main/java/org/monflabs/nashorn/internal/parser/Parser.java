@@ -122,6 +122,8 @@ import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
 import org.monflabs.nashorn.internal.ir.OptionalChainNode;
+import org.monflabs.nashorn.internal.ir.ImportMetaNode;
+import org.monflabs.nashorn.internal.ir.ImportCallNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.LabelNode;
 import org.monflabs.nashorn.internal.ir.LexicalContext;
@@ -3504,6 +3506,27 @@ public class Parser extends AbstractParser implements Loggable {
             next();
             markThis(lc);
             return new IdentNode(primaryToken, finish, name);
+        case IMPORT:
+            // ES2020 import.meta (13.3.12) is the only MemberExpression beginning
+            // with "import"; dynamic import() (13.3.10) is a CallExpression parsed
+            // in leftHandSideExpression. Anything else beginning with "import"
+            // here - "new import()", a stray import declaration in a script -
+            // falls through to the ordinary "expected operand" error unconsumed.
+            if (T(k + 1) == PERIOD) {
+                next();
+                next();
+                if (!isUnescaped("meta")) {
+                    throw error(AbstractParser.message("expected.meta"), token);
+                }
+                // On a lazy re-parse of a nested function the enclosing module is
+                // not on the context stack; the eager parse already ruled it legal.
+                if (reparsedFunction == null && !inModule()) {
+                    throw error(AbstractParser.message("import.meta.outside.module"), primaryToken);
+                }
+                next();
+                return new ImportMetaNode(primaryToken, finish);
+            }
+            break;
         case IDENT:
             final IdentNode ident = getIdent();
             if (ident == null) {
@@ -4282,7 +4305,20 @@ public class Parser extends AbstractParser implements Loggable {
         int  callLine  = line;
         long callToken = token;
 
-        Expression lhs = memberExpression();
+        final Expression lhs0;
+        if (type == IMPORT && T(k + 1) == LPAREN) {
+            // ES2020 13.3.10 ImportCall - a CallExpression, so it is parsed here
+            // rather than as a MemberExpression (which would let "new" precede it).
+            final long importToken = token;
+            next();
+            next();
+            final Expression specifier = assignmentExpression(false);
+            expect(RPAREN);
+            lhs0 = new ImportCallNode(importToken, finish, specifier);
+        } else {
+            lhs0 = memberExpression();
+        }
+        Expression lhs = lhs0;
 
         if (type == LPAREN) {
             final List<Expression> arguments = optimizeList(argumentList());
@@ -6640,7 +6676,13 @@ public class Parser extends AbstractParser implements Loggable {
         while (type != EOF) {
             switch (type) {
             case IMPORT:
-                importDeclaration();
+                // ES2020: "import(" (dynamic import) and "import." (import.meta)
+                // are expressions, not an import declaration.
+                if (T(k + 1) == LPAREN || T(k + 1) == PERIOD) {
+                    statement(true, 0, false);
+                } else {
+                    importDeclaration();
+                }
                 break;
             case EXPORT:
                 exportDeclaration();

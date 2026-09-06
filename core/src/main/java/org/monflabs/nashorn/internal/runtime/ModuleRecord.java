@@ -96,6 +96,8 @@ public final class ModuleRecord {
     private State state = State.NEW;
     private ScriptObject environment;
     private ScriptObject namespace;
+    private ScriptObject importMeta;
+    private RuntimeException evaluationError;
 
     /** What this module's specifiers resolved to: link, bind and evaluate all ask, the loaders answer once. */
     private final java.util.Map<String, ModuleRecord> dependencies = new java.util.HashMap<>();
@@ -252,6 +254,11 @@ public final class ModuleRecord {
      * @return the module itself, once its body has finished
      */
     public ModuleRecord evaluate() {
+        if (evaluationError != null) {
+            // ES2020 15.2.1.20: a module that threw once is permanently errored,
+            // and every later evaluation (a re-import included) throws the same.
+            throw evaluationError;
+        }
         if (values != null) {
             state = State.EVALUATED;
             return this;
@@ -265,16 +272,22 @@ public final class ModuleRecord {
         }
         state = State.EVALUATING;
 
-        for (final String requested : module.getRequestedModules()) {
-            dependency(requested).evaluate();
-        }
-
-        final ModuleRecord previous = STARTING.get();
-        STARTING.set(this);
         try {
-            ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
-        } finally {
-            STARTING.set(previous);
+            for (final String requested : module.getRequestedModules()) {
+                dependency(requested).evaluate();
+            }
+
+            final ModuleRecord previous = STARTING.get();
+            STARTING.set(this);
+            try {
+                ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
+            } finally {
+                STARTING.set(previous);
+            }
+        } catch (final RuntimeException | Error e) {
+            state = State.EVALUATED;
+            evaluationError = e instanceof RuntimeException re ? re : new RuntimeException(e);
+            throw e;
         }
         state = State.EVALUATED;
         return this;
@@ -394,6 +407,21 @@ public final class ModuleRecord {
             namespace = new ModuleNamespace(this, sorted);
         }
         return namespace;
+    }
+
+    /**
+     * ES2020 the {@code import.meta} object for this module: an ordinary object,
+     * host-populated, created once and shared by every {@code import.meta} in the
+     * module. It carries {@code url}, the module's origin.
+     *
+     * @return the import.meta object
+     */
+    public ScriptObject getImportMeta() {
+        if (importMeta == null) {
+            importMeta = global.newObject();
+            importMeta.set("url", origin == null ? name : origin.toString(), 0);
+        }
+        return importMeta;
     }
 
     /** The namespace import that binds a name here, if that is what binds it. */
