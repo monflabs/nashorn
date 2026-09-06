@@ -1922,6 +1922,88 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * ES2019 22.1.3.10 Array.prototype.flat ( [ depth ] )
+     *
+     * @param self  self reference
+     * @param depth how many levels deep to flatten (default 1)
+     * @return a new array with sub-array elements flattened into it
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object flat(final Object self, final Object depth) {
+        final ScriptObject source = (ScriptObject) Global.toObject(self);
+        final long sourceLen = toLength(source.get("length"));
+        double depthNum = 1;
+        if (depth != ScriptRuntime.UNDEFINED) {
+            depthNum = JSType.toInteger(depth);
+        }
+        final ScriptObject result = speciesCreate(self, 0);
+        flattenIntoArray(result, source, sourceLen, 0, depthNum, null, null);
+        return result;
+    }
+
+    /**
+     * ES2019 22.1.3.11 Array.prototype.flatMap ( callbackfn [ , thisArg ] )
+     *
+     * @param self       self reference
+     * @param callbackfn maps each element before it is flattened one level
+     * @param thisArg    this value for the callback
+     * @return a new array of the mapped elements, flattened one level
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object flatMap(final Object self, final Object callbackfn, final Object thisArg) {
+        final ScriptObject source = (ScriptObject) Global.toObject(self);
+        final long sourceLen = toLength(source.get("length"));
+        if (!Bootstrap.isCallable(callbackfn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(callbackfn));
+        }
+        final ScriptObject result = speciesCreate(self, 0);
+        flattenIntoArray(result, source, sourceLen, 0, 1, callbackfn, thisArg);
+        return result;
+    }
+
+    /**
+     * ES2019 22.1.3.10.1 FlattenIntoArray: copy {@code source}'s own indexed
+     * elements into {@code target} starting at {@code start}, descending
+     * {@code depth} levels into any element that is itself an array (holes are
+     * skipped). With a mapper set (flatMap), each element is mapped first and
+     * only one level is flattened.
+     *
+     * @return the next free index in {@code target}
+     */
+    private static long flattenIntoArray(final ScriptObject target, final ScriptObject source, final long sourceLen,
+            final long start, final double depth, final Object mapper, final Object thisArg) {
+        final MethodHandle mapInvoker = mapper == null ? null : getMAP_CALLBACK_INVOKER();
+        long targetIndex = start;
+        for (long k = 0; k < sourceLen; k++) {
+            if (source.has((double) k)) {
+                Object element = source.get((double) k);
+                if (mapInvoker != null) {
+                    try {
+                        element = mapInvoker.invokeExact(mapper, thisArg, element, (double) k, (Object) source);
+                    } catch (final RuntimeException | Error e) {
+                        throw e;
+                    } catch (final Throwable t) {
+                        throw new RuntimeException(t);
+                    }
+                }
+                if (depth > 0 && isArray(null, element)) {
+                    final ScriptObject inner = (ScriptObject) Global.toObject(element);
+                    targetIndex = flattenIntoArray(target, inner, toLength(inner.get("length")),
+                            targetIndex, depth - 1, null, null);
+                } else {
+                    if (targetIndex >= 9007199254740991L) {
+                        // 2^53 - 1: more indices than an array-like can name
+                        throw typeError("array.length.exceeded", Long.toString(targetIndex));
+                    }
+                    createDataProperty(target, targetIndex, element);
+                    targetIndex++;
+                }
+            }
+        }
+        return targetIndex;
+    }
+
+    /**
      * ES2015 9.4.2.3 ArraySpeciesCreate: what the operations deriving one array
      * from another build.
      *
