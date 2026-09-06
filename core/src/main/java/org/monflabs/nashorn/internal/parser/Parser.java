@@ -868,6 +868,36 @@ public class Parser extends AbstractParser implements Loggable {
         return new BinaryNode(op, lhs, rhs);
     }
 
+    /**
+     * ES2020 12.14: the nullish coalescing operator "??" may not be combined with
+     * "&&" or "||" in the same expression without parentheses - "a ?? b || c",
+     * "a || b ?? c" and their kin are early errors. The check inspects the two
+     * operands about to be combined: a "??" rejects an unparenthesized "&&"/"||"
+     * operand, and an "&&"/"||" rejects an unparenthesized "??" operand.
+     */
+    private void verifyNullishNotMixed(final long op, final Expression lhs, final boolean lhsParenthesized,
+            final Expression rhs, final boolean rhsParenthesized) {
+        final TokenType opType = Token.descType(op);
+        if (opType == TokenType.NULLISH) {
+            if (isUnparenthesizedLogicalAndOr(lhs, lhsParenthesized) || isUnparenthesizedLogicalAndOr(rhs, rhsParenthesized)) {
+                throw error(AbstractParser.message("nullish.bad.mix"), op);
+            }
+        } else if (opType == TokenType.AND || opType == TokenType.OR) {
+            if (isUnparenthesizedNullish(lhs, lhsParenthesized) || isUnparenthesizedNullish(rhs, rhsParenthesized)) {
+                throw error(AbstractParser.message("nullish.bad.mix"), op);
+            }
+        }
+    }
+
+    private static boolean isUnparenthesizedLogicalAndOr(final Expression e, final boolean parenthesized) {
+        return !parenthesized && e instanceof BinaryNode
+                && (e.isTokenType(TokenType.AND) || e.isTokenType(TokenType.OR));
+    }
+
+    private static boolean isUnparenthesizedNullish(final Expression e, final boolean parenthesized) {
+        return !parenthesized && e instanceof BinaryNode && e.isTokenType(TokenType.NULLISH);
+    }
+
     private boolean isDestructuringLhs(final Expression lhs) {
         return lhs instanceof ObjectNode || lhs instanceof LiteralNode.ArrayLiteralNode;
     }
@@ -5761,6 +5791,10 @@ public class Parser extends AbstractParser implements Loggable {
                 // Build up node.
                 lhs = new TernaryNode(op, lhs, new JoinPredecessorExpression(trueExpr), new JoinPredecessorExpression(falseExpr));
             } else {
+                // ES2020 12.14: "??" cannot be mixed with "&&"/"||" without
+                // parentheses. Capture whether the left operand was parenthesized
+                // before next()/rhs parsing overwrites the slot.
+                final boolean lhsParenthesized = lhs == parenthesized;
                 // Skip operator.
                 next();
 
@@ -5789,6 +5823,7 @@ public class Parser extends AbstractParser implements Loggable {
                 } finally {
                     defaultNames.pop();
                 }
+                verifyNullishNotMixed(op, lhs, lhsParenthesized, rhs, rhs == parenthesized);
                 lhs = verifyAssignment(op, lhs, rhs);
             }
 

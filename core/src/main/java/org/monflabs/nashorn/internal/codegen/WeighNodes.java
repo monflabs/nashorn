@@ -378,6 +378,11 @@ final class WeighNodes extends NodeOperatorVisitor<LexicalContext> {
     }
 
     @Override
+    public Node leaveNULLISH(final BinaryNode binaryNode) {
+        return binaryNodeWeight(binaryNode);
+    }
+
+    @Override
     public Node leaveASSIGN(final BinaryNode binaryNode) {
         return binaryNodeWeight(binaryNode);
     }

@@ -1251,6 +1251,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             @Override
+            public boolean enterNULLISH(final BinaryNode binaryNode) {
+                loadNULLISH(binaryNode, resultBounds);
+                return false;
+            }
+
+            @Override
             public boolean enterNOT(final UnaryNode unaryNode) {
                 loadNOT(unaryNode);
                 return false;
@@ -4711,6 +4717,52 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         if(lhsConvert) {
+            method.beforeJoinPoint(lhs);
+            method._goto(skip);
+            method.label(evalRhs);
+        }
+
+        if (!isCurrentDiscard) {
+            method.pop();
+        }
+        final JoinPredecessorExpression rhs = (JoinPredecessorExpression)binaryNode.rhs();
+        loadMaybeDiscard(isCurrentDiscard, rhs, outBounds);
+        method.beforeJoinPoint(rhs);
+        method.label(skip);
+    }
+
+    /**
+     * ES2020 12.14 nullish coalescing "a ?? b": the value of a unless it is null
+     * or undefined, otherwise b. Short-circuiting like {@code &&}/{@code ||} (see
+     * {@link #loadAND_OR}), but the test is "is nullish" rather than truthiness,
+     * and the surviving operand is the result rather than a boolean. Both operands
+     * and the result are objects so the nullish test can run; loadExpression's
+     * trailing coerceStackTop narrows to whatever the context wanted.
+     */
+    private void loadNULLISH(final BinaryNode binaryNode, final TypeBounds resultBounds) {
+        final boolean isCurrentDiscard = lc.popDiscardIfCurrent(binaryNode);
+
+        final TypeBounds outBounds = TypeBounds.OBJECT;
+        final Label skip = new Label("skip");
+        final JoinPredecessorExpression lhs = (JoinPredecessorExpression)binaryNode.lhs();
+        final boolean lhsConvert = LocalVariableConversion.hasLiveConversion(lhs);
+        final Label evalRhs = lhsConvert ? new Label("eval_rhs") : null;
+
+        loadExpression(lhs, outBounds);
+        if (!isCurrentDiscard) {
+            method.dup();
+        }
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "IS_NULLISH",
+                new FunctionSignature(false, false, Type.BOOLEAN, 1).toString());
+        // IS_NULLISH is true when the left operand is null/undefined - the case in
+        // which the right operand is evaluated; when false the left operand stands.
+        if (lhsConvert) {
+            method.ifne(evalRhs);
+        } else {
+            method.ifeq(skip);
+        }
+
+        if (lhsConvert) {
             method.beforeJoinPoint(lhs);
             method._goto(skip);
             method.label(evalRhs);

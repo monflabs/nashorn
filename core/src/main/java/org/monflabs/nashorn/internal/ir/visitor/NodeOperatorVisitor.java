@@ -177,6 +177,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return enterNE(binaryNode);
         case NE_STRICT:
             return enterNE_STRICT(binaryNode);
+        case NULLISH:
+            return enterNULLISH(binaryNode);
         case OR:
             return enterOR(binaryNode);
         case SAR:
@@ -263,6 +265,8 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
             return leaveNE(binaryNode);
         case NE_STRICT:
             return leaveNE_STRICT(binaryNode);
+        case NULLISH:
+            return leaveNULLISH(binaryNode);
         case OR:
             return leaveOR(binaryNode);
         case SAR:
@@ -499,6 +503,26 @@ public abstract class NodeOperatorVisitor<T extends LexicalContext> extends Node
      * @return processed node, which will replace the original one, or the original node
      */
     public Node leaveAND(final BinaryNode binaryNode) {
+        return leaveDefault(binaryNode);
+    }
+
+    /**
+     * Binary enter - callback for entering a {@literal ??} operator
+     *
+     * @param  binaryNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterNULLISH(final BinaryNode binaryNode) {
+        return enterDefault(binaryNode);
+    }
+
+    /**
+     * Binary leave - callback for leaving a {@literal ??} operator
+     *
+     * @param  binaryNode the node
+     * @return processed node, which will replace the original one, or the original node
+     */
+    public Node leaveNULLISH(final BinaryNode binaryNode) {
         return leaveDefault(binaryNode);
     }
 

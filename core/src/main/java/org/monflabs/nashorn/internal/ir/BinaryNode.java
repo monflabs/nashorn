@@ -153,6 +153,7 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         switch (tokenType) {
         case AND:
         case OR:
+        case NULLISH:
             return true;
         default:
             return false;
@@ -259,7 +260,8 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
             return rhs.getType();
         }
         case AND:
-        case OR:{
+        case OR:
+        case NULLISH:{
             return Type.widestReturnType(lhs.getType(), rhs.getType());
         }
         default:

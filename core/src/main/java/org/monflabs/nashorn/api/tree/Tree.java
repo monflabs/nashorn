@@ -471,6 +471,12 @@ public interface Tree {
         CONDITIONAL_OR(BinaryTree.class),
 
         /**
+         * Used for instances of {@link BinaryTree} representing
+         * nullish coalescing {@code ??}.
+         */
+        NULLISH_COALESCING(BinaryTree.class),
+
+        /**
          * Used for instances of {@link CompoundAssignmentTree} representing
          * multiplication assignment {@code *=}.
          */

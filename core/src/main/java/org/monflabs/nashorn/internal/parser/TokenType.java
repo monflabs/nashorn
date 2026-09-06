@@ -62,6 +62,7 @@ public enum TokenType {
     BIT_AND        (BINARY,  "&",     8, true),
     AND            (BINARY,  "&&",    5, true),
     ASSIGN_BIT_AND (BINARY,  "&=",    2, false),
+    NULLISH        (BINARY,  "??",    4, true),
     LPAREN         (BRACKET, "(",    16, true),
     RPAREN         (BRACKET, ")",     0, true),
     MUL            (BINARY,  "*",    13, true),

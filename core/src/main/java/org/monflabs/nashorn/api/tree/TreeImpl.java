@@ -73,6 +73,8 @@ abstract class TreeImpl implements Tree {
                 return Kind.AND;
             case AND:
                 return Kind.CONDITIONAL_AND;
+            case NULLISH:
+                return Kind.NULLISH_COALESCING;
             case ASSIGN_BIT_AND:
                 return Kind.AND_ASSIGNMENT;
             case MUL:

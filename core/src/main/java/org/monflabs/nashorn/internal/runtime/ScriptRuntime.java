@@ -2827,6 +2827,18 @@ public final class ScriptRuntime {
     }
 
     /**
+     * Is a value nullish - {@code null} or {@code undefined}? The test the ES2020
+     * nullish coalescing operator {@code ??} and optional chaining {@code ?.}
+     * short-circuit on.
+     *
+     * @param value the value
+     * @return true if the value is null or undefined
+     */
+    public static boolean IS_NULLISH(final Object value) {
+        return value == null || value == UNDEFINED;
+    }
+
+    /**
      * ES2015 8.1.1.3.1 BindThisValue, run when super() returns.
      *
      * @param initialized whether super() has already run in this constructor
