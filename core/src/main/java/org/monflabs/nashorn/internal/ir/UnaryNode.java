@@ -152,6 +152,15 @@ public final class UnaryNode extends Expression implements Assignment<Expression
             return Type.INT;
         case VOID:
             return Type.UNDEFINED;
+        case INCPREFIX:
+        case DECPREFIX:
+        case INCPOSTFIX:
+        case DECPOSTFIX:
+            // ES2020: ++/-- on a BigInt (an object operand) yields a BigInt.
+            if (getExpression().getType().isObject()) {
+                return Type.OBJECT;
+            }
+            return Type.NUMBER;
         default:
             return isAssignment() ? Type.NUMBER : Type.OBJECT;
         }

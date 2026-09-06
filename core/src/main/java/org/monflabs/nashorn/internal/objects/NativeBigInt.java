@@ -192,11 +192,16 @@ public final class NativeBigInt extends ScriptObject {
 
     /** ES2015 7.1.17 ToIndex, enough for the bit counts asIntN/asUintN take. */
     private static int toIndex(final Object value) {
-        final double number = JSType.toInteger(value);
-        if (number < 0 || number > Integer.MAX_VALUE) {
-            throw rangeError("invalid.array.length", JSType.toString(number));
+        // ToNumber in double, not JSType.toInteger, whose int result would clamp
+        // a too-large bit count to Integer.MAX_VALUE and slip past the check
+        // below (ToNumber on a BigInt still throws the TypeError ToIndex wants)
+        final double number = JSType.toNumber(value);
+        final double integer = Double.isNaN(number) ? 0
+                : number < 0 ? Math.ceil(number) : Math.floor(number);
+        if (integer < 0 || integer > Integer.MAX_VALUE) {
+            throw rangeError("invalid.array.length", JSType.toString(integer));
         }
-        return (int) number;
+        return (int) integer;
     }
 
     /**

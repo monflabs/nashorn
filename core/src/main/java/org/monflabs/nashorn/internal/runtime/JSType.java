@@ -809,14 +809,18 @@ public enum JSType {
      * @return a number
      */
     public static double toNumber(final Object obj) {
+        // Kept small (two checks and a tail call) so it stays inline-friendly on
+        // the hot numeric path; everything else, BigInt included, is cold.
         if (obj instanceof Double) {
             return (Double)obj;
         }
         if (obj instanceof Integer) {
-            // the common non-Double Number, kept ahead of the BigInt check so the
-            // hot numeric path pays nothing for ES2020 BigInt support
             return (Integer)obj;
         }
+        return toNumberOther(obj);
+    }
+
+    private static double toNumberOther(final Object obj) {
         if (obj instanceof Number) {
             if (obj instanceof BigInteger) {
                 // ES2020: there is no implicit BigInt -> Number conversion

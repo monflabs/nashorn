@@ -33,6 +33,7 @@ import static org.monflabs.nashorn.internal.codegen.CompilerConstants.specialCal
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.math.BigInteger;
 import java.util.Arrays;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
@@ -227,6 +228,12 @@ final class IntArrayData extends ContinuousArrayData implements IntElements {
 
     @Override
     public ArrayData set(final int index, final Object value, final boolean strict) {
+        // a BigInt is a Number in Java but never an int element: it widens the
+        // storage to object, and doubleValue() on it would throw
+        if (value instanceof BigInteger) {
+            final ArrayData newData = convert(value.getClass());
+            return newData.set(index, value, strict);
+        }
         // a negative zero is not one of the ints: narrowing it loses the sign,
         // which Object.is and a division both see
         if (value instanceof Number number

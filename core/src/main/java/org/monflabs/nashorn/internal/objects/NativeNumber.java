@@ -47,6 +47,7 @@ import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.objects.annotations.SpecializedFunction;
 import org.monflabs.nashorn.internal.objects.annotations.Where;
 import org.monflabs.nashorn.internal.runtime.GlobalFunctions;
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
@@ -147,7 +148,16 @@ public final class NativeNumber extends ScriptObject {
      */
     @Constructor(arity = 1)
     public static Object constructor(final boolean newObj, final Object self, final Object... args) {
-        final double num = (args.length > 0) ? JSType.toNumber(args[0]) : 0.0;
+        final double num;
+        if (args.length > 0) {
+            // ES2020 20.1.1.1: Number(value) is ToNumeric, and a BigInt argument
+            // converts to its Number value rather than throwing the way ToNumber
+            // (a bare +bigint) does
+            final Object prim = JSType.toPrimitive(args[0], Number.class);
+            num = prim instanceof BigInteger bi ? bi.doubleValue() : JSType.toNumber(prim);
+        } else {
+            num = 0.0;
+        }
 
         return newObj? new NativeNumber(num) : num;
     }

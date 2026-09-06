@@ -168,6 +168,19 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case SHL:
         case SAR:
         case SHR:
+        // the compound-assignment forms of the same operators (ASSIGN_ADD is
+        // handled by the object += path in codegen, so it is not listed here)
+        case ASSIGN_SUB:
+        case ASSIGN_MUL:
+        case ASSIGN_DIV:
+        case ASSIGN_MOD:
+        case ASSIGN_EXP:
+        case ASSIGN_BIT_AND:
+        case ASSIGN_BIT_OR:
+        case ASSIGN_BIT_XOR:
+        case ASSIGN_SHL:
+        case ASSIGN_SAR:
+        case ASSIGN_SHR:
             return true;
         default:
             return false;

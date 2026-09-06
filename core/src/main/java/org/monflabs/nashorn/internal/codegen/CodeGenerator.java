@@ -4427,12 +4427,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private void loadDECINC(final UnaryNode unaryNode) {
         final Expression operand     = unaryNode.getExpression();
         final Type       type        = unaryNode.getType();
-        final TypeBounds typeBounds  = new TypeBounds(type, Type.NUMBER);
         final TokenType  tokenType   = unaryNode.tokenType();
         final boolean    isPostfix   = tokenType == TokenType.DECPOSTFIX || tokenType == TokenType.INCPOSTFIX;
         final boolean    isIncrement = tokenType == TokenType.INCPREFIX || tokenType == TokenType.INCPOSTFIX;
 
-        assert !type.isObject();
+        if (type.isObject()) {
+            // ES2020: the operand is a BigInt (or otherwise object-typed), so the
+            // step is done by a ScriptRuntime call rather than a bytecode add
+            loadDECINCObject(unaryNode, operand, isIncrement, isPostfix);
+            return;
+        }
+
+        final TypeBounds typeBounds  = new TypeBounds(type, Type.NUMBER);
 
         new SelfModifyingStore<UnaryNode>(unaryNode, operand) {
 
@@ -4486,6 +4492,52 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             private void doDecInc(final int programPoint) {
                 method.add(programPoint);
+            }
+        }.store();
+    }
+
+    /**
+     * ES2020 ++/-- on an object-typed (BigInt-capable) operand: the step is a
+     * {@link ScriptRuntime} call, and the value is stored back the way the
+     * numeric {@link #loadDECINC} stores its own.
+     */
+    private void loadDECINCObject(final UnaryNode unaryNode, final Expression operand, final boolean isIncrement, final boolean isPostfix) {
+        final Type       type          = unaryNode.getType();
+        final TypeBounds typeBounds    = new TypeBounds(type, type);
+        final String     runtimeMethod = isIncrement ? "INC" : "DEC";
+
+        new SelfModifyingStore<UnaryNode>(unaryNode, operand) {
+
+            private void step() {
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), runtimeMethod,
+                        new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+            }
+
+            private void toNumeric() {
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "TO_NUMERIC",
+                        new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+            }
+
+            @Override
+            protected void evaluate() {
+                loadExpression(operand, typeBounds, true);
+                // a prefix result is the stepped value; a postfix result is the
+                // operand's numeric value before the step (ES2020 7.1.4), so
+                // convert now so the kept copy is the number/BigInt, not the raw
+                // operand (e.g. undefined++ must yield NaN, not undefined)
+                if (isPostfix) {
+                    toNumeric();
+                } else {
+                    step();
+                }
+            }
+
+            @Override
+            protected void storeNonDiscard() {
+                super.storeNonDiscard();
+                if (isPostfix) {
+                    step();
+                }
             }
         }.store();
     }
@@ -4972,6 +5024,23 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
     }
 
+    /**
+     * As {@link #loadObjectBinary} but for a compound assignment ({@code x -= y})
+     * whose operands are object-typed and so may be BigInts: the operation is
+     * done by a {@link ScriptRuntime} call and the result stored back.
+     */
+    private void loadSelfModifyingObjectBinary(final BinaryNode binaryNode, final String runtimeMethod) {
+        new SelfModifyingStore<BinaryNode>(binaryNode, binaryNode.lhs()) {
+            @Override
+            protected void evaluate() {
+                loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(), new TypeBounds(Type.OBJECT, Type.OBJECT), true, false);
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), runtimeMethod,
+                        new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+                method.convert(binaryNode.getType());
+            }
+        }.store();
+    }
+
     /** As {@link #loadObjectBinary} but for the unary BigInt-capable operators (NEG, ~). */
     private void loadObjectUnary(final UnaryNode node, final String runtimeMethod, final TypeBounds resultBounds) {
         final boolean discard = lc.popDiscardIfCurrent(node);
@@ -5090,6 +5159,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_BIT_AND(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "BIT_AND"); return; }
         new BinarySelfAssignment(binaryNode) {
             @Override
             protected void op() {
@@ -5099,6 +5169,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_BIT_OR(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "BIT_OR"); return; }
         new BinarySelfAssignment(binaryNode) {
             @Override
             protected void op() {
@@ -5108,6 +5179,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_BIT_XOR(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "BIT_XOR"); return; }
         new BinarySelfAssignment(binaryNode) {
             @Override
             protected void op() {
@@ -5117,6 +5189,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_DIV(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "DIV"); return; }
         new BinaryOptimisticSelfAssignment(binaryNode) {
             @Override
             protected void op(final OptimisticOperation oo) {
@@ -5126,6 +5199,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_MOD(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "MOD"); return; }
         new BinaryOptimisticSelfAssignment(binaryNode) {
             @Override
             protected void op(final OptimisticOperation oo) {
@@ -5135,6 +5209,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_MUL(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "MUL"); return; }
         new BinaryOptimisticSelfAssignment(binaryNode) {
             @Override
             protected void op(final OptimisticOperation oo) {
@@ -5144,6 +5219,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_SAR(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "SAR"); return; }
         new BinarySelfAssignment(binaryNode) {
             @Override
             protected void op() {
@@ -5153,6 +5229,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_SHL(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "SHL"); return; }
         new BinarySelfAssignment(binaryNode) {
             @Override
             protected void op() {
@@ -5162,6 +5239,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_SHR(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "SHR"); return; }
         new SelfModifyingStore<BinaryNode>(binaryNode, binaryNode.lhs()) {
             @Override
             protected void evaluate() {
@@ -5225,6 +5303,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_SUB(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "SUB"); return; }
         new BinaryOptimisticSelfAssignment(binaryNode) {
             @Override
             protected void op(final OptimisticOperation oo) {
@@ -5345,6 +5424,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadASSIGN_EXP(final BinaryNode binaryNode) {
+        if (mightBeBigInt(binaryNode)) { loadSelfModifyingObjectBinary(binaryNode, "EXP"); return; }
         new SelfModifyingStore<BinaryNode>(binaryNode, binaryNode.lhs()) {
             @Override
             protected void evaluate() {

@@ -24,6 +24,7 @@ package org.monflabs.nashorn.internal.objects;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.util.ArrayList;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
@@ -345,6 +346,18 @@ public final class NativeTypedArray extends ScriptObject {
         final int length = array.getElementLength();
 
         if (comparefn == ScriptRuntime.UNDEFINED) {
+            if (array.isBigIntArray()) {
+                // ES2020 22.2.3.26: a BigInt array's default sort is numeric on BigInts
+                final BigInteger[] bigs = new BigInteger[length];
+                for (int i = 0; i < length; i++) {
+                    bigs[i] = NativeBigInt.toBigInt(array.get(i));
+                }
+                Arrays.sort(bigs);
+                for (int i = 0; i < length; i++) {
+                    array.set(i, bigs[i], 0);
+                }
+                return array;
+            }
             final double[] elements = new double[length];
             for (int i = 0; i < length; i++) {
                 elements[i] = JSType.toNumber(array.get(i));
@@ -412,7 +425,7 @@ public final class NativeTypedArray extends ScriptObject {
         // buffer - which is why the check for that comes after all of them
         // Boxed, because a typed array's storage truncates a primitive double
         // towards the element type's limits where ES2015 7.1.5 ToInt32 wraps
-        final Object filler = JSType.toNumber(value);
+        final Object filler = array.isBigIntArray() ? NativeBigInt.toBigInt(value) : JSType.toNumber(value);
         final int from = ArrayBufferView.relativeIndex(start, length, 0);
         final int to   = ArrayBufferView.relativeIndex(end, length, length);
 

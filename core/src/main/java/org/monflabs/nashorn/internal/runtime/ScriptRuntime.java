@@ -986,11 +986,42 @@ public final class ScriptRuntime {
         return prim instanceof BigInteger ? prim : (Object) Double.valueOf(JSType.toNumber(prim));
     }
 
+    /**
+     * ES2020 7.1.4 ToNumeric, exposed for the object-typed ++/-- codegen path:
+     * a BigInt stays a BigInt, everything else becomes a Number.
+     * @param value the value to coerce
+     * @return a Number or a BigInt
+     */
+    public static Object TO_NUMERIC(final Object value) {
+        return toNumeric(value);
+    }
+
     /** Throws unless both operands ended up BigInt or both ended up Number. */
     private static void requireSameNumericType(final Object x, final boolean expectBig) {
         if ((x instanceof BigInteger) != expectBig) {
             throw typeError("bigint.mixed.types");
         }
+    }
+
+    /**
+     * ES2020 prefix/postfix increment, BigInt-aware. Only reached when the
+     * operand is object-typed; the numeric fast path stays in bytecode.
+     * @param x the operand
+     * @return the operand plus one (a BigInt for a BigInt, else a Number)
+     */
+    public static Object INC(final Object x) {
+        final Object n = toNumeric(x);
+        return n instanceof BigInteger bx ? bx.add(BigInteger.ONE) : (Object)Double.valueOf((Double)n + 1);
+    }
+
+    /**
+     * ES2020 prefix/postfix decrement, BigInt-aware.
+     * @param x the operand
+     * @return the operand minus one (a BigInt for a BigInt, else a Number)
+     */
+    public static Object DEC(final Object x) {
+        final Object n = toNumeric(x);
+        return n instanceof BigInteger bx ? bx.subtract(BigInteger.ONE) : (Object)Double.valueOf((Double)n - 1);
     }
 
     /**

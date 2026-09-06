@@ -857,6 +857,64 @@ public final class Global extends Scope {
 
     private volatile Object float64Array;
 
+    /**
+     * Getter for the BigInt64Array property.
+     *
+     * @param self self reference
+     * @return the value of the BigInt64Array property
+     */
+    @Getter(name = "BigInt64Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getBigInt64Array(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.bigInt64Array == LAZY_SENTINEL) {
+            global.bigInt64Array = global.getBuiltinBigInt64Array();
+        }
+        return global.bigInt64Array;
+    }
+
+    /**
+     * Setter for the BigInt64Array property.
+     *
+     * @param self self reference
+     * @param value value of the BigInt64Array property
+     */
+    @Setter(name = "BigInt64Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setBigInt64Array(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.bigInt64Array = value;
+    }
+
+    private volatile Object bigInt64Array;
+
+    /**
+     * Getter for the BigUint64Array property.
+     *
+     * @param self self reference
+     * @return the value of the BigUint64Array property
+     */
+    @Getter(name = "BigUint64Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getBigUint64Array(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.bigUint64Array == LAZY_SENTINEL) {
+            global.bigUint64Array = global.getBuiltinBigUint64Array();
+        }
+        return global.bigUint64Array;
+    }
+
+    /**
+     * Setter for the BigUint64Array property.
+     *
+     * @param self self reference
+     * @param value value of the BigUint64Array property
+     */
+    @Setter(name = "BigUint64Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setBigUint64Array(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.bigUint64Array = value;
+    }
+
+    private volatile Object bigUint64Array;
+
 
     /**
      * Getter for the Symbol property.
@@ -1211,6 +1269,8 @@ public final class Global extends Scope {
     private ScriptFunction builtinUint32Array;
     private ScriptFunction builtinFloat32Array;
     private ScriptFunction builtinFloat64Array;
+    private ScriptFunction builtinBigInt64Array;
+    private ScriptFunction builtinBigUint64Array;
     private ScriptFunction builtinSymbol;
     private ScriptFunction builtinBigInt;
     private ScriptFunction builtinMap;
@@ -2726,6 +2786,28 @@ public final class Global extends Scope {
         return ScriptFunction.getPrototype(getBuiltinFloat64Array());
     }
 
+    private synchronized ScriptFunction getBuiltinBigInt64Array() {
+        if (this.builtinBigInt64Array == null) {
+            this.builtinBigInt64Array = initTypedArrayConstructor("BigInt64Array");
+        }
+        return this.builtinBigInt64Array;
+    }
+
+    ScriptObject getBigInt64ArrayPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinBigInt64Array());
+    }
+
+    private synchronized ScriptFunction getBuiltinBigUint64Array() {
+        if (this.builtinBigUint64Array == null) {
+            this.builtinBigUint64Array = initTypedArrayConstructor("BigUint64Array");
+        }
+        return this.builtinBigUint64Array;
+    }
+
+    ScriptObject getBigUint64ArrayPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinBigUint64Array());
+    }
+
     /**
      * Return the function that throws TypeError unconditionally. Used as "poison" methods for certain Function properties.
      *
@@ -3546,6 +3628,8 @@ public final class Global extends Scope {
             this.uint32Array       = LAZY_SENTINEL;
             this.float32Array      = LAZY_SENTINEL;
             this.float64Array      = LAZY_SENTINEL;
+            this.bigInt64Array     = LAZY_SENTINEL;
+            this.bigUint64Array    = LAZY_SENTINEL;
         } else {
             // absent, not null: the lazy properties would otherwise sit there holding null
             this.delete("ArrayBuffer", false);
@@ -3561,6 +3645,8 @@ public final class Global extends Scope {
             this.delete("Uint32Array", false);
             this.delete("Float32Array", false);
             this.delete("Float64Array", false);
+            this.delete("BigInt64Array", false);
+            this.delete("BigUint64Array", false);
         }
 
         if (env._scripting) {

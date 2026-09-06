@@ -155,6 +155,15 @@ public abstract class ArrayBufferView extends ScriptObject {
         return isDetached() ? 0 : elementLength();
     }
 
+    /**
+     * ES2020: whether this is a BigInt-valued typed array (BigInt64Array /
+     * BigUint64Array), whose elements are BigInts rather than Numbers.
+     * @return true for a BigInt typed array
+     */
+    public boolean isBigIntArray() {
+        return false;
+    }
+
     /** ES2015 24.1.1.2: a view over a detached buffer has nothing to look at. */
     boolean isDetached() {
         return buffer.isDetached();
@@ -629,10 +638,12 @@ public abstract class ArrayBufferView extends ScriptObject {
             }
             final int at = (int)offset;
 
-            if (source.getClass() == dest.getClass() && source.buffer != dest.buffer) {
+            if (source.getClass() == dest.getClass() && source.buffer != dest.buffer && !dest.isBigIntArray()) {
                 // Same element type and separate storage: nothing to convert and
                 // nothing to overlap, so the elements go across as themselves
                 // rather than as boxed numbers. This is the common copy.
+                // (BigInt arrays fall through to the boxed path - their elements
+                // are BigInts, not the ints/doubles this branch moves.)
                 if (dest.isFloatArray()) {
                     for (int i = 0; i < length; i++) {
                         dest.set(at + i, source.getDouble(i, INVALID_PROGRAM_POINT), 0);
@@ -667,11 +678,14 @@ public abstract class ArrayBufferView extends ScriptObject {
             throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
         }
         for (int i = 0; i < length; i++) {
-            // ToNumber first, because reading the source can detach the target -
-            // and the write that follows is then dropped, the way a write to any
-            // index a typed array does not have is, rather than reported. The
-            // reading goes on to the end either way
-            final Object value = JSType.toNumber(source.get(i));
+            // ToNumber (or ToBigInt, for a BigInt target) first, because reading
+            // the source can detach the target - and the write that follows is
+            // then dropped, the way a write to any index a typed array does not
+            // have is, rather than reported. The reading goes on to the end
+            // either way
+            final Object value = dest.isBigIntArray()
+                    ? NativeBigInt.toBigInt(source.get(i))
+                    : JSType.toNumber(source.get(i));
             if (!dest.isDetached()) {
                 dest.set((int)offset + i, value, 0);
             }
