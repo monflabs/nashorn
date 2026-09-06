@@ -67,24 +67,27 @@ public final class NativeAggregateError extends ScriptObject {
     private static PropertyMap $nasgenmap$;
 
     @SuppressWarnings("LeakingThisInConstructor")
-    private NativeAggregateError(final Object errors, final Object msg, final ScriptObject proto,
-            final PropertyMap map) {
+    private NativeAggregateError(final Object errors, final Object msg, final Object options,
+            final ScriptObject proto, final PropertyMap map) {
         super(proto, map);
         if (msg != UNDEFINED) {
             this.instMessage = JSType.toString(msg);
         } else {
             this.delete(NativeError.MESSAGE, false);
         }
-        // 20.5.7.1.1 step 8: the errors are read into an array of their own, and
-        // the property holding it is not enumerable - so it does not turn up in
+        // 20.5.7.1.1: the cause (from an options bag) is installed after the
+        // message and before the errors, so getOwnPropertyNames sees that order
+        NativeError.installCause(this, options);
+        // the errors are read into an array of their own, and the property
+        // holding it is not enumerable - so it does not turn up in
         // JSON.stringify or a for-in over the error
         addOwnProperty("errors", org.monflabs.nashorn.internal.runtime.Property.NOT_ENUMERABLE,
                 Global.allocate(iterableToList(errors)));
         NativeError.initException(this);
     }
 
-    NativeAggregateError(final Object errors, final Object msg, final Global global) {
-        this(errors, msg, global.getAggregateErrorPrototype(), $nasgenmap$);
+    NativeAggregateError(final Object errors, final Object msg, final Object options, final Global global) {
+        this(errors, msg, options, global.getAggregateErrorPrototype(), $nasgenmap$);
     }
 
     /**
@@ -117,8 +120,8 @@ public final class NativeAggregateError extends ScriptObject {
         }
     }
 
-    private NativeAggregateError(final Object errors, final Object msg) {
-        this(errors, msg, Global.instance());
+    private NativeAggregateError(final Object errors, final Object msg, final Object options) {
+        this(errors, msg, options, Global.instance());
     }
 
     @Override
@@ -138,7 +141,7 @@ public final class NativeAggregateError extends ScriptObject {
      */
     @Constructor(name = "AggregateError", arity = 2)
     public static NativeAggregateError constructor(final boolean newObj, final Object self, final Object errors,
-            final Object msg) {
-        return new NativeAggregateError(errors, msg);
+            final Object msg, final Object options) {
+        return new NativeAggregateError(errors, msg, options);
     }
 }

@@ -1744,7 +1744,7 @@ public final class Global extends Scope {
      * @return newly created AggregateError object
      */
     public ScriptObject newAggregateError(final Object errors, final String msg) {
-        return new NativeAggregateError(errors, msg, this);
+        return new NativeAggregateError(errors, msg, ScriptRuntime.UNDEFINED, this);
     }
 
     public ScriptObject newRangeError(final String msg) {

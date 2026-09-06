@@ -101,8 +101,10 @@ public final class NativeEvalError extends ScriptObject {
      *
      * @return new EvalError
      */
-    @Constructor(name = "EvalError")
-    public static NativeEvalError constructor(final boolean newObj, final Object self, final Object msg) {
-        return new NativeEvalError(msg);
+    @Constructor(name = "EvalError", arity = 1)
+    public static NativeEvalError constructor(final boolean newObj, final Object self, final Object msg, final Object options) {
+        final NativeEvalError error = new NativeEvalError(msg);
+        NativeError.installCause(error, options);
+        return error;
     }
 }

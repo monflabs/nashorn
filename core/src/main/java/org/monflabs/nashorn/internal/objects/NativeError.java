@@ -127,9 +127,11 @@ public final class NativeError extends ScriptObject {
      *
      * @return NativeError instance
      */
-    @Constructor
-    public static NativeError constructor(final boolean newObj, final Object self, final Object msg) {
-        return new NativeError(msg);
+    @Constructor(arity = 1)
+    public static NativeError constructor(final boolean newObj, final Object self, final Object msg, final Object options) {
+        final NativeError error = new NativeError(msg);
+        installCause(error, options);
+        return error;
     }
 
     // This is called NativeError, NativeTypeError etc. to
@@ -137,6 +139,21 @@ public final class NativeError extends ScriptObject {
     static void initException(final ScriptObject self) {
         // ECMAException constructor has side effects
         new ECMAException(self, null);
+    }
+
+    /**
+     * ES2022 20.5.8.1 InstallErrorCause: when the {@code options} argument is an
+     * object that has a {@code cause} (own or inherited), copy its value onto the
+     * error as a non-enumerable own property. Every Error constructor and each
+     * NativeError subclass runs this after its message is set.
+     *
+     * @param self    the error being constructed
+     * @param options the constructor's options argument, if any
+     */
+    static void installCause(final ScriptObject self, final Object options) {
+        if (options instanceof ScriptObject opts && opts.has("cause")) {
+            self.addOwnProperty("cause", org.monflabs.nashorn.internal.runtime.Property.NOT_ENUMERABLE, opts.get("cause"));
+        }
     }
 
     /**

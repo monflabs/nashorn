@@ -101,8 +101,10 @@ public final class NativeReferenceError extends ScriptObject {
      *
      * @return new ReferenceError
      */
-    @Constructor(name = "ReferenceError")
-    public static NativeReferenceError constructor(final boolean newObj, final Object self, final Object msg) {
-        return new NativeReferenceError(msg);
+    @Constructor(name = "ReferenceError", arity = 1)
+    public static NativeReferenceError constructor(final boolean newObj, final Object self, final Object msg, final Object options) {
+        final NativeReferenceError error = new NativeReferenceError(msg);
+        NativeError.installCause(error, options);
+        return error;
     }
 }

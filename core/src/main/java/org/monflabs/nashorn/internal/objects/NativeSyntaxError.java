@@ -97,8 +97,10 @@ public final class NativeSyntaxError extends ScriptObject {
      *
      * @return new SyntaxError
      */
-    @Constructor(name = "SyntaxError")
-    public static NativeSyntaxError constructor(final boolean newObj, final Object self, final Object msg) {
-        return new NativeSyntaxError(msg);
+    @Constructor(name = "SyntaxError", arity = 1)
+    public static NativeSyntaxError constructor(final boolean newObj, final Object self, final Object msg, final Object options) {
+        final NativeSyntaxError error = new NativeSyntaxError(msg);
+        NativeError.installCause(error, options);
+        return error;
     }
 }
