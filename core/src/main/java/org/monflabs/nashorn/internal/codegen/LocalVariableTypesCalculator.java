@@ -1414,9 +1414,21 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
                         if (lhs.getType().isBoolean() != rhs.getType().isBoolean()) {
                             return new RuntimeNode(binaryNode);
                         }
-                        // fallthrough
-                    default:
+                        // ES2020: strict equality never coerces, so a BigInt vs a
+                        // Number is simply unequal by type - which the inline path
+                        // already yields. Only both-object needs the generic path.
                         if (lhs.getType().isObject() && rhs.getType().isObject()) {
+                            return new RuntimeNode(binaryNode);
+                        }
+                        break;
+                    default:
+                        // ES2020: a relational or loose-equality comparison with an
+                        // object operand may involve a BigInt, whose comparison
+                        // with a Number is mathematical (not a ToNumber that would
+                        // throw). Route to the generic ScriptRuntime.LT/EQ/... when
+                        // either side is an object; keep the numeric strength-
+                        // reduction only when both are already numeric/optimistic.
+                        if (lhs.getType().isObject() || rhs.getType().isObject()) {
                             return new RuntimeNode(binaryNode);
                         }
                     }

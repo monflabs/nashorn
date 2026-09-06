@@ -29,6 +29,7 @@
 
 package org.monflabs.nashorn.internal.runtime;
 
+import java.math.BigInteger;
 import static org.monflabs.nashorn.internal.codegen.CompilerConstants.staticCall;
 import static org.monflabs.nashorn.internal.lookup.Lookup.MH;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
@@ -75,7 +76,10 @@ public enum JSType {
     FUNCTION("function"),
 
     /** The symbol type */
-    SYMBOL("symbol");
+    SYMBOL("symbol"),
+
+    /** The bigint type */
+    BIGINT("bigint");
 
     /** The type name as returned by ECMAScript "typeof" operator*/
     private final String typeName;
@@ -296,6 +300,10 @@ public enum JSType {
             return JSType.NUMBER;
         }
 
+        if (obj instanceof BigInteger) {
+            return JSType.BIGINT;
+        }
+
         if (obj instanceof Symbol) {
             return JSType.SYMBOL;
         }
@@ -344,6 +352,10 @@ public enum JSType {
 
         if (obj instanceof Symbol) {
             return JSType.SYMBOL;
+        }
+
+        if (obj instanceof BigInteger) {
+            return JSType.BIGINT;
         }
 
         return JSType.OBJECT;
@@ -448,7 +460,8 @@ public enum JSType {
                isString(obj) ||
                isNumber(obj) ||
                obj instanceof Boolean ||
-               obj instanceof Symbol;
+               obj instanceof Symbol ||
+               obj instanceof BigInteger;
     }
 
    /**
@@ -799,7 +812,16 @@ public enum JSType {
         if (obj instanceof Double) {
             return (Double)obj;
         }
+        if (obj instanceof Integer) {
+            // the common non-Double Number, kept ahead of the BigInt check so the
+            // hot numeric path pays nothing for ES2020 BigInt support
+            return (Integer)obj;
+        }
         if (obj instanceof Number) {
+            if (obj instanceof BigInteger) {
+                // ES2020: there is no implicit BigInt -> Number conversion
+                throw typeError("bigint.to.number");
+            }
             return ((Number)obj).doubleValue();
         }
         return toNumberGeneric(obj);
@@ -1454,6 +1476,10 @@ public enum JSType {
 
         if (isNumber(obj)) {
             return toString(((Number)obj).doubleValue());
+        }
+
+        if (obj instanceof BigInteger) {
+            return obj.toString();
         }
 
         if (obj == ScriptRuntime.UNDEFINED) {

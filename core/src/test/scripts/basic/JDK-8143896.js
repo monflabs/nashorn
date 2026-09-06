@@ -33,10 +33,13 @@ Assert.assertTrue(java.lang.Long.valueOf("-301077366599181567").toString() === "
 Assert.assertTrue(java.lang.Long.valueOf("301077366599181567") == 301077366599181567);
 Assert.assertFalse(java.lang.Long.valueOf("301077366599181567") === 301077366599181567);
 
+// ES2020: a java.math.BigInteger crosses into JavaScript as a BigInt, so it is
+// typeof "bigint" and compares by BigInt rules rather than as a Java number.
+Assert.assertTrue(typeof new java.math.BigInteger("42") === "bigint");
 Assert.assertTrue(new java.math.BigInteger("301077366599181567").toString() === "301077366599181567");
 Assert.assertTrue(new java.math.BigInteger("-301077366599181567").toString() === "-301077366599181567");
-Assert.assertTrue(new java.math.BigInteger("301077366599181567") == 301077366599181567);
-Assert.assertFalse(new java.math.BigInteger("301077366599181567") === 301077366599181567);
+Assert.assertTrue(new java.math.BigInteger("42") == 42);
+Assert.assertFalse(new java.math.BigInteger("42") === 42);
 
 
 var n = new java.lang.Byte("123");
@@ -95,8 +98,10 @@ Assert.assertTrue(n == 123);
 Assert.assertFalse(n === 123);
 
 n = new java.math.BigInteger("123");
-Assert.assertTrue(typeof n === "object");
-Assert.assertTrue(n + 1 === 124);
+// ES2020: a java.math.BigInteger is a BigInt, so typeof is "bigint" and it does
+// not mix with Number under "+"; it still compares loosely with a Number.
+Assert.assertTrue(typeof n === "bigint");
+Assert.assertTrue(n + 1n === 124n);
 Assert.assertTrue(n == 123);
 Assert.assertFalse(n === 123);
 

@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.monflabs.nashorn.internal.codegen.types.ArrayType;
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.codegen.types.Type;
 import org.monflabs.nashorn.internal.ir.annotations.Ignore;
 import org.monflabs.nashorn.internal.ir.annotations.Immutable;
@@ -408,6 +409,42 @@ public abstract class LiteralNode<T extends Serializable> extends Expression imp
     public static LiteralNode<Number> newInstance(final long token, final int finish, final Number value) {
         assert !(value instanceof Long);
         return new NumberLiteralNode(token, finish, value);
+    }
+
+    @Immutable
+    private static final class BigIntLiteralNode extends PrimitiveLiteralNode<BigInteger> {
+        private static final long serialVersionUID = 1L;
+
+        private BigIntLiteralNode(final long token, final int finish, final BigInteger value) {
+            super(Token.recast(token, TokenType.BIGINT), finish, value);
+        }
+
+        @Override
+        public boolean isTrue() {
+            return value.signum() != 0;
+        }
+
+        @Override
+        public Type getType() {
+            return Type.OBJECT;
+        }
+
+        @Override
+        public Type getWidestOperationType() {
+            return Type.OBJECT;
+        }
+    }
+
+    /**
+     * Create a new ES2020 BigInt literal.
+     *
+     * @param token  token
+     * @param finish finish
+     * @param value  the BigInteger value
+     * @return the new literal node
+     */
+    public static LiteralNode<BigInteger> newInstance(final long token, final int finish, final BigInteger value) {
+        return new BigIntLiteralNode(token, finish, value);
     }
 
     /**

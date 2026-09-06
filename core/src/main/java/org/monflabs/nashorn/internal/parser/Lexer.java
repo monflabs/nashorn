@@ -1409,6 +1409,13 @@ public class Lexer extends Scanner {
             }
         }
 
+        if (ch0 == 'n' && (type == DECIMAL || type == HEXADECIMAL || type == OCTAL || type == BINARY_NUMBER)) {
+            // ES2020 BigInt literal: a trailing "n" on an integer literal (not on
+            // a floating, legacy-octal or non-octal-decimal one).
+            skip(1);
+            type = TokenType.BIGINT;
+        }
+
         if (Character.isJavaIdentifierStart(ch0)) {
             error(Lexer.message("missing.space.after.number"), type, position, 1);
         }
@@ -2006,6 +2013,18 @@ public class Lexer extends Scanner {
             return Lexer.valueOf(source.getString(start + 2, len - 2), 8); // number
         case BINARY_NUMBER:
             return Lexer.valueOf(source.getString(start + 2, len - 2), 2); // number
+        case BIGINT: {
+            // strip the trailing "n" and read the base from any 0x/0o/0b prefix
+            String text = source.getString(start, len - 1);
+            int radix = 10;
+            if (text.length() > 1 && text.charAt(0) == '0') {
+                final char c = text.charAt(1);
+                if (c == 'x' || c == 'X') { radix = 16; text = text.substring(2); }
+                else if (c == 'o' || c == 'O') { radix = 8; text = text.substring(2); }
+                else if (c == 'b' || c == 'B') { radix = 2; text = text.substring(2); }
+            }
+            return new java.math.BigInteger(text, radix);
+        }
         case FLOATING:
             final String str   = source.getString(start, len);
             final double value = Double.parseDouble(str);

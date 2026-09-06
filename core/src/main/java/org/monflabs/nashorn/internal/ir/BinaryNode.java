@@ -149,6 +149,31 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
      * @param tokenType the token type
      * @return true if the token type represents a logical operation.
      */
+    /**
+     * ES2020: the binary operators that also work on BigInt and so may yield an
+     * object result when an operand is object-typed.
+     * @param tokenType the operator
+     * @return true if the operator is BigInt-capable
+     */
+    public static boolean isBigIntCapable(final TokenType tokenType) {
+        switch (tokenType) {
+        case SUB:
+        case MUL:
+        case DIV:
+        case MOD:
+        case EXP:
+        case BIT_AND:
+        case BIT_OR:
+        case BIT_XOR:
+        case SHL:
+        case SAR:
+        case SHR:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     public static boolean isLogical(final TokenType tokenType) {
         switch (tokenType) {
         case AND:
@@ -182,6 +207,13 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
 
     @Override
     public Type getWidestOperationType() {
+        // ES2020: a BigInt-capable operator yields a BigInt (an object) only when
+        // BOTH operands may be BigInt, i.e. both are object-typed - mixing a
+        // BigInt with a Number is a TypeError, not a BigInt. A single object
+        // operand keeps the numeric result type and its fast unboxed path.
+        if (isBigIntCapable(tokenType()) && lhs.getType().isObject() && rhs.getType().isObject()) {
+            return Type.OBJECT;
+        }
         switch (tokenType()) {
         case ADD:
         case ASSIGN_ADD: {

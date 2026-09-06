@@ -887,6 +887,32 @@ public final class Global extends Scope {
     private volatile Object symbol;
 
     /**
+     * Getter for the ES2020 BigInt property.
+     * @param self self reference
+     * @return the value of the BigInt property
+     */
+    @Getter(name = "BigInt", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getBigInt(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.bigint == LAZY_SENTINEL) {
+            global.bigint = global.getBuiltinBigInt();
+        }
+        return global.bigint;
+    }
+
+    /**
+     * Setter for the BigInt property.
+     * @param self self reference
+     * @param value value of the BigInt property
+     */
+    @Setter(name = "BigInt", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setBigInt(final Object self, final Object value) {
+        Global.instanceFrom(self).bigint = value;
+    }
+
+    private volatile Object bigint;
+
+    /**
      * Getter for the Map property.
      *
      * @param self self reference
@@ -1186,6 +1212,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinFloat32Array;
     private ScriptFunction builtinFloat64Array;
     private ScriptFunction builtinSymbol;
+    private ScriptFunction builtinBigInt;
     private ScriptFunction builtinMap;
     private ScriptFunction builtinWeakMap;
     private ScriptFunction builtinSet;
@@ -1405,6 +1432,8 @@ public final class Global extends Scope {
     public Object wrapAsObject(final Object obj) {
         if (obj instanceof Boolean) {
             return new NativeBoolean((Boolean)obj, this);
+        } else if (obj instanceof java.math.BigInteger) {
+            return new NativeBigInt((java.math.BigInteger)obj, this);
         } else if (obj instanceof Number) {
             return new NativeNumber(((Number)obj).doubleValue(), this);
         } else if (isString(obj)) {
@@ -1436,6 +1465,8 @@ public final class Global extends Scope {
     public static GuardedInvocation primitiveLookup(final LinkRequest request, final Object self) {
         if (isString(self)) {
             return NativeString.lookupPrimitive(request, self);
+        } else if (self instanceof java.math.BigInteger) {
+            return NativeBigInt.lookupPrimitive(request, self);
         } else if (self instanceof Number) {
             return NativeNumber.lookupPrimitive(request, self);
         } else if (self instanceof Boolean) {
@@ -1455,6 +1486,8 @@ public final class Global extends Scope {
     public static MethodHandle getPrimitiveWrapFilter(final Object self) {
         if (isString(self)) {
             return NativeString.WRAPFILTER;
+        } else if (self instanceof java.math.BigInteger) {
+            return NativeBigInt.WRAPFILTER;
         } else if (self instanceof Number) {
             return NativeNumber.WRAPFILTER;
         } else if (self instanceof Boolean) {
@@ -2135,6 +2168,10 @@ public final class Global extends Scope {
 
     ScriptObject getSymbolPrototype() {
         return ScriptFunction.getPrototype(getBuiltinSymbol());
+    }
+
+    ScriptObject getBigIntPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinBigInt());
     }
 
     ScriptObject getHeadersPrototype() {
@@ -2899,6 +2936,13 @@ public final class Global extends Scope {
         return this.builtinURIError;
     }
 
+    private synchronized ScriptFunction getBuiltinBigInt() {
+        if (this.builtinBigInt == null) {
+            this.builtinBigInt = initConstructorAndSwitchPoint("BigInt", ScriptFunction.class);
+        }
+        return this.builtinBigInt;
+    }
+
     private synchronized ScriptFunction getBuiltinSymbol() {
         if (this.builtinSymbol == null) {
             this.builtinSymbol = initConstructorAndSwitchPoint("Symbol", ScriptFunction.class);
@@ -3450,6 +3494,7 @@ public final class Global extends Scope {
                 this.builtinArrayIterator);
 
         this.symbol   = LAZY_SENTINEL;
+        this.bigint   = LAZY_SENTINEL;
         this.map      = LAZY_SENTINEL;
         this.weakMap  = LAZY_SENTINEL;
         this.set      = LAZY_SENTINEL;

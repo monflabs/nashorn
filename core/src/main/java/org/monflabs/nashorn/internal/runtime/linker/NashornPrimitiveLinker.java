@@ -45,6 +45,7 @@ import org.monflabs.nashorn.internal.objects.Global;
 import org.monflabs.nashorn.internal.runtime.ConsString;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.runtime.Symbol;
 
 /**
@@ -64,7 +65,7 @@ final class NashornPrimitiveLinker implements TypeBasedGuardingDynamicLinker, Gu
     private static boolean canLinkTypeStatic(final Class<?> type) {
         return type == String.class || type == Boolean.class || type == ConsString.class || type == Integer.class
                 || type == Double.class || type == Float.class || type == Short.class || type == Byte.class
-                || type == Symbol.class;
+                || type == Symbol.class || type == BigInteger.class;
     }
 
     @Override
@@ -173,7 +174,7 @@ final class NashornPrimitiveLinker implements TypeBasedGuardingDynamicLinker, Gu
 
     @SuppressWarnings("unused")
     private static boolean isJavaScriptPrimitive(final Object o) {
-        return JSType.isString(o) || o instanceof Boolean || JSType.isNumber(o) || o == null || o instanceof Symbol;
+        return JSType.isString(o) || o instanceof Boolean || JSType.isNumber(o) || o == null || o instanceof Symbol || o instanceof BigInteger;
     }
 
     private static final MethodHandle GUARD_PRIMITIVE = findOwnMH("isJavaScriptPrimitive", boolean.class, Object.class);

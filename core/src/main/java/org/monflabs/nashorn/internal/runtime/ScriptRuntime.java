@@ -63,6 +63,8 @@ import org.monflabs.nashorn.internal.codegen.CompilerConstants.Call;
 import org.monflabs.nashorn.internal.ir.debug.JSONWriter;
 import org.monflabs.nashorn.internal.objects.AbstractIterator;
 import org.monflabs.nashorn.internal.objects.ArrayBufferView;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.objects.Global;
 import org.monflabs.nashorn.internal.objects.NativeAsyncFromSyncIterator;
 import org.monflabs.nashorn.internal.objects.NativeAsyncGenerator;
@@ -812,6 +814,9 @@ public final class ScriptRuntime {
      * @return whether they are the same for this purpose
      */
     public static boolean sameValueZero(final Object x, final Object y) {
+        if (x instanceof BigInteger || y instanceof BigInteger) {
+            return sameValue(x, y);
+        }
         if (x instanceof Number a && y instanceof Number b) {
             final double dx = a.doubleValue();
             final double dy = b.doubleValue();
@@ -857,6 +862,10 @@ public final class ScriptRuntime {
         }
 
         if (xType == JSType.STRING || yType == JSType.BOOLEAN) {
+            return x.equals(y);
+        }
+
+        if (xType == JSType.BIGINT) {
             return x.equals(y);
         }
 
@@ -931,8 +940,8 @@ public final class ScriptRuntime {
      */
     public static Object ADD(final Object x, final Object y) {
         // This prefix code to handle Number special is for optimization.
-        final boolean xIsNumber = x instanceof Number;
-        final boolean yIsNumber = y instanceof Number;
+        final boolean xIsNumber = x instanceof Number && !(x instanceof BigInteger);
+        final boolean yIsNumber = y instanceof Number && !(y instanceof BigInteger);
 
         if (xIsNumber && yIsNumber) {
              return ((Number)x).doubleValue() + ((Number)y).doubleValue();
@@ -957,7 +966,244 @@ public final class ScriptRuntime {
             }
         }
 
+        // ES2020: + is the one operator that also concatenates, so BigInt is
+        // handled after the string case
+        final boolean xBig = xPrim instanceof BigInteger;
+        final boolean yBig = yPrim instanceof BigInteger;
+        if (xBig && yBig) {
+            return ((BigInteger)xPrim).add((BigInteger)yPrim);
+        }
+        if (xBig || yBig) {
+            throw typeError("bigint.mixed.types");
+        }
+
         return JSType.toNumber(xPrim) + JSType.toNumber(yPrim);
+    }
+
+    /** ES2020 7.1.3 ToNumeric: a BigInt stays a BigInt, everything else becomes a Number. */
+    private static Object toNumeric(final Object value) {
+        final Object prim = JSType.toPrimitive(value, Number.class);
+        return prim instanceof BigInteger ? prim : (Object) Double.valueOf(JSType.toNumber(prim));
+    }
+
+    /** Throws unless both operands ended up BigInt or both ended up Number. */
+    private static void requireSameNumericType(final Object x, final boolean expectBig) {
+        if ((x instanceof BigInteger) != expectBig) {
+            throw typeError("bigint.mixed.types");
+        }
+    }
+
+    /**
+     * ES2020 subtraction, BigInt-aware. Only reached when an operand is object-
+     * typed; the numeric fast path stays in bytecode.
+     * @param x left operand
+     * @param y right operand
+     * @return the difference
+     */
+    public static Object SUB(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.subtract((BigInteger) ny);
+        }
+        requireSameNumericType(ny, false);
+        return (Double) nx - (Double) ny;
+    }
+
+    /**
+     * ES2020 multiplication, BigInt-aware.
+     * @param x left operand
+     * @param y right operand
+     * @return the product
+     */
+    public static Object MUL(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.multiply((BigInteger) ny);
+        }
+        requireSameNumericType(ny, false);
+        return (Double) nx * (Double) ny;
+    }
+
+    /**
+     * ES2020 division, BigInt-aware (BigInt division truncates and rejects zero).
+     * @param x dividend
+     * @param y divisor
+     * @return the quotient
+     */
+    public static Object DIV(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            final BigInteger by = (BigInteger) ny;
+            if (by.signum() == 0) {
+                throw rangeError("bigint.division.by.zero");
+            }
+            return bx.divide(by);
+        }
+        requireSameNumericType(ny, false);
+        return (Double) nx / (Double) ny;
+    }
+
+    /**
+     * ES2020 remainder, BigInt-aware.
+     * @param x dividend
+     * @param y divisor
+     * @return the remainder
+     */
+    public static Object MOD(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            final BigInteger by = (BigInteger) ny;
+            if (by.signum() == 0) {
+                throw rangeError("bigint.division.by.zero");
+            }
+            return bx.remainder(by);
+        }
+        requireSameNumericType(ny, false);
+        return (Double) nx % (Double) ny;
+    }
+
+    /**
+     * ES2020 exponentiation, BigInt-aware (a negative BigInt exponent is a RangeError).
+     * @param x base
+     * @param y exponent
+     * @return the power
+     */
+    public static Object EXP(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            final BigInteger by = (BigInteger) ny;
+            if (by.signum() < 0) {
+                throw rangeError("bigint.negative.exponent");
+            }
+            return bx.pow(by.intValueExact());
+        }
+        requireSameNumericType(ny, false);
+        return Math.pow((Double) nx, (Double) ny);
+    }
+
+    /** ES2020 bitwise AND, BigInt-aware. @param x left @param y right @return result */
+    public static Object BIT_AND(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.and((BigInteger) ny);
+        }
+        requireSameNumericType(ny, false);
+        return JSType.toInt32((Double) nx) & JSType.toInt32((Double) ny);
+    }
+
+    /** ES2020 bitwise OR, BigInt-aware. @param x left @param y right @return result */
+    public static Object BIT_OR(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.or((BigInteger) ny);
+        }
+        requireSameNumericType(ny, false);
+        return JSType.toInt32((Double) nx) | JSType.toInt32((Double) ny);
+    }
+
+    /** ES2020 bitwise XOR, BigInt-aware. @param x left @param y right @return result */
+    public static Object BIT_XOR(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.xor((BigInteger) ny);
+        }
+        requireSameNumericType(ny, false);
+        return JSType.toInt32((Double) nx) ^ JSType.toInt32((Double) ny);
+    }
+
+    /** ES2020 left shift, BigInt-aware. @param x value @param y shift @return result */
+    public static Object SHL(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.shiftLeft(((BigInteger) ny).intValueExact());
+        }
+        requireSameNumericType(ny, false);
+        return JSType.toInt32((Double) nx) << (JSType.toInt32((Double) ny) & 31);
+    }
+
+    /** ES2020 signed right shift, BigInt-aware. @param x value @param y shift @return result */
+    public static Object SAR(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger bx) {
+            requireSameNumericType(ny, true);
+            return bx.shiftRight(((BigInteger) ny).intValueExact());
+        }
+        requireSameNumericType(ny, false);
+        return JSType.toInt32((Double) nx) >> (JSType.toInt32((Double) ny) & 31);
+    }
+
+    /** ES2020 unsigned right shift: undefined for BigInt (TypeError). @param x value @param y shift @return result */
+    public static Object SHR(final Object x, final Object y) {
+        final Object nx = toNumeric(x);
+        final Object ny = toNumeric(y);
+        if (nx instanceof BigInteger || ny instanceof BigInteger) {
+            throw typeError("bigint.no.unsigned.shift");
+        }
+        return (double)(JSType.toUint32((Double) nx) >>> (JSType.toInt32((Double) ny) & 31));
+    }
+
+    /** ES2020 unary negation, BigInt-aware. @param x operand @return the negation */
+    public static Object NEG(final Object x) {
+        final Object nx = toNumeric(x);
+        if (nx instanceof BigInteger bx) {
+            return bx.negate();
+        }
+        return -(Double) nx;
+    }
+
+    /** ES2020 bitwise NOT, BigInt-aware. @param x operand @return the complement */
+    public static Object BIT_NOT(final Object x) {
+        final Object nx = toNumeric(x);
+        if (nx instanceof BigInteger bx) {
+            return bx.not();
+        }
+        return ~JSType.toInt32((Double) nx);
+    }
+
+    /** Mathematical compare for the relational operators when a BigInt is involved. */
+    private static int bigIntRelational(final Object px, final Object py) {
+        // returns -1, 0, 1, or 2 for "unordered" (a NaN was involved)
+        BigInteger bx = px instanceof BigInteger ? (BigInteger) px : null;
+        BigInteger by = py instanceof BigInteger ? (BigInteger) py : null;
+        if (bx != null && by != null) {
+            return Integer.signum(bx.compareTo(by));
+        }
+        // one BigInt, one not
+        if (bx != null) {
+            if (isString(py)) {
+                final BigInteger n = parseBigInt(py.toString());
+                return n == null ? 2 : Integer.signum(bx.compareTo(n));
+            }
+            final double d = JSType.toNumber(py);
+            if (Double.isNaN(d)) { return 2; }
+            return Integer.signum(new BigDecimal(bx).compareTo(BigDecimal.valueOf(d)));
+        }
+        if (isString(px)) {
+            final BigInteger n = parseBigInt(px.toString());
+            return n == null ? 2 : Integer.signum(n.compareTo((BigInteger) py));
+        }
+        final double d = JSType.toNumber(px);
+        if (Double.isNaN(d)) { return 2; }
+        return Integer.signum(BigDecimal.valueOf(d).compareTo(new BigDecimal((BigInteger) py)));
     }
 
     /**
@@ -1196,6 +1442,10 @@ public final class ScriptRuntime {
             return ((Boolean)x).booleanValue() == ((Boolean)y).booleanValue();
         }
 
+        if (type == JSType.BIGINT) {
+            return x.equals(y);
+        }
+
         return x == y;
     }
 
@@ -1220,6 +1470,10 @@ public final class ScriptRuntime {
         } else if (yType == JSType.BOOLEAN) {
             // Can reverse order as y is primitive
             return equalBooleanToAny(y, x);
+        } else if (isBigIntAndNumberOrString(xType, yType)) {
+            return equalBigIntToNumberOrString(x, y);
+        } else if (isBigIntAndNumberOrString(yType, xType)) {
+            return equalBigIntToNumberOrString(y, x);
         } else if (isPrimitiveAndObject(xType, yType)) {
             return equalWrappedPrimitiveToObject(x, y);
         } else if (isPrimitiveAndObject(yType, xType)) {
@@ -1228,6 +1482,43 @@ public final class ScriptRuntime {
         }
 
         return false;
+    }
+
+    private static boolean isBigIntAndNumberOrString(final JSType xType, final JSType yType) {
+        return xType == JSType.BIGINT && (yType == JSType.NUMBER || yType == JSType.STRING);
+    }
+
+    /** ES2020 loose "==" between a BigInt and a Number or numeric String: a mathematical compare. */
+    private static boolean equalBigIntToNumberOrString(final Object bigint, final Object other) {
+        final BigInteger bi = (BigInteger) bigint;
+        if (other instanceof CharSequence || other instanceof String) {
+            final BigInteger parsed = parseBigInt(other.toString());
+            return parsed != null && bi.equals(parsed);
+        }
+        final double num = ((Number) other).doubleValue();
+        if (Double.isNaN(num) || Double.isInfinite(num) || Math.floor(num) != num) {
+            return false;
+        }
+        return new BigDecimal(num).toBigIntegerExact().equals(bi);
+    }
+
+    /** StringToBigInt that answers null rather than throwing, for loose equality. */
+    private static BigInteger parseBigInt(final String str) {
+        final String t = str.trim();
+        if (t.isEmpty()) {
+            return BigInteger.ZERO;
+        }
+        try {
+            if (t.length() > 2 && t.charAt(0) == '0') {
+                final char c = t.charAt(1);
+                if (c == 'x' || c == 'X') { return new BigInteger(t.substring(2), 16); }
+                if (c == 'o' || c == 'O') { return new BigInteger(t.substring(2), 8); }
+                if (c == 'b' || c == 'B') { return new BigInteger(t.substring(2), 2); }
+            }
+            return new BigInteger(t, 10);
+        } catch (final NumberFormatException e) {
+            return null;
+        }
     }
 
     private static boolean isUndefinedAndNull(final JSType xType, final JSType yType) {
@@ -1239,7 +1530,7 @@ public final class ScriptRuntime {
     }
 
     private static boolean isPrimitiveAndObject(final JSType xType, final JSType yType) {
-        return (xType == JSType.NUMBER || xType == JSType.STRING || xType == JSType.SYMBOL) && yType == JSType.OBJECT;
+        return (xType == JSType.NUMBER || xType == JSType.STRING || xType == JSType.SYMBOL || xType == JSType.BIGINT) && yType == JSType.OBJECT;
     }
 
     private static boolean equalNumberToString(final Object num, final Object str) {
@@ -1399,6 +1690,11 @@ public final class ScriptRuntime {
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
+        if (px instanceof BigInteger || py instanceof BigInteger) {
+            final int c = bigIntRelational(px, py);
+            return c == -1;
+        }
+
         return areBothString(px, py) ? px.toString().compareTo(py.toString()) < 0 :
             JSType.toNumber(px) < JSType.toNumber(py);
     }
@@ -1419,6 +1715,11 @@ public final class ScriptRuntime {
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
+        if (px instanceof BigInteger || py instanceof BigInteger) {
+            final int c = bigIntRelational(px, py);
+            return c == 1;
+        }
+
         return areBothString(px, py) ? px.toString().compareTo(py.toString()) > 0 :
             JSType.toNumber(px) > JSType.toNumber(py);
     }
@@ -1435,6 +1736,11 @@ public final class ScriptRuntime {
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
+        if (px instanceof BigInteger || py instanceof BigInteger) {
+            final int c = bigIntRelational(px, py);
+            return c == -1 || c == 0;
+        }
+
         return areBothString(px, py) ? px.toString().compareTo(py.toString()) <= 0 :
             JSType.toNumber(px) <= JSType.toNumber(py);
     }
@@ -1450,6 +1756,11 @@ public final class ScriptRuntime {
     public static boolean GE(final Object x, final Object y) {
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
+
+        if (px instanceof BigInteger || py instanceof BigInteger) {
+            final int c = bigIntRelational(px, py);
+            return c == 1 || c == 0;
+        }
 
         return areBothString(px, py) ? px.toString().compareTo(py.toString()) >= 0 :
             JSType.toNumber(px) >= JSType.toNumber(py);

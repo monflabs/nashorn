@@ -82,6 +82,11 @@ final class FoldConstants extends SimpleNodeVisitor implements Loggable {
 
     @Override
     public Node leaveUnaryNode(final UnaryNode unaryNode) {
+        // ES2020: a BigInt operand is object-typed and folds through the runtime,
+        // not the numeric constant evaluator (which would ToNumber it and throw).
+        if (unaryNode.getExpression().getType().isObject()) {
+            return unaryNode;
+        }
         final LiteralNode<?> literalNode = new UnaryNodeConstantEvaluator(unaryNode).eval();
         if (literalNode != null) {
             log.info("Unary constant folded ", unaryNode, " to ", literalNode);
@@ -92,6 +97,9 @@ final class FoldConstants extends SimpleNodeVisitor implements Loggable {
 
     @Override
     public Node leaveBinaryNode(final BinaryNode binaryNode) {
+        if (binaryNode.lhs().getType().isObject() || binaryNode.rhs().getType().isObject()) {
+            return binaryNode;
+        }
         final LiteralNode<?> literalNode = new BinaryNodeConstantEvaluator(binaryNode).eval();
         if (literalNode != null) {
             log.info("Binary constant folded ", binaryNode, " to ", literalNode);

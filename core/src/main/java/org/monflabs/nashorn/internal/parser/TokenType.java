@@ -190,6 +190,7 @@ public enum TokenType {
     NON_OCTAL_DECIMAL (LITERAL, null),
     OCTAL          (LITERAL,  null),
     BINARY_NUMBER  (LITERAL,  null),
+    BIGINT         (LITERAL,  null),
     FLOATING       (LITERAL,  null),
     STRING         (LITERAL,  null),
     ESCSTRING      (LITERAL,  null),

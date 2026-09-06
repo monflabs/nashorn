@@ -135,12 +135,20 @@ public final class UnaryNode extends Expression implements Assignment<Expression
             assert operandType.isNumeric();
             return operandType;
         case NEG:
+            // ES2020: negating a BigInt (an object operand) yields a BigInt.
+            if (getExpression().getType().isObject()) {
+                return Type.OBJECT;
+            }
             // This might seems overly conservative until you consider that -0 can only be represented as a double.
             return Type.NUMBER;
         case NOT:
         case DELETE:
             return Type.BOOLEAN;
         case BIT_NOT:
+            // ES2020: ~BigInt (an object operand) yields a BigInt.
+            if (getExpression().getType().isObject()) {
+                return Type.OBJECT;
+            }
             return Type.INT;
         case VOID:
             return Type.UNDEFINED;

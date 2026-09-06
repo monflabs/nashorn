@@ -270,6 +270,8 @@ public final class NativeJSON extends ScriptObject {
                 value = JSType.toString(value);
             } else if (value instanceof NativeBoolean) {
                 value = ((NativeBoolean)value).booleanValue();
+            } else if (value instanceof NativeBigInt) {
+                throw typeError("bigint.serialize");
             }
         }
 
@@ -285,6 +287,10 @@ public final class NativeJSON extends ScriptObject {
             return JSONFunctions.quote((String)value);
         } else if (value instanceof ConsString) {
             return JSONFunctions.quote(value.toString());
+        }
+
+        if (value instanceof java.math.BigInteger) {
+            throw typeError("bigint.serialize");
         }
 
         if (value instanceof Number) {

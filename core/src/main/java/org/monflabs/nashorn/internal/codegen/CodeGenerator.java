@@ -1215,54 +1215,63 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterNEG(final UnaryNode unaryNode) {
+                if (unaryNode.getExpression().getType().isObject()) { loadObjectUnary(unaryNode, "NEG", resultBounds); return false; }
                 loadSUB(unaryNode, resultBounds);
                 return false;
             }
 
             @Override
             public boolean enterSUB(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "SUB", resultBounds); return false; }
                 loadSUB(binaryNode, resultBounds);
                 return false;
             }
 
             @Override
             public boolean enterMUL(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "MUL", resultBounds); return false; }
                 loadMUL(binaryNode, resultBounds);
                 return false;
             }
 
             @Override
             public boolean enterDIV(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "DIV", resultBounds); return false; }
                 loadDIV(binaryNode, resultBounds);
                 return false;
             }
 
             @Override
             public boolean enterEXP(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "EXP", resultBounds); return false; }
                 loadEXP(binaryNode);
                 return false;
             }
 
             @Override
             public boolean enterMOD(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "MOD", resultBounds); return false; }
                 loadMOD(binaryNode, resultBounds);
                 return false;
             }
 
             @Override
             public boolean enterSAR(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "SAR", resultBounds); return false; }
                 loadSAR(binaryNode);
                 return false;
             }
 
             @Override
             public boolean enterSHL(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "SHL", resultBounds); return false; }
                 loadSHL(binaryNode);
                 return false;
             }
 
             @Override
             public boolean enterSHR(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "SHR", resultBounds); return false; }
                 loadSHR(binaryNode);
                 return false;
             }
@@ -1305,24 +1314,28 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterBIT_NOT(final UnaryNode unaryNode) {
+                if (unaryNode.getExpression().getType().isObject()) { loadObjectUnary(unaryNode, "BIT_NOT", resultBounds); return false; }
                 loadBIT_NOT(unaryNode);
                 return false;
             }
 
             @Override
             public boolean enterBIT_AND(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "BIT_AND", resultBounds); return false; }
                 loadBIT_AND(binaryNode);
                 return false;
             }
 
             @Override
             public boolean enterBIT_OR(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "BIT_OR", resultBounds); return false; }
                 loadBIT_OR(binaryNode);
                 return false;
             }
 
             @Override
             public boolean enterBIT_XOR(final BinaryNode binaryNode) {
+                if (mightBeBigInt(binaryNode)) { loadObjectBinary(binaryNode, "BIT_XOR", resultBounds); return false; }
                 loadBIT_XOR(binaryNode);
                 return false;
             }
@@ -3025,6 +3038,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             } else {
                 method.load((Double)value);
             }
+        } else if (value instanceof java.math.BigInteger) {
+            // ES2020 BigInt literal: an immutable object constant
+            loadConstant(value);
         } else if (node instanceof ArrayLiteralNode) {
             final ArrayLiteralNode arrayLiteral = (ArrayLiteralNode)node;
             if (hasSpread(arrayLiteral.getValue())) {
@@ -4917,6 +4933,51 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         loadExpressionAsObject(importCallNode.getArgument());
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "DYNAMIC_IMPORT",
                 new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+        if (discard) {
+            method.pop();
+        } else {
+            coerceStackTop(resultBounds);
+        }
+    }
+
+    /**
+     * ES2020: an operand that may be a BigInt is object-typed, so a BigInt-capable
+     * operator with such an operand is dispatched at runtime rather than narrowed
+     * to a number in bytecode.
+     */
+    private static boolean mightBeBigInt(final BinaryNode node) {
+        // A BigInt result needs both operands to be BigInt (mixing a BigInt with a
+        // Number is a TypeError, which the numeric path already produces when its
+        // ToNumber sees a BigInt). So only when BOTH operands are object-typed can
+        // the result be a BigInt and need the runtime dispatch; a single object
+        // operand keeps the fast unboxed numeric path.
+        return node.lhs().getType().isObject() && node.rhs().getType().isObject();
+    }
+
+    /**
+     * Emit a BigInt-capable binary operator as a runtime call, both operands as
+     * objects and the object result coerced to the context. Mirrors how "+"
+     * dispatches ObjectType.add to ScriptRuntime.ADD.
+     */
+    private void loadObjectBinary(final BinaryNode node, final String runtimeMethod, final TypeBounds resultBounds) {
+        final boolean discard = lc.popDiscardIfCurrent(node);
+        loadExpressionAsObject(node.lhs());
+        loadExpressionAsObject(node.rhs());
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), runtimeMethod,
+                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+        if (discard) {
+            method.pop();
+        } else {
+            coerceStackTop(resultBounds);
+        }
+    }
+
+    /** As {@link #loadObjectBinary} but for the unary BigInt-capable operators (NEG, ~). */
+    private void loadObjectUnary(final UnaryNode node, final String runtimeMethod, final TypeBounds resultBounds) {
+        final boolean discard = lc.popDiscardIfCurrent(node);
+        loadExpressionAsObject(node.getExpression());
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), runtimeMethod,
+                new FunctionSignature(false, false, Type.OBJECT, 1).toString());
         if (discard) {
             method.pop();
         } else {

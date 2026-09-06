@@ -530,6 +530,8 @@ public abstract class AbstractParser {
 
         if (value == null) {
             node = LiteralNode.newInstance(literalToken, finish);
+        } else if (value instanceof java.math.BigInteger) {
+            node = LiteralNode.newInstance(literalToken, finish, (java.math.BigInteger)value);
         } else if (value instanceof Number) {
             node = LiteralNode.newInstance(literalToken, finish, (Number)value);
         } else if (value instanceof String) {
