@@ -258,12 +258,16 @@ public abstract class AbstractIterator extends ScriptObject {
             do {
                 final Object next = nextInvoker.getGetter().invokeExact(iterator);
                 if (!Bootstrap.isCallable(next)) {
-                    break;
+                    // a non-callable "next" is a TypeError, and the iterator is
+                    // not closed - it was never successfully stepped
+                    throw typeError(global, "not.a.function", "next");
                 }
 
                 final Object result = nextInvoker.getInvoker().invokeExact(next, iterator, (Object) null);
                 if (!(result instanceof ScriptObject)) {
-                    break;
+                    // IteratorNext must return an object; again the iterator is
+                    // not closed (7.4.2)
+                    throw typeError(global, "not.an.object", ScriptRuntime.safeToString(result));
                 }
 
                 final Object done = doneInvoker.invokeExact(result);

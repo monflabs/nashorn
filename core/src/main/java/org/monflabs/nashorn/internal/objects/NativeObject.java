@@ -492,6 +492,39 @@ public final class NativeObject {
     }
 
     /**
+     * ECMAScript 2019 19.1.2.7 Object.fromEntries ( iterable )
+     *
+     * The inverse of {@link #entries}: build a plain object from an iterable of
+     * {@code [key, value]} entries (AddEntriesFromIterable, so a non-object entry
+     * throws a TypeError and closes the iterator).
+     *
+     * @param self     self reference
+     * @param iterable the entries
+     * @return a new object with one own data property per entry
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static ScriptObject fromEntries(final Object self, final Object iterable) {
+        final Global global = Global.instance();
+        if (iterable == UNDEFINED || iterable == null) {
+            throw notAnObject(iterable);
+        }
+        final ScriptObject result = global.newObject();
+        AbstractIterator.iterate(iterable, global, value -> {
+            if (JSType.isPrimitive(value)) {
+                throw typeError(global, "not.an.object", ScriptRuntime.safeToString(value));
+            }
+            final ScriptObject entry = (ScriptObject) Global.toObject(value);
+            // AddEntriesFromIterable order: read "0" then "1", then the adder
+            // (ToPropertyKey + CreateDataPropertyOrThrow - a define, so an
+            // inherited setter on Object.prototype is not invoked)
+            final Object key = entry.get(0);
+            final Object val = entry.get(1);
+            result.defineOwnProperty(JSType.toPropertyKey(key), global.newDataDescriptor(val, true, true, true), true);
+        });
+        return result;
+    }
+
+    /**
      * The shared body of Object.values and Object.entries (ES2017 7.3.21
      * EnumerableOwnProperties).
      *
