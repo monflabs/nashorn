@@ -3957,31 +3957,33 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             final Expression exceptionCondition = catchNode.getExceptionCondition();
             final Block      catchBody          = catchNode.getBody();
 
-            new Store<IdentNode>(exception) {
-                @Override
-                protected void storeNonDiscard() {
-                    // This expression is neither part of a discard, nor needs to be left on the stack after it was
-                    // stored, so we override storeNonDiscard to be a no-op.
-                }
-
-                @Override
-                protected void evaluate() {
-                    if (catchNode.isSyntheticRethrow()) {
-                        method.load(vmException, EXCEPTION_TYPE);
-                        return;
+            if (exception != null) {
+                new Store<IdentNode>(exception) {
+                    @Override
+                    protected void storeNonDiscard() {
+                        // This expression is neither part of a discard, nor needs to be left on the stack after it was
+                        // stored, so we override storeNonDiscard to be a no-op.
                     }
-                    /*
-                     * If caught object is an instance of ECMAException, then
-                     * bind obj.thrown to the script catch var. Or else bind the
-                     * caught object itself to the script catch var.
-                     */
-                    final Label notEcmaException = new Label("no_ecma_exception");
-                    method.load(vmException, EXCEPTION_TYPE).dup()._instanceof(ECMAException.class).ifeq(notEcmaException);
-                    method.checkcast(ECMAException.class); //TODO is this necessary?
-                    method.getField(ECMAException.THROWN);
-                    method.label(notEcmaException);
-                }
-            }.store();
+
+                    @Override
+                    protected void evaluate() {
+                        if (catchNode.isSyntheticRethrow()) {
+                            method.load(vmException, EXCEPTION_TYPE);
+                            return;
+                        }
+                        /*
+                         * If caught object is an instance of ECMAException, then
+                         * bind obj.thrown to the script catch var. Or else bind the
+                         * caught object itself to the script catch var.
+                         */
+                        final Label notEcmaException = new Label("no_ecma_exception");
+                        method.load(vmException, EXCEPTION_TYPE).dup()._instanceof(ECMAException.class).ifeq(notEcmaException);
+                        method.checkcast(ECMAException.class); //TODO is this necessary?
+                        method.getField(ECMAException.THROWN);
+                        method.label(notEcmaException);
+                    }
+                }.store();
+            }
 
             final boolean isConditionalCatch = exceptionCondition != null;
             final Label nextCatch;

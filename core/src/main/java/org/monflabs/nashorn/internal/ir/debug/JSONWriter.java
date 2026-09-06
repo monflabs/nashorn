@@ -258,7 +258,11 @@ public final class JSONWriter extends SimpleNodeVisitor {
         comma();
 
         property("param");
-        catchNode.getException().accept(this);
+        if (catchNode.getException() == null) {
+            nullValue();
+        } else {
+            catchNode.getException().accept(this);
+        }
         comma();
 
         final Node guard = catchNode.getExceptionCondition();

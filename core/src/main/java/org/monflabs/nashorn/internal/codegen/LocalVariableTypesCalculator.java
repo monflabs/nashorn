@@ -1070,7 +1070,9 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
         joinOnLabel(catchLabel);
         for(final CatchNode catchNode: tryNode.getCatches()) {
             final IdentNode exception = catchNode.getExceptionIdentifier();
-            onAssignment(exception, LvarType.OBJECT);
+            if (exception != null) {
+                onAssignment(exception, LvarType.OBJECT);
+            }
             final Expression condition = catchNode.getExceptionCondition();
             if(condition != null) {
                 visitExpression(condition);

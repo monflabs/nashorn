@@ -3334,43 +3334,52 @@ public class Parser extends AbstractParser implements Loggable {
                 final int  catchLine  = line;
                 final long catchToken = token;
                 next();
-                expect(LPAREN);
 
-                // ES6 catch parameter can be a BindingIdentifier or a BindingPattern
-                // http://www.ecma-international.org/ecma-262/6.0/
-                final String contextString = "catch argument";
-                final Expression exception = bindingIdentifierOrPattern(contextString);
-                final boolean isDestructuring = !(exception instanceof IdentNode);
-                if (isDestructuring) {
-                    // ES6 13.15.1: the bound names of a catch parameter must be
-                    // unique - "catch ([a, a])" is an early error.
-                    final Set<String> boundNames = new HashSet<>();
-                    verifyDestructuringBindingPattern(exception, identNode -> {
-                        verifyIdent(identNode, contextString);
-                        if (!boundNames.add(identNode.getName())) {
-                            throw error(AbstractParser.message("duplicate.binding", identNode.getName()),
-                                    identNode.getToken());
-                        }
-                    });
-                } else {
-                    // ECMA 12.4.1 strict mode restrictions
-                    verifyIdent((IdentNode) exception, "catch argument");
-                }
-
-
-                // Nashorn extension: catch clause can have optional
-                // condition. So, a single try can have more than one
-                // catch clause each with it's own condition.
+                final Expression exception;
                 final Expression ifExpression;
-                if (!env._no_syntax_extensions && type == IF) {
-                    next();
-                    // Get the exception condition.
-                    ifExpression = expression();
-                } else {
+                if (type == LBRACE) {
+                    // ES2019 optional catch binding: "catch { ... }" - no
+                    // parameter, so nothing is bound and there is no condition.
+                    exception = null;
                     ifExpression = null;
-                }
+                } else {
+                    expect(LPAREN);
 
-                expect(RPAREN);
+                    // ES6 catch parameter can be a BindingIdentifier or a BindingPattern
+                    // http://www.ecma-international.org/ecma-262/6.0/
+                    final String contextString = "catch argument";
+                    final Expression param = bindingIdentifierOrPattern(contextString);
+                    final boolean isDestructuring = !(param instanceof IdentNode);
+                    if (isDestructuring) {
+                        // ES6 13.15.1: the bound names of a catch parameter must be
+                        // unique - "catch ([a, a])" is an early error.
+                        final Set<String> boundNames = new HashSet<>();
+                        verifyDestructuringBindingPattern(param, identNode -> {
+                            verifyIdent(identNode, contextString);
+                            if (!boundNames.add(identNode.getName())) {
+                                throw error(AbstractParser.message("duplicate.binding", identNode.getName()),
+                                        identNode.getToken());
+                            }
+                        });
+                    } else {
+                        // ECMA 12.4.1 strict mode restrictions
+                        verifyIdent((IdentNode) param, "catch argument");
+                    }
+                    exception = param;
+
+                    // Nashorn extension: catch clause can have optional
+                    // condition. So, a single try can have more than one
+                    // catch clause each with it's own condition.
+                    if (!env._no_syntax_extensions && type == IF) {
+                        next();
+                        // Get the exception condition.
+                        ifExpression = expression();
+                    } else {
+                        ifExpression = null;
+                    }
+
+                    expect(RPAREN);
+                }
 
                 final ParserContextBlockNode catchBlock = newBlock();
                 try {

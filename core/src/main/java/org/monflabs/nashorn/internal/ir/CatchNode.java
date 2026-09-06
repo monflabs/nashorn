@@ -64,7 +64,10 @@ public final class CatchNode extends Statement {
     public CatchNode(final int lineNumber, final long token, final int finish, final Expression exception,
             final Expression exceptionCondition, final Block body, final boolean isSyntheticRethrow) {
         super(lineNumber, token, finish);
-        if (exception instanceof IdentNode) {
+        if (exception == null) {
+            // ES2019 optional catch binding: "catch { ... }" binds nothing.
+            this.exception = null;
+        } else if (exception instanceof IdentNode) {
             this.exception = ((IdentNode) exception).setIsInitializedHere();
         } else if ((exception instanceof LiteralNode.ArrayLiteralNode) || (exception instanceof ObjectNode)) {
             this.exception = exception;
@@ -93,7 +96,7 @@ public final class CatchNode extends Statement {
     public Node accept(final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterCatchNode(this)) {
             return visitor.leaveCatchNode(
-                    setException((Expression) exception.accept(visitor)).
+                    setException(exception == null ? null : (Expression) exception.accept(visitor)).
                             setExceptionCondition(exceptionCondition == null ? null : (Expression) exceptionCondition.accept(visitor)).
                             setBody((Block) body.accept(visitor)));
         }
@@ -107,6 +110,10 @@ public final class CatchNode extends Statement {
 
     @Override
     public void toString(final StringBuilder sb, final boolean printTypes) {
+        if (exception == null) {
+            sb.append(" catch ");
+            return;
+        }
         sb.append(" catch (");
         exception.toString(sb, printTypes);
 
@@ -176,7 +183,7 @@ public final class CatchNode extends Statement {
             return this;
         }
         /*check if exception is legitimate*/
-        if (!((exception instanceof IdentNode) || (exception instanceof LiteralNode.ArrayLiteralNode) || (exception instanceof ObjectNode))) {
+        if (exception != null && !((exception instanceof IdentNode) || (exception instanceof LiteralNode.ArrayLiteralNode) || (exception instanceof ObjectNode))) {
             throw new IllegalArgumentException("invalid catch parameter");
         }
         return new CatchNode(this, exception, exceptionCondition, body, isSyntheticRethrow);

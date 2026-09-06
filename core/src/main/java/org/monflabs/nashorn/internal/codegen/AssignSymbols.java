@@ -527,6 +527,11 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
 
         start(catchNode);
 
+        if (exception == null) {
+            // ES2019 optional catch binding: "catch { ... }" defines no symbol.
+            return true;
+        }
+
         // define block-local exception variable
         final String exname = exception.getName();
         // If the name of the exception starts with ":e", this is a synthetic catch block, likely a catch-all. Its
