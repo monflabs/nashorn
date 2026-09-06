@@ -58,6 +58,9 @@ public final class ModuleRecord {
     /** Where a module says which scope is its own, while its body is starting. */
     private static final ThreadLocal<ModuleRecord> STARTING = new ThreadLocal<>();
 
+    /** Set while a module body runs its instantiation pass rather than its evaluation. */
+    private static final ThreadLocal<Boolean> INSTANTIATING = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     /** What ResolveExport answers when a name is exported by two modules at once. */
     private static final Binding AMBIGUOUS = new Binding(null, null);
 
@@ -80,6 +83,10 @@ public final class ModuleRecord {
         LINKING,
         /** linked, not yet run */
         LINKED,
+        /** its instantiation pass is running, or one of its dependencies' is */
+        INSTANTIATING,
+        /** its scope exists and its declarations are hoisted, not yet evaluated */
+        INSTANTIATED,
         /** its body is running, or one of its dependencies is */
         EVALUATING,
         /** its body has finished */
@@ -249,6 +256,62 @@ public final class ModuleRecord {
     }
 
     /**
+     * The first of a module's two passes: brings the whole dependency graph, this
+     * module last, to the point where every module's scope exists and its
+     * declarations are hoisted, but nothing of any body has evaluated yet.
+     *
+     * ES2015 gave a module a scope of its own and let a cyclic dependency read a
+     * name across the cycle. A single pass cannot honour both: run the bodies in
+     * dependency order and a module up the cycle reads a name whose module has not
+     * run, so its scope does not yet exist ({@code verify-dfs}). So the body runs
+     * twice. This pass runs it with {@link #INSTANTIATING} set, so the compiled
+     * body stops after its declarations (a {@link ScriptRuntime#MODULE_INSTANTIATING}
+     * guard the code generator plants for a module): the scope is made, the imports
+     * bound, and the function declarations hoisted, which is all a name read across
+     * the cycle needs. {@link #evaluate()} then runs the same bodies for real.
+     *
+     * The scope this pass makes is transient - {@link #evaluate()} makes a fresh
+     * one - and matters only in the window before a module's own evaluation, which
+     * is exactly the window a cycle reads it in. Every binding is read through the
+     * record ({@link #local}, {@link ModuleBinding}, {@link ModuleNamespace}), so a
+     * read resolves against whichever scope is current when it happens.
+     *
+     * @return the module itself, once its graph is instantiated
+     */
+    private ModuleRecord instantiate() {
+        if (values != null) {
+            // a pure-Java module has no body to hoist; its exports are ready
+            return this;
+        }
+        if (state == State.NEW) {
+            link();
+        }
+        if (state != State.LINKED) {
+            // already instantiated, or on the stack of one that is: a cycle
+            return this;
+        }
+        state = State.INSTANTIATING;
+
+        for (final String requested : module.getRequestedModules()) {
+            dependency(requested).instantiate();
+        }
+
+        final ModuleRecord previous = STARTING.get();
+        final Boolean wasInstantiating = INSTANTIATING.get();
+        STARTING.set(this);
+        INSTANTIATING.set(Boolean.TRUE);
+        try {
+            ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
+        } finally {
+            INSTANTIATING.set(wasInstantiating);
+            STARTING.set(previous);
+        }
+
+        state = State.INSTANTIATED;
+        return this;
+    }
+
+    /**
      * Runs the module's body, and everything it depends on first.
      *
      * @return the module itself, once its body has finished
@@ -266,7 +329,18 @@ public final class ModuleRecord {
         if (state == State.NEW) {
             link();
         }
-        if (state != State.LINKED) {
+        if (state == State.LINKED) {
+            // instantiate the whole graph before any body evaluates, so a cyclic
+            // dependency can read a name whose module has not run yet
+            try {
+                instantiate();
+            } catch (final RuntimeException | Error e) {
+                state = State.EVALUATED;
+                evaluationError = e instanceof RuntimeException re ? re : new RuntimeException(e);
+                throw e;
+            }
+        }
+        if (state != State.INSTANTIATED) {
             // already run, or being run further down the same stack: a cycle
             return this;
         }
@@ -303,6 +377,18 @@ public final class ModuleRecord {
         if (record != null) {
             record.bind(scope);
         }
+    }
+
+    /**
+     * Whether the module body now running is doing so for its instantiation pass
+     * rather than its evaluation. The compiled body asks this, through
+     * {@link ScriptRuntime#MODULE_INSTANTIATING}, to know whether to stop after
+     * its declarations.
+     *
+     * @return true if the current thread is inside {@link #instantiate()}
+     */
+    static boolean isInstantiating() {
+        return INSTANTIATING.get();
     }
 
     private void bind(final ScriptObject scope) {

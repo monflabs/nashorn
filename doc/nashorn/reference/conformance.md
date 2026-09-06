@@ -4,7 +4,7 @@ This engine implements ECMAScript 2021 — ECMA-262, 12th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 63,808 selected executions, 9 expected failures.** Everything else passes,
+**The headline numbers: 63,808 selected executions, 8 expected failures.** Everything else passes,
 in both of the engine's typing modes. The 8 are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
 scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). The
@@ -53,5 +53,5 @@ mvn -Pfetch-externals -pl core generate-test-resources    # clone test262, once
 mvn -Ptest262 -DskipTests verify                          # the full conformance run
 ```
 
-The run reports `failing: 9   expected to fail: 9` on a healthy tree. Narrow it while working
+The run reports `failing: 8   expected to fail: 8` on a healthy tree. Narrow it while working
 with `-Dnashorn.test262.include=/built-ins/Math/`.

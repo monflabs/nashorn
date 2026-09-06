@@ -1224,12 +1224,35 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
 
         final long token = functionNode.getToken();
         final int finish = functionNode.getFinish();
+        final int line = functionNode.getLineNumber();
         final Block body = functionNode.getBody();
+        final List<Statement> original = body.getStatements();
 
         final List<Statement> statements = new ArrayList<>();
-        statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
+        statements.add(new ExpressionStatement(line, token, finish,
                 new RuntimeNode(token, finish, RuntimeNode.Request.MODULE_SCOPE)));
-        statements.addAll(body.getStatements());
+
+        // A module runs in two passes (see ModuleRecord.instantiate): the first
+        // makes its scope and hoists its declarations for a cyclic dependency to
+        // read, the second runs the body. The function declarations the parser
+        // hoisted to the front of the body must run in both, so they stay ahead
+        // of the guard; the guard returns before anything else on the first pass.
+        int i = 0;
+        while (i < original.size()
+                && original.get(i) instanceof VarNode v && v.isFunctionDeclaration()) {
+            statements.add(original.get(i));
+            i++;
+        }
+
+        // if (MODULE_INSTANTIATING()) { return; }
+        statements.add(new IfNode(line, token, finish,
+                new RuntimeNode(token, finish, RuntimeNode.Request.MODULE_INSTANTIATING),
+                new Block(token, finish, new ReturnNode(line, token, finish, null)),
+                null));
+
+        for (; i < original.size(); i++) {
+            statements.add(original.get(i));
+        }
 
         return functionNode.setFlag(lc, FunctionNode.HAS_ALL_VARS_IN_SCOPE)
                 .setBody(lc, body.setStatements(lc, statements));

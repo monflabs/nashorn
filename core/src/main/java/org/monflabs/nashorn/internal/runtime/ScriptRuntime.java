@@ -3116,6 +3116,22 @@ public final class ScriptRuntime {
     }
 
     /**
+     * Whether the module body now running is doing so for its instantiation pass
+     * rather than its evaluation.
+     *
+     * A module is run in two passes (see {@link ModuleRecord}): the first
+     * establishes its scope and hoists its declarations so a cyclic dependency
+     * can read them, the second runs the body proper. The compiled body asks
+     * this at the point the first pass must stop - after the declarations and
+     * before the first evaluated statement.
+     *
+     * @return true if the current module run is the instantiation pass
+     */
+    public static boolean MODULE_INSTANTIATING() {
+        return ModuleRecord.isInstantiating();
+    }
+
+    /**
      * ES2015 9.2.2 step 13: what a derived class constructor returns.
      *
      * An object is the result. Undefined means the constructor is handing back
@@ -3208,8 +3224,15 @@ public final class ScriptRuntime {
     /**
      * ES2020 dynamic {@code import(specifier)}: resolves the specifier against the
      * module it was written in, loads and evaluates it, and answers a promise of
-     * its namespace object. The load is synchronous here, so the promise is
-     * already settled when returned; its reactions still run as microtasks.
+     * its namespace object.
+     *
+     * The load, link and evaluation are deferred to a microtask rather than run
+     * inline: ES2020 makes a dynamic import a job, and running it inline lets it
+     * preempt the depth-first evaluation of the static graph it sits inside - a
+     * module imported both statically further up the graph and dynamically here
+     * would run its body early, out of DFS order (the {@code verify-dfs} test).
+     * The promise it returns is therefore pending on return; its reactions, and
+     * the settlement itself, run as microtasks.
      *
      * @param referrerName the name of the module the import() appears in, or null
      * @param specifier    the module specifier expression's value
@@ -3219,34 +3242,36 @@ public final class ScriptRuntime {
         final Global global = Global.instance();
         final org.monflabs.nashorn.internal.objects.NativePromise promise =
                 org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
-        String spec = null;
-        try {
-            spec = JSType.toString(specifier);
-            final String refName = referrerName == null ? null : JSType.toString(referrerName);
-            final ModuleRecord referrer = refName == null ? null : global.getModule(refName);
-            // A registered module referrer keeps its loader view; a plain script
-            // referrer resolves by its base name instead.
-            final ModuleRecord loaded = referrer != null
-                    ? Context.getContext().loadModule(spec, referrer)
-                    : Context.getContext().loadModuleWithBase(spec, refName);
-            if (loaded == null) {
-                throw typeError("cant.load.module", spec, "not found");
+        final String refName = referrerName == null ? null : JSType.toString(referrerName);
+        global.getJobQueue().enqueue(() -> {
+            String spec = null;
+            try {
+                spec = JSType.toString(specifier);
+                final ModuleRecord referrer = refName == null ? null : global.getModule(refName);
+                // A registered module referrer keeps its loader view; a plain script
+                // referrer resolves by its base name instead.
+                final ModuleRecord loaded = referrer != null
+                        ? Context.getContext().loadModule(spec, referrer)
+                        : Context.getContext().loadModuleWithBase(spec, refName);
+                if (loaded == null) {
+                    throw typeError("cant.load.module", spec, "not found");
+                }
+                loaded.link().evaluate();
+                org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, loaded.namespace());
+            } catch (final Throwable t) {
+                final Object reason;
+                if (t instanceof ECMAException ee) {
+                    reason = ee.getThrown();
+                } else if (t instanceof ParserException pe) {
+                    // a module that fails to parse rejects with the SyntaxError it is,
+                    // not a generic wrapper
+                    reason = ECMAErrors.asEcmaException(global, pe).getThrown();
+                } else {
+                    reason = typeError("cant.load.module", String.valueOf(spec), String.valueOf(t.getMessage())).getThrown();
+                }
+                org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason);
             }
-            loaded.link().evaluate();
-            org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, loaded.namespace());
-        } catch (final Throwable t) {
-            final Object reason;
-            if (t instanceof ECMAException ee) {
-                reason = ee.getThrown();
-            } else if (t instanceof ParserException pe) {
-                // a module that fails to parse rejects with the SyntaxError it is,
-                // not a generic wrapper
-                reason = ECMAErrors.asEcmaException(global, pe).getThrown();
-            } else {
-                reason = typeError("cant.load.module", String.valueOf(spec), String.valueOf(t.getMessage())).getThrown();
-            }
-            org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason);
-        }
+        });
         return promise;
     }
 

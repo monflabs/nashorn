@@ -4,32 +4,30 @@ ECMAScript 2021 conformance
 This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
 (ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 63,808 executions **9
+selected at runtime by `Test262Selector`, and of its 63,808 executions **8
 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards.
 
-Of those 9, **8** are the carried-over Annex B shape: an indirect `eval` whose
+All **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The **1** remaining is a
-module-instantiation limitation:
+rooted in how the engine merges eval scopes (see below).
 
-- **A circular module read before its body runs** (`verify-dfs`, 1 execution). A
-  fixture imports a hoisted function export back from the entry module that is
-  still evaluating, and the specification makes that binding available because
-  function declarations are initialised during module *instantiation*, before any
-  module body runs. This engine creates a module's environment only when its body
-  runs (its own `ModuleRecord.local` documents the case), so a cyclic dependent
-  reaches the export before it exists. Closing it means a two-phase module model -
-  a create-once environment and function-declaration hoisting split out of body
-  evaluation - a redesign of the module scope lifecycle held back as disproportionate
-  to this one case, on a par with the Annex B eval-scope divergence.
-
-The ES2020 corners earlier documented here are **fixed**: `Object(1n) & 1` and its
-kin now throw the `TypeError` a BigInt-to-number coercion must (the call-return
-Java-argument converter no longer takes a BigInt for a Number); `(a?.b)()` binds
-`this` to the chain's base; and `JSON.stringify` calls a BigInt's `toJSON` with the
-primitive as its receiver.
+The corners earlier documented here are **fixed**. The ES2020 ones: `Object(1n) & 1`
+and its kin now throw the `TypeError` a BigInt-to-number coercion must (the
+call-return Java-argument converter no longer takes a BigInt for a Number);
+`(a?.b)()` binds `this` to the chain's base; and `JSON.stringify` calls a BigInt's
+`toJSON` with the primitive as its receiver. And the last module-instantiation
+corner - **a circular module read before its body runs** (`verify-dfs`): a fixture
+imports a hoisted function export back from the entry module that is still
+evaluating, and the specification makes that binding available because function
+declarations are initialised during module *instantiation*, before any module body
+runs. The engine now runs a module body in two passes (`ModuleRecord.instantiate`
+then `ModuleRecord.evaluate`): the first makes each scope and hoists its function
+declarations across the whole graph, so a cyclic dependent finds the export; the
+second runs the bodies for real. The same fix made dynamic `import()` a microtask
+(it no longer evaluates inline), so it can no longer preempt the depth-first
+evaluation order of the static graph it sits in.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their
 tests are held out of the slice — not counted as failures — with the reason
@@ -47,7 +45,7 @@ mvn -Ptest262 -DskipTests verify
 ```
 
     test262: 63808 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 9   expected to fail: 9
+    failing: 8   expected to fail: 8
 
 What is not measured, and why
 -----------------------------

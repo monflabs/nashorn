@@ -144,6 +144,8 @@ public class RuntimeNode extends Expression {
         REQUIRE_NEW(TokenType.VOID, Type.OBJECT, 0),
         /** ES2015 15.2.1.17: a module hands over the scope that is its environment */
         MODULE_SCOPE(TokenType.VOID, Type.OBJECT, 0),
+        /** True while a module body runs its instantiation pass: declarations only, no evaluation. */
+        MODULE_INSTANTIATING(TokenType.VOID, Type.BOOLEAN, 0),
         /** A read of a parameter that has not been initialised yet. */
         UNINITIALIZED_BINDING(TokenType.VOID, Type.OBJECT, 1),
         /** The value a derived class constructor's this binding has before super() */

@@ -9,4 +9,3 @@ test/annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-exist
 test/annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-existing-var-update.js (sloppy)
 test/annexB/language/eval-code/indirect/global-switch-case-eval-global-existing-var-update.js (sloppy)
 test/annexB/language/eval-code/indirect/global-switch-dflt-eval-global-existing-var-update.js (sloppy)
-test/language/module-code/verify-dfs.js (sloppy)
