@@ -25,14 +25,14 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2017 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2019 conformance.
  *
  * test262 has no branch or tag for any edition - only the frozen
  * {@code es5-tests} branch and {@code main}, which tracks the current draft
  * spec. The suite for an edition has to be selected out of {@code main}, and the
  * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2017.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2019.</b>
  *
  * <p>That is deliberate. An allow rule - take only tests tagged with a feature
  * of the edition - would quietly drop the thousands of untagged tests covering
@@ -49,7 +49,7 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015, ES2016 or ES2017 introduced. A
+     * Every {@code features:} tag that ES2015 through ES2019 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
@@ -90,6 +90,12 @@ public final class Test262Selector {
         "regexp-unicode-property-escapes",
         "object-spread", "object-rest",
         "async-iteration", "Symbol.asyncIterator",
+        // ES2019. optional catch binding and the JSON-superset/well-formed
+        // additions; the rest are the library methods.
+        "Array.prototype.flat", "Array.prototype.flatMap", "Object.fromEntries",
+        "Symbol.prototype.description", "string-trimming",
+        "String.prototype.trimStart", "String.prototype.trimEnd",
+        "optional-catch-binding", "json-superset", "well-formed-json-stringify",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -131,7 +137,7 @@ public final class Test262Selector {
      * not.
      *
      * A BigInt literal and the nullish coalescing operator are ECMAScript 2020,
-     * and a file using one cannot be parsed by an engine that stops at 2017 -
+     * and a file using one cannot be parsed by an engine that stops at 2019 -
      * whatever the file is about. These are named one by one rather than caught
      * by a rule because there is nothing in their frontmatter to catch: what
      * each declares is the in-scope thing it tests, and the later syntax is
@@ -188,7 +194,7 @@ public final class Test262Selector {
      * when Nashorn does.
      */
     /**
-     * Tests about a feature that postdates ES2017 and says so nowhere.
+     * Tests about a feature that postdates ES2019 and says so nowhere.
      *
      * The deny rule reads {@code features:}, and a test written before that
      * convention - or one whose author saw no feature worth naming - declares
@@ -196,14 +202,6 @@ public final class Test262Selector {
      * async-generator directories are.
      */
     private static final Set<String> LATER_FEATURES = Set.of(
-            // ES2019 Array.prototype.flat and flatMap
-            "built-ins/Array/prototype/flat/call-with-boolean.js",
-            "built-ins/Array/prototype/flat/not-a-constructor.js",
-            "built-ins/Array/prototype/flat/target-array-with-non-writable-property.js",
-            "built-ins/Array/prototype/flatMap/call-with-boolean.js",
-            "built-ins/Array/prototype/flatMap/target-array-with-non-writable-property.js",
-            // the unscopables list names those two and the ones after them
-            "built-ins/Array/prototype/Symbol.unscopables/value.js",
             // ES2020 BigInt, and the typed arrays and views that carry it
             "built-ins/DataView/prototype/getBigUint64/not-a-constructor.js",
             "built-ins/DataView/prototype/setBigUint64/not-a-constructor.js",
@@ -274,7 +272,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2018 conformance
+     * @return true if the test counts towards ES2019 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 
@@ -373,7 +371,7 @@ public final class Test262Selector {
     }
 
     /**
-     * The features a test needs that ES2017 does not have. Used to explain why a
+     * The features a test needs that ES2019 does not have. Used to explain why a
      * test was skipped.
      *
      * @param frontmatter a parsed header

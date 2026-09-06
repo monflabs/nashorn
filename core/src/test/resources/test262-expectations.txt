@@ -1,4 +1,4 @@
-# test262 ES2018 slice: known failures. Every line is work to do.
+# test262 ES2019 slice: known failures. Every line is work to do.
 # Regenerate with -Dnashorn.test262.write.expectations=true.
 # Reasons for the current run are written to target/test262-failures.txt.
 #
