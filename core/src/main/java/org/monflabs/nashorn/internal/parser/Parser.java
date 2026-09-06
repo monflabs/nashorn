@@ -6853,10 +6853,25 @@ public class Parser extends AbstractParser implements Loggable {
             case MUL: {
                 final IdentNode starName = createIdentNode(Token.recast(token, IDENT), finish, Module.STAR_NAME);
                 next();
-                final IdentNode moduleRequest = fromClause();
-                endOfLine();
-                module.addModuleRequest(moduleRequest);
-                module.addStarExportEntry(Module.ExportEntry.exportStarFrom(starName, moduleRequest, startPosition, finish));
+                if (isUnescaped("as")) {
+                    // ES2020 15.2.3 "export * as ns from "mod"": re-export the whole
+                    // namespace under a name. Recorded as an indirect export whose
+                    // import name is "*" (the namespace); ModuleRecord.resolveExport
+                    // answers such an entry with the dependency's namespace object.
+                    // The exported name is an IdentifierName, so "as default" is
+                    // legal even though "default" is not a binding identifier.
+                    next();
+                    final IdentNode nsName = getIdentifierName();
+                    final IdentNode moduleRequest = fromClause();
+                    endOfLine();
+                    module.addModuleRequest(moduleRequest);
+                    module.addIndirectExportEntry(Module.ExportEntry.exportSpecifier(nsName, starName, startPosition, finish).withFrom(moduleRequest, finish));
+                } else {
+                    final IdentNode moduleRequest = fromClause();
+                    endOfLine();
+                    module.addModuleRequest(moduleRequest);
+                    module.addStarExportEntry(Module.ExportEntry.exportStarFrom(starName, moduleRequest, startPosition, finish));
+                }
                 break;
             }
             case LBRACE: {

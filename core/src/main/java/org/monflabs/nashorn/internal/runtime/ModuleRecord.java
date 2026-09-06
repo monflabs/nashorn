@@ -214,8 +214,13 @@ public final class ModuleRecord {
         }
         for (final Module.ExportEntry entry : module.getIndirectExportEntries()) {
             if (exportName.equals(entry.getExportName().getName())) {
-                return dependency(entry.getModuleRequest().getName())
-                        .resolveExport(entry.getImportName().getName(), resolving);
+                final ModuleRecord dep = dependency(entry.getModuleRequest().getName());
+                if (Module.STAR_NAME.equals(entry.getImportName().getName())) {
+                    // ES2020 "export * as ns from "mod"": the name resolves to the
+                    // whole namespace object of the re-exported module.
+                    return new Binding(dep, NAMESPACE);
+                }
+                return dep.resolveExport(entry.getImportName().getName(), resolving);
             }
         }
         if (Module.DEFAULT_NAME.equals(exportName)) {
