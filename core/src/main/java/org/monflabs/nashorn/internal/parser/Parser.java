@@ -121,6 +121,7 @@ import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.LabelNode;
 import org.monflabs.nashorn.internal.ir.LexicalContext;
@@ -4295,6 +4296,8 @@ public class Parser extends AbstractParser implements Loggable {
             lhs = new CallNode(callLine, callToken, finish, lhs, arguments, false);
         }
 
+        boolean sawOptional = false;
+
         loop:
         while (true) {
             // Capture token.
@@ -4308,6 +4311,35 @@ public class Parser extends AbstractParser implements Loggable {
 
                 // Create call node.
                 lhs = new CallNode(callLine, callToken, finish, lhs, arguments, false);
+
+                break;
+            }
+            case OPTIONAL_CHAIN: {
+                // ES2020 12.3.9 optional chaining "?.": what follows decides the
+                // link - "(" an optional call, "[" an optional index, otherwise an
+                // optional property. The whole chain short-circuits to undefined
+                // when this link's base is nullish (see OptionalChainNode).
+                next();
+                sawOptional = true;
+                switch (type) {
+                case LPAREN: {
+                    final List<Expression> arguments = optimizeList(argumentList());
+                    lhs = new CallNode(callLine, Token.recast(callToken, LPAREN), finish, lhs, arguments, false).setIsOptional();
+                    break;
+                }
+                case LBRACKET: {
+                    next();
+                    final Expression rhs = expression();
+                    expect(RBRACKET);
+                    lhs = new IndexNode(Token.recast(callToken, LBRACKET), finish, lhs, rhs, true);
+                    break;
+                }
+                default: {
+                    final IdentNode property = getIdentifierName();
+                    lhs = new AccessNode(Token.recast(callToken, PERIOD), finish, lhs, property.getName(), true);
+                    break;
+                }
+                }
 
                 break;
             }
@@ -4336,6 +4368,11 @@ public class Parser extends AbstractParser implements Loggable {
             }
             case TEMPLATE:
             case TEMPLATE_HEAD: {
+                // ES2020 12.3.9: a tagged template may not appear in the tail of
+                // an optional chain - "a?.b`x`" is an early error.
+                if (sawOptional) {
+                    throw error(AbstractParser.message("optional.chain.template"), token);
+                }
                 // tagged template literal
                 final List<Expression> arguments = templateLiteralArgumentList();
 
@@ -4349,7 +4386,9 @@ public class Parser extends AbstractParser implements Loggable {
             }
         }
 
-        return lhs;
+        // ES2020 12.3.9: an expression that contains at least one "?." is an
+        // OptionalExpression, wrapped so codegen knows where the chain ends.
+        return sawOptional ? new OptionalChainNode(lhs) : lhs;
     }
 
     /**

@@ -49,6 +49,7 @@ import org.monflabs.nashorn.internal.ir.GetSplitState;
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpToInlinedFinally;
 import org.monflabs.nashorn.internal.ir.LabelNode;
@@ -159,6 +160,26 @@ public abstract class NodeVisitor<T extends LexicalContext> {
      */
     public Node leaveAccessNode(final AccessNode accessNode) {
         return leaveDefault(accessNode);
+    }
+
+    /**
+     * Callback for entering an OptionalChainNode
+     *
+     * @param  optionalChainNode the node
+     * @return true if traversal should continue and node children be traversed, false otherwise
+     */
+    public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
+        return enterDefault(optionalChainNode);
+    }
+
+    /**
+     * Callback for leaving an OptionalChainNode
+     *
+     * @param  optionalChainNode the node
+     * @return processed node, null if traversal should end
+     */
+    public Node leaveOptionalChainNode(final OptionalChainNode optionalChainNode) {
+        return leaveDefault(optionalChainNode);
     }
 
     /**

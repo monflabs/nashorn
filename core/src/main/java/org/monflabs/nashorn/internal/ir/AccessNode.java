@@ -56,6 +56,20 @@ public final class AccessNode extends BaseNode {
         this.property = property;
     }
 
+    /**
+     * Constructor
+     *
+     * @param token      token
+     * @param finish     finish
+     * @param base       base node
+     * @param property   property
+     * @param isOptional whether this is an ES2020 optional-chaining ({@code ?.}) access
+     */
+    public AccessNode(final long token, final int finish, final Expression base, final String property, final boolean isOptional) {
+        super(token, finish, base, false, false, isOptional);
+        this.property = property;
+    }
+
     private AccessNode(final AccessNode accessNode, final Expression base, final String property, final boolean isFunction,
                        final Type type, final int id, final boolean isSuper) {
         super(accessNode, base, isFunction, type, id, isSuper);

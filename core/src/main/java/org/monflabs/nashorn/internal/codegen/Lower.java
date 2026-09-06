@@ -226,7 +226,7 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
             // If index node is a constant property name convert index node to access node.
             assert indexNode.isIndex();
             final AccessNode access = new AccessNode(indexNode.getToken(), indexNode.getFinish(),
-                    indexNode.getBase(), name);
+                    indexNode.getBase(), name, indexNode.isOptional());
             // super["x"] is a super reference as much as super.x is, and losing
             // that here left the code generator loading "super" as a variable
             return indexNode.isSuper() ? access.setIsSuper() : access;

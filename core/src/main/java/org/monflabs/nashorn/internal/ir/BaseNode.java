@@ -59,6 +59,9 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
     /** Super property access. */
     private final boolean isSuper;
 
+    /** ES2020 optional-chaining link ({@code ?.}). */
+    private final boolean isOptional;
+
     /**
      * Constructor
      *
@@ -69,12 +72,27 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
      * @param isSuper is this a super property access
      */
     public BaseNode(final long token, final int finish, final Expression base, final boolean isFunction, final boolean isSuper) {
+        this(token, finish, base, isFunction, isSuper, false);
+    }
+
+    /**
+     * Constructor
+     *
+     * @param token  token
+     * @param finish finish
+     * @param base   base node
+     * @param isFunction is this a function
+     * @param isSuper is this a super property access
+     * @param isOptional is this an optional-chaining ({@code ?.}) link
+     */
+    public BaseNode(final long token, final int finish, final Expression base, final boolean isFunction, final boolean isSuper, final boolean isOptional) {
         super(token, base.getStart(), finish);
         this.base           = base;
         this.isFunction     = isFunction;
         this.type = null;
         this.programPoint   = INVALID_PROGRAM_POINT;
         this.isSuper        = isSuper;
+        this.isOptional     = isOptional;
     }
 
     /**
@@ -93,6 +111,7 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
         this.type = callSiteType;
         this.programPoint   = programPoint;
         this.isSuper        = isSuper;
+        this.isOptional     = baseNode.isOptional;
     }
 
     /**
@@ -106,6 +125,14 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
     @Override
     public boolean isFunction() {
         return isFunction;
+    }
+
+    /**
+     * Is this an ES2020 optional-chaining link, i.e. reached through {@code ?.}?
+     * @return true if this access short-circuits when its base is nullish
+     */
+    public boolean isOptional() {
+        return isOptional;
     }
 
     @Override

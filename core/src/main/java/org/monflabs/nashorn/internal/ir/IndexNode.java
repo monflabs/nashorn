@@ -55,6 +55,20 @@ public final class IndexNode extends BaseNode {
         this.index = index;
     }
 
+    /**
+     * Constructor
+     *
+     * @param token      token
+     * @param finish     finish
+     * @param base       base node for access
+     * @param index      index for access
+     * @param isOptional whether this is an ES2020 optional-chaining ({@code ?.[}) access
+     */
+    public IndexNode(final long token, final int finish, final Expression base, final Expression index, final boolean isOptional) {
+        super(token, finish, base, false, false, isOptional);
+        this.index = index;
+    }
+
     private IndexNode(final IndexNode indexNode, final Expression base, final Expression index, final boolean isFunction,
                       final Type type, final int programPoint, final boolean isSuper) {
         super(indexNode, base, isFunction, type, programPoint, isSuper);

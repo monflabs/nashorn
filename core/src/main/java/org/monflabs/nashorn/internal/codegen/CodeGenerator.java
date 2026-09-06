@@ -103,6 +103,7 @@ import org.monflabs.nashorn.internal.ir.GetSplitState;
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpStatement;
 import org.monflabs.nashorn.internal.ir.JumpToInlinedFinally;
@@ -244,6 +245,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     /** Line number for last statement. If we encounter a new line number, line number bytecode information
      *  needs to be generated */
     private int lastLineNumber = -1;
+
+    /**
+     * The short-circuit target of the optional chain ({@code ?.}) currently being
+     * emitted, or null outside one. An optional link whose base is nullish pushes
+     * {@code undefined} and jumps here; {@link #loadOptionalChain} saves and
+     * restores it so nested chains nest correctly.
+     */
+    private Label currentOptionalChainEnd;
 
     /** When should we stop caching regexp expressions in fields to limit bytecode size? */
     private static final int MAX_REGEX_FIELDS = 2 * 1024;
@@ -1005,6 +1014,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             @Override
+            public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
+                loadOptionalChain(optionalChainNode, resultBounds);
+                return false;
+            }
+
+            @Override
             public boolean enterAccessNode(final AccessNode accessNode) {
                 if (accessNode.isSuper()) {
                     loadSuperGet(accessNode);
@@ -1015,6 +1030,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     void loadStack() {
                         if (!baseAlreadyOnStack) {
                             loadExpressionAsObject(accessNode.getBase());
+                        }
+                        if (accessNode.isOptional()) {
+                            emitOptionalGuard();
                         }
                         assert method.peekType().isObject();
                     }
@@ -1038,6 +1056,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     void loadStack() {
                         if (!baseAlreadyOnStack) {
                             loadExpressionAsObject(indexNode.getBase());
+                            if (indexNode.isOptional()) {
+                                emitOptionalGuard();
+                            }
                             loadExpressionUnbounded(indexNode.getIndex());
                         }
                     }
@@ -1653,6 +1674,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         loadExpressionAsObject(ident); // foo() makes no sense if foo == 3
                         // ScriptFunction will see CALLSITE_SCOPE and will bind scope accordingly.
                         method.loadUndefined(Type.OBJECT); //the 'this'
+                        if (callNode.isOptional()) {
+                            emitOptionalCalleeGuard();
+                        }
                         argsCount = loadArgs(args);
                     }
                     @Override
@@ -1752,7 +1776,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     // We only use shared scope calls for fast scopes
                     if (callNode.isEval()) {
                         evalCall(node, flags);
-                    } else if (!isFastScope(symbol) || symbol.getUseCount() < SharedScopeCall.SHARED_CALL_THRESHOLD) {
+                    } else if (callNode.isOptional() || !isFastScope(symbol) || symbol.getUseCount() < SharedScopeCall.SHARED_CALL_THRESHOLD) {
                         scopeCall(node, flags);
                     } else {
                         sharedScopeCall(node, flags);
@@ -1785,6 +1809,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         assert !node.isOptimistic();
                         method.dynamicGet(node.getType(), node.getProperty(), flags, true, node.isIndex());
                         method.swap();
+                        if (callNode.isOptional()) {
+                            emitOptionalCalleeGuard();
+                        }
                         argCount = loadArgs(args);
                     }
                     @Override
@@ -1839,6 +1866,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         assert !node.isOptimistic();
                         method.dynamicGetIndex(node.getType(), getCallSiteFlags(), true);
                         method.swap();
+                        if (callNode.isOptional()) {
+                            emitOptionalCalleeGuard();
+                        }
                         argsCount = loadArgs(args);
                     }
                     @Override
@@ -1858,6 +1888,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         // Load up function.
                         loadExpressionAsObject(function); //TODO, e.g. booleans can be used as functions
                         method.loadUndefined(Type.OBJECT); // ScriptFunction will figure out the correct this when it sees CALLSITE_SCOPE
+                        if (callNode.isOptional()) {
+                            emitOptionalCalleeGuard();
+                        }
                         argsCount = loadArgs(args);
                         }
                         @Override
@@ -4775,6 +4808,73 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         loadMaybeDiscard(isCurrentDiscard, rhs, outBounds);
         method.beforeJoinPoint(rhs);
         method.label(skip);
+    }
+
+    /**
+     * ES2020 12.3.9 optional chain "a?.b?.c()...": the chain's value, or undefined
+     * if one of its optional ({@code ?.}) links sees a nullish base. The whole
+     * chain is emitted as an object so a short-circuited link's undefined and the
+     * completed chain's value meet at the end label with the same type;
+     * loadExpression's trailing coerce (applied here) narrows to the context.
+     * Each optional link emits {@link #emitOptionalGuard} against this end label.
+     */
+    private void loadOptionalChain(final OptionalChainNode chainNode, final TypeBounds resultBounds) {
+        final boolean isCurrentDiscard = lc.popDiscardIfCurrent(chainNode);
+        final Label endLabel = new Label("optional_chain_end");
+        final Label savedEnd = currentOptionalChainEnd;
+        currentOptionalChainEnd = endLabel;
+        try {
+            loadExpression(chainNode.getExpression(), TypeBounds.OBJECT);
+        } finally {
+            currentOptionalChainEnd = savedEnd;
+        }
+        method.label(endLabel);
+        if (isCurrentDiscard) {
+            method.pop();
+        } else {
+            coerceStackTop(resultBounds);
+        }
+    }
+
+    /**
+     * Emit the nullish guard of one optional-chain link. The link's base is on the
+     * stack as an object: if it is null or undefined the whole chain short-circuits
+     * - the base is replaced by undefined and control jumps to the chain's end -
+     * otherwise the base stays and the access/call proceeds.
+     */
+    private void emitOptionalGuard() {
+        method.dup();
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "IS_NULLISH",
+                new FunctionSignature(false, false, Type.BOOLEAN, 1).toString());
+        final Label notNullish = new Label("optional_not_nullish");
+        method.ifeq(notNullish);
+        method.pop();
+        method.loadUndefined(Type.OBJECT);
+        method.convert(Type.OBJECT);
+        method._goto(currentOptionalChainEnd);
+        method.label(notNullish);
+    }
+
+    /**
+     * Emit the nullish guard of an optional call "callee?.(args)". The stack holds
+     * the callee's function value and, above it, the {@code this} value, both
+     * objects; if the function is null or undefined the whole chain short-circuits
+     * to undefined, otherwise both stay so the call proceeds.
+     */
+    private void emitOptionalCalleeGuard() {
+        method.swap();
+        method.dup();
+        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "IS_NULLISH",
+                new FunctionSignature(false, false, Type.BOOLEAN, 1).toString());
+        final Label notNullish = new Label("optional_call_ok");
+        method.ifeq(notNullish);
+        method.pop();
+        method.pop();
+        method.loadUndefined(Type.OBJECT);
+        method.convert(Type.OBJECT);
+        method._goto(currentOptionalChainEnd);
+        method.label(notNullish);
+        method.swap();
     }
 
     private static boolean isLocalVariable(final Expression lhs) {

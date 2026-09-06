@@ -63,6 +63,7 @@ import org.monflabs.nashorn.internal.ir.GetSplitState;
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IfNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.JoinPredecessor;
 import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.JumpStatement;
@@ -504,6 +505,12 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterBreakNode(final BreakNode breakNode) {
         return enterJumpStatement(breakNode);
+    }
+
+    @Override
+    public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
+        visitExpression(optionalChainNode.getExpression());
+        return pushExpressionType(optionalChainNode);
     }
 
     @Override

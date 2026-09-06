@@ -59,6 +59,9 @@ public final class CallNode extends LexicalContextExpression implements Optimist
     /** Can this be a Function.call? */
     private static final int IS_APPLY_TO_CALL = 1 << 1;
 
+    /** Is this an ES2020 optional call ({@code ?.(})? */
+    private static final int IS_OPTIONAL = 1 << 2;
+
     private final int flags;
 
     private final int lineNumber;
@@ -299,6 +302,22 @@ public final class CallNode extends LexicalContextExpression implements Optimist
      */
     public CallNode setIsApplyToCall() {
         return setFlags(flags | IS_APPLY_TO_CALL);
+    }
+
+    /**
+     * Is this an ES2020 optional call, i.e. reached through {@code ?.(}?
+     * @return true if this call short-circuits when its callee is nullish
+     */
+    public boolean isOptional() {
+        return (flags & IS_OPTIONAL) != 0;
+    }
+
+    /**
+     * Flag this call node as an ES2020 optional call ({@code ?.(}).
+     * @return new call node with the optional flag set
+     */
+    public CallNode setIsOptional() {
+        return setFlags(flags | IS_OPTIONAL);
     }
 
     /**

@@ -1930,6 +1930,12 @@ public class Lexer extends Scanner {
                 // '.' followed by digit.
                 // Scan and add a number.
                 scanNumber();
+            } else if (ch0 == '?' && ch1 == '.' && convertDigit(ch2, 10) != -1) {
+                // ES2020 12.3: "?." immediately followed by a digit is the
+                // conditional operator then a number (e.g. "a ? .5 : b"), never
+                // the optional-chaining punctuator. Emit a plain "?".
+                skip(1);
+                add(TokenType.TERNARY, position - 1);
             } else if ((type = TokenLookup.lookupOperator(ch0, ch1, ch2, ch3)) != null) {
                 if (templateExpressionOpenBraces > 0) {
                     if (type == LBRACE) {
