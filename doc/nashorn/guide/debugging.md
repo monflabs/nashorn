@@ -101,7 +101,7 @@ is loaded are pending and resolve when the engine compiles it — exactly as wit
 
 ## The Swing debugger
 
-The reactor also ships a debugger *client*: `org.monflabs.nashorn.debugger.ui.DebuggerPanel`, an
+The reactor also ships a debugger *client*: `org.monflabs.js.debugger.ui.DebuggerPanel`, an
 embeddable Swing component (the unpublished `nashorn-debugger-ui` module) laid out like Chrome
 DevTools' Sources panel. It speaks the Chrome DevTools Protocol over a WebSocket, so it attaches to
 any engine running with `--inspect` — the [playground](playground.md)'s **Debug here** button is

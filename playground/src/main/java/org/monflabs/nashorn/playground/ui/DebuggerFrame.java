@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 import java.util.prefs.Preferences;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
-import org.monflabs.nashorn.debugger.ui.DebuggerPanel;
+import org.monflabs.js.debugger.ui.DebuggerPanel;
 
 /**
  * A window around the embeddable {@link DebuggerPanel}, the playground's own
