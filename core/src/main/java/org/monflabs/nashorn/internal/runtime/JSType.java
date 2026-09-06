@@ -809,19 +809,16 @@ public enum JSType {
      * @return a number
      */
     public static double toNumber(final Object obj) {
-        // Kept small (two checks and a tail call) so it stays inline-friendly on
-        // the hot numeric path; everything else, BigInt included, is cold.
         if (obj instanceof Double) {
             return (Double)obj;
         }
         if (obj instanceof Integer) {
             return (Integer)obj;
         }
-        return toNumberOther(obj);
-    }
-
-    private static double toNumberOther(final Object obj) {
         if (obj instanceof Number) {
+            // The BigInt guard sits inside the Number branch, so an object or a
+            // string - the paths ToPrimitive drives - pays exactly what it did
+            // before ES2020, and only a real Number pays one extra type check.
             if (obj instanceof BigInteger) {
                 // ES2020: there is no implicit BigInt -> Number conversion
                 throw typeError("bigint.to.number");
