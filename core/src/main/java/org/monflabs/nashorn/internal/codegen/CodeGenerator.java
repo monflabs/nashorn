@@ -1907,6 +1907,20 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
 
             @Override
+            public boolean enterOptionalChainNode(final OptionalChainNode node) {
+                // ES2020 (a?.b)(): a parenthesised optional chain keeps the member
+                // reference, so the call's `this` is the chain's base. Delegate to
+                // the wrapped member access, which binds `this` to that base - the
+                // same path a.b() takes.
+                final Expression inner = node.getExpression();
+                if (inner instanceof AccessNode || inner instanceof IndexNode) {
+                    inner.accept(this);
+                    return false;
+                }
+                return enterDefault(node);
+            }
+
+            @Override
             protected boolean enterDefault(final Node node) {
                 new OptimisticOperation(callNode, resultBounds) {
                     int argsCount;

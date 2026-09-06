@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 import jdk.dynalink.linker.support.TypeUtilities;
 import org.monflabs.nashorn.internal.runtime.ConsString;
+import java.math.BigInteger;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 
@@ -171,6 +172,10 @@ final class JavaArgumentConverters {
         for (Object obj = obj0; ;) {
             if (obj == null) {
                 return null;
+            } else if (obj instanceof BigInteger) {
+                // ES2020: a BigInt does not implicitly convert to a Number, even
+                // through a Java-argument / call-return coercion
+                throw typeError("bigint.to.number");
             } else if (obj instanceof Number) {
                 return (Number) obj;
             } else if (obj instanceof String) {
@@ -210,6 +215,9 @@ final class JavaArgumentConverters {
                     return 0L;
                 }
                 return f.longValue();
+            } else if (obj instanceof BigInteger) {
+                // ES2020: no implicit BigInt -> Number conversion
+                throw typeError("bigint.to.number");
             } else if (obj instanceof Number) {
                 return ((Number)obj).longValue();
             } else if (isString(obj)) {

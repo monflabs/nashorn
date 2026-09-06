@@ -51,7 +51,9 @@ import org.monflabs.nashorn.internal.runtime.ConsString;
 import org.monflabs.nashorn.internal.runtime.JSONFunctions;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
+import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
+import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.arrays.ArrayLikeIterator;
 import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
 import org.monflabs.nashorn.internal.runtime.linker.InvokeByName;
@@ -229,6 +231,25 @@ public final class NativeJSON extends ScriptObject {
         Object         replacerFunction = null;
     }
 
+    /**
+     * ES2015 7.3.2 GetV on a primitive: reads a property through the primitive's
+     * prototype with the primitive itself as the receiver, so an accessor's
+     * getter (and, later, the method it yields) sees the primitive as {@code this}
+     * rather than a boxed wrapper - which a strict getter can tell apart.
+     */
+    private static Object getFromPrimitive(final Object primitive, final String key) {
+        final ScriptObject wrapper = (ScriptObject)Global.instance().wrapAsObject(primitive);
+        final org.monflabs.nashorn.internal.runtime.FindProperty find = wrapper.findProperty(key, true);
+        if (find == null) {
+            return UNDEFINED;
+        }
+        if (find.getProperty() instanceof org.monflabs.nashorn.internal.runtime.UserAccessorProperty) {
+            final ScriptFunction getter = find.getProperty().getGetterFunction(find.getOwner());
+            return getter == null ? UNDEFINED : ScriptRuntime.apply(getter, primitive);
+        }
+        return find.getObjectValue();
+    }
+
     // Spec: The abstract operation Str(key, holder).
     private static Object str(final Object key, final Object holder, final StringifyState state) {
         assert holder instanceof ScriptObject || holder instanceof JSObject;
@@ -242,12 +263,12 @@ public final class NativeJSON extends ScriptObject {
             if (value instanceof java.math.BigInteger) {
                 // ES2020 SerializeJSONProperty: Type(value) is Object *or BigInt*
                 // gets its toJSON consulted (found on BigInt.prototype through the
-                // primitive), before the "cannot serialize a BigInt" TypeError
-                final ScriptObject svalue = (ScriptObject)Global.instance().wrapAsObject(value);
-                final InvokeByName toJSONInvoker = getTO_JSON();
-                final Object toJSON = toJSONInvoker.getGetter().invokeExact(svalue);
-                if (Bootstrap.isCallable(toJSON)) {
-                    value = toJSONInvoker.getInvoker().invokeExact(toJSON, svalue, name);
+                // primitive), before the "cannot serialize a BigInt" TypeError.
+                // GetV/Call pass the BigInt primitive itself as the receiver - so a
+                // strict getter or method sees a "bigint" this, not the wrapper.
+                final Object toJSON = getFromPrimitive(value, "toJSON");
+                if (toJSON instanceof ScriptFunction fn) {
+                    value = ScriptRuntime.apply(fn, value, name);
                 }
             } else if (value instanceof ScriptObject) {
                 final InvokeByName toJSONInvoker = getTO_JSON();

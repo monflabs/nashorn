@@ -4,38 +4,32 @@ ECMAScript 2021 conformance
 This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
 (ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 63,808 executions **25
+selected at runtime by `Test262Selector`, and of its 63,808 executions **9
 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards.
 
-Of those 25, **8** are the carried-over Annex B shape: an indirect `eval` whose
+Of those 9, **8** are the carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **17** are a
-handful of settled ES2020 corners:
+rooted in how the engine merges eval scopes (see below). The **1** remaining is a
+module-instantiation limitation:
 
-- **A wrapped BigInt object as a bitwise operand, read from a call**
-  (`bitwise-and`/`-or`/`-xor`, `left-shift`, `right-shift`, `unsigned-right-shift`,
-  12 executions). `Object(1n) & 1` should be a `TypeError`; when the wrapped
-  BigInt is the result of a *call* feeding a bitwise operator, the fused
-  optimistic call-return-to-int narrowing coerces it silently instead. Every
-  other operand form — a variable, an index, a parenthesised value, the bare
-  primitive `1n & 1` — throws correctly; only the call-result path slips through.
-- **`(a?.b)()` `this`** (`optional-call-preserves-this`, 2 executions). A
-  *parenthesised* optional chain that is then called loses the base as the call's
-  `this`; the unparenthesised `a?.b()` and `a.b?.()` bind `this` correctly.
-- **`JSON.stringify` `toJSON` receiver** (`value-bigint-tojson-receiver`, 2
-  executions). A BigInt's `toJSON` is called with the boxed wrapper as `this`
-  rather than the primitive; `toJSON` is honoured and the value serialised
-  either way.
-- **A circular module and dynamic import** (`verify-dfs`, 1 execution). A
-  fixture that imports a hoisted function export back from the still-evaluating
-  entry module does not see the binding under the DFS evaluation order this test
-  pins.
+- **A circular module read before its body runs** (`verify-dfs`, 1 execution). A
+  fixture imports a hoisted function export back from the entry module that is
+  still evaluating, and the specification makes that binding available because
+  function declarations are initialised during module *instantiation*, before any
+  module body runs. This engine creates a module's environment only when its body
+  runs (its own `ModuleRecord.local` documents the case), so a cyclic dependent
+  reaches the export before it exists. Closing it means a two-phase module model -
+  a create-once environment and function-declaration hoisting split out of body
+  evaluation - a redesign of the module scope lifecycle held back as disproportionate
+  to this one case, on a par with the Annex B eval-scope divergence.
 
-Each is a narrow, documented divergence rather than a missing feature: the whole
-of BigInt, `Atomics` over `BigInt64Array`, optional chaining and the rest are in
-scope and pass.
+The ES2020 corners earlier documented here are **fixed**: `Object(1n) & 1` and its
+kin now throw the `TypeError` a BigInt-to-number coercion must (the call-return
+Java-argument converter no longer takes a BigInt for a Number); `(a?.b)()` binds
+`this` to the chain's base; and `JSON.stringify` calls a BigInt's `toJSON` with the
+primitive as its receiver.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their
 tests are held out of the slice — not counted as failures — with the reason
@@ -53,7 +47,7 @@ mvn -Ptest262 -DskipTests verify
 ```
 
     test262: 63808 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 25   expected to fail: 25
+    failing: 9   expected to fail: 9
 
 What is not measured, and why
 -----------------------------
