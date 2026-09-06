@@ -764,6 +764,50 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
+     * ES2020 21.1.3.12 String.prototype.matchAll (regexp)
+     * @param self   self reference
+     * @param regexp regexp expression
+     * @return an iterator over the matches
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object matchAll(final Object self, final Object regexp) {
+        // step 1: RequireObjectCoercible(this), and the value passed on as the
+        // string to match (each @@matchAll does its own ToString).
+        Global.checkObjectCoercible(self);
+
+        // step 2: a non-nullish argument may carry its own @@matchAll
+        if (regexp != UNDEFINED && regexp != null) {
+            if (isRegExp(regexp)) {
+                final Object flags = ((ScriptObject)regexp).get("flags");
+                if (flags == UNDEFINED || flags == null || JSType.toString(flags).indexOf('g') < 0) {
+                    throw typeError("regex.matchall.not.global");
+                }
+            }
+            if (regexp instanceof ScriptObject sobj) {
+                final Object matcher = sobj.get(NativeSymbol.matchAll);
+                if (matcher != UNDEFINED && matcher != null) {
+                    if (!Bootstrap.isCallable(matcher)) {
+                        throw typeError("not.a.function", ScriptRuntime.safeToString(matcher));
+                    }
+                    return ScriptRuntime.apply((ScriptFunction)matcher, regexp, self);
+                }
+            }
+        }
+
+        // steps 3-5: RegExpCreate(regexp, "g") then Invoke its @@matchAll. An
+        // undefined argument makes an empty pattern; anything else is ToString'd
+        // (so null becomes the pattern "null").
+        final String str = checkObjectToString(self);
+        final String pattern = (regexp == UNDEFINED) ? "" : JSType.toString(regexp);
+        final NativeRegExp rx = new NativeRegExp(pattern, "g");
+        final Object matcher = rx.get(NativeSymbol.matchAll);
+        if (!Bootstrap.isCallable(matcher)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(matcher));
+        }
+        return ScriptRuntime.apply((ScriptFunction)matcher, rx, str);
+    }
+
+    /**
      * ECMA 15.5.4.10 String.prototype.match (regexp)
      * @param self   self reference
      * @param regexp regexp expression

@@ -66,7 +66,7 @@ public final class WellKnownSymbols {
             case "Symbol.toPrimitive" -> toPrimitive = true;
             case "Symbol.isConcatSpreadable" -> isConcatSpreadable = true;
             case "Symbol.toStringTag" -> toStringTag = true;
-            case "Symbol.match", "Symbol.replace", "Symbol.search", "Symbol.split" -> stringMethods = true;
+            case "Symbol.match", "Symbol.matchAll", "Symbol.replace", "Symbol.search", "Symbol.split" -> stringMethods = true;
             default -> { }
         }
     }

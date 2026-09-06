@@ -95,6 +95,10 @@ public final class NativeSymbol extends ScriptObject {
     @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "match")
     public static final Symbol match = new Symbol("Symbol.match");
 
+    /** ECMAScript 2020 Symbol.matchAll. */
+    @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "matchAll")
+    public static final Symbol matchAll = new Symbol("Symbol.matchAll");
+
     /** ECMAScript 2015 Symbol.replace. */
     @Property(where = Where.CONSTRUCTOR, attributes = Attribute.NON_ENUMERABLE_CONSTANT, name = "replace")
     public static final Symbol replace = new Symbol("Symbol.replace");

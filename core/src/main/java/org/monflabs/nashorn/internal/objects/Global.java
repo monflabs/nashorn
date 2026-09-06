@@ -1201,6 +1201,7 @@ public final class Global extends Scope {
     private ScriptObject   builtinSetIteratorPrototype;
     private ScriptObject   builtinArrayIteratorPrototype;
     private ScriptObject   builtinStringIteratorPrototype;
+    private ScriptObject   builtinRegExpStringIteratorPrototype;
 
     private ScriptFunction builtInJavaExtend;
     private ScriptFunction builtInJavaTo;
@@ -2495,6 +2496,13 @@ public final class Global extends Scope {
             builtinStringIteratorPrototype = initPrototype("StringIterator", getIteratorPrototype());
         }
         return builtinStringIteratorPrototype;
+    }
+
+    ScriptObject getRegExpStringIteratorPrototype() {
+        if (builtinRegExpStringIteratorPrototype == null) {
+            builtinRegExpStringIteratorPrototype = initPrototype("RegExpStringIterator", getIteratorPrototype());
+        }
+        return builtinRegExpStringIteratorPrototype;
     }
 
     private synchronized ScriptFunction getBuiltinSharedArrayBuffer() {

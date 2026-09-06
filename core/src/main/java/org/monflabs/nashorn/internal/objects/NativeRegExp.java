@@ -474,6 +474,29 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
+     * ES2020 21.2.5.6 RegExp.prototype [ @@matchAll ] ( string ).
+     *
+     * Returns an iterator over every match, driven by a species copy of this
+     * regexp so the walk does not disturb the receiver's lastIndex. String.
+     * prototype.matchAll delegates here.
+     *
+     * @param self   the regular expression, or anything shaped like one
+     * @param string what to match against
+     * @return a %RegExpStringIteratorPrototype% over the matches
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@matchAll", arity = 1)
+    public static Object matchAll(final Object self, final Object string) {
+        final ScriptObject rx = matcherObject(self);
+        final String str = JSType.toString(string);
+        final String flags = JSType.toString(rx.get("flags"));
+        final ScriptObject matcher = construct(speciesConstructor(rx), rx, flags);
+        matcher.set("lastIndex", (double)lastIndex(rx), CALLSITE_STRICT);
+        final boolean global = flags.indexOf('g') >= 0;
+        final boolean unicode = flags.indexOf('u') >= 0;
+        return new RegExpStringIterator(matcher, str, global, unicode, Global.instance());
+    }
+
+    /**
      * ES2015 21.2.5.9 RegExp.prototype [ @@search ] ( string ).
      *
      * @param self   the regular expression
@@ -667,7 +690,7 @@ public final class NativeRegExp extends ScriptObject {
      * ES2015 21.2.5.2.1 RegExpExec: the object's own exec if it has a callable
      * one, and the built-in otherwise.
      */
-    private static ScriptObject regExpExec(final ScriptObject rx, final String str) {
+    static ScriptObject regExpExec(final ScriptObject rx, final String str) {
         final Object exec = rx.get("exec");
         if (Bootstrap.isCallable(exec) && exec instanceof ScriptFunction function) {
             final Object result = ScriptRuntime.apply(function, rx, str);
@@ -686,7 +709,7 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /** ES2015 21.2.5.2.3 AdvanceStringIndex, which steps over a whole code point in unicode mode. */
-    private static long advanceStringIndex(final String str, final long index, final boolean unicode) {
+    static long advanceStringIndex(final String str, final long index, final boolean unicode) {
         if (!unicode || index + 1 >= str.length()) {
             return index + 1;
         }
@@ -698,7 +721,7 @@ public final class NativeRegExp extends ScriptObject {
         return second < 0xDC00 || second > 0xDFFF ? index + 1 : index + 2;
     }
 
-    private static long lastIndex(final ScriptObject rx) {
+    static long lastIndex(final ScriptObject rx) {
         // 21.2.5.8 reads it with ToLength, which clamps at 2^53-1 where an
         // unsigned wrap would answer with something else entirely
         return toLength(rx.get("lastIndex"));
