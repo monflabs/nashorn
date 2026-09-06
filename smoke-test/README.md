@@ -18,7 +18,7 @@ release, they come from Maven Central):
 
 ```bash
 cd ..
-mvn -DskipTests install          # puts nashorn-* 2020.0.0 in ~/.m2
+mvn -DskipTests install          # puts nashorn-* 2021.0.0 in ~/.m2
 ```
 
 Then, from this folder:
@@ -31,7 +31,7 @@ Green means the published jars load and run as a downstream consumer sees them.
 
 ## Notes
 
-- It reads `nashorn.version` (default `2020.0.0`) from its own `pom.xml`; bump it
+- It reads `nashorn.version` (default `2021.0.0`) from its own `pom.xml`; bump it
   to test a different release.
 - It uses the **class path** (the common consumption path). A modular consumer
   would put the jars on the module path instead; the APIs used here work either way.

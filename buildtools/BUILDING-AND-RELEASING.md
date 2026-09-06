@@ -43,7 +43,7 @@ library POMs declare it as their `<parent>` — leave it in the published set.
 The version uses **semantic versioning with a twist: the major number is the
 ECMAScript specification year the engine implements** (so `2018.0.0` targets
 ECMAScript 2018). Bump the **major** only when adopting a later edition (e.g.
-`2020.0.0`); bump **minor**/**patch** for backward-compatible features and fixes
+`2021.0.0`); bump **minor**/**patch** for backward-compatible features and fixes
 within the same edition. Never publish a `-SNAPSHOT`.
 
 The version lives in three kinds of place. Change all three:
@@ -51,7 +51,7 @@ The version lives in three kinds of place. Change all three:
 1. **The poms** (parent + every module's parent reference) — done for you:
 
    ```bash
-   mvn versions:set -DnewVersion=2020.0.0 -DgenerateBackupPoms=false
+   mvn versions:set -DnewVersion=2021.0.0 -DgenerateBackupPoms=false
    ```
 
 2. **Hardcoded strings in the docs and README** — `versions:set` does *not* touch
@@ -62,7 +62,7 @@ The version lives in three kinds of place. Change all three:
    ```bash
    grep -rl '2018\.0\.0' --include='*.md' --include='*.html' . \
      | grep -v CHANGELOG.md \
-     | xargs sed -i '' 's/2018\.0\.0/2020.0.0/g'
+     | xargs sed -i '' 's/2018\.0\.0/2021.0.0/g'
    ```
 
    Then re-grep to be sure nothing stale remains (and that no unrelated `2017`
@@ -76,7 +76,7 @@ The version lives in three kinds of place. Change all three:
    existing format:
 
    ```
-   2020.0.0 (2026.11.01)
+   2021.0.0 (2026.11.01)
    ---------------------
    ...what changed...
    ```

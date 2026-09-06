@@ -69,6 +69,24 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2021.0.0 (2026.09.06)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2021 (ECMA-262, 12th edition).** Everything the 2020 release implemented is unchanged; the ES2021 additions are layered on top, and the `tc39/test262` slice is retargeted to the 12th edition.
+
+`   ` `           ` **`String.prototype.replaceAll`.** Replaces every non-overlapping occurrence (where a string-search `replace` replaced only the first), with the `$&`/`` $` ``/`$'`/`$$` substitution patterns and function replacers; a RegExp search must be global or it is a `TypeError`.
+
+`   ` `           ` **`Promise.any` and `AggregateError`.** `Promise.any` fulfils with the first input to fulfil and rejects only if all reject, with an `AggregateError` gathering the reasons. (Both were built during the Promise work; this edition brings them into the conformance slice, and hardens `AggregateError`'s error iteration to the specified `IterableToList`.)
+
+`   ` `           ` **Logical assignment `&&=` `||=` `??=`.** Short-circuiting assignment: the right-hand side, and any setter, runs only when the operator does not short-circuit; a member/index target's base is evaluated once. Desugared to `a <op> (a = b)` so it reuses the existing short-circuit and assignment codegen.
+
+`   ` `           ` **Numeric separators.** A single `_` may sit between two digits of any numeric literal - decimal, hex, octal, binary, fraction, exponent, and BigInt - as a readability aid; a misplaced separator is an early `SyntaxError`.
+
+`   ` `           ` **`WeakRef` and `FinalizationRegistry`.** Native over `java.lang.ref`: `WeakRef` holds an object weakly (`deref()`), and `FinalizationRegistry` (`register`/`unregister`) runs a cleanup callback - posted onto the realm's event loop by a shared reaper - after a registered target is collected. Timing is collector-driven and best-effort.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2020 to ES2021. Of the 63,808 selected executions, **25** fail - unchanged from 2020.0.0 (the 8 Annex B indirect-eval cases and the 17 documented ES2020 corners); no ES2021 feature introduced a new one. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 12th edition, and the playground gains an `ES2021` sample category - one runnable sample per feature - run headlessly by the build.
+
 2020.0.0 (2026.09.06)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2020 (ECMA-262, 11th edition).** Everything the 2019 release implemented is unchanged; the ES2020 additions are layered on top, and the `tc39/test262` slice is retargeted to the 11th edition.
