@@ -494,6 +494,79 @@ public class NativeDataView extends ScriptObject {
         return UNDEFINED;
     }
 
+    /**
+     * ES2020 24.3.4 DataView.prototype.getBigInt64.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the signed 64-bit BigInt at that offset
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object getBigInt64(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        return java.math.BigInteger.valueOf(viewed(view, index, 8).order(order(little)).getLong(index));
+    }
+
+    /**
+     * ES2020 24.3.4 DataView.prototype.getBigUint64.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the unsigned 64-bit BigInt at that offset
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object getBigUint64(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final long v = viewed(view, index, 8).order(order(little)).getLong(index);
+        final java.math.BigInteger signed = java.math.BigInteger.valueOf(v);
+        return v >= 0 ? signed : signed.add(java.math.BigInteger.ONE.shiftLeft(64));
+    }
+
+    /**
+     * ES2020 24.3.4 DataView.prototype.setBigInt64.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to write at
+     * @param value the BigInt value to write
+     * @param littleEndian whether to write in little endian order
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object setBigInt64(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        // ToBigInt then the low 64 bits (BigInteger.longValue wraps mod 2**64)
+        final long number = NativeBigInt.toBigInt(value).longValue();
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 8).order(order(little)).putLong(index, number);
+        return UNDEFINED;
+    }
+
+    /**
+     * ES2020 24.3.4 DataView.prototype.setBigUint64.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to write at
+     * @param value the BigInt value to write
+     * @param littleEndian whether to write in little endian order
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object setBigUint64(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final long number = NativeBigInt.toBigInt(value).longValue();
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 8).order(order(little)).putLong(index, number);
+        return UNDEFINED;
+    }
+
 
     @Override
     public String getClassName() {
