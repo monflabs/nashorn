@@ -1756,6 +1756,31 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * ECMAScript 2022 23.1.3.1 Array.prototype.at ( index )
+     *
+     * Relative indexing: a negative index counts from the end, and an index out
+     * of range on either side reads as undefined rather than throwing.
+     *
+     * @param self  the array
+     * @param index where to read, negative counting from the end
+     * @return the element there, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object at(final Object self, final Object index) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            return ScriptRuntime.UNDEFINED;
+        }
+        final long length = toLength(sobj.getLength());
+        final long relative = JSType.toLong(index);
+        final long k = relative >= 0 ? relative : length + relative;
+        if (k < 0 || k >= length) {
+            return ScriptRuntime.UNDEFINED;
+        }
+        return sobj.get(k);
+    }
+
+    /**
      * ECMA 15.4.4.15 Array.prototype.lastIndexOf ( searchElement [ , fromIndex ] )
      *
      * @param self self reference

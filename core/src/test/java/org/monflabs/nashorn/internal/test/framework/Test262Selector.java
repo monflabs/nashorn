@@ -106,6 +106,8 @@ public final class Test262Selector {
         "String.prototype.replaceAll", "numeric-separator-literal",
         "logical-assignment-operators",
         "Promise.any", "AggregateError", "WeakRef", "FinalizationRegistry",
+        // ES2022
+        "Array.prototype.at", "String.prototype.at", "TypedArray.prototype.at",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory

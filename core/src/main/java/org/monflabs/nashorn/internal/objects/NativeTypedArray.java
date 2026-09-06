@@ -504,6 +504,18 @@ public final class NativeTypedArray extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2022 23.2.3.1 %TypedArray%.prototype.at ( index )
+     *
+     * @param self  the typed array
+     * @param index where to read, negative counting from the end
+     * @return the element there, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object at(final Object self, final Object index) {
+        return NativeArray.at(view(self), index);
+    }
+
+    /**
      * ES2015 22.2.3.16 %TypedArray%.prototype.lastIndexOf.
      *
      * @param self self reference

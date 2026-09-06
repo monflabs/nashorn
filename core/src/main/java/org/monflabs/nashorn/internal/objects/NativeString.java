@@ -1981,6 +1981,28 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
+     * ECMAScript 2022 22.1.3.1 String.prototype.at ( index )
+     *
+     * Relative indexing over the string's code units: a negative index counts
+     * from the end, and an index out of range on either side reads as undefined.
+     *
+     * @param self  self reference
+     * @param index where to read, negative counting from the end
+     * @return the one-code-unit string there, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object at(final Object self, final Object index) {
+        final String str = checkObjectToString(self);
+        final long length = str.length();
+        final long relative = JSType.toLong(index);
+        final long k = relative >= 0 ? relative : length + relative;
+        if (k < 0 || k >= length) {
+            return UNDEFINED;
+        }
+        return String.valueOf(str.charAt((int)k));
+    }
+
+    /**
      * ECMAScript 2015 21.1.3.18 String.prototype.startsWith(searchString, position)
      *
      * @param self     self reference
