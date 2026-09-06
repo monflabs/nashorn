@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2020
+## Language: ES5.1 → ECMAScript 2021
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2020](https://262.ecma-international.org/11.0/) (ES11) as the only
+**[ECMAScript 2021](https://262.ecma-international.org/12.0/) (ES12) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -55,6 +55,11 @@ Added on top of the ES5.1 baseline:
   literals, `typeof "bigint"`, the operators, `BigInt.asIntN`/`asUintN`), the
   `BigInt64Array`/`BigUint64Array` typed arrays, and the big-64 `DataView`
   accessors and `Atomics` operations.
+- **ES2021:** `String.prototype.replaceAll`, `Promise.any` with `AggregateError`,
+  the logical assignment operators (`&&=`, `||=`, `??=`), numeric separators
+  (`1_000`, in every numeric literal including BigInt), and `WeakRef` /
+  `FinalizationRegistry` (native over `java.lang.ref`, the registry's cleanup
+  callbacks posted to the realm's event loop).
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -208,7 +213,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2020
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2021
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

@@ -1,10 +1,10 @@
-ECMAScript 2020 conformance
+ECMAScript 2021 conformance
 ===========================
 
-This engine implements [ECMAScript 2020](https://262.ecma-international.org/11.0/)
-(ECMA-262, 11th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
+(ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 62,890 executions **25
+selected at runtime by `Test262Selector`, and of its 63,808 executions **25
 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards.
@@ -52,7 +52,7 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 62890 executions from src/test/scripts/external/test262-main, in 12 processes
+    test262: 63808 executions from src/test/scripts/external/test262-main, in 12 processes
     failing: 25   expected to fail: 25
 
 What is not measured, and why
@@ -61,7 +61,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2020.
+everything else outside the slice is simply later than ECMAScript 2021.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -85,12 +85,15 @@ additions are in scope too: nullish coalescing (`??`), optional chaining
 `Promise.allSettled`, `for`-`in` order, and the whole of **BigInt** - the
 primitive and its operators, `BigInt.asIntN`/`asUintN`, the `BigInt64Array`/
 `BigUint64Array` typed arrays, the `DataView` big-64 accessors, and `Atomics` over
-them. A handful of BigInt corner cases are settled divergences, named in the
-expectations file (see below).
+them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
+`Promise.any` with `AggregateError`, the logical assignment operators
+(`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef` /
+`FinalizationRegistry`. A handful of BigInt corner cases are settled divergences,
+named in the expectations file (see below).
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after ES2020 - `String.prototype.replaceAll`,
-class fields, top-level await, the RegExp `v` flag, and the rest. Those are not
+`features:` tag names something introduced after ES2021 - class fields, the `.at()`
+methods, `Object.hasOwn`, top-level await, the RegExp `v` flag, and the rest. Those are not
 failures; they are outside the target. Most would fail if run, because the features
 are not implemented.
 

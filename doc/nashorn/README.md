@@ -2,7 +2,7 @@
 
 Nashorn is a JavaScript engine for the JVM: it compiles JavaScript to JVM bytecode and links call
 sites with `invokedynamic`. This fork — published as **`org.monflabs.nashorn:nashorn-core`**,
-version 2020.0.0, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2020** (ECMA-262, 11th
+version 2020.0.0, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2021** (ECMA-262, 12th
 edition) together with its Annex B, measured continuously against the official `tc39/test262`
 conformance suite. It requires **JDK 25 or later** and has **no dependencies at all**. To avoid colliding with the
 official Nashorn library, everything about it carries the fork's own name: the Java package and

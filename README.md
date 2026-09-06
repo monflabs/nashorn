@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2020 Language Specification](https://262.ecma-international.org/11.0/)
+[ECMAScript 2021 Language Specification](https://262.ecma-international.org/12.0/)
 (ECMAScript 9). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2020 together with its Annex B - the additional
+This fork implements ECMAScript 2021 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -58,7 +58,7 @@ This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at vers
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
 implements, rather than a sequential number. So `2020.0.0` targets
-[ECMAScript 2020](https://262.ecma-international.org/11.0/) (ES11), just as the earlier
+[ECMAScript 2021](https://262.ecma-international.org/12.0/) (ES12), just as the earlier
 `2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
 a later edition of the language, the major number moves to that edition's year (for
@@ -106,7 +106,7 @@ moves forwards. 8 of the 58,803 selected executions fail — one shape, an indir
 `eval` whose block-level function declaration must update a `var` the global
 already had (a documented eval-scope-merge divergence); everything else passes.
 Three things are excluded,
-all outside ECMA-262 11th edition proper: proper tail calls, ECMA-402
+all outside ECMA-262 12th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

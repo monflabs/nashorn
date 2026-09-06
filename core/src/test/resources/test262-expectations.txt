@@ -1,4 +1,4 @@
-# test262 ES2020 slice: settled failures. See doc/CONFORMANCE.md for each reason.
+# test262 ES2021 slice: settled failures. See doc/CONFORMANCE.md for each reason.
 # Regenerate with -Dtest262.write.expectations=true.
 # Reasons for the current run are written to target/test262-failures.txt.
 test/annexB/language/eval-code/indirect/global-block-decl-eval-global-existing-var-update.js (sloppy)
