@@ -6,12 +6,12 @@ Nashorn is published to Maven Central as a single, dependency-free artifact:
 <dependency>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-core</artifactId>
-    <version>2019.0.0</version>
+    <version>2020.0.0</version>
 </dependency>
 ```
 
 ```groovy
-implementation 'org.monflabs.nashorn:nashorn-core:2019.0.0'
+implementation 'org.monflabs.nashorn:nashorn-core:2020.0.0'
 ```
 
 It requires **JDK 25 or later**, at build and at run time. Releases up to 15.7 were published by the

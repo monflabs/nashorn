@@ -69,6 +69,26 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2020.0.0 (2026.09.06)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2020 (ECMA-262, 11th edition).** Everything the 2019 release implemented is unchanged; the ES2020 additions are layered on top, and the `tc39/test262` slice is retargeted to the 11th edition.
+
+`   ` `           ` **Nullish coalescing (`??`) and optional chaining (`?.`, `?.[]`, `?.()`).** `a ?? b` defaults only on `null`/`undefined` (not on `0`/`''`/`false`); `a?.b` short-circuits a whole access/call chain to `undefined` when a link is nullish. The two combine, and `??` may not be mixed with `&&`/`||` without parentheses (an early error).
+
+`   ` `           ` **`String.prototype.matchAll` and `Symbol.matchAll`.** An iterator over every match of a global regexp, each a full match object with capture and named groups, dispatched through the well-known `@@matchAll`.
+
+`   ` `           ` **Module additions.** `export * as ns from './m.js'` (namespace re-export), dynamic `import()` (a runtime, promise-returning, computed-specifier import), and `import.meta` (`import.meta.url`).
+
+`   ` `           ` **`globalThis`, `Promise.allSettled`, and the specified `for`-`in` enumeration order.**
+
+`   ` `           ` **BigInt.** The arbitrary-precision integer primitive: `1n` literals, `typeof "bigint"`, all the operators (BigInt-in/BigInt-out, no implicit mixing with Number), equality and relational comparison with Numbers, `BigInt()`/`Number()` conversions, `BigInt.asIntN`/`asUintN`, `++`/`--` and the compound assignments, BigInt property keys, and `JSON.stringify` rejection (with `toJSON` honoured). It is a real `BigInteger`-backed primitive threaded through the type lattice, the operator runtime and the optimistic-typing codegen - not a library object.
+
+`   ` `           ` **`BigInt64Array` / `BigUint64Array`.** The two 64-bit BigInt typed arrays, integrated with the whole `%TypedArray%` method set, plus the `DataView` `getBigInt64`/`getBigUint64`/`setBigInt64`/`setBigUint64` accessors and `Atomics` (`add`/`and`/`or`/`sub`/`xor`/`exchange`/`compareExchange`/`load`/`store`/`wait`/`notify`) over them.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2019 to ES2020. Of the 62,890 selected executions, **25** fail: the 8 carried-over Annex B indirect-eval cases, plus 17 documented ES2020 corners (a wrapped-BigInt object used as a bitwise operand read from a call, the parenthesised optional-chain-then-call `this` binding, a circular-module dynamic-import order case, and the `toJSON` primitive-receiver identity). `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 11th edition, and the playground gains an `ES2020` sample category - one runnable sample per feature - run headlessly by the build like the rest.
+
 2019.0.0 (2026.09.05)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2019 (ECMA-262, 10th edition).** Everything the 2018 release implemented is unchanged; the ES2019 additions are layered on top, and the `tc39/test262` slice is retargeted to the 10th edition.
