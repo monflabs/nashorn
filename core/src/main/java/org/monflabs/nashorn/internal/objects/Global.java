@@ -1458,6 +1458,11 @@ public final class Global extends Scope {
             return NativeNumber.WRAPFILTER;
         } else if (self instanceof Boolean) {
             return NativeBoolean.WRAPFILTER;
+        } else if (self instanceof Symbol) {
+            // A primitive symbol reaches here when an accessor read on it must be
+            // folded against a wrapper receiver - ES2019 Symbol.prototype.description,
+            // and __proto__ before it.
+            return NativeSymbol.WRAPFILTER;
         }
         throw new IllegalArgumentException("Unsupported primitive: " + self);
     }
