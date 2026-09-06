@@ -115,7 +115,12 @@ public final class PrimitiveLookup {
                 }
 
                 final SwitchPoint sp = find.getProperty().getBuiltinSwitchPoint(); //can use this instead of proto filter
-                if (sp instanceof Context.BuiltinSwitchPoint && !sp.hasBeenInvalidated()) {
+                // An accessor's value depends on the receiver (e.g. ES2019
+                // Symbol.prototype.description), so it must not be folded to the
+                // constant the getter produced for the wrapper we linked with -
+                // only a data property is safe to cache this way.
+                if (sp instanceof Context.BuiltinSwitchPoint && !sp.hasBeenInvalidated()
+                        && !find.getProperty().isAccessorProperty()) {
                     return new GuardedInvocation(GlobalConstants.staticConstantGetter(find.getObjectValue()), guard, sp, null);
                 }
 
