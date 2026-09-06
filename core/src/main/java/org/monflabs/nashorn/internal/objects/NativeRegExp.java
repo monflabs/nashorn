@@ -762,7 +762,7 @@ public final class NativeRegExp extends ScriptObject {
      * ES2015 21.1.3.14.1 GetSubstitution - what the dollar sequences in a
      * replacement string stand for.
      */
-    private static String getSubstitution(final String matched, final String str, final int position,
+    static String getSubstitution(final String matched, final String str, final int position,
             final Object[] captures, final Object namedCaptures, final String replacement) {
         final StringBuilder sb = new StringBuilder();
         final int tail = position + matched.length();

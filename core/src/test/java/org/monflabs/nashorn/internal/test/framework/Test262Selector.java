@@ -102,6 +102,8 @@ public final class Test262Selector {
         "String.prototype.matchAll", "Symbol.matchAll",
         "Promise.allSettled", "globalThis", "for-in-order",
         "dynamic-import", "import.meta", "BigInt",
+        // ES2021
+        "String.prototype.replaceAll",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -183,9 +185,6 @@ public final class Test262Selector {
      * async-generator directories are.
      */
     private static final Set<String> LATER_FEATURES = Set.of(
-            // ES2021 String.prototype.replaceAll
-            "built-ins/String/prototype/replaceAll/cstm-replaceall-on-bigint-primitive.js",
-            "built-ins/String/prototype/replaceAll/not-a-constructor.js",
             // ES2022 Object.hasOwn, which the harness test is written with
             "harness/asyncHelpers-asyncTest-without-async-flag.js");
 

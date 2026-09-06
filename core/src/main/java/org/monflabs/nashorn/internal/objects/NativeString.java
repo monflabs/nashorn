@@ -899,6 +899,79 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
+     * ES2021 22.1.3.20 String.prototype.replaceAll (searchValue, replaceValue)
+     *
+     * @param self        self reference
+     * @param searchValue what to look for - a string, or a global RegExp
+     * @param replacement what to put in its place - a string or a function
+     * @return the string with every occurrence replaced
+     * @throws Throwable if replacement fails
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object replaceAll(final Object self, final Object searchValue, final Object replacement) throws Throwable {
+        Global.checkObjectCoercible(self);
+
+        if (searchValue instanceof ScriptObject sobj) {
+            // 22.1.3.20 step 2.b: a RegExp searchValue must be global - the one
+            // rule that sets replaceAll apart from replace
+            if (isRegExp(searchValue)) {
+                final Object flags = sobj.get("flags");
+                if (flags == UNDEFINED || flags == null || JSType.toString(flags).indexOf('g') < 0) {
+                    throw typeError("replaceall.not.global");
+                }
+            }
+            // step 2.c: GetMethod(searchValue, @@replace) and, if present, use it.
+            // Unlike replace, replaceAll has no direct RegExp path: a RegExp whose
+            // own @@replace was set to undefined falls through to the string path,
+            // and a non-callable @@replace is a TypeError. RegExp.prototype's own
+            // @@replace already replaces every match of a global pattern.
+            final Object replacer = sobj.get(NativeSymbol.replace);
+            if (replacer != UNDEFINED && replacer != null) {
+                if (!(replacer instanceof ScriptFunction method)) {
+                    throw typeError("not.a.function", ScriptRuntime.safeToString(replacer));
+                }
+                return ScriptRuntime.apply(method, searchValue, self, replacement);
+            }
+        }
+
+        // steps 3-14: the string path - every non-overlapping occurrence
+        final String string = checkObjectToString(self);
+        final String searchString = JSType.toString(searchValue);
+        final boolean functionalReplace = Bootstrap.isCallable(replacement);
+        final String replaceString = functionalReplace ? null : JSType.toString(replacement);
+
+        final int searchLength = searchString.length();
+        final int advanceBy = Math.max(1, searchLength);
+        final StringBuilder sb = new StringBuilder();
+        int endOfLastMatch = 0;
+        int position = string.indexOf(searchString, 0);
+        while (position != -1) {
+            final String replacementText;
+            if (functionalReplace) {
+                final Object r = ScriptRuntime.apply((ScriptFunction)replacement, UNDEFINED,
+                        searchString, position, string);
+                replacementText = JSType.toString(r);
+            } else {
+                // GetSubstitution with no captures: only $$, $&, $` and $' apply
+                replacementText = NativeRegExp.getSubstitution(searchString, string, position,
+                        ScriptRuntime.EMPTY_ARRAY, UNDEFINED, replaceString);
+            }
+            sb.append(string, endOfLastMatch, position);
+            sb.append(replacementText);
+            endOfLastMatch = position + searchLength;
+            final int next = position + advanceBy;
+            if (next > string.length()) {
+                break;
+            }
+            position = string.indexOf(searchString, next);
+        }
+        if (endOfLastMatch < string.length()) {
+            sb.append(string, endOfLastMatch, string.length());
+        }
+        return sb.toString();
+    }
+
+    /**
      * ECMA 15.5.4.12 String.prototype.search (regexp)
      *
      * @param self    self reference
