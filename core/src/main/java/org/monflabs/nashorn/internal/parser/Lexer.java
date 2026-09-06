@@ -1319,6 +1319,24 @@ public class Lexer extends Scanner {
     /**
      * Scan a number.
      */
+    /**
+     * ES2021 12.8.3 skip a run of {@code base}-radix digits, allowing a single
+     * {@code _} numeric separator between two of them. The caller guarantees the
+     * run starts on a digit; a separator that is not wedged between two digits is
+     * an early SyntaxError.
+     */
+    private void skipDigits(final int base) {
+        while (convertDigit(ch0, base) != -1) {
+            skip(1);
+            if (ch0 == '_') {
+                if (convertDigit(ch1, base) == -1) {
+                    error(Lexer.message("numeric.separator"), DECIMAL, position, 1);
+                }
+                skip(1); // the separator; the next digit is taken by the loop
+            }
+        }
+    }
+
     protected void scanNumber() {
         // Record beginning of number.
         final int start = position;
@@ -1330,30 +1348,21 @@ public class Lexer extends Scanner {
 
         // If number begins with 0x.
         if (digit == 0 && (ch1 == 'x' || ch1 == 'X') && convertDigit(ch2, 16) != -1) {
-            // Skip over 0xN.
-            skip(3);
-            // Skip over remaining digits.
-            while (convertDigit(ch0, 16) != -1) {
-                skip(1);
-            }
+            // Skip over 0x, then the digits (with any ES2021 separators).
+            skip(2);
+            skipDigits(16);
 
             type = HEXADECIMAL;
         } else if (digit == 0 && (ch1 == 'o' || ch1 == 'O') && convertDigit(ch2, 8) != -1) {
-            // Skip over 0oN.
-            skip(3);
-            // Skip over remaining digits.
-            while (convertDigit(ch0, 8) != -1) {
-                skip(1);
-            }
+            // Skip over 0o, then the digits.
+            skip(2);
+            skipDigits(8);
 
             type = OCTAL;
         } else if (digit == 0 && (ch1 == 'b' || ch1 == 'B') && convertDigit(ch2, 2) != -1) {
-            // Skip over 0bN.
-            skip(3);
-            // Skip over remaining digits.
-            while (convertDigit(ch0, 2) != -1) {
-                skip(1);
-            }
+            // Skip over 0b, then the digits.
+            skip(2);
+            skipDigits(2);
 
             type = BINARY_NUMBER;
         } else {
@@ -1365,12 +1374,30 @@ public class Lexer extends Scanner {
                 skip(1);
             }
 
-            // Skip remaining digits.
-            while ((digit = convertDigit(ch0, 10)) != -1) {
-                // Check octal only digits.
-                octal = octal && digit < 8;
-                // Skip digit.
-                skip(1);
+            // Skip remaining digits. ES2021 separators are allowed between two
+            // digits, but never in a legacy-octal / non-octal-decimal literal
+            // (anything with a leading zero) - there a '_' just ends the number,
+            // which the "missing space after number" check below then rejects.
+            if (digit != -1) {
+                while (true) {
+                    if (ch0 == '_') {
+                        if (leadingZero) {
+                            break;
+                        }
+                        if (convertDigit(ch1, 10) == -1) {
+                            error(Lexer.message("numeric.separator"), DECIMAL, position, 1);
+                        }
+                        skip(1); // the separator; the digit is taken just below
+                    }
+                    digit = convertDigit(ch0, 10);
+                    if (digit == -1) {
+                        break;
+                    }
+                    // Check octal only digits.
+                    octal = octal && digit < 8;
+                    // Skip digit.
+                    skip(1);
+                }
             }
 
             if (octal && position - start > 1) {
@@ -1385,10 +1412,8 @@ public class Lexer extends Scanner {
                 if (ch0 == '.') {
                     // Skip period.
                     skip(1);
-                    // Skip mantissa.
-                    while (convertDigit(ch0, 10) != -1) {
-                        skip(1);
-                    }
+                    // Skip mantissa (with any ES2021 separators).
+                    skipDigits(10);
                 }
 
                 // Detect exponent.
@@ -1399,10 +1424,8 @@ public class Lexer extends Scanner {
                     if (ch0 == '+' || ch0 == '-') {
                         skip(1);
                     }
-                    // Skip exponent.
-                    while (convertDigit(ch0, 10) != -1) {
-                        skip(1);
-                    }
+                    // Skip exponent (with any ES2021 separators).
+                    skipDigits(10);
                 }
 
                 type = FLOATING;
@@ -1996,26 +2019,31 @@ public class Lexer extends Scanner {
      * @param token  Token descriptor.
      * @return JavaScript value.
      */
+    /** Removes ES2021 numeric separators; the scanner has already validated their placement. */
+    private static String stripSeparators(final String s) {
+        return s.indexOf('_') < 0 ? s : s.replace("_", "");
+    }
+
     Object getValueOf(final long token, final boolean strict) {
         final int start = Token.descPosition(token);
         final int len   = Token.descLength(token);
 
         switch (Token.descType(token)) {
         case DECIMAL:
-            return Lexer.valueOf(source.getString(start, len), 10); // number
+            return Lexer.valueOf(stripSeparators(source.getString(start, len)), 10); // number
         case HEXADECIMAL:
-            return Lexer.valueOf(source.getString(start + 2, len - 2), 16); // number
+            return Lexer.valueOf(stripSeparators(source.getString(start + 2, len - 2)), 16); // number
         case OCTAL_LEGACY:
-            return Lexer.valueOf(source.getString(start, len), 8); // number
+            return Lexer.valueOf(source.getString(start, len), 8); // number (no separators here)
         case NON_OCTAL_DECIMAL:
-            return Lexer.valueOf(source.getString(start, len), 10); // number
+            return Lexer.valueOf(source.getString(start, len), 10); // number (no separators here)
         case OCTAL:
-            return Lexer.valueOf(source.getString(start + 2, len - 2), 8); // number
+            return Lexer.valueOf(stripSeparators(source.getString(start + 2, len - 2)), 8); // number
         case BINARY_NUMBER:
-            return Lexer.valueOf(source.getString(start + 2, len - 2), 2); // number
+            return Lexer.valueOf(stripSeparators(source.getString(start + 2, len - 2)), 2); // number
         case BIGINT: {
             // strip the trailing "n" and read the base from any 0x/0o/0b prefix
-            String text = source.getString(start, len - 1);
+            String text = stripSeparators(source.getString(start, len - 1));
             int radix = 10;
             if (text.length() > 1 && text.charAt(0) == '0') {
                 final char c = text.charAt(1);
@@ -2026,7 +2054,7 @@ public class Lexer extends Scanner {
             return new java.math.BigInteger(text, radix);
         }
         case FLOATING:
-            final String str   = source.getString(start, len);
+            final String str   = stripSeparators(source.getString(start, len));
             final double value = Double.parseDouble(str);
             if (str.indexOf('.') != -1) {
                 return value; //number

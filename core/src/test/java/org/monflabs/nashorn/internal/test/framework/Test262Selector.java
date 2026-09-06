@@ -103,7 +103,7 @@ public final class Test262Selector {
         "Promise.allSettled", "globalThis", "for-in-order",
         "dynamic-import", "import.meta", "BigInt",
         // ES2021
-        "String.prototype.replaceAll",
+        "String.prototype.replaceAll", "numeric-separator-literal",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -156,12 +156,6 @@ public final class Test262Selector {
      * would hide real failures.
      */
     private static final Set<String> LATER_SYNTAX = Set.of(
-            // ES2021 numeric separators (1_000), whose literals these tests use
-            "language/expressions/class/cpn-class-expr-accessors-computed-property-name-from-integer-separators.js",
-            "language/expressions/class/cpn-class-expr-computed-property-name-from-integer-separators.js",
-            "language/statements/class/cpn-class-decl-accessors-computed-property-name-from-integer-separators.js",
-            "language/statements/class/cpn-class-decl-computed-property-name-from-integer-separators.js",
-            "language/expressions/object/cpn-obj-lit-computed-property-name-from-integer-separators.js",
             // ES2022 top-level await: this test lives under top-level-await/ and
             // is written with a module-top-level await, but is tagged only
             // dynamic-import, so the feature deny rule does not catch it
