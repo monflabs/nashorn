@@ -1082,6 +1082,58 @@ public final class Global extends Scope {
 
     private volatile Object weakSet;
 
+    /**
+     * Getter for the WeakRef property.
+     * @param self self reference
+     * @return the value of the WeakRef property
+     */
+    @Getter(name = "WeakRef", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getWeakRef(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.weakRef == LAZY_SENTINEL) {
+            global.weakRef = global.getBuiltinWeakRef();
+        }
+        return global.weakRef;
+    }
+
+    /**
+     * Setter for the WeakRef property.
+     * @param self self reference
+     * @param value value of the WeakRef property
+     */
+    @Setter(name = "WeakRef", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setWeakRef(final Object self, final Object value) {
+        Global.instanceFrom(self).weakRef = value;
+    }
+
+    private volatile Object weakRef;
+
+    /**
+     * Getter for the FinalizationRegistry property.
+     * @param self self reference
+     * @return the value of the FinalizationRegistry property
+     */
+    @Getter(name = "FinalizationRegistry", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getFinalizationRegistry(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.finalizationRegistry == LAZY_SENTINEL) {
+            global.finalizationRegistry = global.getBuiltinFinalizationRegistry();
+        }
+        return global.finalizationRegistry;
+    }
+
+    /**
+     * Setter for the FinalizationRegistry property.
+     * @param self self reference
+     * @param value value of the FinalizationRegistry property
+     */
+    @Setter(name = "FinalizationRegistry", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setFinalizationRegistry(final Object self, final Object value) {
+        Global.instanceFrom(self).finalizationRegistry = value;
+    }
+
+    private volatile Object finalizationRegistry;
+
     /** Nashorn extension: Java access - global.Packages */
     @Property(name = "Packages", attributes = Attribute.NOT_ENUMERABLE)
     public volatile Object packages;
@@ -1277,6 +1329,8 @@ public final class Global extends Scope {
     private ScriptFunction builtinWeakMap;
     private ScriptFunction builtinSet;
     private ScriptFunction builtinWeakSet;
+    private ScriptFunction builtinWeakRef;
+    private ScriptFunction builtinFinalizationRegistry;
     private ScriptObject   builtinIteratorPrototype;
     private ScriptObject   builtinMapIteratorPrototype;
 
@@ -3078,6 +3132,28 @@ public final class Global extends Scope {
         return this.builtinWeakSet;
     }
 
+    private synchronized ScriptFunction getBuiltinWeakRef() {
+        if (this.builtinWeakRef == null) {
+            this.builtinWeakRef = initConstructorAndSwitchPoint("WeakRef", ScriptFunction.class);
+        }
+        return this.builtinWeakRef;
+    }
+
+    ScriptObject getWeakRefPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinWeakRef());
+    }
+
+    private synchronized ScriptFunction getBuiltinFinalizationRegistry() {
+        if (this.builtinFinalizationRegistry == null) {
+            this.builtinFinalizationRegistry = initConstructorAndSwitchPoint("FinalizationRegistry", ScriptFunction.class);
+        }
+        return this.builtinFinalizationRegistry;
+    }
+
+    ScriptObject getFinalizationRegistryPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinFinalizationRegistry());
+    }
+
     @Override
     public String getClassName() {
         return "global";
@@ -3581,6 +3657,8 @@ public final class Global extends Scope {
         this.weakMap  = LAZY_SENTINEL;
         this.set      = LAZY_SENTINEL;
         this.weakSet  = LAZY_SENTINEL;
+        this.weakRef  = LAZY_SENTINEL;
+        this.finalizationRegistry = LAZY_SENTINEL;
 
         // Error stuff
         initErrorObjects();

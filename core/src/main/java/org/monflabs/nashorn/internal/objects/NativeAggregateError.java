@@ -22,6 +22,10 @@
 package org.monflabs.nashorn.internal.objects;
 
 import static org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
+import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
+
+import java.lang.invoke.MethodHandle;
+import org.monflabs.nashorn.internal.runtime.linker.InvokeByName;
 
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Constructor;
@@ -75,12 +79,42 @@ public final class NativeAggregateError extends ScriptObject {
         // the property holding it is not enumerable - so it does not turn up in
         // JSON.stringify or a for-in over the error
         addOwnProperty("errors", org.monflabs.nashorn.internal.runtime.Property.NOT_ENUMERABLE,
-                ScriptRuntime.ITERATOR_REST(ScriptRuntime.GET_ITERATOR(errors)));
+                Global.allocate(iterableToList(errors)));
         NativeError.initException(this);
     }
 
     NativeAggregateError(final Object errors, final Object msg, final Global global) {
         this(errors, msg, global.getAggregateErrorPrototype(), $nasgenmap$);
+    }
+
+    /**
+     * ES2021 IterableToList of the errors, done through the iterator protocol so a
+     * poisoned {@code @@iterator}, a non-object step, or a non-callable {@code next}
+     * is the TypeError the specification asks for (rather than being read leniently).
+     */
+    private static Object[] iterableToList(final Object errors) {
+        final Global global = Global.instance();
+        final Object iterator = AbstractIterator.getIterator(errors, global);
+        final InvokeByName next = AbstractIterator.getNextInvoker(global);
+        final MethodHandle done = AbstractIterator.getDoneInvoker(global);
+        final MethodHandle value = AbstractIterator.getValueInvoker(global);
+        final java.util.List<Object> list = new java.util.ArrayList<>();
+        try {
+            while (true) {
+                final Object step = next.getInvoker().invokeExact(next.getGetter().invokeExact(iterator), iterator, (Object)null);
+                if (!(step instanceof ScriptObject)) {
+                    throw typeError("not.an.object", ScriptRuntime.safeToString(step));
+                }
+                if (JSType.toBoolean((Object)done.invokeExact(step))) {
+                    return list.toArray();
+                }
+                list.add((Object)value.invokeExact(step));
+            }
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     private NativeAggregateError(final Object errors, final Object msg) {
