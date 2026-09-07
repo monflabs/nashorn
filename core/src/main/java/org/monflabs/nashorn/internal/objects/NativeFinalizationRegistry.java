@@ -22,7 +22,6 @@
 package org.monflabs.nashorn.internal.objects;
 
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
-import static org.monflabs.nashorn.internal.runtime.JSType.isPrimitive;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -75,7 +74,7 @@ public final class NativeFinalizationRegistry extends ScriptObject {
             super(target, QUEUE);
             this.heldValue = heldValue;
             this.registry = registry;
-            this.token = isPrimitive(token) ? null : new WeakReference<>(token);
+            this.token = NativeWeakMap.canBeHeldWeakly(token) ? new WeakReference<>(token) : null;
         }
     }
 
@@ -131,7 +130,7 @@ public final class NativeFinalizationRegistry extends ScriptObject {
         final Object heldValue = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
         final Object token = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
 
-        if (isPrimitive(target)) {
+        if (!NativeWeakMap.canBeHeldWeakly(target)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(target));
         }
         // 26.2.3.2 step 4: a target may not be its own held value
@@ -139,7 +138,7 @@ public final class NativeFinalizationRegistry extends ScriptObject {
             throw typeError("finalization.target.held.same");
         }
         // step 5: an unregister token, if given, must be an object
-        if (token != ScriptRuntime.UNDEFINED && isPrimitive(token)) {
+        if (token != ScriptRuntime.UNDEFINED && !NativeWeakMap.canBeHeldWeakly(token)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(token));
         }
         registry.cells.add(new Cell(target, heldValue, token, registry));
@@ -156,7 +155,7 @@ public final class NativeFinalizationRegistry extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean unregister(final Object self, final Object token) {
         final NativeFinalizationRegistry registry = registry(self);
-        if (isPrimitive(token)) {
+        if (!NativeWeakMap.canBeHeldWeakly(token)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(token));
         }
         boolean removed = false;

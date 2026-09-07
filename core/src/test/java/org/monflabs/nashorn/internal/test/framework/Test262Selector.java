@@ -115,6 +115,7 @@ public final class Test262Selector {
         "top-level-await",
         // ES2023
         "array-find-from-last", "change-array-by-copy", "hashbang",
+        "symbols-as-weakmap-keys",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory

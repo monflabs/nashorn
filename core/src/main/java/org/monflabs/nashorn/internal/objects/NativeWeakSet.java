@@ -42,9 +42,9 @@ import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.Undefined;
 
+import static org.monflabs.nashorn.internal.objects.NativeWeakMap.canBeHeldWeakly;
 import static org.monflabs.nashorn.internal.objects.NativeWeakMap.checkKey;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
-import static org.monflabs.nashorn.internal.runtime.JSType.isPrimitive;
 
 /**
  * This implements the ECMA6 WeakSet object.
@@ -105,7 +105,7 @@ public class NativeWeakSet extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean has(final Object self, final Object value) {
         final NativeWeakSet set = getSet(self);
-        return !isPrimitive(value) && set.map.containsKey(value);
+        return canBeHeldWeakly(value) && set.map.containsKey(value);
     }
 
     /**
@@ -118,7 +118,7 @@ public class NativeWeakSet extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean delete(final Object self, final Object value) {
         final Map<Object, Boolean> map = getSet(self).map;
-        if (isPrimitive(value)) {
+        if (!canBeHeldWeakly(value)) {
             return false;
         }
         final boolean returnValue = map.containsKey(value);

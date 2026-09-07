@@ -278,6 +278,18 @@ public final class NativeSymbol extends ScriptObject {
         return globalSymbolRegistry.get(name) == arg ? name : Undefined.getUndefined();
     }
 
+    /**
+     * ES2023: whether {@code symbol} is a <em>registered</em> symbol (one made by
+     * {@code Symbol.for}), which is the kind a weak collection may not hold - an
+     * ordinary Symbol may.
+     *
+     * @param symbol the symbol
+     * @return true if it is in the global symbol registry
+     */
+    static synchronized boolean isRegistered(final Symbol symbol) {
+        return globalSymbolRegistry.get(symbol.getName()) == symbol;
+    }
+
     @SuppressWarnings("unused")
     private static NativeSymbol wrapFilter(final Object receiver) {
         return new NativeSymbol((Symbol)receiver);

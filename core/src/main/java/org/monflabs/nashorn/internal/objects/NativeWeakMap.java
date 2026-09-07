@@ -44,6 +44,7 @@ import org.monflabs.nashorn.internal.runtime.Undefined;
 
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 import static org.monflabs.nashorn.internal.runtime.JSType.isPrimitive;
+import org.monflabs.nashorn.internal.runtime.Symbol;
 
 /**
  * This implements the ECMA6 WeakMap object.
@@ -105,7 +106,7 @@ public class NativeWeakMap extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static Object get(final Object self, final Object key) {
         final NativeWeakMap map = getMap(self);
-        if (isPrimitive(key)) {
+        if (!canBeHeldWeakly(key)) {
             return Undefined.getUndefined();
         }
         // 23.3.3.3 step 4: a key the map does not hold reads as undefined, which
@@ -123,7 +124,7 @@ public class NativeWeakMap extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean delete(final Object self, final Object key) {
         final Map<Object, Object> map = getMap(self).jmap;
-        if (isPrimitive(key)) {
+        if (!canBeHeldWeakly(key)) {
             return false;
         }
         final boolean returnValue = map.containsKey(key);
@@ -141,7 +142,7 @@ public class NativeWeakMap extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static boolean has(final Object self, final Object key) {
         final NativeWeakMap map = getMap(self);
-        return !isPrimitive(key) && map.jmap.containsKey(key);
+        return canBeHeldWeakly(key) && map.jmap.containsKey(key);
     }
 
     @Override
@@ -156,10 +157,25 @@ public class NativeWeakMap extends ScriptObject {
      * @return the valid key
      */
     static Object checkKey(final Object key) {
-        if (isPrimitive(key)) {
+        if (!canBeHeldWeakly(key)) {
             throw typeError("invalid.weak.key", ScriptRuntime.safeToString(key));
         }
         return key;
+    }
+
+    /**
+     * ES2023 CanBeHeldWeakly: a value a weak collection may hold as a key or
+     * target - any object, or a Symbol that is not registered (not made by
+     * {@code Symbol.for}). A registered symbol, and every other primitive, may not.
+     *
+     * @param key the candidate key or target
+     * @return true if it can be held weakly
+     */
+    static boolean canBeHeldWeakly(final Object key) {
+        if (!isPrimitive(key)) {
+            return true;
+        }
+        return key instanceof Symbol symbol && !NativeSymbol.isRegistered(symbol);
     }
 
 

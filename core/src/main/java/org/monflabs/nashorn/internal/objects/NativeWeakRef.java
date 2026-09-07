@@ -22,7 +22,6 @@
 package org.monflabs.nashorn.internal.objects;
 
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
-import static org.monflabs.nashorn.internal.runtime.JSType.isPrimitive;
 
 import java.lang.ref.WeakReference;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
@@ -72,7 +71,8 @@ public final class NativeWeakRef extends ScriptObject {
             throw typeError("constructor.requires.new", "WeakRef");
         }
         // 26.1.1.1 step 3: the target must be an Object
-        if (isPrimitive(target)) {
+        // ES2023: a WeakRef may hold any object, or a non-registered Symbol
+        if (!NativeWeakMap.canBeHeldWeakly(target)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(target));
         }
         final Global global = Global.instance();
