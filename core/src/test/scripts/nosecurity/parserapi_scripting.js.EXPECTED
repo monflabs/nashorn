@@ -1,6 +1,6 @@
 heredoc1.js:1:10 Expected an operand but found <<
 var str = <<EOF
           ^
-hashcomment1.js:1:0 Expected an operand but found error
+hashcomment1.js:1:0 Unexpected private name outside of a class body
 #comment
 ^

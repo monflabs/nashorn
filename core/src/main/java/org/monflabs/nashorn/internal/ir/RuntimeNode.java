@@ -126,6 +126,14 @@ public class RuntimeNode extends Expression {
         DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 6),
         /** ES2022 runs a class's static fields and blocks, once its name binding is assigned. */
         RUN_STATIC_ELEMENTS(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2022 makes a fresh private name for a class's #-element, from its description. */
+        NEW_PRIVATE_NAME(TokenType.VOID, Type.OBJECT, 1),
+        /** ES2022 reads a private element: PRIVATE_GET(obj, privateName). */
+        PRIVATE_GET(TokenType.VOID, Type.OBJECT, 2),
+        /** ES2022 writes a private element: PRIVATE_SET(obj, privateName, value). */
+        PRIVATE_SET(TokenType.VOID, Type.OBJECT, 3),
+        /** ES2022 the ergonomic brand check: PRIVATE_IN(privateName, obj). */
+        PRIVATE_IN(TokenType.VOID, Type.BOOLEAN, 2),
         /** super.x - the code generator supplies the running method. */
         SUPER_GET(TokenType.VOID, Type.OBJECT, 3),
         /** super.x = value. */

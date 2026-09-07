@@ -62,6 +62,9 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
     /** ES2020 optional-chaining link ({@code ?.}). */
     private final boolean isOptional;
 
+    /** ES2022 private member access ({@code obj.#x}); the index/property is the private-name binding. */
+    private final boolean isPrivate;
+
     /**
      * Constructor
      *
@@ -93,6 +96,29 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
         this.programPoint   = INVALID_PROGRAM_POINT;
         this.isSuper        = isSuper;
         this.isOptional     = isOptional;
+        this.isPrivate      = false;
+    }
+
+    /**
+     * Constructor for an ES2022 private member access.
+     *
+     * @param token  token
+     * @param finish finish
+     * @param base   base node
+     * @param isFunction is this a function
+     * @param isSuper is this a super property access
+     * @param isOptional is this an optional-chaining ({@code ?.}) link
+     * @param isPrivate is this a private member access ({@code obj.#x})
+     */
+    public BaseNode(final long token, final int finish, final Expression base, final boolean isFunction, final boolean isSuper, final boolean isOptional, final boolean isPrivate) {
+        super(token, base.getStart(), finish);
+        this.base           = base;
+        this.isFunction     = isFunction;
+        this.type = null;
+        this.programPoint   = INVALID_PROGRAM_POINT;
+        this.isSuper        = isSuper;
+        this.isOptional     = isOptional;
+        this.isPrivate      = isPrivate;
     }
 
     /**
@@ -112,6 +138,7 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
         this.programPoint   = programPoint;
         this.isSuper        = isSuper;
         this.isOptional     = baseNode.isOptional;
+        this.isPrivate      = baseNode.isPrivate;
     }
 
     /**
@@ -133,6 +160,15 @@ public abstract class BaseNode extends Expression implements FunctionCall, Optim
      */
     public boolean isOptional() {
         return isOptional;
+    }
+
+    /**
+     * Is this an ES2022 private member access ({@code obj.#x})? Its index/property
+     * child is a read of the private-name binding, not an ordinary key.
+     * @return true if this is a private member access
+     */
+    public boolean isPrivate() {
+        return isPrivate;
     }
 
     @Override

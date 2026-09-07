@@ -4,26 +4,43 @@ ECMAScript 2021 conformance
 This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
 (ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 65,338 executions **20
-fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+selected at runtime by `Test262Selector`, and of its 73,808 executions
+**90 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2022 additions are being layered on incrementally -
-`.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d` flag, and class fields,
-public and static, with static initializer blocks - which is why the slice now
-selects the ES2022 feature tags; private class members and top-level await are not
-yet in.)
+`.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d` flag, class fields, and
+now **private class members** - private fields, private methods and accessors,
+their static forms, and the ergonomic `#x in obj` brand check - which is why the
+slice now selects those ES2022 feature tags; only top-level await is not yet in.)
 
-Of the 20, **8** are the one carried-over Annex B shape: an indirect `eval` whose
+Of the 90, **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **12** are one
-ES2022 class-field corner: a direct `eval` inside a field initializer or static
-block whose code names `arguments` must be an early `SyntaxError`, because the
-initializer forbids `arguments` and a direct eval inherits that restriction. The
-engine does not carry the no-arguments context into a direct eval, so the eval'd
-`arguments` reads as a runtime `ReferenceError` rather than a parse-time error.
-Everything else about class fields - public and static fields, field initializers
-(with `this`, `super`, the class name, and outer lexicals), computed keys, static
-initializer blocks, and the initialization order - conforms.
+rooted in how the engine merges eval scopes (see below). The other **82** fall in
+three ES2022 groups, and every one is a corner rather than a hole:
+
+- **The direct-`eval` interaction with the new lexical features** (the largest
+  group). A private-name reference is resolved lexically - `#x` compiles to a read
+  of a synthetic `const` the class body binds - so it is correctly visible to a
+  direct `eval` nested in a class method; but the engine does not carry the
+  enclosing *private environment* or the field-initializer's no-`arguments`
+  context into the eval's own parse. So an `eval` naming `arguments` in an
+  initializer, or one naming a private member the surrounding class did not
+  declare, reads as a runtime error rather than the parse-time `SyntaxError` the
+  specification asks for. The same shape covers the empty-`#` eval case.
+- **Two `#x in obj` grammar corners**: a private-name operand nested as the *right*
+  side of `in`, and one used as a `for`-`in` target, are not rejected at parse.
+- **Eighteen exhaustive Unicode identifier tests** that spell *thousands* of
+  distinct private names in a single class. Each private name binds a `const` of
+  its own, and at that scale the class's generated method passes the JVM's 64 KB
+  method limit even after the splitter runs - a size a real program never reaches
+  (a class of four thousand *public* fields compiles, having no such bindings).
+
+Everything else about class fields and private members - public, static, and
+private fields, private methods and accessors and their static forms, field
+initializers (with `this`, `super`, the class name, outer lexicals, and a private
+name's own `NamedEvaluation`), computed keys, static initializer blocks, the
+brand check, the double-installation `TypeError`, invisibility to every form of
+reflection, and the initialization order - conforms.
 
 The corners earlier documented here are **fixed**. The ES2020 ones: `Object(1n) & 1`
 and its kin now throw the `TypeError` a BigInt-to-number coercion must (the
@@ -56,8 +73,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 65338 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 20   expected to fail: 20
+    test262: 73808 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 90   expected to fail: 90
 
 What is not measured, and why
 -----------------------------
@@ -96,10 +113,11 @@ them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
 named in the expectations file (see below).
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after ES2021 - class fields, the `.at()`
-methods, `Object.hasOwn`, top-level await, the RegExp `v` flag, and the rest. Those are not
-failures; they are outside the target. Most would fail if run, because the features
-are not implemented.
+`features:` tag names something introduced after the target - top-level await (the
+one ES2022 piece not yet landed), the RegExp `v` flag, `Array.prototype.findLast`
+and the change-array-by-copy methods, and the rest. Those are not failures; they
+are outside the target. Most would fail if run, because the features are not
+implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -

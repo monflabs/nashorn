@@ -198,6 +198,7 @@ public enum TokenType {
     STRING         (LITERAL,  null),
     ESCSTRING      (LITERAL,  null),
     IDENT          (LITERAL,  null),
+    PRIVATE_IDENT  (LITERAL,  null),
     REGEX          (LITERAL,  null),
     XML            (LITERAL,  null),
     OBJECT         (LITERAL,  null),

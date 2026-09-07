@@ -59,6 +59,7 @@ public final class IdentNode extends Expression implements PropertyKey, Function
     private static final int DEFAULT_PARAMETER = 1 << 9;
     private static final int DESTRUCTURED_PARAMETER = 1 << 10;
     private static final int ANNEXB_VAR_TARGET = 1 << 11;
+    private static final int IS_PRIVATE_NAME   = 1 << 12;
 
     /** Identifier. */
     private final String name;
@@ -218,6 +219,27 @@ public final class IdentNode extends Expression implements PropertyKey, Function
             return this;
         }
         return new IdentNode(this, name, type, flags | PROPERTY_NAME, programPoint, conversion);
+    }
+
+    /**
+     * Whether this identifier is an ES2022 private-name reference standing as the
+     * left operand of {@code #x in obj}. It reads the {@code :private:x} binding
+     * but is desugared to a brand check rather than an ordinary read.
+     * @return true if this is such a private-name reference
+     */
+    public boolean isPrivateName() {
+        return (flags & IS_PRIVATE_NAME) == IS_PRIVATE_NAME;
+    }
+
+    /**
+     * Flag this IdentNode as an ES2022 private-name reference (for {@code #x in obj}).
+     * @return a node equivalent to this one except for the requested change.
+     */
+    public IdentNode setIsPrivateName() {
+        if (isPrivateName()) {
+            return this;
+        }
+        return new IdentNode(this, name, type, flags | IS_PRIVATE_NAME, programPoint, conversion);
     }
 
     /**

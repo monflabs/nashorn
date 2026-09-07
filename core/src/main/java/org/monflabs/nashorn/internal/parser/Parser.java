@@ -64,6 +64,7 @@ import static org.monflabs.nashorn.internal.parser.TokenType.LPAREN;
 import static org.monflabs.nashorn.internal.parser.TokenType.EXP;
 import static org.monflabs.nashorn.internal.parser.TokenType.MUL;
 import static org.monflabs.nashorn.internal.parser.TokenType.PERIOD;
+import static org.monflabs.nashorn.internal.parser.TokenType.PRIVATE_IDENT;
 import static org.monflabs.nashorn.internal.parser.TokenType.RBRACE;
 import static org.monflabs.nashorn.internal.parser.TokenType.RBRACKET;
 import static org.monflabs.nashorn.internal.parser.TokenType.RPAREN;
@@ -1006,10 +1007,24 @@ public class Parser extends AbstractParser implements Loggable {
         lc.push(script);
         final ParserContextBlockNode body = newBlock();
 
+        // ES2022: a private name at the top level of a genuine script (not in any
+        // class) is an early SyntaxError. A program-level scope catches it. Eval
+        // code is left out - a direct eval sees the private names of the class it
+        // is nested in, resolved at run time - and so is a reparse, whose early
+        // errors were already checked in the eager parse.
+        final boolean topLevelPrivateScope = reparsedFunction == null && !source.isEvalCode();
+        if (topLevelPrivateScope) {
+            privateClassScopes.push(new PrivateClassScope());
+        }
+
         functionDeclarations = new ArrayList<>();
         sourceElements(reparseFlags);
         addFunctionDeclarations(script);
         functionDeclarations = null;
+
+        if (topLevelPrivateScope) {
+            exitPrivateClassScope();
+        }
 
         restoreBlock(body);
         body.setFlag(Block.NEEDS_SCOPE);
@@ -1641,16 +1656,115 @@ public class Parser extends AbstractParser implements Loggable {
      *   static MethodDefinition[?Yield]
      *   ;
      */
+    /** The synthetic-binding prefix for a private name {@code #x}: {@code :private:x}. */
+    private static final String PRIVATE_NAME_PREFIX = ":private:";
+
+    /**
+     * ES2022 per-open-class-body private-name bookkeeping. Each private name is
+     * resolved to an ordinary lexical const binding named {@code :private:<name>};
+     * this collects the const declarations to emit into the class carrier scope,
+     * enforces the single-declaration / accessor-pair rules, and tracks references
+     * so a {@code #x} used but never declared is an early error - references not
+     * declared here propagate to the enclosing class body (a nested class may name
+     * an outer private).
+     */
+    private static final class PrivateClassScope {
+        static final int KIND_FIELD_METHOD = 1, KIND_GET = 2, KIND_SET = 4, KIND_STATIC = 8;
+        final List<Statement> constDecls = new ArrayList<>();
+        final Map<String, Integer> kinds = new HashMap<>();
+        final Map<String, Long> referenced = new HashMap<>();
+    }
+
+    private final Deque<PrivateClassScope> privateClassScopes = new ArrayDeque<>();
+
+    /** A read of the synthetic binding that holds a private name's {@link org.monflabs.nashorn.internal.runtime.PrivateName}. */
+    private IdentNode privateNameBinding(final String pname, final long nameToken, final int nameFinish) {
+        return new IdentNode(nameToken, nameFinish, PRIVATE_NAME_PREFIX + pname.substring(1));
+    }
+
+    /**
+     * Registers a private element declaration in the innermost class body,
+     * emitting its {@code const :private:x = NEW_PRIVATE_NAME("#x")} binding once
+     * and enforcing the ES2022 duplicate rules (a name is one field, one method,
+     * or a get/set pair that agree on static placement).
+     */
+    private void declarePrivateName(final String pname, final long nameToken, final int nameFinish, final int declKind) {
+        final PrivateClassScope scope = privateClassScopes.peek();
+        final Integer prev = scope.kinds.get(pname);
+        final int declMain = declKind & ~PrivateClassScope.KIND_STATIC;
+        final boolean declStatic = (declKind & PrivateClassScope.KIND_STATIC) != 0;
+        if (prev != null) {
+            final int prevMain = prev & ~PrivateClassScope.KIND_STATIC;
+            final boolean prevStatic = (prev & PrivateClassScope.KIND_STATIC) != 0;
+            final boolean accessorPair =
+                    (prevMain == PrivateClassScope.KIND_GET && declMain == PrivateClassScope.KIND_SET)
+                 || (prevMain == PrivateClassScope.KIND_SET && declMain == PrivateClassScope.KIND_GET);
+            if (!accessorPair || prevStatic != declStatic) {
+                throw error(AbstractParser.message("duplicate.private.name", pname), nameToken);
+            }
+            scope.kinds.put(pname, prev | declMain);
+            return;
+        }
+        scope.kinds.put(pname, declKind);
+        final IdentNode binding = privateNameBinding(pname, nameToken, nameFinish).setIsDeclaredHere();
+        final RuntimeNode init = new RuntimeNode(nameToken, nameFinish, RuntimeNode.Request.NEW_PRIVATE_NAME,
+                LiteralNode.newInstance(nameToken, nameFinish, pname));
+        scope.constDecls.add(new VarNode(line, Token.recast(nameToken, VAR), nameFinish, binding, init, VarNode.IS_CONST));
+    }
+
+    /**
+     * Records a {@code #x} reference in the innermost class body, for the
+     * undeclared-name check. Outside any class body - at the top level of a
+     * direct {@code eval}, most importantly - the reference is left to resolve
+     * lexically at run time against the {@code :private:x} binding, so a private
+     * name is visible to a direct eval nested in a class method. A reference
+     * whose binding is not in scope is then a runtime ReferenceError rather than
+     * a parse-time SyntaxError.
+     */
+    private void referencePrivateName(final String pname, final long nameToken) {
+        final PrivateClassScope scope = privateClassScopes.peek();
+        if (scope != null) {
+            scope.referenced.putIfAbsent(pname, nameToken);
+        }
+    }
+
+    /**
+     * Ends the innermost class body: verifies every referenced private name was
+     * declared (propagating an outer reference to the enclosing body), and returns
+     * the const bindings to place in the carrier scope.
+     */
+    private List<Statement> exitPrivateClassScope() {
+        final PrivateClassScope scope = privateClassScopes.pop();
+        for (final Map.Entry<String, Long> ref : scope.referenced.entrySet()) {
+            if (!scope.kinds.containsKey(ref.getKey())) {
+                final PrivateClassScope enclosing = privateClassScopes.peek();
+                if (enclosing == null) {
+                    throw error(AbstractParser.message("undeclared.private.name", ref.getKey()), ref.getValue());
+                }
+                enclosing.referenced.putIfAbsent(ref.getKey(), ref.getValue());
+            }
+        }
+        return scope.constDecls;
+    }
+
     private ClassNode classTail(final int classLineNumber, final long classToken,
             final IdentNode className, final String constructorName, final boolean isStatement) {
         final boolean oldStrictMode = isStrictMode;
         isStrictMode = true;
+        boolean privateScopePushed = false;
+        boolean privateScopePopped = false;
         try {
             Expression classHeritage = null;
             if (type == EXTENDS) {
                 next();
                 classHeritage = leftHandSideExpression();
             }
+
+            // ES2022 15.7.14: the class's private names are in scope for its body
+            // but NOT for its heritage, which is evaluated in the outer private
+            // environment. So the scope is pushed only after the heritage is read.
+            privateClassScopes.push(new PrivateClassScope());
+            privateScopePushed = true;
 
             expect(LBRACE);
 
@@ -1757,6 +1871,14 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             classElements.trimToSize();
+            // ES2022: place the private-name const bindings in the carrier scope,
+            // which is the current block now the element bodies are all closed.
+            // Each #x reads one of these; they run at class-definition, before any
+            // method, so a forward reference sees an initialised binding.
+            for (final Statement constDecl : exitPrivateClassScope()) {
+                appendStatement(constDecl);
+            }
+            privateScopePopped = true;
             // The class ends at its closing brace. finish has moved past it, on
             // to whatever follows, and the class's own extent is what its
             // toString answers with.
@@ -1764,6 +1886,9 @@ public class Parser extends AbstractParser implements Loggable {
             return new ClassNode(classLineNumber, classToken, classFinish, className, classHeritage, constructor, classElements, isStatement);
         } finally {
             isStrictMode = oldStrictMode;
+            if (privateScopePushed && !privateScopePopped) {
+                privateClassScopes.pop();
+            }
         }
     }
 
@@ -1833,12 +1958,14 @@ public class Parser extends AbstractParser implements Loggable {
                 checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertyGetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
-                return new PropertyNode(methodToken, finish, methodDefinition.key, null, methodDefinition.functionNode, null, isStatic, methodDefinition.computed);
+                return privatize(new PropertyNode(methodToken, finish, methodDefinition.key, null, methodDefinition.functionNode, null, isStatic, methodDefinition.computed),
+                        PrivateClassScope.KIND_GET);
             } else if (!generator && !async && isIdent && startsPropertyName() && type != MUL && name.equals(SET_NAME)) {
                 checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertySetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
-                return new PropertyNode(methodToken, finish, methodDefinition.key, null, null, methodDefinition.functionNode, isStatic, methodDefinition.computed);
+                return privatize(new PropertyNode(methodToken, finish, methodDefinition.key, null, null, methodDefinition.functionNode, isStatic, methodDefinition.computed),
+                        PrivateClassScope.KIND_SET);
             } else if (!generator && !async && type != LPAREN) {
                 return classField(methodToken, propertyName, isStatic, false);
             } else {
@@ -1855,7 +1982,35 @@ public class Parser extends AbstractParser implements Loggable {
             return classField(methodToken, propertyName, isStatic, true);
         }
         final PropertyFunction methodDefinition = propertyMethodFunction(propertyName, methodToken, methodLine, generator, async, flags, computed);
-        return new PropertyNode(methodToken, finish, methodDefinition.key, methodDefinition.functionNode, null, null, isStatic, computed);
+        return privatize(new PropertyNode(methodToken, finish, methodDefinition.key, methodDefinition.functionNode, null, null, isStatic, computed),
+                PrivateClassScope.KIND_FIELD_METHOD);
+    }
+
+    /**
+     * If the element's key is a private name ({@code #x}), registers the
+     * declaration and returns the element marked private with a read of its
+     * private-name binding; otherwise returns it unchanged. {@code kindBits} is
+     * one of {@link PrivateClassScope#KIND_FIELD_METHOD}/{@code KIND_GET}/
+     * {@code KIND_SET}, for the accessor-pair and duplicate rules.
+     */
+    private PropertyNode privatize(final PropertyNode node, final int kindBits) {
+        final Expression key = node.getKey();
+        if (node.isComputed() || !(key instanceof PropertyKey pk)) {
+            return node;
+        }
+        final String pname = pk.getPropertyName();
+        if (pname == null || pname.isEmpty() || pname.charAt(0) != '#') {
+            return node;
+        }
+        if (("#" + CONSTRUCTOR_NAME).equals(pname)) {
+            throw error(AbstractParser.message("private.name.constructor"), key.getToken());
+        }
+        declarePrivateName(pname, key.getToken(), key.getFinish(),
+                kindBits | (node.isStatic() ? PrivateClassScope.KIND_STATIC : 0));
+        final Expression binding = privateNameBinding(pname, key.getToken(), key.getFinish());
+        return new PropertyNode(node.getToken(), node.getFinish(), node.getKey(), node.getValue(),
+                node.getGetter(), node.getSetter(), node.isStatic(), node.isComputed(),
+                node.getKind(), true, binding);
     }
 
     /**
@@ -1875,11 +2030,24 @@ public class Parser extends AbstractParser implements Loggable {
         if (type == ASSIGN) {
             final long assignToken = token;
             next();
-            initializer = fieldInitializer(assignToken, 0);
+            // ES2022 NamedEvaluation: an anonymous function/arrow/class as a
+            // field initializer takes the field's name (a private field's is #x).
+            final boolean nameInitializer = !computed && key instanceof PropertyKey;
+            if (nameInitializer) {
+                defaultNames.push(key);
+            }
+            try {
+                initializer = fieldInitializer(assignToken, 0);
+            } finally {
+                if (nameInitializer) {
+                    defaultNames.pop();
+                }
+            }
         }
         endOfLine();
-        return new PropertyNode(fieldToken, finish, key, initializer, null, null, isStatic, computed,
-                PropertyNode.KIND_FIELD, false, null);
+        return privatize(new PropertyNode(fieldToken, finish, key, initializer, null, null, isStatic, computed,
+                PropertyNode.KIND_FIELD, false, null),
+                PrivateClassScope.KIND_FIELD_METHOD);
     }
 
     /**
@@ -4182,6 +4350,14 @@ public class Parser extends AbstractParser implements Loggable {
         switch (type) {
         case IDENT:
             return getIdent().setIsPropertyName();
+        case PRIVATE_IDENT: {
+            // ES2022 private class-element name #x; its key is the string "#x"
+            final long nameToken = token;
+            final int nameFinish = finish;
+            final String name = (String) getValue();
+            next();
+            return createIdentNode(nameToken, nameFinish, name).setIsPropertyName();
+        }
         case OCTAL_LEGACY:
             if (isStrictMode) {
                 throw error(AbstractParser.message("strict.no.octal"), token);
@@ -4272,6 +4448,14 @@ public class Parser extends AbstractParser implements Loggable {
             next();
         }
 
+        // ES2022: a private name is only a class element; anywhere in an object
+        // literal or destructuring pattern - as a plain key, a shorthand, a
+        // method, a generator (*#x) or an async method - it is a Syntax Error.
+        // A get/set accessor's private name is caught in its own case below.
+        if (type == PRIVATE_IDENT) {
+            throw error(AbstractParser.message("private.in.non.class"), token);
+        }
+
         final boolean computed = type == LBRACKET;
         if (type == IDENT) {
             // Get IDENT.
@@ -4282,6 +4466,10 @@ public class Parser extends AbstractParser implements Loggable {
             // property name and nothing else
             if (!async && type != COLON && type != LPAREN) {
 
+                // an object-literal accessor may not name a private member
+                if (type == PRIVATE_IDENT && (GET_NAME.equals(ident) || SET_NAME.equals(ident))) {
+                    throw error(AbstractParser.message("private.in.non.class"), token);
+                }
                 switch (ident) {
                 case GET_NAME:
                     checkEscapedAccessor(identToken, ident);
@@ -4540,6 +4728,30 @@ public class Parser extends AbstractParser implements Loggable {
         }
     }
 
+    /**
+     * ES2022 private member access {@code base.#x} - a private {@link IndexNode}
+     * whose index is a read of the {@code :private:x} binding. The current token
+     * is the {@code PRIVATE_IDENT}; it is consumed here.
+     *
+     * @param accessToken the token of the {@code .} (or {@code ?.}) access
+     * @param base        the object being accessed
+     * @param optional    whether reached through {@code ?.}
+     * @param isSuper     whether the base was {@code super} - which is an error
+     * @return the private index node
+     */
+    private Expression privateMemberAccess(final long accessToken, final Expression base, final boolean optional, final boolean isSuper) {
+        if (isSuper) {
+            // super.#x has no meaning: private names are not on the prototype chain
+            throw error(AbstractParser.message("invalid.super"), accessToken);
+        }
+        final long nameToken = token;
+        final int nameFinish = finish;
+        final String pname = (String) getValue();
+        next();
+        referencePrivateName(pname, nameToken);
+        return new IndexNode(accessToken, nameFinish, base, privateNameBinding(pname, nameToken, nameFinish), optional, true);
+    }
+
     private static class PropertyFunction {
         final Expression key;
         final FunctionNode functionNode;
@@ -4642,6 +4854,10 @@ public class Parser extends AbstractParser implements Loggable {
                     break;
                 }
                 default: {
+                    if (type == PRIVATE_IDENT) {
+                        lhs = privateMemberAccess(Token.recast(callToken, PERIOD), lhs, true, false);
+                        break;
+                    }
                     final IdentNode property = getIdentifierName();
                     lhs = new AccessNode(Token.recast(callToken, PERIOD), finish, lhs, property.getName(), true);
                     break;
@@ -4665,6 +4881,11 @@ public class Parser extends AbstractParser implements Loggable {
             }
             case PERIOD: {
                 next();
+
+                if (type == PRIVATE_IDENT) {
+                    lhs = privateMemberAccess(callToken, lhs, false, false);
+                    break;
+                }
 
                 final IdentNode property = getIdentifierName();
 
@@ -4908,6 +5129,12 @@ public class Parser extends AbstractParser implements Loggable {
                 }
 
                 next();
+
+                if (type == PRIVATE_IDENT) {
+                    lhs = privateMemberAccess(callToken, lhs, false, isSuper);
+                    isSuper = false;
+                    break;
+                }
 
                 final IdentNode property = getIdentifierName();
 
@@ -5251,6 +5478,13 @@ public class Parser extends AbstractParser implements Loggable {
     private String getDefaultValidFunctionName(final int functionLine, final boolean isStatement) {
         defaultNameIsBinding = false;
         final String defaultFunctionName = getDefaultFunctionName();
+        // ES2022: an anonymous function initialising a private field takes the
+        // private name (#x) as its name. That is not a valid identifier, but it
+        // is only the function's .name here, never a binding, so it is kept.
+        if (!isStatement && defaultFunctionName != null && !defaultFunctionName.isEmpty()
+                && defaultFunctionName.charAt(0) == '#') {
+            return defaultFunctionName;
+        }
         if (isValidIdentifier(defaultFunctionName)) {
             if (isStatement) {
                 // The name will be used as the LHS of a symbol assignment. We add the anonymous function
@@ -5825,6 +6059,21 @@ public class Parser extends AbstractParser implements Loggable {
             return awaitExpression();
         }
 
+        if (type == PRIVATE_IDENT) {
+            // ES2022 12.10.1: a PrivateIdentifier is a primary only as the left
+            // operand of the ergonomic brand check "#x in obj"; anywhere else it
+            // is a Syntax Error.
+            final long nameToken = token;
+            final int nameFinish = finish;
+            final String pname = (String) getValue();
+            next();
+            if (type != TokenType.IN) {
+                throw error(AbstractParser.message("private.in.non.class"), nameToken);
+            }
+            referencePrivateName(pname, nameToken);
+            return privateNameBinding(pname, nameToken, nameFinish).setIsPrivateName();
+        }
+
         switch (type) {
         case ADD:
         case SUB: {
@@ -5838,6 +6087,11 @@ public class Parser extends AbstractParser implements Loggable {
             next();
             final Expression operand = unaryExpression();
             rejectExponentiationOfUnary();
+            // ES2022 13.5.1.1: deleting a private member (delete obj.#x) is an
+            // early Syntax Error - a private name is not a configurable property.
+            if (operand instanceof IndexNode indexOperand && indexOperand.isPrivate()) {
+                throw error(AbstractParser.message("delete.private"), unaryToken);
+            }
             // ES2015 12.5.3.1: strict code may not delete a binding, which is
             // what an identifier of its own names - parentheses around it make
             // no difference, and "this" and "new.target" are not bindings
@@ -6839,10 +7093,21 @@ public class Parser extends AbstractParser implements Loggable {
 
             final ParserContextBlockNode body = newBlock();
 
+            // ES2022: a private name at a module's top level (not in any class)
+            // is an early SyntaxError, exactly as at a script's top level.
+            final boolean topLevelPrivateScope = reparsedFunction == null;
+            if (topLevelPrivateScope) {
+                privateClassScopes.push(new PrivateClassScope());
+            }
+
             functionDeclarations = new ArrayList<>();
             moduleBody();
             addFunctionDeclarations(script);
             functionDeclarations = null;
+
+            if (topLevelPrivateScope) {
+                exitPrivateClassScope();
+            }
 
             restoreBlock(body);
             body.setFlag(Block.NEEDS_SCOPE);

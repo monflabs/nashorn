@@ -1065,6 +1065,21 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     loadSuperGet(indexNode);
                     return false;
                 }
+                if (indexNode.isPrivate()) {
+                    // ES2022 private member read: a static brand-checked get, so
+                    // it stays out of the optimistic-typing machinery entirely
+                    if (!baseAlreadyOnStack) {
+                        loadExpressionAsObject(indexNode.getBase());
+                        if (indexNode.isOptional()) {
+                            // obj?.#x short-circuits the chain when obj is nullish
+                            emitOptionalGuard();
+                        }
+                        loadExpressionAsObject(indexNode.getIndex());
+                    }
+                    method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "PRIVATE_GET",
+                            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+                    return false;
+                }
                 new OptimisticOperation(indexNode, resultBounds) {
                     @Override
                     void loadStack() {
@@ -1882,6 +1897,19 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     void loadStack() {
                         loadExpressionAsObject(node.getBase());
                         method.dup();
+                        if (node.isPrivate()) {
+                            // ES2022 private method call: read the method out of
+                            // the private store; the base stays as the receiver
+                            loadExpressionAsObject(node.getIndex());
+                            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "PRIVATE_GET",
+                                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+                            method.swap();
+                            if (callNode.isOptional()) {
+                                emitOptionalCalleeGuard();
+                            }
+                            argsCount = loadArgs(args);
+                            return;
+                        }
                         final Type indexType = node.getIndex().getType();
                         if (indexType.isObject() || indexType.isBoolean()) {
                             loadExpressionAsObject(node.getIndex()); //TODO boolean
@@ -5854,6 +5882,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         storeSuper();
                         return false;
                     }
+                    if (node.isPrivate()) {
+                        storePrivate();
+                        return false;
+                    }
                     method.dynamicSetIndex(getCallSiteFlags());
                     return false;
                 }
@@ -5865,6 +5897,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_SET",
                             "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Z)"
                                     + "Ljava/lang/Object;");
+                    method.pop();
+                }
+
+                /**
+                 * ES2022 private member store: the stack holds base, private
+                 * name and value; PRIVATE_SET writes it and returns the value,
+                 * which the store does not need here.
+                 */
+                private void storePrivate() {
+                    method.convert(Type.OBJECT);
+                    method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "PRIVATE_SET",
+                            "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
                     method.pop();
                 }
             });

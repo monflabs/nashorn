@@ -37,6 +37,7 @@ import static org.monflabs.nashorn.internal.parser.TokenType.DIRECTIVE_COMMENT;
 import static org.monflabs.nashorn.internal.parser.TokenType.EOF;
 import static org.monflabs.nashorn.internal.parser.TokenType.EOL;
 import static org.monflabs.nashorn.internal.parser.TokenType.ERROR;
+import static org.monflabs.nashorn.internal.parser.TokenType.PRIVATE_IDENT;
 import static org.monflabs.nashorn.internal.parser.TokenType.ESCSTRING;
 import static org.monflabs.nashorn.internal.parser.TokenType.FLOATING;
 import static org.monflabs.nashorn.internal.parser.TokenType.FUNCTION;
@@ -989,6 +990,27 @@ public class Lexer extends Scanner {
         }
         // Add keyword or identifier token.
         add(type, start);
+    }
+
+    /**
+     * ES2022 private name: a {@code #} immediately followed by an identifier. The
+     * token spans the {@code #} and the name, so its source is {@code #name}.
+     */
+    private void scanPrivateIdentifier() {
+        final int start = position;
+        skip(1);            // the '#'
+        scanIdentifier();   // the name after it
+        add(PRIVATE_IDENT, start);
+    }
+
+    /**
+     * The code point just after a {@code #}, decoding a surrogate pair so a
+     * private name may start with a character outside the basic plane.
+     */
+    private int codePointAfterHash() {
+        return Character.isHighSurrogate(ch1) && Character.isLowSurrogate(ch2)
+                ? Character.toCodePoint(ch1, ch2)
+                : ch1;
     }
 
     /**
@@ -2005,6 +2027,12 @@ public class Lexer extends Scanner {
                 // shell command" under -scripting; ECMAScript 2015 gives the
                 // character to template literals, and that wins.
                 scanTemplate();
+            } else if (ch0 == '#' && (isIdentifierStart(codePointAfterHash()) || ch1 == '\\')) {
+                // ES2022 private name: #name. In -scripting a bare # is a shell
+                // comment (handled above), so this only reaches a # that a
+                // comment scan did not claim. The name may begin with a character
+                // outside the basic plane, written as a surrogate pair.
+                scanPrivateIdentifier();
             } else {
                 // Don't recognize this character.
                 skip(1);
@@ -2076,6 +2104,9 @@ public class Lexer extends Scanner {
             return valueOfString(start, len, strict); // String
         case IDENT:
             return valueOfIdent(start, len); // String
+        case PRIVATE_IDENT:
+            // "#name" - the '#' is literal, the name may carry unicode escapes
+            return "#" + valueOfIdent(start + 1, len - 1); // String
         case REGEX:
             return valueOfPattern(start, len); // RegexToken::LexerToken
         case TEMPLATE:

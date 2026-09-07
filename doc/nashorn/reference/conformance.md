@@ -4,7 +4,7 @@ This engine implements ECMAScript 2021 — ECMA-262, 12th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 65,338 selected executions, 20 expected failures.** Everything else passes,
+**The headline numbers: 73,808 selected executions, 90 expected failures.** Everything else passes,
 in both of the engine's typing modes. Eight are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
 scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). The

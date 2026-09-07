@@ -163,6 +163,14 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     /** Indexed array data. */
     private ArrayData arrayData;
 
+    /**
+     * ES2022 private elements ({@code #x}) carried by this object, keyed by their
+     * private name. Held apart from the property map so they are invisible to every
+     * form of reflection and never on the prototype chain; null until the object
+     * is given a private element. See {@link PrivateName}.
+     */
+    private java.util.Map<PrivateName, PrivateElement> privateElements;
+
     /** Method handle to retrieve prototype of this object */
     public static final MethodHandle GETPROTO      = findOwnMH_V("getProto", ScriptObject.class);
 
@@ -1905,6 +1913,84 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      */
     public final ArrayData getArray() {
         return arrayData;
+    }
+
+    /**
+     * Whether this object carries the ES2022 private element named by {@code name}
+     * - the brand check behind {@code #x in obj}.
+     *
+     * @param name the private name
+     * @return true if the element is present
+     */
+    public final boolean hasPrivate(final PrivateName name) {
+        return privateElements != null && privateElements.containsKey(name);
+    }
+
+    /**
+     * Reads a private element. An absent element is a TypeError (the class did not
+     * declare it); an accessor runs its getter.
+     *
+     * @param name the private name
+     * @return the value
+     */
+    public final Object getPrivate(final PrivateName name) {
+        final PrivateElement el = privateElements == null ? null : privateElements.get(name);
+        if (el == null) {
+            throw typeError("no.such.private", name.getDescription());
+        }
+        if (el.getKind() == PrivateElement.ACCESSOR) {
+            if (el.getGetter() == null) {
+                throw typeError("private.no.getter", name.getDescription());
+            }
+            return ScriptRuntime.apply(el.getGetter(), this);
+        }
+        return el.getValue();
+    }
+
+    /**
+     * Writes a private element. An absent element is a TypeError; a method is not
+     * writable; an accessor runs its setter.
+     *
+     * @param name  the private name
+     * @param value the value to write
+     */
+    public final void setPrivate(final PrivateName name, final Object value) {
+        final PrivateElement el = privateElements == null ? null : privateElements.get(name);
+        if (el == null) {
+            throw typeError("no.such.private", name.getDescription());
+        }
+        switch (el.getKind()) {
+        case PrivateElement.ACCESSOR:
+            if (el.getSetter() == null) {
+                throw typeError("private.no.setter", name.getDescription());
+            }
+            ScriptRuntime.apply(el.getSetter(), this, value);
+            return;
+        case PrivateElement.METHOD:
+            throw typeError("private.method.not.writable", name.getDescription());
+        default:
+            el.setValue(value);
+        }
+    }
+
+    /**
+     * Adds a private element to this object (at construction, or for a static
+     * private element on the constructor). A get/set accessor pair written apart
+     * merges into one element.
+     *
+     * @param name    the private name
+     * @param element the element
+     */
+    public final void definePrivate(final PrivateName name, final PrivateElement element) {
+        if (privateElements == null) {
+            privateElements = new java.util.IdentityHashMap<>();
+        }
+        // ES2022 PrivateFieldAdd / PrivateMethodOrAccessorAdd: an element already
+        // present is a TypeError (e.g. a base constructor that returns an object
+        // already constructed, so its instance elements initialise twice).
+        if (privateElements.putIfAbsent(name, element) != null) {
+            throw typeError("private.already.present", name.getDescription());
+        }
     }
 
     /**

@@ -2374,6 +2374,11 @@ public final class ScriptRuntime {
         // static blocks to run afterwards in source order (ES2022 15.7.14).
         final java.util.List<Object[]> instanceFields = new java.util.ArrayList<>();
         final java.util.List<Object[]> staticElements = new java.util.ArrayList<>();
+        // ES2022: private methods and accessors are one element per name; a
+        // get/set pair written apart merges here, so each is installed once
+        // (definePrivate then rejects a re-add, which is the double-install error)
+        final java.util.LinkedHashMap<PrivateName, PrivateElement> instancePrivateElements = new java.util.LinkedHashMap<>();
+        final java.util.LinkedHashMap<PrivateName, PrivateElement> staticPrivateElements = new java.util.LinkedHashMap<>();
         for (int i = 0; i < length; i += 3) {
             final int flags = JSType.toInt32(flattened.get(i + 1));
             final Object value = flattened.get(i + 2);
@@ -2382,6 +2387,37 @@ public final class ScriptRuntime {
                 staticElements.add(new Object[] { null, value, flags });
                 continue;
             }
+
+            if ((flags & CLASS_ELEMENT_PRIVATE) != 0) {
+                // a private element's key is its PrivateName as produced by the
+                // class body, not a property key - keep it as is
+                final PrivateName pname = (PrivateName)flattened.get(i);
+                final boolean isStatic = (flags & CLASS_ELEMENT_STATIC) != 0;
+                if (value instanceof ScriptFunction fn) {
+                    fn.setHomeObject(isStatic ? ctor : prototype);
+                }
+                if ((flags & CLASS_ELEMENT_FIELD) != 0) {
+                    // a private field: its value is a per-instance (or run-once
+                    // static) initializer, defined into the private store
+                    (isStatic ? staticElements : instanceFields).add(new Object[] { pname, value, flags });
+                } else {
+                    // a private method or accessor: merge a get/set pair by name
+                    final java.util.LinkedHashMap<PrivateName, PrivateElement> map =
+                            isStatic ? staticPrivateElements : instancePrivateElements;
+                    final PrivateElement half;
+                    if ((flags & CLASS_ELEMENT_GETTER) != 0) {
+                        half = PrivateElement.accessor((ScriptFunction)value, null);
+                    } else if ((flags & CLASS_ELEMENT_SETTER) != 0) {
+                        half = PrivateElement.accessor(null, (ScriptFunction)value);
+                    } else {
+                        half = PrivateElement.method((ScriptFunction)value);
+                    }
+                    final PrivateElement existing = map.get(pname);
+                    map.put(pname, existing == null ? half : existing.withAccessorHalf(half));
+                }
+                continue;
+            }
+
             // a field's key is evaluated once, here; its value is a per-instance
             // (or, for a static field, run-once) initializer function or null
             final Object key = TO_PROPERTY_KEY(flattened.get(i));
@@ -2392,7 +2428,7 @@ public final class ScriptRuntime {
                 if ((flags & CLASS_ELEMENT_STATIC) != 0) {
                     staticElements.add(new Object[] { key, value, flags });
                 } else {
-                    instanceFields.add(new Object[] { key, value });
+                    instanceFields.add(new Object[] { key, value, flags });
                 }
                 continue;
             }
@@ -2410,6 +2446,17 @@ public final class ScriptRuntime {
                         : prefixed(accessor == CLASS_ELEMENT_GETTER ? "get " : "set ", key), value);
             }
             defineClassElement(target, key, flags, value);
+        }
+
+        // static private methods and accessors go on the constructor now
+        for (final java.util.Map.Entry<PrivateName, PrivateElement> e : staticPrivateElements.entrySet()) {
+            ctor.definePrivate(e.getKey(), e.getValue());
+        }
+        // instance private methods and accessors install on each instance, ahead
+        // of the field initializers (INITIALIZE_INSTANCE_ELEMENTS does that pass
+        // first); a null flag slot of PRIVATE with a PrivateElement value marks them
+        for (final java.util.Map.Entry<PrivateName, PrivateElement> e : instancePrivateElements.entrySet()) {
+            instanceFields.add(new Object[] { e.getKey(), e.getValue(), CLASS_ELEMENT_PRIVATE });
         }
 
         if (!instanceFields.isEmpty()) {
@@ -2453,6 +2500,9 @@ public final class ScriptRuntime {
                     final int flags = (Integer)element[2];
                     if ((flags & CLASS_ELEMENT_STATIC_BLOCK) != 0) {
                         apply((ScriptFunction)value, ctor);
+                    } else if ((flags & CLASS_ELEMENT_PRIVATE) != 0) {
+                        final Object fieldValue = value instanceof ScriptFunction init ? apply(init, ctor) : UNDEFINED;
+                        ctor.definePrivate((PrivateName)element[0], PrivateElement.field(fieldValue));
                     } else {
                         final Object fieldValue = value instanceof ScriptFunction init ? apply(init, ctor) : UNDEFINED;
                         defineField(ctor, element[0], fieldValue);
@@ -2461,6 +2511,74 @@ public final class ScriptRuntime {
             }
         }
         return constructor;
+    }
+
+    /**
+     * ES2022: makes a fresh {@link PrivateName} for one of a class's private
+     * elements. Called once per class evaluation from a binding the class body
+     * created, so every {@code #x} in the body reads the same name and two
+     * evaluations of the class get different ones.
+     *
+     * @param description the written name, e.g. {@code #x}
+     * @return the private name
+     */
+    public static Object NEW_PRIVATE_NAME(final Object description) {
+        return new PrivateName(JSType.toString(description));
+    }
+
+    /**
+     * ES2022 reads a private element. A receiver that does not carry the element
+     * (a non-object, or an object of a class that did not declare it) is a
+     * TypeError - the brand check.
+     *
+     * @param obj  the receiver
+     * @param name the private name
+     * @return the value
+     */
+    public static Object PRIVATE_GET(final Object obj, final Object name) {
+        if (obj instanceof ScriptObject sobj) {
+            return sobj.getPrivate((PrivateName)name);
+        }
+        throw typeError("no.such.private", ((PrivateName)name).getDescription());
+    }
+
+    /**
+     * ES2022 writes a private element; the same brand check as {@link #PRIVATE_GET}.
+     *
+     * @param obj   the receiver
+     * @param name  the private name
+     * @param value the value
+     * @return the value written
+     */
+    public static Object PRIVATE_SET(final Object obj, final Object name, final Object value) {
+        if (obj instanceof ScriptObject sobj) {
+            sobj.setPrivate((PrivateName)name, value);
+            return value;
+        }
+        throw typeError("no.such.private", ((PrivateName)name).getDescription());
+    }
+
+    /**
+     * ES2022 the ergonomic brand check {@code #x in obj}: whether {@code obj}
+     * carries the private element. Never throws; a non-object is simply not one
+     * that carries it (a Proxy carries private elements on its target, not itself).
+     *
+     * @param name the private name
+     * @param obj  the object
+     * @return whether the element is present
+     */
+    public static boolean PRIVATE_IN(final Object name, final Object obj) {
+        if (obj instanceof ScriptObject sobj) {
+            return sobj.hasPrivate((PrivateName)name);
+        }
+        // ES2022 13.10.1: the right operand must be an object; a primitive is a
+        // TypeError, an object that simply lacks the brand (a plain JSObject, a
+        // Java bean, a Proxy) is false.
+        final JSType rvalType = JSType.ofNoFunction(obj);
+        if (rvalType != JSType.OBJECT) {
+            throw typeError("in.with.non.object", rvalType.toString().toLowerCase(java.util.Locale.ENGLISH));
+        }
+        return false;
     }
 
     /**
@@ -2494,14 +2612,32 @@ public final class ScriptRuntime {
         if (callee instanceof ScriptFunction ctor && self instanceof ScriptObject instance) {
             final Object[][] fields = ctor.getInstanceFieldInitializers();
             if (fields != null) {
+                // ES2022 15.7.15: private methods and accessors are installed on
+                // the instance before any field initializer runs, so a field
+                // initializer may call a private method.
                 for (final Object[] field : fields) {
+                    final int flags = (Integer)field[2];
+                    if ((flags & CLASS_ELEMENT_PRIVATE) != 0 && (flags & CLASS_ELEMENT_FIELD) == 0) {
+                        instance.definePrivate((PrivateName)field[0], (PrivateElement)field[1]);
+                    }
+                }
+                for (final Object[] field : fields) {
+                    final int flags = (Integer)field[2];
+                    if ((flags & CLASS_ELEMENT_PRIVATE) != 0 && (flags & CLASS_ELEMENT_FIELD) == 0) {
+                        continue; // a method/accessor, installed above
+                    }
                     final Object value = field[1] instanceof ScriptFunction init ? apply(init, instance) : UNDEFINED;
-                    defineField(instance, field[0], value);
+                    if ((flags & CLASS_ELEMENT_PRIVATE) != 0) {
+                        instance.definePrivate((PrivateName)field[0], PrivateElement.field(value));
+                    } else {
+                        defineField(instance, field[0], value);
+                    }
                 }
             }
         }
         return UNDEFINED;
     }
+
 
     /** An accessor's name carries "get " or "set " in front of the key's. */
     private static Object prefixed(final String prefix, final Object key) {

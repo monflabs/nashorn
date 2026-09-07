@@ -69,6 +69,22 @@ public final class IndexNode extends BaseNode {
         this.index = index;
     }
 
+    /**
+     * Constructor for an ES2022 private member access ({@code obj.#x}), whose
+     * {@code index} is a read of the private-name binding.
+     *
+     * @param token      token
+     * @param finish     finish
+     * @param base       base node for access
+     * @param index      the private-name binding read
+     * @param isOptional whether this is reached through {@code ?.}
+     * @param isPrivate  marks this as a private member access
+     */
+    public IndexNode(final long token, final int finish, final Expression base, final Expression index, final boolean isOptional, final boolean isPrivate) {
+        super(token, finish, base, false, false, isOptional, isPrivate);
+        this.index = index;
+    }
+
     private IndexNode(final IndexNode indexNode, final Expression base, final Expression index, final boolean isFunction,
                       final Type type, final int programPoint, final boolean isSuper) {
         super(indexNode, base, isFunction, type, programPoint, isSuper);

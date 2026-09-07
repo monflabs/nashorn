@@ -388,6 +388,20 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      */
     @Override
     public Node leaveBinaryNode(final BinaryNode binaryNode) {
+        // ES2022 ergonomic brand check: #x in obj (the left operand is a
+        // private-name reference produced by the parser)
+        if (binaryNode.isTokenType(TokenType.IN)
+                && binaryNode.lhs() instanceof IdentNode id && id.isPrivateName()) {
+            return new RuntimeNode(binaryNode.getToken(), binaryNode.getFinish(),
+                    RuntimeNode.Request.PRIVATE_IN, id, binaryNode.rhs());
+        }
+        // ES2022 compound or logical assignment to a private member is rewritten
+        // to a plain store with the base read once; a plain "=" is left for the
+        // code generator, which stores to the private target directly.
+        if (binaryNode.isAssignment() && !binaryNode.isTokenType(TokenType.ASSIGN)
+                && isPrivateIndex(binaryNode.lhs())) {
+            return privateAssignment(binaryNode);
+        }
         switch (binaryNode.tokenType()) {
         case ASSIGN_AND:
         case ASSIGN_OR:
@@ -402,6 +416,119 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             return super.leaveBinaryNode(binaryNode);
         }
         return destructuringExpression(binaryNode);
+    }
+
+    private static boolean isPrivateIndex(final Expression e) {
+        return e instanceof IndexNode ix && ix.isPrivate();
+    }
+
+    /** A simple private member reference {@code base.#x} for the code generator. */
+    private static IndexNode privateIndex(final long token, final int finish, final Expression base, final Expression index) {
+        return new IndexNode(token, finish, base, index, false, true);
+    }
+
+    /** A fresh read of a private-name binding, so it is not shared across tree positions. */
+    private static Expression copyIndex(final Expression index) {
+        final IdentNode id = (IdentNode) index;
+        return new IdentNode(id.getToken(), id.getFinish(), id.getName());
+    }
+
+    /** The non-assigning operator underlying a compound-assignment token. */
+    private static TokenType baseOpOf(final TokenType tt) {
+        switch (tt) {
+        case ASSIGN_ADD:     return TokenType.ADD;
+        case ASSIGN_SUB:     return TokenType.SUB;
+        case ASSIGN_MUL:     return TokenType.MUL;
+        case ASSIGN_DIV:     return TokenType.DIV;
+        case ASSIGN_MOD:     return TokenType.MOD;
+        case ASSIGN_EXP:     return TokenType.EXP;
+        case ASSIGN_BIT_AND: return TokenType.BIT_AND;
+        case ASSIGN_BIT_OR:  return TokenType.BIT_OR;
+        case ASSIGN_BIT_XOR: return TokenType.BIT_XOR;
+        case ASSIGN_SHL:     return TokenType.SHL;
+        case ASSIGN_SAR:     return TokenType.SAR;
+        case ASSIGN_SHR:     return TokenType.SHR;
+        default: throw new AssertionError("not a compound assignment: " + tt);
+        }
+    }
+
+    private static Expression assign(final long token, final Expression target, final Expression value) {
+        return new BinaryNode(Token.recast(token, TokenType.ASSIGN), target, value);
+    }
+
+    /**
+     * Rewrites a compound or logical assignment whose target is a private member
+     * to a plain assignment, reading the base once into a temporary so it is
+     * evaluated once for both the read and the write. A plain {@code =} is left
+     * alone - the code generator stores to the private target directly.
+     */
+    private Node privateAssignment(final BinaryNode node) {
+        final IndexNode target = (IndexNode) node.lhs();
+        final Expression base  = target.getBase();
+        final Expression index = target.getIndex();
+        final Expression rhs   = node.rhs();
+        final long token = node.getToken();
+        final int finish = node.getFinish();
+        final TokenType tt = node.tokenType();
+
+        final Statement at = new ExpressionStatement(lc.getCurrentFunction().getLineNumber(), token, finish, node);
+        final String baseTemp = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+        pendingDeclarations.add(declareTemporary(at, baseTemp));
+        final Expression baseInit = assignTemporary(at, baseTemp, base);
+        final Expression read  = privateIndex(token, finish, ref(at, baseTemp), copyIndex(index));
+        final IndexNode  write = privateIndex(token, finish, ref(at, baseTemp), copyIndex(index));
+
+        switch (tt) {
+        case ASSIGN_AND:
+        case ASSIGN_OR:
+        case ASSIGN_NULLISH: {
+            final TokenType sc = tt == TokenType.ASSIGN_AND ? TokenType.AND
+                    : tt == TokenType.ASSIGN_OR ? TokenType.OR : TokenType.NULLISH;
+            return sequence(at, baseInit, shortCircuitOf(token, sc, read, assign(token, write, rhs)));
+        }
+        default: {
+            final Expression combined = new BinaryNode(Token.recast(token, baseOpOf(tt)), read, rhs);
+            return sequence(at, baseInit, assign(token, write, combined));
+        }
+        }
+    }
+
+    /**
+     * Rewrites {@code ++obj.#x} / {@code obj.#x--} and friends on a private
+     * member into a plain store, the base read once into a temporary. A prefix
+     * form is worth the new value; a postfix form is worth the (coerced) old
+     * value, kept in a second temporary.
+     */
+    private Node privateIncDec(final UnaryNode node) {
+        final IndexNode target = (IndexNode) node.getExpression();
+        final Expression base  = target.getBase();
+        final Expression index = target.getIndex();
+        final long token = node.getToken();
+        final int finish = node.getFinish();
+        final boolean postfix = node.isTokenType(TokenType.INCPOSTFIX) || node.isTokenType(TokenType.DECPOSTFIX);
+        final TokenType op = node.isTokenType(TokenType.INCPREFIX) || node.isTokenType(TokenType.INCPOSTFIX)
+                ? TokenType.ADD : TokenType.SUB;
+
+        final Statement at = new ExpressionStatement(lc.getCurrentFunction().getLineNumber(), token, finish, node);
+        final String baseTemp = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+        pendingDeclarations.add(declareTemporary(at, baseTemp));
+        final Expression baseInit = assignTemporary(at, baseTemp, base);
+        final Expression number = new UnaryNode(Token.recast(token, TokenType.POS),
+                privateIndex(token, finish, ref(at, baseTemp), copyIndex(index)));
+
+        if (!postfix) {
+            final Expression adjusted = new BinaryNode(Token.recast(token, op), number,
+                    LiteralNode.newInstance(token, finish, 1));
+            return sequence(at, baseInit,
+                    assign(token, privateIndex(token, finish, ref(at, baseTemp), copyIndex(index)), adjusted));
+        }
+        final String oldTemp = EXPRESSION_TEMP_PREFIX + expressionTemporaries++;
+        pendingDeclarations.add(declareTemporary(at, oldTemp));
+        final Expression oldInit = assignTemporary(at, oldTemp, number);
+        final Expression adjusted = new BinaryNode(Token.recast(token, op), ref(at, oldTemp),
+                LiteralNode.newInstance(token, finish, 1));
+        final Expression set = assign(token, privateIndex(token, finish, ref(at, baseTemp), copyIndex(index)), adjusted);
+        return sequence(at, baseInit, sequence(at, oldInit, sequence(at, set, ref(at, oldTemp))));
     }
 
     /**
@@ -885,6 +1012,12 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             return new RuntimeNode(unaryNode.getToken(), unaryNode.getFinish(), request,
                     unaryNode.getExpression());
         }
+        // ES2022 ++/-- on a private member: the operand was rewritten to PRIVATE_GET
+        if (isPrivateIndex(unaryNode.getExpression())
+                && (unaryNode.isTokenType(TokenType.INCPREFIX) || unaryNode.isTokenType(TokenType.DECPREFIX)
+                 || unaryNode.isTokenType(TokenType.INCPOSTFIX) || unaryNode.isTokenType(TokenType.DECPOSTFIX))) {
+            return privateIncDec(unaryNode);
+        }
         return super.leaveUnaryNode(unaryNode);
     }
 
@@ -1116,6 +1249,11 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * a static block has no key, so a null literal stands in.
      */
     private static Expression keyOf(final PropertyNode element) {
+        if (element.isPrivate()) {
+            // a private element's runtime key is its PrivateName, produced by
+            // reading the :private:x binding the class body declared
+            return element.getPrivateNameBinding();
+        }
         final Expression key = element.getKey();
         if (key == null) {
             return LiteralNode.newInstance(element.getToken(), element.getFinish());
