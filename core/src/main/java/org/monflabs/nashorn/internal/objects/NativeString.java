@@ -1641,6 +1641,55 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
     }
 
     /**
+     * ECMAScript 2024 22.1.3.9 String.prototype.isWellFormed ( )
+     *
+     * @param self self reference
+     * @return whether the string contains no lone (unpaired) surrogate
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static boolean isWellFormed(final Object self) {
+        final String str = checkObjectToString(self);
+        final int len = str.length();
+        for (int i = 0; i < len; i++) {
+            final char c = str.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 >= len || !Character.isLowSurrogate(str.charAt(i + 1))) {
+                    return false;
+                }
+                i++; // a valid pair; step over its low surrogate
+            } else if (Character.isLowSurrogate(c)) {
+                return false; // a lone low surrogate
+            }
+        }
+        return true;
+    }
+
+    /**
+     * ECMAScript 2024 22.1.3.34 String.prototype.toWellFormed ( )
+     *
+     * @param self self reference
+     * @return the string with every lone surrogate replaced by U+FFFD
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static String toWellFormed(final Object self) {
+        final String str = checkObjectToString(self);
+        final int len = str.length();
+        char[] chars = null; // allocated only if a lone surrogate is found
+        for (int i = 0; i < len; i++) {
+            final char c = str.charAt(i);
+            if (Character.isHighSurrogate(c) && i + 1 < len && Character.isLowSurrogate(str.charAt(i + 1))) {
+                i++; // a valid pair; leave both code units as they are
+            } else if (Character.isSurrogate(c)) {
+                if (chars == null) {
+                    chars = str.toCharArray();
+                }
+                chars[i] = '\uFFFD';
+            }
+        }
+        return chars == null ? str : new String(chars);
+    }
+
+    /**
      * ECMAScript 2019 String.prototype.trimEnd ( )
      * @param self self reference
      * @return string with trailing whitespace removed
