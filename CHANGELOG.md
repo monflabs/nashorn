@@ -69,6 +69,22 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2023.0.0 (2026.09.07)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2023 (ECMA-262, 14th edition).** Everything the 2022 release implemented is unchanged; the four ES2023 additions are layered on top, and the `tc39/test262` slice is retargeted to the 14th edition.
+
+`   ` `           ` **Array find from last.** `Array.prototype.findLast` and `findLastIndex` (and the `%TypedArray%` forms) - `find`/`findIndex` scanning from the last element towards the first, holes seen as undefined.
+
+`   ` `           ` **Change Array by copy.** The non-mutating `Array.prototype.toReversed`, `toSorted`, `toSpliced` and `with`, and the `%TypedArray%` forms `toReversed`, `toSorted` and `with` (a typed array has no `toSpliced`). Each returns a new array and leaves the receiver untouched; the Array versions build a dense result (no `@@species`), `with` takes a relative index and throws `RangeError` out of range rather than clamping, and the typed-array copies are same-type (`TypedArrayCreateSameType`). `findLast`/`findLastIndex`/`toReversed`/`toSorted`/`toSpliced` join `Array.prototype[@@unscopables]`.
+
+`   ` `           ` **Hashbang grammar.** A `#!` at the very start of a script or module is a single-line comment (a shebang line), in every goal and whether or not `-scripting` is on; away from the start, `#` is still a private-class-member name.
+
+`   ` `           ` **Symbols as WeakMap keys.** A non-registered `Symbol` may now be a `WeakMap`/`WeakSet` key and a `WeakRef`/`FinalizationRegistry` target; a registered symbol (from `Symbol.for`) and every other primitive stay a `TypeError`. A shared `CanBeHeldWeakly` check replaces the old plain not-an-object guard across the weak collections.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2022 to ES2023. Of the 74,600 selected executions, **92** fail - unchanged from 2022.0.0 (the 8 Annex B indirect-eval cases and the 84 ES2022 corners); no ES2023 feature introduced a new one. No performance regression. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 14th edition, and the playground gains an `ES2023` sample category - one runnable sample per feature - run headlessly by the build.
+
 2022.0.0 (2026.09.07)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2022 (ECMA-262, 13th edition).** Everything the 2021 release implemented is unchanged; the ES2022 additions are layered on top, and the `tc39/test262` slice is retargeted to the 13th edition.
