@@ -58,7 +58,10 @@ assertThrows("new WeakSet({})", TypeError);
 assertThrows("new WeakSet(['a'])", TypeError);
 assertThrows("new WeakSet([3])", TypeError);
 assertThrows("new WeakSet([true])", TypeError);
-assertThrows("new WeakSet([Symbol.iterator])", TypeError);
+// ES2023: a non-registered symbol is a valid value; a registered one is not
+new WeakSet([Symbol.iterator]);
+new WeakSet([Symbol("x")]);
+assertThrows("new WeakSet([Symbol.for('reg')])", TypeError);
 
 assertThrows("WeakSet.prototype.add.apply({}, [''])", TypeError);
 assertThrows("WeakSet.prototype.has.apply(3, [''])", TypeError);
@@ -90,11 +93,13 @@ for (let i = 0; i < values.length; i++) {
 assertThrows("s.add('a')", TypeError);
 assertThrows("s.add(3)", TypeError);
 assertThrows("s.add(false)", TypeError);
-assertThrows("s.add(Symbol.iterator)", TypeError);
+// ES2023: a registered symbol is still not a valid value; a plain one is
+assertThrows("s.add(Symbol.for('reg'))", TypeError);
 
 Assert.assertTrue(s.has('a') === false);
 Assert.assertTrue(s.delete(3) === false);
-Assert.assertTrue(s.has(Symbol.iterator) === false);
+s.add(Symbol.iterator);
+Assert.assertTrue(s.has(Symbol.iterator) === true);
 Assert.assertTrue(s.delete(true) === false);
 
 

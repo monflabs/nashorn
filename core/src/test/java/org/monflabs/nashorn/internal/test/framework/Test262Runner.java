@@ -708,7 +708,7 @@ public final class Test262Runner {
             // whenever a message is reworded; keeping it here would churn the
             // diff of a file whose whole purpose is to show what changed.
             final List<String> lines = new ArrayList<>();
-            lines.add("# test262 ES2022 slice: settled failures. See doc/CONFORMANCE.md for each reason.");
+            lines.add("# test262 ES2023 slice: settled failures. See doc/CONFORMANCE.md for each reason.");
             lines.add("# Regenerate with -Dnashorn.test262.write.expectations=true. The build fails on any");
             lines.add("# failure not listed here and on any listed test that starts passing, so conformance");
             lines.add("# only moves forwards. Reasons for the current run go to target/test262-failures.txt.");

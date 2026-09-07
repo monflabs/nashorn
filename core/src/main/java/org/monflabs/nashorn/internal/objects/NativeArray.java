@@ -1521,6 +1521,19 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * ToIntegerOrInfinity as a double, so an index or count near 2^53 keeps its
+     * value - {@link JSType#toInteger} truncates to a 32-bit int, which the
+     * change-by-copy methods must not do.
+     */
+    private static double toIntegerOrInfinity(final Object value) {
+        final double number = JSType.toNumber(value);
+        if (Double.isNaN(number)) {
+            return 0;
+        }
+        return number < 0 ? Math.ceil(number) : Math.floor(number);
+    }
+
+    /**
      * ECMAScript 2023 Array.prototype.toReversed(): a reversed copy, leaving the
      * original untouched. The result is a dense array; a hole reads as undefined.
      *
@@ -1570,11 +1583,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      * @param value the replacement value
      * @return a new array with the one element changed
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object with(final Object self, final Object index, final Object value) {
         final ScriptObject sobj = toArrayLike(self);
         final long len = toLength(sobj.getLength());
-        final double relative = JSType.toInteger(index);
+        final double relative = toIntegerOrInfinity(index);
         final double actual = relative >= 0 ? relative : len + relative;
         if (actual < 0 || actual >= len) {
             throw rangeError("inappropriate.array.index", JSType.toString(index));
@@ -1604,10 +1617,14 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         if (args.length < 2) {
             skip = args.length == 0 ? 0 : len - start;
         } else {
-            skip = Math.min(Math.max((long)JSType.toInteger(args[1]), 0), len - start);
+            skip = (long)Math.min(Math.max(toIntegerOrInfinity(args[1]), 0), (double)(len - start));
         }
         final long insert = args.length > 2 ? args.length - 2 : 0;
         final long newLen = len - skip + insert;
+        // 23.1.3.35 step 8: a result longer than an array-like may be is a TypeError
+        if (newLen > MAX_SAFE_INTEGER) {
+            throw typeError("array.length.exceeded", JSType.toString((double)newLen));
+        }
         final Object[] result = new Object[denseLength(newLen)];
         int r = 0;
         for (long i = 0; i < start; i++) {

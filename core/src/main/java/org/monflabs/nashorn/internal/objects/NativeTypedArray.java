@@ -458,7 +458,7 @@ public final class NativeTypedArray extends ScriptObject {
      * @param value the replacement value
      * @return a new typed array with the one element changed
      */
-    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
     public static Object with(final Object self, final Object index, final Object value) {
         final ArrayBufferView source = view(self);
         final int length = source.getElementLength();

@@ -1,4 +1,4 @@
-# test262 ES2022 slice: settled failures. See doc/CONFORMANCE.md for each reason.
+# test262 ES2023 slice: settled failures. See doc/CONFORMANCE.md for each reason.
 # Regenerate with -Dnashorn.test262.write.expectations=true. The build fails on any
 # failure not listed here and on any listed test that starts passing, so conformance
 # only moves forwards. Reasons for the current run go to target/test262-failures.txt.

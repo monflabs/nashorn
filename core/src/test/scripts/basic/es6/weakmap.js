@@ -58,7 +58,10 @@ assertThrows("new WeakMap({})", TypeError);
 assertThrows("new WeakMap([['a', {}]])", TypeError);
 assertThrows("new WeakMap([[3, {}]])", TypeError);
 assertThrows("new WeakMap([[true, {}]])", TypeError);
-assertThrows("new WeakMap([[Symbol.iterator, {}]])", TypeError);
+// ES2023: a non-registered symbol is a valid weak key; a registered one is not
+new WeakMap([[Symbol.iterator, {}]]);
+new WeakMap([[Symbol("x"), {}]]);
+assertThrows("new WeakMap([[Symbol.for('reg'), {}]])", TypeError);
 
 assertThrows("WeakMap.prototype.set.apply({}, [{}, {}])", TypeError);
 assertThrows("WeakMap.prototype.has.apply(3, [{}])", TypeError);
@@ -92,9 +95,13 @@ for (let i = 0; i < values.length; i++) {
 assertThrows("m.set('a', {})", TypeError);
 assertThrows("m.set(3, {})", TypeError);
 assertThrows("m.set(false, {})", TypeError);
-assertThrows("m.set(Symbol.iterator, {})", TypeError);
+// ES2023: a registered symbol is still not a valid key; a plain one is
+assertThrows("m.set(Symbol.for('reg'), {})", TypeError);
 
 Assert.assertTrue(m.has('a') === false);
 Assert.assertTrue(m.delete(3) === false);
+var sym = Symbol("k");
+m.set(sym, 7);
+Assert.assertTrue(m.get(sym) === 7);
 Assert.assertTrue(m.get(Symbol.iterator) === undefined);
 Assert.assertTrue(m.get(true) === undefined);
