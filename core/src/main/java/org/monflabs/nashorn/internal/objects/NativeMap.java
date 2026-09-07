@@ -103,6 +103,32 @@ public class NativeMap extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2024 24.1.1.2 Map.groupBy ( items, callbackfn )
+     *
+     * Groups the elements of {@code items} into a new {@code Map} keyed by what
+     * {@code callbackfn} returns for each element (called with the element and its
+     * index), the keys compared by SameValueZero, the values arrays of the
+     * elements that produced each key.
+     *
+     * @param self        self reference
+     * @param items       the iterable to group
+     * @param callbackfn  maps an element (and its index) to a group key
+     * @return a Map of key to array-of-elements
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static Object groupBy(final Object self, final Object items, final Object callbackfn) {
+        final Global global = Global.instance();
+        final java.util.Map<Object, java.util.List<Object>> groups =
+                NativeObject.groupByCollect(items, callbackfn, global, true);
+        final NativeMap result = new NativeMap(global.getMapPrototype(), $nasgenmap$);
+        for (final java.util.Map.Entry<Object, java.util.List<Object>> group : groups.entrySet()) {
+            // the keys are already SameValueZero-canonicalized by groupByCollect
+            result.map.set(group.getKey(), new NativeArray(group.getValue().toArray()));
+        }
+        return result;
+    }
+
+    /**
      * ECMA6 23.1.3.1 Map.prototype.clear ( )
      *
      * @param self the self reference

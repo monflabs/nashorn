@@ -42,9 +42,11 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.Operation;
@@ -542,6 +544,70 @@ public final class NativeObject {
             result.defineOwnProperty(JSType.toPropertyKey(key), global.newDataDescriptor(val, true, true, true), true);
         });
         return result;
+    }
+
+    /**
+     * ECMAScript 2024 20.1.2.13 Object.groupBy ( items, callbackfn )
+     *
+     * Groups the elements of {@code items} into a {@code null}-prototype object
+     * whose keys are {@code ToPropertyKey} of what {@code callbackfn} returns for
+     * each element (called with the element and its index), and whose values are
+     * arrays of the elements that produced each key, in first-seen key order and
+     * iteration order within a group.
+     *
+     * @param self        self reference
+     * @param items       the iterable to group
+     * @param callbackfn  maps an element (and its index) to a group key
+     * @return a null-prototype object of key to array-of-elements
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 2)
+    public static ScriptObject groupBy(final Object self, final Object items, final Object callbackfn) {
+        final Global global = Global.instance();
+        final Map<Object, List<Object>> groups = groupByCollect(items, callbackfn, global, false);
+        // OrdinaryObjectCreate(null): the result has no prototype, so a group
+        // named "__proto__" is an ordinary own property rather than a setter.
+        final ScriptObject result = Global.newEmptyInstance();
+        result.setProto(null);
+        for (final Map.Entry<Object, List<Object>> group : groups.entrySet()) {
+            result.defineOwnProperty(group.getKey(),
+                    global.newDataDescriptor(new NativeArray(group.getValue().toArray()), true, true, true), true);
+        }
+        return result;
+    }
+
+    /**
+     * The shared body of {@code Object.groupBy} and {@code Map.groupBy} (ES2024
+     * 7.3.35 GroupBy): iterates {@code items}, calls {@code callbackfn(element,
+     * index)}, and collects each element under its key. {@code collection} picks
+     * the key equivalence - {@code ToPropertyKey} for the object form,
+     * SameValueZero for the map form - so the returned map's keys are ready for
+     * the caller to install.
+     *
+     * @param items       the iterable
+     * @param callbackfn  the grouping function
+     * @param global      the realm
+     * @param collection  true for the map form (SameValueZero keys), false for
+     *                    the object form (property keys)
+     * @return the groups in first-seen order
+     */
+    static Map<Object, List<Object>> groupByCollect(final Object items, final Object callbackfn,
+            final Global global, final boolean collection) {
+        if (!Bootstrap.isCallable(callbackfn)) {
+            throw typeError(global, "not.a.function", ScriptRuntime.safeToString(callbackfn));
+        }
+        final Map<Object, List<Object>> groups = new LinkedHashMap<>();
+        final long[] index = { 0 };
+        AbstractIterator.iterate(items, global, value -> {
+            if (index[0] >= 9007199254740991L) {
+                throw typeError(global, "grouping.overflow");
+            }
+            final Object result = ScriptRuntime.call(callbackfn, ScriptRuntime.UNDEFINED,
+                    new Object[] { value, (double) index[0] });
+            final Object key = collection ? NativeMap.convertKey(result) : JSType.toPropertyKey(result);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+            index[0]++;
+        });
+        return groups;
     }
 
     /**
