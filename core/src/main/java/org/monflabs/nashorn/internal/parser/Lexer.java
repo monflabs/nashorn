@@ -1964,6 +1964,17 @@ public class Lexer extends Scanner {
                 continue;
             }
 
+            // ES2023 HashbangComment: "#!" at the very start of the source is a
+            // single-line comment, in both the Script and Module goals and
+            // whether or not -scripting is on (where a bare # is already one).
+            if (position == 0 && ch0 == '#' && ch1 == '!') {
+                skip(2);
+                while (!atEOF() && !isEOL(ch0)) {
+                    skip(1);
+                }
+                continue;
+            }
+
             if (scripting && ch0 == '#' && skipComments()) {
                 continue;
             }

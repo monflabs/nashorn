@@ -114,7 +114,7 @@ public final class Test262Selector {
         "class-static-methods-private", "class-fields-private-in",
         "top-level-await",
         // ES2023
-        "array-find-from-last", "change-array-by-copy",
+        "array-find-from-last", "change-array-by-copy", "hashbang",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
