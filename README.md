@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2021 Language Specification](https://262.ecma-international.org/12.0/)
+[ECMAScript 2022 Language Specification](https://262.ecma-international.org/13.0/)
 (ECMAScript 9). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2021 together with its Annex B - the additional
+This fork implements ECMAScript 2022 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -19,10 +19,12 @@ There is no ES5-only mode:
 `let`, `const`, arrow functions, `for..of`, template literals, symbols, the
 `Map`/`Set` family, which upstream hid behind a language switch, and the
 editions after them - `**`, `Object.values`, `String.prototype.padStart`,
-async functions, `SharedArrayBuffer` and `Atomics`, and the ES2018 additions
+async functions, `SharedArrayBuffer` and `Atomics`, the ES2018 additions
 (object rest/spread, async iteration with `for await`, `Promise.prototype.finally`,
-and the RegExp `s` flag, named groups, lookbehind and `\p{…}` property escapes) -
-are simply the language. Proper tail calls are a documented exclusion, as is
+and the RegExp `s` flag, named groups, lookbehind and `\p{…}` property escapes),
+and everything through ES2022 - optional chaining and nullish coalescing, `BigInt`,
+logical-assignment operators, class fields and **private members** (`#x`), static
+blocks, and **top-level `await`** - are simply the language. Proper tail calls are a documented exclusion, as is
 ECMA-402. Annex B is implemented, behind `--annexB`.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
@@ -58,7 +60,7 @@ This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at vers
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
 implements, rather than a sequential number. So `2021.0.0` targets
-[ECMAScript 2021](https://262.ecma-international.org/12.0/) (ES12), just as the earlier
+[ECMAScript 2022](https://262.ecma-international.org/13.0/) (ES13), just as the earlier
 `2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
 a later edition of the language, the major number moves to that edition's year (for
@@ -106,7 +108,7 @@ moves forwards. 8 of the 58,803 selected executions fail — one shape, an indir
 `eval` whose block-level function declaration must update a `var` the global
 already had (a documented eval-scope-merge divergence); everything else passes.
 Three things are excluded,
-all outside ECMA-262 12th edition proper: proper tail calls, ECMA-402
+all outside ECMA-262 13th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

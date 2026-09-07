@@ -25,14 +25,14 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2021 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2022 conformance.
  *
  * test262 has no branch or tag for any edition - only the frozen
  * {@code es5-tests} branch and {@code main}, which tracks the current draft
  * spec. The suite for an edition has to be selected out of {@code main}, and the
  * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2021.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2022.</b>
  *
  * <p>That is deliberate. An allow rule - take only tests tagged with a feature
  * of the edition - would quietly drop the thousands of untagged tests covering
@@ -49,7 +49,7 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015 through ES2021 introduced. A
+     * Every {@code features:} tag that ES2015 through ES2022 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
@@ -252,7 +252,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2021 conformance
+     * @return true if the test counts towards ES2022 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 

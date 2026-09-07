@@ -1,8 +1,8 @@
-ECMAScript 2021 conformance
+ECMAScript 2022 conformance
 ===========================
 
-This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
-(ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2022](https://262.ecma-international.org/13.0/)
+(ECMA-262, 13th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its 74,069 executions
 **92 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
@@ -89,7 +89,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2021.
+everything else outside the slice is simply later than ECMAScript 2022.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -117,7 +117,13 @@ them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
 `Promise.any` with `AggregateError`, the logical assignment operators
 (`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef` /
 `FinalizationRegistry`. A handful of BigInt corner cases are settled divergences,
-named in the expectations file (see below).
+named in the expectations file (see below). And the ES2022 additions — the target
+of this edition — are in scope: `Array`/`String`/`%TypedArray%`.prototype.`at`,
+`Object.hasOwn`, the `cause` option on the `Error` constructors, the RegExp `d`
+flag (match indices), class fields and static initializer blocks, private class
+members (`#x` fields, methods, accessors, their static forms, and `#x in obj`),
+and top-level `await`. Their settled corners are the ES2022 ones named at the top
+of this document.
 
 Everything else the selector leaves out is a later edition: every test whose
 `features:` tag names something introduced after the target - the RegExp `v` flag,

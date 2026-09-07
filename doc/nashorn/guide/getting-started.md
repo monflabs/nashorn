@@ -107,7 +107,7 @@ covers the choice and every option in full.
 
 ## What language you get
 
-The engine speaks **ECMAScript 2021**, whole: `let`/`const`, classes, arrow functions, template
+The engine speaks **ECMAScript 2022**, whole: `let`/`const`, classes, arrow functions, template
 literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
 `SharedArrayBuffer` and `Atomics`, plus the ES2018 additions — object rest/spread (`{...o}`), async
 iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the
@@ -120,7 +120,11 @@ well-formed `JSON.stringify` — and the ES2020 additions: nullish coalescing (`
 `globalThis`, `Promise.allSettled`, and `BigInt` (with `BigInt64Array`/`BigUint64Array` and the
 `DataView`/`Atomics` big-64 operations) — and the ES2021 additions:
 `String.prototype.replaceAll`, `Promise.any`/`AggregateError`, the logical assignment operators
-(`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef`/`FinalizationRegistry`. There is
+(`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef`/`FinalizationRegistry` — and the
+ES2022 additions: `Array`/`String`/`%TypedArray%`.prototype.`at`, `Object.hasOwn`, the `cause` option
+on `Error`, the RegExp `d` (match-indices) flag, **class fields** and **static initializer blocks**,
+**private class members** (`#x` fields, methods, accessors, static forms, and `#x in obj`), and
+**top-level `await`**. There is
 no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).
