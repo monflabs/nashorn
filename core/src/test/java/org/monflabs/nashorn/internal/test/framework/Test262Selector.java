@@ -244,7 +244,13 @@ public final class Test262Selector {
             "language/identifiers/start-unicode-17.0.0.js",
             "language/identifiers/start-unicode-17.0.0-escaped.js",
             "language/identifiers/part-unicode-17.0.0.js",
-            "language/identifiers/part-unicode-17.0.0-escaped.js");
+            "language/identifiers/part-unicode-17.0.0-escaped.js",
+            // the class-body forms of the same, held out for the same reason -
+            // JDK 25 is Unicode 16, so a Unicode 17 identifier is not one to it
+            "language/identifiers/start-unicode-17.0.0-class.js",
+            "language/identifiers/start-unicode-17.0.0-class-escaped.js",
+            "language/identifiers/part-unicode-17.0.0-class.js",
+            "language/identifiers/part-unicode-17.0.0-class-escaped.js");
 
     private Test262Selector() {
     }

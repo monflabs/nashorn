@@ -73,6 +73,7 @@ import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.ForNode;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.IdentNode;
+import org.monflabs.nashorn.internal.ir.LexicalContext;
 import org.monflabs.nashorn.internal.ir.LexicalContextNode;
 import org.monflabs.nashorn.internal.ir.LiteralNode;
 import org.monflabs.nashorn.internal.ir.Node;
@@ -213,12 +214,23 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
                 final boolean blockScoped = varNode.isBlockScoped();
                 final Block switchBlock = blockScoped ? lc.getSwitchBlock() : null;
                 // a switch is one scope, not one per clause: see getSwitchBlock
-                final Block block = blockScoped ? (switchBlock != null ? switchBlock : lc.getCurrentBlock()) : body;
+                Block block = blockScoped ? (switchBlock != null ? switchBlock : lc.getCurrentBlock()) : body;
                 // A var written in the parameter list - the temporaries a
                 // pattern is taken apart with - belongs to the parameter
                 // list's environment, not the body's.
                 final Block target = blockScoped || !inNestedBody() ? null : variables;
-                final int flags = varNode.getSymbolFlags() | plainFunctionDeclaration(varNode);
+                int flags = varNode.getSymbolFlags() | plainFunctionDeclaration(varNode);
+                if (blockScoped && block.isSplitBody()) {
+                    // The splitter divided this block and moved the declaration
+                    // into an artificial split body (now a nested function); the
+                    // binding belongs to the real block, in scope, so the other
+                    // splits can read it. The enclosing real block is above this
+                    // split function, so the search uses the outer lexical context
+                    // (this pre-pass runs on its own visitor whose context stops
+                    // at the split function).
+                    block = lexicalScopeTarget(AssignSymbols.this.lc);
+                    flags |= IS_SCOPE;
+                }
                 final Symbol symbol = defineSymbol(block, ident.getName(), ident, flags, target);
                 if (varNode.isFunctionDeclaration()) {
                     symbol.setIsFunctionDeclaration();
@@ -616,7 +628,7 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
 
     private void defineVarIdent(final VarNode varNode) {
         final IdentNode ident = varNode.getName();
-        final int flags;
+        int flags;
         if (!varNode.isBlockScoped() && lc.getCurrentFunction().isProgram()) {
             flags = IS_SCOPE;
         } else {
@@ -624,8 +636,33 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
         }
         final Block switchBlock = varNode.isBlockScoped() ? lc.getSwitchBlock() : null;
         // the same block the declaration was hoisted into: see getSwitchBlock
-        defineSymbol(switchBlock != null ? switchBlock : lc.getCurrentBlock(),
-                ident.getName(), ident, varNode.getSymbolFlags() | flags | plainFunctionDeclaration(varNode));
+        Block block = switchBlock != null ? switchBlock : lc.getCurrentBlock();
+        if (varNode.isBlockScoped() && block.isSplitBody()) {
+            // must match acceptDeclarations: the binding is the real block's, in
+            // scope, not the artificial split body the declaration now sits in.
+            block = lexicalScopeTarget(lc);
+            flags |= IS_SCOPE;
+        }
+        defineSymbol(block, ident.getName(), ident, varNode.getSymbolFlags() | flags | plainFunctionDeclaration(varNode));
+    }
+
+    /**
+     * The block a lexical (let/const) binding declares in, skipping the
+     * artificial split bodies the splitter introduces - which are compilation
+     * boundaries, not scopes. A declaration divided into one binds in the real
+     * block that was split, so the other splits and nested functions share it.
+     *
+     * @param lc the lexical context whose current block is a split body
+     * @return the nearest enclosing real block
+     */
+    private static Block lexicalScopeTarget(final LexicalContext lc) {
+        for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext(); ) {
+            final Block block = blocks.next();
+            if (!block.isSplitBody()) {
+                return block;
+            }
+        }
+        return lc.getCurrentBlock();
     }
 
     private Symbol exceptionSymbol() {

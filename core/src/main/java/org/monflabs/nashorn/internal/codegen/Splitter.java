@@ -204,11 +204,12 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
         List<Statement> statements = new ArrayList<>();
         long statementsWeight = 0;
 
+        boolean hasBlockScoped = false;
         for (final Statement statement : block.getStatements()) {
             final long weight = WeighNodes.weigh(statement, weightCache);
-            final boolean isBlockScopedVarNode = isBlockScopedVarNode(statement);
+            hasBlockScoped |= isBlockScopedVarNode(statement);
 
-            if (statementsWeight + weight >= SPLIT_THRESHOLD || statement.isTerminal() || isBlockScopedVarNode) {
+            if (statementsWeight + weight >= SPLIT_THRESHOLD || statement.isTerminal()) {
                 if (!statements.isEmpty()) {
                     splits.add(createBlockSplitNode(block, function, statements, statementsWeight));
                     statements = new ArrayList<>();
@@ -216,7 +217,11 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
                 }
             }
 
-            if (statement.isTerminal() || isBlockScopedVarNode) {
+            // A block-scoped declaration (let/const) is no longer kept out of a
+            // split: AssignSymbols redirects its binding to this block and forces
+            // it into scope, so the split methods reach it. A terminal statement
+            // still ends the current split group and stands on its own.
+            if (statement.isTerminal()) {
                 splits.add(statement);
             } else {
                 statements.add(statement);
@@ -228,7 +233,13 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
             splits.add(createBlockSplitNode(block, function, statements, statementsWeight));
         }
 
-        return block.setStatements(lc, splits);
+        Block newBlock = block.setStatements(lc, splits);
+        if (hasBlockScoped) {
+            // this block's lexical bindings now live in split methods, so it must
+            // carry a scope object for them to be reached through
+            newBlock = newBlock.setNeedsScope(lc);
+        }
+        return newBlock;
     }
 
     /**
@@ -244,7 +255,10 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
         final int    finish     = parent.getFinish();
         final String name       = function.uniqueName(SPLIT_PREFIX.symbolName());
 
-        final Block newBlock = new Block(token, finish, statements);
+        // IS_SPLIT_BODY: this block is an artificial compilation boundary, not a
+        // lexical scope. A lexical declaration split into it binds in the parent
+        // block (see AssignSymbols).
+        final Block newBlock = new Block(token, finish, Block.IS_SYNTHETIC | Block.IS_SPLIT_BODY, statements);
 
         return new SplitNode(name, newBlock, compiler.findUnit(weight + WeighNodes.FUNCTION_WEIGHT));
     }

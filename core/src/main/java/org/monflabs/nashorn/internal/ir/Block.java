@@ -113,6 +113,14 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
     public static final int IS_BREAKABLE       = 1 << 8;
 
     /**
+     * Is this block only a {@link SplitNode}'s body - an artificial compilation
+     * boundary the splitter introduced, not a lexical scope of its own? A lexical
+     * declaration divided into one binds in the real block the splitter divided,
+     * not here, and is forced into scope so the split methods reach it.
+     */
+    public static final int IS_SPLIT_BODY      = 1 << 1;
+
+    /**
      * Constructor
      *
      * @param token      The first token of the block
@@ -431,6 +439,15 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
      */
     public boolean isSynthetic() {
         return (flags & IS_SYNTHETIC) == IS_SYNTHETIC;
+    }
+
+    /**
+     * Is this block only a SplitNode's body rather than a lexical scope?
+     *
+     * @return true if it is a split body
+     */
+    public boolean isSplitBody() {
+        return (flags & IS_SPLIT_BODY) == IS_SPLIT_BODY;
     }
 
     @Override
