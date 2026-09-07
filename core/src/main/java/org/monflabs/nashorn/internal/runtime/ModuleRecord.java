@@ -462,16 +462,22 @@ public final class ModuleRecord {
         for (final String requested : module.getRequestedModules()) {
             ModuleRecord required = dependency(requested);
             index = required.innerModuleEvaluation(stack, index);
-            if (required.state == State.EVALUATING_ASYNC || required.state == State.EVALUATED) {
-                required = required.cycleRoot != null ? required.cycleRoot : required;
-            }
             if (required.state == State.EVALUATING) {
                 dfsAncestorIndex = Math.min(dfsAncestorIndex, required.dfsAncestorIndex);
-            } else if (required.state == State.EVALUATING_ASYNC) {
-                // a cycle root that is still evaluating asynchronously: this module
-                // waits on it. A dependency that has fully evaluated (even one that
-                // was asynchronous) is done and adds no pending dependency, or the
-                // waiter would never be released.
+            } else {
+                // evaluating-async or evaluated: what this module waits on is the
+                // dependency's cycle, named by its root.
+                required = required.cycleRoot != null ? required.cycleRoot : required;
+            }
+            // ES2023 InnerModuleEvaluation 16.2.1.5.3 step 11.c.vi (with the 2025
+            // erratum): a dependency that will settle asynchronously is a pending
+            // async dependency this module waits on - not only a finished cycle's
+            // evaluating-async root, but a member of this very cycle that is still
+            // evaluating and already known to be async. Counting the latter is
+            // what makes a cyclic async dependency run to completion before its
+            // waiter's body, rather than interleaving. One fully evaluated is done
+            // and adds nothing, or the waiter would never be released.
+            if (required.asyncEvaluation && required.state != State.EVALUATED) {
                 pendingAsyncDependencies++;
                 required.asyncParentModules.add(this);
             }
