@@ -6,7 +6,7 @@ application rather than a library — built as an executable jar, not published 
 
 ```
 mvn -pl playground -am package
-java -jar playground/target/nashorn-playground-2023.0.0-all.jar
+java -jar playground/target/nashorn-playground-2023.0.1-all.jar
 ```
 
 (`--dark` or `--light` forces the theme; by default it follows the system.)

@@ -69,6 +69,14 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2023.0.1 (2026.09.07)
+---------------------
+`   ` `           ` **The event loop is now optional, and off by default.** The per-realm event loop that backs every asynchronous capability - `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch`, and a `FinalizationRegistry`'s cleanup - is enabled with `NashornScriptEngineBuilder.eventLoop(true)` (or the `--event-loop` option). With it off, each of those throws a `TypeError` where it is used, rather than scheduling work nothing would run - the right default for a purely synchronous embedder whose scripts never wait. A plain (non-async) module still evaluates synchronously. `jjs` turns the loop on alongside its standard libraries; the tests turn it on centrally.
+
+`   ` `           ` **Conformance: the settled test262 failures drop from 92 to 8.** All eight remaining are the carried-over Annex B indirect-eval cases; no ES2022 or ES2023 corner is left. Fixed: direct `eval`'s ES2022 early errors (an eval naming `arguments` in a field initializer, or a private member the caller's environment does not hold, is now a parse-time `SyntaxError`); the two `#x in obj` grammar corners; `new await` at a module top level; and an asynchronous-cycle fulfilment order (the 2025 InnerModuleEvaluation erratum).
+
+`   ` `           ` **The splitter now divides a block of lexical (`let`/`const`) declarations across sub-methods.** A class spelling thousands of private names, or any large `const`/`let` block, no longer overflows the JVM's 64KB method limit and fails to compile - a declaration moved into a split binds in the real block that was split, forced into scope so the split methods reach it. This clears the eighteen exhaustive Unicode identifier tests (the four keyed to Unicode 17.0.0 are held out, JDK 25 being Unicode 16). No performance regression.
+
 2023.0.0 (2026.09.07)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2023 (ECMA-262, 14th edition).** Everything the 2022 release implemented is unchanged; the four ES2023 additions are layered on top, and the `tc39/test262` slice is retargeted to the 14th edition.
