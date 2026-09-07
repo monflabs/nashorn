@@ -153,14 +153,15 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 44 of the 74,600 executions: 8 Annex B indirect-eval "existing var
-  update" cases and one ES2022 corner, the 18 Unicode identifier torture tests (each spelling
-  thousands of private names in a single class, whose `const :private:x` bindings overflow the 64KB
-  method limit — the splitter cannot move a lexical declaration into a sub-method without changing the
-  scope it binds in). The direct-eval early errors (no-`arguments` in a field initializer, a private
-  member the caller's environment lacks), the two `#x in` grammar edges, and both top-level-await
-  corners (`new await`, the async-cycle fulfilment order) are now fixed, their reasons still recorded in
-  `doc/CONFORMANCE.md` — so any
+  lists the settled failures — 8 of the 74,600 executions, all 8 the Annex B indirect-eval "existing
+  var update" cases. No ES2022 or ES2023 corner remains: the direct-eval early errors (no-`arguments`
+  in a field initializer, a private member the caller's environment lacks), the two `#x in` grammar
+  edges, both top-level-await corners (`new await`, the async-cycle fulfilment order), and the 18
+  Unicode identifier torture tests are all fixed — the last by teaching the splitter to divide a block
+  of lexical (`let`/`const`) declarations across sub-methods (a declaration moved into a split binds in
+  the real block, forced into scope), which also fixes large `const`/`let` blocks that overflowed the
+  64KB method limit; the four Unicode-17.0.0 files move to the selector's `LATER_UNICODE` hold-out (JDK
+  25 is Unicode 16). Reasons are recorded in `doc/CONFORMANCE.md` — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with

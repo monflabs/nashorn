@@ -5,7 +5,7 @@ This engine implements [ECMAScript 2023](https://262.ecma-international.org/14.0
 (ECMA-262, 14th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its 74,600 executions
-**44 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2022 additions - class fields, private members, static
 blocks, top-level await, `.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d`
@@ -15,21 +15,23 @@ flag - are all in, and so now are the four **ES2023** additions:
 non-registered symbols as `WeakMap`/`WeakSet` keys. The slice selects their feature
 tags; ES2023 introduced no new settled failure.)
 
-Of the 44, **8** are the one carried-over Annex B shape: an indirect `eval` whose
+All **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **36** are a
-single ES2022 corner - a limit of the JVM, not a hole in the language:
-
-- **Eighteen exhaustive Unicode identifier tests** that spell *thousands* of
-  distinct private names in a single class. Each private name binds a `const` of
-  its own, and at that scale the class's generated method passes the JVM's 64 KB
-  method limit even after the splitter runs, which cannot move a lexical
-  declaration into a sub-method without changing the scope it binds in - a size a
-  real program never reaches (a class of four thousand *public* fields compiles,
-  having no such bindings).
+rooted in how the engine merges eval scopes (see below). No ES2022 or ES2023
+corner remains.
 
 The ES2022 corners earlier documented here are now **fixed**:
 
+- **The thousands-of-private-names Unicode identifier tests**. A class spelling
+  thousands of distinct private names binds each as a `const :private:x` in its
+  carrier scope, and at that scale the carrier's generated method passed the JVM's
+  64 KB limit - the splitter kept every lexical declaration in the one method
+  (even 5000 plain `const` would not compile). The splitter now divides lexical
+  declarations across sub-methods: a declaration moved into a split binds in the
+  real block that was split, forced into scope so the split methods reach the one
+  binding. Fourteen of the eighteen tests now compile and pass; the four keyed to
+  Unicode 17.0.0 join their non-class siblings in the selector's `LATER_UNICODE`
+  hold-out, since JDK 25 carries Unicode 16 (see below).
 - **The direct-`eval` interaction with the new lexical features**. A direct
   `eval` now carries its caller's ES2022 early-error context into its own parse:
   an `eval` whose body names `arguments`, written where a field initializer or
