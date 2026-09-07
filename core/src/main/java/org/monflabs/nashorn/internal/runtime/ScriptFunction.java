@@ -941,6 +941,34 @@ public class ScriptFunction extends ScriptObject {
         return data instanceof RecompilableScriptFunctionData recompilable && recompilable.isProgramFunction();
     }
 
+    /**
+     * Whether a direct eval written in this function forbids {@code arguments}
+     * (ES2022 15.7.1): true when this is the synthetic field-initializer or
+     * static-block function itself, or an arrow nested in one with no
+     * intervening ordinary function - an ordinary function has its own
+     * {@code arguments} and lifts the restriction. The synthetic function's
+     * marker rides in its internal name; an arrow that inherits the restriction
+     * is nested under that name and is itself an arrow, while a nested ordinary
+     * function is neither.
+     *
+     * @return true if a direct eval here may not name {@code arguments}
+     */
+    public final boolean forbidsArgumentsInDirectEval() {
+        if (!(data instanceof RecompilableScriptFunctionData recompilable)) {
+            return false;
+        }
+        final String name = recompilable.getFunctionName();
+        if (name == null) {
+            return false;
+        }
+        final String lastSegment = name.substring(name.lastIndexOf('#') + 1);
+        if (lastSegment.startsWith(":fieldInitializer") || lastSegment.startsWith(":staticInitializer")) {
+            return true;
+        }
+        return isArrowFunction()
+                && (name.contains(":fieldInitializer") || name.contains(":staticInitializer"));
+    }
+
     public final void setHomeObject(final ScriptObject homeObject) {
         this.homeObject = homeObject;
     }

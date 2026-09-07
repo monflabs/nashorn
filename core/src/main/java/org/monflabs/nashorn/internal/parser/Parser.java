@@ -270,6 +270,22 @@ public class Parser extends AbstractParser implements Loggable {
     private boolean evalSuperAllowed;
 
     /**
+     * Whether this is direct eval code whose caller is a field initializer or
+     * static block, where ES2022 15.7.1 forbids {@code arguments} - the eval's
+     * body may not contain it either (an early Syntax Error).
+     */
+    private boolean evalArgumentsForbidden;
+
+    /**
+     * When this parses direct eval code, the private names in scope where the
+     * call was written ({@code #x} forms, drawn from the caller's private
+     * environment); a {@code #x} the eval names that is not among them is an
+     * early Syntax Error. Null when not parsing an eval, or when the source has
+     * no {@code #} to make a private reference possible.
+     */
+    private java.util.Set<String> evalValidPrivateNames;
+
+    /**
      * Records what the direct eval this parses for was called from.
      *
      * ES2015 18.2.1.1 evaluates direct eval code in the caller's function
@@ -283,6 +299,21 @@ public class Parser extends AbstractParser implements Loggable {
     public void setEvalContext(final boolean newTargetAllowed, final boolean superAllowed) {
         this.evalNewTargetAllowed = newTargetAllowed;
         this.evalSuperAllowed = superAllowed;
+    }
+
+    /**
+     * Records the ES2022 early-error context a direct eval inherits from its
+     * caller: whether {@code arguments} is forbidden (the call sits in a field
+     * initializer or static block) and which private names are in scope. Both
+     * are checked as the eval body is parsed - the caller's lexical context
+     * cannot be re-derived from the eval source alone.
+     *
+     * @param argumentsForbidden the call is in a field initializer / static block
+     * @param validPrivateNames  the {@code #x} names in scope, or null for none
+     */
+    public void setEvalPrivacyContext(final boolean argumentsForbidden, final java.util.Set<String> validPrivateNames) {
+        this.evalArgumentsForbidden = argumentsForbidden;
+        this.evalValidPrivateNames = validPrivateNames;
     }
 
     /**
@@ -420,7 +451,16 @@ public class Parser extends AbstractParser implements Loggable {
 
             scanFirstToken();
             // Begin parse.
-            return program(scriptName, reparseFlags);
+            final FunctionNode programNode = program(scriptName, reparseFlags);
+            // ES2022 15.7.1: a direct eval in a field initializer or static block
+            // may not contain arguments. USES_ARGUMENTS on the program is exactly
+            // ContainsArguments - set through arrows, stopped at a nested ordinary
+            // function, which has its own arguments - the same test the field
+            // initializer itself uses.
+            if (evalArgumentsForbidden && (programNode.getFlags() & FunctionNode.USES_ARGUMENTS) != 0) {
+                throw error(AbstractParser.message("arguments.in.field.initializer"));
+            }
+            return programNode;
         } catch (final Exception e) {
             handleParseException(e);
 
@@ -1725,6 +1765,11 @@ public class Parser extends AbstractParser implements Loggable {
         final PrivateClassScope scope = privateClassScopes.peek();
         if (scope != null) {
             scope.referenced.putIfAbsent(pname, nameToken);
+        } else if (evalValidPrivateNames != null && !evalValidPrivateNames.contains(pname)) {
+            // ES2022: outside any class body of its own - at the top level of a
+            // direct eval - a #x is valid only if the caller's private
+            // environment holds it; naming one it does not is an early error.
+            throw error(AbstractParser.message("undeclared.private.name", pname), nameToken);
         }
     }
 
@@ -1739,6 +1784,11 @@ public class Parser extends AbstractParser implements Loggable {
             if (!scope.kinds.containsKey(ref.getKey())) {
                 final PrivateClassScope enclosing = privateClassScopes.peek();
                 if (enclosing == null) {
+                    // In a direct eval, an outermost undeclared #x may still be
+                    // resolved by the caller's private environment.
+                    if (evalValidPrivateNames != null && evalValidPrivateNames.contains(ref.getKey())) {
+                        continue;
+                    }
                     throw error(AbstractParser.message("undeclared.private.name", ref.getKey()), ref.getValue());
                 }
                 enclosing.referenced.putIfAbsent(ref.getKey(), ref.getValue());
@@ -3106,6 +3156,12 @@ public class Parser extends AbstractParser implements Loggable {
                 } else {
                     // for (expr in obj)
                     assert init != null : "for..in/of init expression can not be null here";
+
+                    // ES2022 13.10.1: a PrivateIdentifier is a primary only as the
+                    // left operand of "in", never a for-in/of target.
+                    if (init instanceof IdentNode privInit && privInit.isPrivateName()) {
+                        throw error(AbstractParser.message("private.in.non.class"), privInit.getToken());
+                    }
 
                     // check if initial expression is a valid L-value
                     if (!checkValidLValue(init, isForOf ? "for-of iterator" : "for-in iterator")) {
@@ -4962,6 +5018,13 @@ public class Parser extends AbstractParser implements Loggable {
             }
         }
 
+        // ES2022: the operand of new is a MemberExpression, which await is not -
+        // "new await x" at a module top level (or in an async function) is a
+        // Syntax Error, the await there being the operator rather than a name.
+        if (isAwaitExpression()) {
+            throw error(AbstractParser.message("new.await"), token);
+        }
+
         // Get function base.
         final int  callLine    = line;
         final Expression constructor = memberExpression();
@@ -6429,6 +6492,14 @@ public class Parser extends AbstractParser implements Loggable {
                     }
                 } finally {
                     defaultNames.pop();
+                }
+                // ES2022 13.10.1: a PrivateIdentifier is a primary only as the
+                // immediate left operand of "in". A #x that survives as the
+                // right operand of an operator - "#a in #b in c" parses #b there -
+                // is a Syntax Error; a valid "#x in y" has #x as the left operand,
+                // never here.
+                if (rhs instanceof IdentNode privRhs && privRhs.isPrivateName()) {
+                    throw error(AbstractParser.message("private.in.non.class"), privRhs.getToken());
                 }
                 verifyNullishNotMixed(op, lhs, lhsParenthesized, rhs, rhs == parenthesized);
                 lhs = verifyAssignment(op, lhs, rhs);

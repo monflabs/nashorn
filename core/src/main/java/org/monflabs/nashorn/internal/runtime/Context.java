@@ -66,6 +66,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1152,9 +1153,18 @@ public final class Context {
         final boolean newTargetAllowed = caller != null && !caller.isProgramFunction() && !caller.isArrowFunction();
         final ScriptObject homeObject = caller == null ? null : caller.getHomeObject();
 
+        // ES2022 early-error context a direct eval inherits from its caller: no
+        // arguments in a field-initializer / static-block context, and the set
+        // of private names in scope (only worth gathering when the source could
+        // name one).
+        final boolean argumentsForbidden = caller != null && caller.forbidsArgumentsInDirectEval();
+        final Set<String> validPrivateNames =
+                directEval && string.indexOf('#') >= 0 ? collectPrivateNames(initialScope) : null;
+
         Class<?> clazz;
         try {
-            clazz = compile(source, new ThrowErrorManager(), strictFlag, newTargetAllowed, homeObject != null);
+            clazz = compile(source, new ThrowErrorManager(), strictFlag, newTargetAllowed, homeObject != null,
+                    argumentsForbidden, validPrivateNames);
         } catch (final ParserException e) {
             e.throwAsEcmaException(global);
             return null;
@@ -1199,6 +1209,31 @@ public final class Context {
         }
 
         return ScriptRuntime.apply(func, evalThis);
+    }
+
+    /** The synthetic-binding prefix a private name {@code #x} compiles to: {@code :private:x}. */
+    private static final String PRIVATE_BINDING_PREFIX = ":private:";
+
+    /**
+     * The private names ({@code #x} forms) in scope at a direct eval, gathered
+     * from the {@code :private:x} lexical bindings the caller's scope chain
+     * holds. A {@code #x} the eval names that is not among these is an ES2022
+     * early Syntax Error; an empty set (no class private is in scope) rejects
+     * every private name, which is what a top-level eval requires.
+     */
+    private static Set<String> collectPrivateNames(final ScriptObject scope) {
+        Set<String> names = null;
+        for (ScriptObject s = scope; s != null; s = s.getProto()) {
+            for (final String key : s.getOwnKeys(true)) {
+                if (key.startsWith(PRIVATE_BINDING_PREFIX)) {
+                    if (names == null) {
+                        names = new HashSet<>();
+                    }
+                    names.add("#" + key.substring(PRIVATE_BINDING_PREFIX.length()));
+                }
+            }
+        }
+        return names == null ? Collections.emptySet() : names;
     }
 
     private static ScriptObject newScope(final ScriptObject callerScope) {
@@ -1739,17 +1774,21 @@ public final class Context {
     }
 
     private synchronized Class<?> compile(final Source source, final ErrorManager errMan, final boolean strict) {
-        return compile(source, errMan, strict, false, false);
+        return compile(source, errMan, strict, false, false, false, null);
     }
 
     private synchronized Class<?> compile(final Source source, final ErrorManager errMan, final boolean strict,
-            final boolean newTargetAllowed, final boolean superAllowed) {
+            final boolean newTargetAllowed, final boolean superAllowed,
+            final boolean argumentsForbidden, final Set<String> validPrivateNames) {
         // start with no errors, no warnings.
         errMan.reset();
 
         // what the same text parses to depends on the eval it was written in,
-        // so a class compiled for one is not the class another one wants
-        final boolean cacheable = !newTargetAllowed && !superAllowed && !mayTagATemplate(source);
+        // so a class compiled for one is not the class another one wants - the
+        // ES2022 private-environment and no-arguments contexts are part of that,
+        // so an eval carrying either is not cached
+        final boolean cacheable = !newTargetAllowed && !superAllowed && !mayTagATemplate(source)
+                && !argumentsForbidden && validPrivateNames == null;
 
         Class<?> script = cacheable ? findCachedClass(source) : null;
         if (script != null) {
@@ -1782,6 +1821,7 @@ public final class Context {
 
             final Parser parser = new Parser(env, source, errMan, strict, getLogger(Parser.class));
             parser.setEvalContext(newTargetAllowed, superAllowed);
+            parser.setEvalPrivacyContext(argumentsForbidden, validPrivateNames);
             functionNode = parser.parse();
 
             if (errMan.hasErrors()) {
