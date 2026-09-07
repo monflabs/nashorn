@@ -493,8 +493,25 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         }
         parser.setReparsedFunction(this);
 
-        final FunctionNode program = parser.parse(CompilerConstants.PROGRAM.symbolName(), descPosition,
-                Token.descLength(token), flags);
+        // ES2022 field initializers and static blocks are synthetic functions
+        // whose source range is an expression or a block, not a function, so the
+        // ordinary parse would not find a function to recompile. They re-parse
+        // through their own entry points, which rebuild the synthetic function.
+        // A nested function inside a field initializer or static block inherits
+        // the prefix in its name, so match only when it is the last segment.
+        final String lastSegment = functionName == null ? null
+                : functionName.substring(functionName.lastIndexOf('#') + 1);
+        final FunctionNode program;
+        if (lastSegment != null && lastSegment.startsWith(":fieldInitializer")) {
+            program = parser.reparseFieldInitializer(CompilerConstants.PROGRAM.symbolName(), descPosition,
+                    Token.descLength(token), functionFlags);
+        } else if (lastSegment != null && lastSegment.startsWith(":staticInitializer")) {
+            program = parser.reparseStaticBlock(CompilerConstants.PROGRAM.symbolName(), descPosition,
+                    Token.descLength(token), functionFlags);
+        } else {
+            program = parser.parse(CompilerConstants.PROGRAM.symbolName(), descPosition,
+                    Token.descLength(token), flags);
+        }
         // Parser generates a program AST even if we're recompiling a single function, so when we are only
         // recompiling a single function, extract it from the program.
         return (isProgram() ? program : extractFunctionFromScript(program)).setName(null, functionName);

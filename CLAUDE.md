@@ -153,8 +153,8 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 8 of the 63,808 executions, the Annex B indirect-eval "existing var
-  update" cases whose reason `doc/CONFORMANCE.md` records — so any
+  lists the settled failures — 20 of the 65,338 executions: 8 Annex B indirect-eval "existing var
+  update" cases and 12 ES2022 class-field direct-eval-of-arguments cases, whose reasons `doc/CONFORMANCE.md` records — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with

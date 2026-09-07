@@ -1044,13 +1044,23 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // the constructor's own range is the method it was written as - which is
         // also what a lazy reparse reads, so it cannot be widened in place.
         final int position = Token.descPosition(token);
-        return new RuntimeNode(token, finish, RuntimeNode.Request.DEFINE_CLASS,
+        final Expression defineClass = new RuntimeNode(token, finish, RuntimeNode.Request.DEFINE_CLASS,
                 classNode.getConstructor().getValue(),
                 heritage == null ? LiteralNode.newInstance(token, finish) : heritage,
                 LiteralNode.newInstance(token, finish, heritage != null),
                 LiteralNode.newInstance(token, finish, elements),
                 LiteralNode.newInstance(token, finish, position),
                 LiteralNode.newInstance(token, finish, finish - position));
+
+        // A named class runs its static fields and blocks from the desugaring
+        // that surrounds it, after its own name binding is assigned (so a static
+        // element that names the class sees it). An anonymous class has no such
+        // binding and no way to name itself, so its static elements run right
+        // here, wrapped around the class it just built.
+        if (classNode.getIdent() == null) {
+            return new RuntimeNode(token, finish, RuntimeNode.Request.RUN_STATIC_ELEMENTS, defineClass);
+        }
+        return defineClass;
     }
 
     /**
@@ -1061,7 +1071,22 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
      * setter is dropped.
      */
     private static void addClassElement(final List<Expression> elements, final PropertyNode element) {
-        final int shared = element.isStatic() ? ScriptRuntime.CLASS_ELEMENT_STATIC : 0;
+        int shared = element.isStatic() ? ScriptRuntime.CLASS_ELEMENT_STATIC : 0;
+        if (element.isPrivate()) {
+            shared |= ScriptRuntime.CLASS_ELEMENT_PRIVATE;
+        }
+
+        if (element.isStaticBlock()) {
+            // a static block: its function is the value, run once with this = the class
+            addEntry(elements, element, shared | ScriptRuntime.CLASS_ELEMENT_STATIC_BLOCK, element.getValue());
+            return;
+        }
+
+        if (element.isField()) {
+            // a field: its value is the initializer function (or null for no initializer)
+            addEntry(elements, element, shared | ScriptRuntime.CLASS_ELEMENT_FIELD, element.getValue());
+            return;
+        }
 
         if (element.getGetter() != null || element.getSetter() != null) {
             if (element.getGetter() != null) {
@@ -1080,15 +1105,21 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             final Expression value) {
         elements.add(keyOf(element));
         elements.add(LiteralNode.newInstance(element.getToken(), element.getFinish(), flags));
-        elements.add(value);
+        // a field with no initializer has no value function; a null literal stands
+        // in so the flattened array holds a node at every slot
+        elements.add(value == null ? LiteralNode.newInstance(element.getToken(), element.getFinish()) : value);
     }
 
     /**
      * A class element's key as a value expression. A written name is an
-     * IdentNode standing for a string; a computed key is already an expression.
+     * IdentNode standing for a string; a computed key is already an expression;
+     * a static block has no key, so a null literal stands in.
      */
     private static Expression keyOf(final PropertyNode element) {
         final Expression key = element.getKey();
+        if (key == null) {
+            return LiteralNode.newInstance(element.getToken(), element.getFinish());
+        }
         if (!element.isComputed() && key instanceof IdentNode name) {
             return LiteralNode.newInstance(key.getToken(), key.getFinish(), name.getName());
         }
@@ -1112,6 +1143,13 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         final List<Statement> statements = new ArrayList<>();
         statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
                 new RuntimeNode(token, finish, RuntimeNode.Request.REQUIRE_NEW)));
+        if (!functionNode.isSubclassConstructor()) {
+            // ES2022 15.7.15: a base class's instance fields initialise at the
+            // start of construction. A derived class's do so after super()
+            // returns instead, which the code generator handles at the super call.
+            statements.add(new ExpressionStatement(functionNode.getLineNumber(), token, finish,
+                    new RuntimeNode(token, finish, RuntimeNode.Request.INITIALIZE_INSTANCE_ELEMENTS)));
+        }
         statements.addAll(body.getStatements());
         return functionNode.setBody(lc, body.setStatements(lc, statements));
     }

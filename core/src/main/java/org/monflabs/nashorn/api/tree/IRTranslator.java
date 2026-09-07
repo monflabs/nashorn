@@ -341,6 +341,14 @@ final class IRTranslator extends SimpleNodeVisitor {
 
     @Override
     public boolean enterRuntimeNode(final RuntimeNode runtimeNode) {
+        // ES2022 class desugaring wraps the class in a RUN_STATIC_ELEMENTS call
+        // (which returns the class) to run its static fields and blocks; the
+        // public tree shows just the class it wraps.
+        if (runtimeNode.getRequest() == RuntimeNode.Request.RUN_STATIC_ELEMENTS) {
+            // unwrap to the class it wraps; accept() sets curExpr
+            runtimeNode.getArgs().get(0).accept(this);
+            return false;
+        }
         assert false : "should not reach here: RuntimeNode";
         return false;
     }

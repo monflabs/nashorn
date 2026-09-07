@@ -124,6 +124,8 @@ public class RuntimeNode extends Expression {
         REST_ARGUMENTS(TokenType.VOID, Type.OBJECT, 1),
         /** Builds a class from its constructor, heritage and elements. */
         DEFINE_CLASS(TokenType.VOID, Type.OBJECT, 6),
+        /** ES2022 runs a class's static fields and blocks, once its name binding is assigned. */
+        RUN_STATIC_ELEMENTS(TokenType.VOID, Type.OBJECT, 1),
         /** super.x - the code generator supplies the running method. */
         SUPER_GET(TokenType.VOID, Type.OBJECT, 3),
         /** super.x = value. */
@@ -142,6 +144,8 @@ public class RuntimeNode extends Expression {
         GENERATOR_PARAMETERS_BOUND(TokenType.VOID, Type.OBJECT, 0),
         /** The prologue of a class constructor, which may only be reached with new. */
         REQUIRE_NEW(TokenType.VOID, Type.OBJECT, 0),
+        /** ES2022 initialise a new instance's class fields (callee and this are pushed by codegen). */
+        INITIALIZE_INSTANCE_ELEMENTS(TokenType.VOID, Type.OBJECT, 0),
         /** ES2015 15.2.1.17: a module hands over the scope that is its environment */
         MODULE_SCOPE(TokenType.VOID, Type.OBJECT, 0),
         /** True while a module body runs its instantiation pass: declarations only, no evaluation. */

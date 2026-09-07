@@ -57,8 +57,24 @@ public final class PropertyNode extends Node {
     /** Computed property flag */
     private final boolean computed;
 
+    /** A method, accessor, or ordinary object-literal property. */
+    public static final int KIND_NORMAL = 0;
+    /** ES2022 class field: {@link #getValue()} is its initializer (or null). */
+    public static final int KIND_FIELD = 1;
+    /** ES2022 static initializer block: {@link #getValue()} is the block as a function. */
+    public static final int KIND_STATIC_BLOCK = 2;
+
+    /** Which of the kinds above this element is. */
+    private final int kind;
+
+    /** ES2022 private class element ({@code #x})? */
+    private final boolean isPrivate;
+
+    /** For a private element, a read of the synthetic binding that holds its PrivateName; else null. */
+    private final Expression privateNameBinding;
+
     /**
-     * Constructor
+     * Constructor for an ordinary property or a public method/accessor.
      *
      * @param token   token
      * @param finish  finish
@@ -70,6 +86,25 @@ public final class PropertyNode extends Node {
      * @param computed is this a computed property?
      */
     public PropertyNode(final long token, final int finish, final Expression key, final Expression value, final FunctionNode getter, final FunctionNode setter, final boolean isStatic, final boolean computed) {
+        this(token, finish, key, value, getter, setter, isStatic, computed, KIND_NORMAL, false, null);
+    }
+
+    /**
+     * Constructor for a class element, carrying the ES2022 kind and privacy.
+     *
+     * @param token   token
+     * @param finish  finish
+     * @param key     the key of this property (null for a static block)
+     * @param value   the value: a method function, a field initializer, or a static block function
+     * @param getter  getter function body
+     * @param setter  setter function body
+     * @param isStatic is this a static element?
+     * @param computed is the key computed?
+     * @param kind    one of {@link #KIND_NORMAL}, {@link #KIND_FIELD}, {@link #KIND_STATIC_BLOCK}
+     * @param isPrivate is this a private element?
+     * @param privateNameBinding read of the binding holding the PrivateName, or null
+     */
+    public PropertyNode(final long token, final int finish, final Expression key, final Expression value, final FunctionNode getter, final FunctionNode setter, final boolean isStatic, final boolean computed, final int kind, final boolean isPrivate, final Expression privateNameBinding) {
         super(token, finish);
         this.key    = key;
         this.value  = value;
@@ -77,9 +112,12 @@ public final class PropertyNode extends Node {
         this.setter = setter;
         this.isStatic = isStatic;
         this.computed = computed;
+        this.kind = kind;
+        this.isPrivate = isPrivate;
+        this.privateNameBinding = privateNameBinding;
     }
 
-    private PropertyNode(final PropertyNode propertyNode, final Expression key, final Expression value, final FunctionNode getter, final FunctionNode setter, final boolean isStatic, final boolean computed) {
+    private PropertyNode(final PropertyNode propertyNode, final Expression key, final Expression value, final FunctionNode getter, final FunctionNode setter, final boolean isStatic, final boolean computed, final Expression privateNameBinding) {
         super(propertyNode);
         this.key    = key;
         this.value  = value;
@@ -87,6 +125,9 @@ public final class PropertyNode extends Node {
         this.setter = setter;
         this.isStatic = isStatic;
         this.computed = computed;
+        this.kind = propertyNode.kind;
+        this.isPrivate = propertyNode.isPrivate;
+        this.privateNameBinding = privateNameBinding;
     }
 
     /**
@@ -101,7 +142,7 @@ public final class PropertyNode extends Node {
     public Node accept(final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterPropertyNode(this)) {
             return visitor.leavePropertyNode(
-                setKey((Expression) key.accept(visitor)).
+                setKey(key == null ? null : (Expression) key.accept(visitor)).
                 setValue(value == null ? null : (Expression)value.accept(visitor)).
                 setGetter(getter == null ? null : (FunctionNode)getter.accept(visitor)).
                 setSetter(setter == null ? null : (FunctionNode)setter.accept(visitor)));
@@ -116,7 +157,7 @@ public final class PropertyNode extends Node {
             value.toString(sb);
         }
 
-        if (value != null) {
+        if (value != null && key != null) {
             key.toString(sb, printType);
             sb.append(": ");
             value.toString(sb, printType);
@@ -150,7 +191,7 @@ public final class PropertyNode extends Node {
         if (this.getter == getter) {
             return this;
         }
-        return new PropertyNode(this, key, value, getter, setter, isStatic, computed);
+        return new PropertyNode(this, key, value, getter, setter, isStatic, computed, privateNameBinding);
     }
 
     /**
@@ -165,7 +206,7 @@ public final class PropertyNode extends Node {
         if (this.key == key) {
             return this;
         }
-        return new PropertyNode(this, key, value, getter, setter, isStatic, computed);
+        return new PropertyNode(this, key, value, getter, setter, isStatic, computed, privateNameBinding);
     }
 
     /**
@@ -185,7 +226,7 @@ public final class PropertyNode extends Node {
         if (this.setter == setter) {
             return this;
         }
-        return new PropertyNode(this, key, value, getter, setter, isStatic, computed);
+        return new PropertyNode(this, key, value, getter, setter, isStatic, computed, privateNameBinding);
     }
 
     /**
@@ -205,7 +246,7 @@ public final class PropertyNode extends Node {
         if (this.value == value) {
             return this;
         }
-        return new PropertyNode(this, key, value, getter, setter, isStatic, computed);
+        return new PropertyNode(this, key, value, getter, setter, isStatic, computed, privateNameBinding);
     }
 
     /**
@@ -224,5 +265,55 @@ public final class PropertyNode extends Node {
      */
     public boolean isComputed() {
         return computed;
+    }
+
+    /**
+     * The ES2022 element kind.
+     * @return one of {@link #KIND_NORMAL}, {@link #KIND_FIELD}, {@link #KIND_STATIC_BLOCK}
+     */
+    public int getKind() {
+        return kind;
+    }
+
+    /**
+     * @return true if this is a class field
+     */
+    public boolean isField() {
+        return kind == KIND_FIELD;
+    }
+
+    /**
+     * @return true if this is a static initializer block
+     */
+    public boolean isStaticBlock() {
+        return kind == KIND_STATIC_BLOCK;
+    }
+
+    /**
+     * @return true if this is a private class element ({@code #x})
+     */
+    public boolean isPrivate() {
+        return isPrivate;
+    }
+
+    /**
+     * For a private element, a read of the synthetic binding holding its
+     * PrivateName; null for a public one.
+     * @return the private-name binding read, or null
+     */
+    public Expression getPrivateNameBinding() {
+        return privateNameBinding;
+    }
+
+    /**
+     * Set the private-name binding read.
+     * @param privateNameBinding the binding read
+     * @return same node or new node if state changed
+     */
+    public PropertyNode setPrivateNameBinding(final Expression privateNameBinding) {
+        if (this.privateNameBinding == privateNameBinding) {
+            return this;
+        }
+        return new PropertyNode(this, key, value, getter, setter, isStatic, computed, privateNameBinding);
     }
 }

@@ -2404,6 +2404,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final boolean lazy = env._lazy_compilation;
         final boolean onDemand = compiler.isOnDemandCompilation();
 
+
         // If this is on-demand or lazy compilation, don't compile a nested (not topmost) function.
         if((onDemand || lazy) && lc.getOutermostFunction() != functionNode) {
             return true;
@@ -2809,6 +2810,18 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SUPER_CONSTRUCT",
                     new FunctionSignature(false, false, Type.OBJECT, 3).toString());
             bindThis();
+            // ES2022 15.7.15: a derived class's instance fields initialise
+            // immediately after super() returns, once this is bound. bindThis
+            // leaves the bound instance on the stack; use that rather than the
+            // this compiler constant, which in a derived constructor is the raw
+            // (still unbound) parameter slot. The instance stays on the stack
+            // underneath as the super() expression's own value.
+            method.dup();
+            method.loadCompilerConstant(CALLEE);
+            method.swap();
+            method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "INITIALIZE_INSTANCE_ELEMENTS",
+                    new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+            method.pop();
             return;
         }
 
@@ -3615,8 +3628,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.loadCompilerConstant(VARARGS);
         }
 
-        // the class-constructor guard asks the same question new.target does
-        final boolean pushesCallee = request == Request.REQUIRE_NEW || request == Request.SUPER_INITIALIZER;
+        // the class-constructor guard asks the same question new.target does;
+        // field initialisation needs the constructor (its field list) and this
+        final boolean pushesCallee = request == Request.REQUIRE_NEW || request == Request.SUPER_INITIALIZER
+                || request == Request.INITIALIZE_INSTANCE_ELEMENTS;
         if (pushesCallee) {
             method.loadCompilerConstant(CALLEE);
             method.loadCompilerConstant(THIS);

@@ -823,12 +823,64 @@ public class ScriptFunction extends ScriptObject {
     private ScriptObject homeObject;
 
     /**
+     * For a class constructor, the ES2022 instance field/element initializers to
+     * run on each new instance: pairs of {property key, initializer function or
+     * null}. Null on an ordinary function or a fieldless class.
+     */
+    private Object[][] instanceFieldInitializers;
+
+    /**
+     * For a class constructor, the ES2022 static fields and static blocks to run
+     * once, in source order, after the class's own name binding is assigned:
+     * triples of {property key or null, initializer function or null, flags}.
+     * Null when there are none.
+     */
+    private Object[][] staticElementInitializers;
+
+    /**
      * The object this method was defined on, which {@code super} looks above.
      *
      * @return the home object, or null for an ordinary function
      */
     public final ScriptObject getHomeObject() {
         return homeObject;
+    }
+
+    /**
+     * The static fields and static blocks a class constructor runs once, or null.
+     *
+     * @return the static element initializers, or null
+     */
+    public final Object[][] getStaticElementInitializers() {
+        return staticElementInitializers;
+    }
+
+    /**
+     * Records the static field/block initializers for a class constructor.
+     *
+     * @param initializers triples of {key or null, function or null, flags}
+     */
+    public final void setStaticElementInitializers(final Object[][] initializers) {
+        this.staticElementInitializers = initializers;
+    }
+
+    /**
+     * The instance field initializers a class constructor runs on each instance,
+     * or null if it is not a class constructor or its class has no instance fields.
+     *
+     * @return the initializers, or null
+     */
+    public final Object[][] getInstanceFieldInitializers() {
+        return instanceFieldInitializers;
+    }
+
+    /**
+     * Records the instance field initializers for a class constructor.
+     *
+     * @param initializers pairs of {property key, initializer function or null}
+     */
+    public final void setInstanceFieldInitializers(final Object[][] initializers) {
+        this.instanceFieldInitializers = initializers;
     }
 
     /**

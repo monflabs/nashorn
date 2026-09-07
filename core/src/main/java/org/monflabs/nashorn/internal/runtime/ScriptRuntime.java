@@ -2297,6 +2297,12 @@ public final class ScriptRuntime {
     public static final int CLASS_ELEMENT_GETTER = 2;
     /** A class element that is a setter. */
     public static final int CLASS_ELEMENT_SETTER = 4;
+    /** ES2022 a class element that is a field: its value is a per-instance initializer function (or null). */
+    public static final int CLASS_ELEMENT_FIELD = 8;
+    /** ES2022 a private class element ({@code #x}). */
+    public static final int CLASS_ELEMENT_PRIVATE = 16;
+    /** ES2022 a static initializer block: its value is a function run once with this = the class. */
+    public static final int CLASS_ELEMENT_STATIC_BLOCK = 32;
 
     /**
      * Builds a class.
@@ -2362,13 +2368,36 @@ public final class ScriptRuntime {
 
         final NativeArray flattened = (NativeArray)elements;
         final int length = (int)flattened.getArray().length();
+
+        // Pass 1: define the methods and accessors, collect the instance-field
+        // initializers onto the constructor, and gather the static fields and
+        // static blocks to run afterwards in source order (ES2022 15.7.14).
+        final java.util.List<Object[]> instanceFields = new java.util.ArrayList<>();
+        final java.util.List<Object[]> staticElements = new java.util.ArrayList<>();
         for (int i = 0; i < length; i += 3) {
-            // 14.5.14 makes a property key of what the element was written with
-            // once, where naming the method and defining it would each ask an
-            // object for its string
-            final Object key = TO_PROPERTY_KEY(flattened.get(i));
             final int flags = JSType.toInt32(flattened.get(i + 1));
             final Object value = flattened.get(i + 2);
+
+            if ((flags & CLASS_ELEMENT_STATIC_BLOCK) != 0) {
+                staticElements.add(new Object[] { null, value, flags });
+                continue;
+            }
+            // a field's key is evaluated once, here; its value is a per-instance
+            // (or, for a static field, run-once) initializer function or null
+            final Object key = TO_PROPERTY_KEY(flattened.get(i));
+            if ((flags & CLASS_ELEMENT_FIELD) != 0) {
+                if (value instanceof ScriptFunction init) {
+                    init.setHomeObject((flags & CLASS_ELEMENT_STATIC) != 0 ? ctor : prototype);
+                }
+                if ((flags & CLASS_ELEMENT_STATIC) != 0) {
+                    staticElements.add(new Object[] { key, value, flags });
+                } else {
+                    instanceFields.add(new Object[] { key, value });
+                }
+                continue;
+            }
+
+            // a method or accessor - defined now, as before
             final ScriptObject target = (flags & CLASS_ELEMENT_STATIC) != 0 ? ctor : prototype;
             if (value instanceof ScriptFunction method) {
                 // super in this method resolves above whichever object it is
@@ -2383,6 +2412,10 @@ public final class ScriptRuntime {
             defineClassElement(target, key, flags, value);
         }
 
+        if (!instanceFields.isEmpty()) {
+            ctor.setInstanceFieldInitializers(instanceFields.toArray(new Object[0][]));
+        }
+
         // unlike a function's, a class's prototype property is not writable
         final ScriptObject prototypeDescriptor = Global.newEmptyInstance();
         prototypeDescriptor.set("writable", false, 0);
@@ -2390,7 +2423,84 @@ public final class ScriptRuntime {
         prototypeDescriptor.set("configurable", false, 0);
         ctor.defineOwnProperty("prototype", prototypeDescriptor, true);
 
+        // The static fields and static blocks are not run here: they must run
+        // after the class's own name binding is assigned, so one that refers to
+        // the class by name sees it (ES2022 15.7.14). RUN_STATIC_ELEMENTS runs
+        // them once that binding is in place.
+        if (!staticElements.isEmpty()) {
+            ctor.setStaticElementInitializers(staticElements.toArray(new Object[0][]));
+        }
+
         return ctor;
+    }
+
+    /**
+     * ES2022 15.7.14 steps 33-34: run a class's static fields and static blocks,
+     * in source order, each with {@code this} bound to the class constructor. Run
+     * from the class desugaring after the class's own name binding is assigned, so
+     * a static element that names the class resolves it. A class with no static
+     * elements is a fast no-op.
+     *
+     * @param constructor the class constructor
+     * @return the constructor
+     */
+    public static Object RUN_STATIC_ELEMENTS(final Object constructor) {
+        if (constructor instanceof ScriptFunction ctor) {
+            final Object[][] elements = ctor.getStaticElementInitializers();
+            if (elements != null) {
+                for (final Object[] element : elements) {
+                    final Object value = element[1];
+                    final int flags = (Integer)element[2];
+                    if ((flags & CLASS_ELEMENT_STATIC_BLOCK) != 0) {
+                        apply((ScriptFunction)value, ctor);
+                    } else {
+                        final Object fieldValue = value instanceof ScriptFunction init ? apply(init, ctor) : UNDEFINED;
+                        defineField(ctor, element[0], fieldValue);
+                    }
+                }
+            }
+        }
+        return constructor;
+    }
+
+    /**
+     * ES2022 DefineField / InitializeInstanceElements: creates one field as an
+     * enumerable, writable, configurable own data property - a create, not a set,
+     * so a same-named accessor up the prototype chain is not invoked.
+     */
+    private static void defineField(final ScriptObject target, final Object key, final Object value) {
+        final Object propertyKey = key instanceof Symbol ? key : JSType.toPropertyKey(key);
+        final ScriptObject descriptor = Global.newEmptyInstance();
+        descriptor.set("value", value, 0);
+        descriptor.set("writable", true, 0);
+        descriptor.set("enumerable", true, 0);
+        descriptor.set("configurable", true, 0);
+        target.defineOwnProperty(propertyKey, descriptor, true);
+    }
+
+    /**
+     * ES2022 InitializeInstanceElements: run on each new instance of a class that
+     * declares instance fields, from the constructor's prologue (a base class) or
+     * right after super() returns (a derived class). For each field, its
+     * initializer is called with this bound to the instance and its result defined
+     * as an own field; a field with no initializer is created undefined. A
+     * fieldless class (the common case) is a fast no-op.
+     *
+     * @param callee the class constructor, holding the field initializers
+     * @param self   the instance being constructed
+     * @return undefined
+     */
+    public static Object INITIALIZE_INSTANCE_ELEMENTS(final Object callee, final Object self) {
+        if (callee instanceof ScriptFunction ctor && self instanceof ScriptObject instance) {
+            final Object[][] fields = ctor.getInstanceFieldInitializers();
+            if (fields != null) {
+                for (final Object[] field : fields) {
+                    final Object value = field[1] instanceof ScriptFunction init ? apply(init, instance) : UNDEFINED;
+                    defineField(instance, field[0], value);
+                }
+            }
+        }
+        return UNDEFINED;
     }
 
     /** An accessor's name carries "get " or "set " in front of the key's. */

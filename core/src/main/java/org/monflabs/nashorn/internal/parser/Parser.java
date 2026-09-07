@@ -1477,9 +1477,14 @@ public class Parser extends AbstractParser implements Loggable {
             final IdentNode name = classExpression.getIdent();
             appendStatement(new VarNode(classLineNumber, classExpression.getToken(), name.getFinish(),
                     name.setIsDeclaredHere(), classExpression, VarNode.IS_CONST));
+            // ES2022: run the static fields and blocks now that the class's own
+            // name binding is assigned. Folded into the carrier assignment (it
+            // returns the class), so it is part of a temporary's assignment and
+            // does not become the class declaration's completion value.
             appendStatement(new ExpressionStatement(classLineNumber, classToken, finish,
                     new BinaryNode(Token.recast(classToken, ASSIGN), carrierIdent,
-                            new IdentNode(name.getToken(), name.getFinish(), name.getName()))));
+                            new RuntimeNode(classToken, finish, RuntimeNode.Request.RUN_STATIC_ELEMENTS,
+                                    new IdentNode(name.getToken(), name.getFinish(), name.getName())))));
         } finally {
             restoreBlock(scope);
         }
@@ -1531,10 +1536,13 @@ public class Parser extends AbstractParser implements Loggable {
             final IdentNode name = classExpression.getIdent();
             appendStatement(new VarNode(classLineNumber, classExpression.getToken(), name.getFinish(),
                     name.setIsDeclaredHere(), classExpression, VarNode.IS_CONST));
+            // ES2022: run the static fields and blocks, folded into the carrier
+            // assignment (RUN_STATIC_ELEMENTS returns the class)
             appendStatement(new ExpressionStatement(classLineNumber, classToken, finish,
                     new BinaryNode(Token.recast(classToken, ASSIGN),
                             new IdentNode(classToken, finish, carrier),
-                            new IdentNode(name.getToken(), name.getFinish(), name.getName()))));
+                            new RuntimeNode(classToken, finish, RuntimeNode.Request.RUN_STATIC_ELEMENTS,
+                                    new IdentNode(name.getToken(), name.getFinish(), name.getName())))));
         } finally {
             restoreBlock(scope);
         }
@@ -1660,8 +1668,21 @@ public class Parser extends AbstractParser implements Loggable {
                 final long classElementToken = token;
                 boolean isStatic = false;
                 if (type == STATIC) {
-                    isStatic = true;
-                    next();
+                    // "static" is the modifier unless it is itself the element's
+                    // name: static(){}, static = 1, static; and static as the
+                    // last element are a method or field named "static"
+                    final TokenType afterStatic = T(k + 1);
+                    if (afterStatic != LPAREN && afterStatic != ASSIGN
+                            && afterStatic != SEMICOLON && afterStatic != RBRACE) {
+                        isStatic = true;
+                        next();
+                    }
+                }
+
+                if (isStatic && type == LBRACE) {
+                    // ES2022 static initializer block
+                    classElements.add(staticBlock());
+                    continue;
                 }
 
                 final long methodStartToken = token;
@@ -1676,7 +1697,11 @@ public class Parser extends AbstractParser implements Loggable {
                 }
                 final PropertyNode classElement = methodDefinition(methodStartToken, isStatic,
                         classHeritage != null, generator, async);
-                if (classElement.isComputed()) {
+                if (classElement.isField() || classElement.isStaticBlock()) {
+                    // fields and static blocks are never merged and never the
+                    // constructor; each keeps its place in declaration order
+                    classElements.add(classElement);
+                } else if (classElement.isComputed()) {
                     classElements.add(classElement);
                 } else if (!classElement.isStatic() && CONSTRUCTOR_NAME.equals(classElement.getKeyName())) {
                     if (constructor == null) {
@@ -1804,16 +1829,18 @@ public class Parser extends AbstractParser implements Loggable {
         int flags = FunctionNode.ES6_IS_METHOD;
         if (!computed) {
             final String name = ((PropertyKey)propertyName).getPropertyName();
-            if (!generator && isIdent && type != LPAREN && name.equals(GET_NAME)) {
+            if (!generator && !async && isIdent && startsPropertyName() && type != MUL && name.equals(GET_NAME)) {
                 checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertyGetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
                 return new PropertyNode(methodToken, finish, methodDefinition.key, null, methodDefinition.functionNode, null, isStatic, methodDefinition.computed);
-            } else if (!generator && isIdent && type != LPAREN && name.equals(SET_NAME)) {
+            } else if (!generator && !async && isIdent && startsPropertyName() && type != MUL && name.equals(SET_NAME)) {
                 checkEscapedAccessor(methodToken, name);
                 final PropertyFunction methodDefinition = propertySetterFunction(methodToken, methodLine, flags);
                 verifyAllowedMethodName(methodDefinition.key, isStatic, methodDefinition.computed, false, true);
                 return new PropertyNode(methodToken, finish, methodDefinition.key, null, null, methodDefinition.functionNode, isStatic, methodDefinition.computed);
+            } else if (!generator && !async && type != LPAREN) {
+                return classField(methodToken, propertyName, isStatic, false);
             } else {
                 if (!isStatic && !generator && name.equals(CONSTRUCTOR_NAME)) {
                     flags |= FunctionNode.ES6_IS_CLASS_CONSTRUCTOR;
@@ -1823,9 +1850,240 @@ public class Parser extends AbstractParser implements Loggable {
                 }
                 verifyAllowedMethodName(propertyName, isStatic, false, generator, false, async);
             }
+        } else if (!generator && !async && type != LPAREN) {
+            // ES2022 computed-key field: [expr] not followed by a parameter list
+            return classField(methodToken, propertyName, isStatic, true);
         }
         final PropertyFunction methodDefinition = propertyMethodFunction(propertyName, methodToken, methodLine, generator, async, flags, computed);
         return new PropertyNode(methodToken, finish, methodDefinition.key, methodDefinition.functionNode, null, null, isStatic, computed);
+    }
+
+    /**
+     * ES2022 FieldDefinition: {@code ClassElementName Initializer_opt}. The name
+     * is already parsed; what remains is an optional {@code = AssignmentExpression}
+     * and the element terminator (a semicolon or ASI).
+     */
+    private PropertyNode classField(final long fieldToken, final Expression key, final boolean isStatic, final boolean computed) {
+        if (!computed && CONSTRUCTOR_NAME.equals(((PropertyKey)key).getPropertyName())) {
+            // 15.7.1: a field may not be named constructor
+            throw error(AbstractParser.message("field.constructor"), fieldToken);
+        }
+        if (isStatic && !computed && "prototype".equals(((PropertyKey)key).getPropertyName())) {
+            throw error(AbstractParser.message("static.prototype.method"), fieldToken);
+        }
+        FunctionNode initializer = null;
+        if (type == ASSIGN) {
+            final long assignToken = token;
+            next();
+            initializer = fieldInitializer(assignToken, 0);
+        }
+        endOfLine();
+        return new PropertyNode(fieldToken, finish, key, initializer, null, null, isStatic, computed,
+                PropertyNode.KIND_FIELD, false, null);
+    }
+
+    /**
+     * A field's {@code = AssignmentExpression} initializer, parsed into a synthetic
+     * parameterless method-like function that returns the value. Making it a
+     * function of its own gives the initializer its own scope (it cannot see the
+     * constructor's parameters), binds {@code this} to the instance when the
+     * function is called at construction, and lets {@code super.prop} resolve
+     * through the home object. The class scope is captured because the function
+     * is nested in the class body being parsed.
+     */
+    private FunctionNode fieldInitializer(final long assignToken, final int reparseFlags) {
+        final int fieldLine = line;
+        // The synthetic function is anchored on the field's '=' token: its id (the
+        // first token's position) and the start of its reparse range. On an
+        // on-demand recompilation the parser is pointed back at the '=' and
+        // fieldInitializer runs again (see reparseFieldInitializer), so it must not
+        // depend on the surrounding class. Anchoring on '=' rather than on the
+        // initializer keeps the id distinct from a function the initializer may
+        // itself be (m = () => this) and off any string opening quote; the lexer
+        // is positioned just after the '='.
+        final long initToken = assignToken;
+        final IdentNode name = createIdentNode(initToken, finish, ":fieldInitializer");
+        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(
+                name, initToken, FunctionNode.Kind.NORMAL, fieldLine, Collections.emptyList());
+        functionNode.setFlag(FunctionNode.ES6_IS_METHOD);
+        functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
+        // On an on-demand recompilation, restore the flags computed in the eager
+        // parse (arrow-capture, uses-super, ...): the nested arrow that set them
+        // is lazily skipped now, so they would otherwise be lost.
+        functionNode.setFlag(reparseFlags);
+        lc.push(functionNode);
+
+        // Like an expression closure, the initializer is always parsed (it is
+        // small and does not end with a well-known token), but the return that
+        // wraps it is emitted only when this function's body is being kept -
+        // lazily skipped inside an enclosing on-demand compilation otherwise.
+        final boolean parseBody = reparsedFunction == null
+                || functionNode.getId() <= reparsedFunction.getFunctionNodeId();
+
+        final Block body;
+        try {
+            final ParserContextBlockNode bodyBlock = newBlock();
+            try {
+                final Expression init = assignmentExpression(false);
+                functionNode.setLastToken(previousToken);
+                if (parseBody) {
+                    appendStatement(new ReturnNode(fieldLine, init.getToken(), finish, init));
+                }
+            } finally {
+                restoreBlock(bodyBlock);
+            }
+            body = new Block(initToken, finish, Block.IS_BODY | Block.IS_SYNTHETIC | bodyBlock.getFlags(),
+                    bodyBlock.getStatements());
+        } finally {
+            lc.pop(functionNode);
+        }
+
+        // 15.7.1: a field initializer may not contain arguments (an arrow in it
+        // has none of its own, so an arguments there lands on this function).
+        // Only an early error, checked at the eager parse - a recompilation
+        // restores the flag from storage rather than re-deriving it.
+        if (reparsedFunction == null && (functionNode.getFlags() & FunctionNode.USES_ARGUMENTS) != 0) {
+            throw error(AbstractParser.message("arguments.in.field.initializer"), assignToken);
+        }
+
+        return createFunctionNode(functionNode, initToken, name, Collections.emptyList(),
+                FunctionNode.Kind.NORMAL, fieldLine, body);
+    }
+
+    /**
+     * Re-parses a class field initializer on its own, for an on-demand
+     * recompilation. The lexer is already positioned at the initializer
+     * expression (its source range); this wraps a synthetic program around a
+     * single {@link #fieldInitializer} so the recompiler gets back the one
+     * function it asked for, its id matching by source position.
+     *
+     * @param scriptName   the synthetic program's name
+     * @param startPos     start of the initializer in the source
+     * @param len          its length
+     * @param reparseFlags flags carried from the recompilable function data
+     * @return a program whose sole nested function is the field initializer
+     */
+    public FunctionNode reparseFieldInitializer(final String scriptName, final int startPos, final int len, final int reparseFlags) {
+        try {
+            stream = new TokenStream();
+            lexer = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
+            lexer.line = lexer.pendingLine = lineOffset + 1;
+            line = lineOffset;
+            scanFirstToken();
+            return classElementReparseProgram(scriptName, () -> {
+                final long assignToken = token;
+                next();  // skip the '='; the lexer range starts at it
+                return fieldInitializer(assignToken, reparseFlags);
+            });
+        } catch (final Exception e) {
+            handleParseException(e);
+            return null;
+        }
+    }
+
+    /**
+     * Wraps a re-parsed class field initializer or static block in a synthetic
+     * program, so {@code extractFunctionFromScript} finds exactly the one nested
+     * function the recompiler is after.
+     */
+    private FunctionNode classElementReparseProgram(final String scriptName,
+            final java.util.function.Supplier<FunctionNode> elementParser) {
+        final long programToken = Token.toDesc(FUNCTION, 0, source.getLength());
+        final IdentNode programIdent = new IdentNode(programToken, 0, scriptName);
+        final ParserContextFunctionNode script = createParserContextFunctionNode(
+                programIdent, programToken, FunctionNode.Kind.SCRIPT, line, Collections.emptyList());
+        lc.push(script);
+        final ParserContextBlockNode programBody = newBlock();
+        // the element must be parsed with the script on the context, so it has a
+        // parent function
+        final FunctionNode element = elementParser.get();
+        appendStatement(new ExpressionStatement(line, element.getToken(), finish, element));
+        restoreBlock(programBody);
+        final Block programBlock = new Block(programToken, finish,
+                programBody.getFlags() | Block.IS_SYNTHETIC | Block.IS_BODY, programBody.getStatements());
+        lc.pop(script);
+        script.setLastToken(token);
+        return createFunctionNode(script, programToken, programIdent, Collections.emptyList(),
+                FunctionNode.Kind.SCRIPT, line, programBlock);
+    }
+
+    /**
+     * Whether the current token can begin a property name - used to tell a
+     * {@code get}/{@code set} accessor ({@code get x()}) from a field or method
+     * named get/set ({@code get}, {@code get = 1}, {@code get()}).
+     */
+    private boolean startsPropertyName() {
+        switch (type) {
+        case LPAREN:
+        case ASSIGN:
+        case SEMICOLON:
+        case RBRACE:
+            return false;
+        default:
+            return true;
+        }
+    }
+
+    /**
+     * ES2022 ClassStaticBlock: {@code static { StatementList }}. Parsed as a
+     * synthetic parameterless method-like function so it captures the class scope
+     * and can use {@code super.prop}; run once at class-definition time with
+     * {@code this} bound to the class constructor.
+     */
+    private PropertyNode staticBlock() {
+        final int blockLine = line;
+        // Anchor on the block's own opening brace, so the function's id and its
+        // reparse range are the { ... } that follows - reparseStaticBlock points
+        // the lexer back here. functionBody handles the lazy body skip itself.
+        final long blockToken = token;
+        final IdentNode name = createIdentNode(blockToken, finish, ":staticInitializer");
+        final ParserContextFunctionNode functionNode = createParserContextFunctionNode(
+                name, blockToken, FunctionNode.Kind.NORMAL, blockLine, Collections.emptyList());
+        functionNode.setFlag(FunctionNode.ES6_IS_METHOD);
+        functionNode.setFlag(FunctionNode.IS_ANONYMOUS);
+        lc.push(functionNode);
+
+        final Block functionBody;
+        try {
+            functionBody = functionBody(functionNode);
+        } finally {
+            lc.pop(functionNode);
+        }
+
+        // 15.7.1: a static block may not contain arguments (early error only)
+        if (reparsedFunction == null && (functionNode.getFlags() & FunctionNode.USES_ARGUMENTS) != 0) {
+            throw error(AbstractParser.message("arguments.in.static.block"), blockToken);
+        }
+
+        final FunctionNode function = createFunctionNode(functionNode, blockToken, name,
+                Collections.emptyList(), FunctionNode.Kind.NORMAL, blockLine, functionBody);
+        return new PropertyNode(blockToken, finish, null, function, null, null, true, false,
+                PropertyNode.KIND_STATIC_BLOCK, false, null);
+    }
+
+    /**
+     * Re-parses a class static initializer block on its own, for an on-demand
+     * recompilation. The lexer is positioned at the block's opening brace; this
+     * wraps a synthetic program around a single {@link #staticBlock}.
+     *
+     * @param scriptName   the synthetic program's name
+     * @param startPos     start of the block in the source
+     * @param len          its length
+     * @param reparseFlags flags carried from the recompilable function data
+     * @return a program whose sole nested function is the static block
+     */
+    public FunctionNode reparseStaticBlock(final String scriptName, final int startPos, final int len, final int reparseFlags) {
+        try {
+            stream = new TokenStream();
+            lexer = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
+            lexer.line = lexer.pendingLine = lineOffset + 1;
+            line = lineOffset;
+            scanFirstToken();
+            return classElementReparseProgram(scriptName, () -> (FunctionNode)staticBlock().getValue());
+        } catch (final Exception e) {
+            handleParseException(e);
+            return null;
+        }
     }
 
     /**
