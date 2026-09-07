@@ -299,6 +299,28 @@ public final class NativePromise extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2024 27.2.4.8 Promise.withResolvers ( )
+     *
+     * Makes a new promise (of the constructor {@code this}) together with its
+     * resolve and reject functions, so an embedder can settle it from outside
+     * without capturing the executor's parameters.
+     *
+     * @param self the Promise constructor (or a subclass)
+     * @return an object {@code { promise, resolve, reject }}
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static Object withResolvers(final Object self) {
+        Global.requireEventLoop("Promise.withResolvers");
+        requireConstructor(self);
+        final Capability capability = newPromiseCapability(self);
+        final ScriptObject result = Global.instance().newObject();
+        result.set("promise", capability.promise(), 0);
+        result.set("resolve", capability.resolveFunction(), 0);
+        result.set("reject", capability.rejectFunction(), 0);
+        return result;
+    }
+
+    /**
      * ECMAScript 2015 25.4.4.1 Promise.all(iterable)
      *
      * @param self     self reference
