@@ -500,6 +500,19 @@ public abstract class ArrayBufferView extends ScriptObject {
      * @param length   how long the new one is to be
      * @return the array to fill in
      */
+    /**
+     * ES2023 TypedArrayCreateSameType: a new typed array of the exemplar's own
+     * kind and given length, ignoring {@code @@species}. The change-by-copy
+     * methods (toReversed, toSorted, with) use this rather than {@code speciesCreate}.
+     *
+     * @param exemplar the array being derived from
+     * @param length   how long the new one is to be
+     * @return the array to fill in
+     */
+    static ArrayBufferView createSameType(final ArrayBufferView exemplar, final int length) {
+        return exemplar.factory().construct(length);
+    }
+
     static ArrayBufferView speciesCreate(final ArrayBufferView exemplar, final int length) {
         final ScriptFunction species = speciesConstructor(exemplar);
         if (species == null) {

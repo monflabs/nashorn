@@ -1497,6 +1497,132 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * The array-like receiver, as an object, for the ES2023 change-by-copy
+     * methods (which all begin with ToObject).
+     */
+    private static ScriptObject toArrayLike(final Object self) {
+        if (Global.toObject(self) instanceof ScriptObject sobj) {
+            return sobj;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+    }
+
+    /**
+     * A length that fits a dense Java array; the change-by-copy methods
+     * materialise every element, so a length past what an array can hold is an
+     * error rather than a slow crawl. Real arrays never reach it (their length
+     * caps at 2^32-1).
+     */
+    private static int denseLength(final long length) {
+        if (length > Integer.MAX_VALUE) {
+            throw rangeError("inappropriate.array.length", Long.toString(length));
+        }
+        return (int)length;
+    }
+
+    /**
+     * ECMAScript 2023 Array.prototype.toReversed(): a reversed copy, leaving the
+     * original untouched. The result is a dense array; a hole reads as undefined.
+     *
+     * @param self self reference
+     * @return a new, reversed array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object toReversed(final Object self) {
+        final ScriptObject sobj = toArrayLike(self);
+        final long len = toLength(sobj.getLength());
+        final Object[] result = new Object[denseLength(len)];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = sobj.get(len - 1 - i);
+        }
+        return new NativeArray(result);
+    }
+
+    /**
+     * ECMAScript 2023 Array.prototype.toSorted(comparefn): a sorted copy, leaving
+     * the original untouched.
+     *
+     * @param self      self reference
+     * @param comparefn the comparator, or undefined for the default order
+     * @return a new, sorted array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object toSorted(final Object self, final Object comparefn) {
+        if (comparefn != ScriptRuntime.UNDEFINED && !Bootstrap.isCallable(comparefn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(comparefn));
+        }
+        final ScriptObject sobj = toArrayLike(self);
+        final long len = toLength(sobj.getLength());
+        final Object[] items = new Object[denseLength(len)];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = sobj.get(i);
+        }
+        return new NativeArray(sort(items, comparefn));
+    }
+
+    /**
+     * ECMAScript 2023 Array.prototype.with(index, value): a copy with one element
+     * replaced. The index may count from the end; one out of range is a
+     * RangeError rather than a clamp.
+     *
+     * @param self  self reference
+     * @param index the index to replace, negative counting from the end
+     * @param value the replacement value
+     * @return a new array with the one element changed
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object with(final Object self, final Object index, final Object value) {
+        final ScriptObject sobj = toArrayLike(self);
+        final long len = toLength(sobj.getLength());
+        final double relative = JSType.toInteger(index);
+        final double actual = relative >= 0 ? relative : len + relative;
+        if (actual < 0 || actual >= len) {
+            throw rangeError("inappropriate.array.index", JSType.toString(index));
+        }
+        final long target = (long)actual;
+        final Object[] result = new Object[denseLength(len)];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = i == target ? value : sobj.get(i);
+        }
+        return new NativeArray(result);
+    }
+
+    /**
+     * ECMAScript 2023 Array.prototype.toSpliced(start, skipCount, ...items): a
+     * copy with a splice applied, leaving the original untouched.
+     *
+     * @param self self reference
+     * @param args start, skip count, and the items to insert
+     * @return a new, spliced array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object toSpliced(final Object self, final Object... args) {
+        final ScriptObject sobj = toArrayLike(self);
+        final long len = toLength(sobj.getLength());
+        final long start = relativeIndex(args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED, len, 0);
+        final long skip;
+        if (args.length < 2) {
+            skip = args.length == 0 ? 0 : len - start;
+        } else {
+            skip = Math.min(Math.max((long)JSType.toInteger(args[1]), 0), len - start);
+        }
+        final long insert = args.length > 2 ? args.length - 2 : 0;
+        final long newLen = len - skip + insert;
+        final Object[] result = new Object[denseLength(newLen)];
+        int r = 0;
+        for (long i = 0; i < start; i++) {
+            result[r++] = sobj.get(i);
+        }
+        for (int k = 2; k < args.length; k++) {
+            result[r++] = args[k];
+        }
+        for (long i = start + skip; i < len; i++) {
+            result[r++] = sobj.get(i);
+        }
+        return new NativeArray(result);
+    }
+
+    /**
      * ECMA 15.4.4.12 Array.prototype.splice ( start, deleteCount [ item1 [ , item2 [ , ... ] ] ] )
      *
      * @param self self reference

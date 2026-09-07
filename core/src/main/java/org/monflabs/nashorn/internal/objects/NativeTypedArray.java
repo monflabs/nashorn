@@ -21,6 +21,7 @@
 
 package org.monflabs.nashorn.internal.objects;
 
+import static org.monflabs.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 
 import java.util.ArrayList;
@@ -404,6 +405,75 @@ public final class NativeTypedArray extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static Object reverse(final Object self) {
         return NativeArray.reverse(view(self));
+    }
+
+    /**
+     * ES2023 %TypedArray%.prototype.toReversed(): a reversed copy of the same
+     * kind, leaving the original untouched.
+     *
+     * @param self self reference
+     * @return a new, reversed typed array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object toReversed(final Object self) {
+        final ArrayBufferView source = view(self);
+        final int length = source.getElementLength();
+        final ArrayBufferView result = ArrayBufferView.createSameType(source, length);
+        for (int i = 0; i < length; i++) {
+            result.set(i, source.get(length - 1 - i), 0);
+        }
+        return result;
+    }
+
+    /**
+     * ES2023 %TypedArray%.prototype.toSorted(comparefn): a sorted copy of the
+     * same kind, leaving the original untouched.
+     *
+     * @param self      self reference
+     * @param comparefn the comparator, or undefined for the numeric default
+     * @return a new, sorted typed array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object toSorted(final Object self, final Object comparefn) {
+        if (comparefn != ScriptRuntime.UNDEFINED && !Bootstrap.isCallable(comparefn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(comparefn));
+        }
+        final ArrayBufferView source = view(self);
+        final int length = source.getElementLength();
+        final ArrayBufferView result = ArrayBufferView.createSameType(source, length);
+        for (int i = 0; i < length; i++) {
+            result.set(i, source.get(i), 0);
+        }
+        return sort(result, comparefn);
+    }
+
+    /**
+     * ES2023 %TypedArray%.prototype.with(index, value): a copy of the same kind
+     * with one element replaced. The index may count from the end; one out of
+     * range is a RangeError. The value is coerced to the array's element type
+     * before the range is checked.
+     *
+     * @param self  self reference
+     * @param index the index to replace, negative counting from the end
+     * @param value the replacement value
+     * @return a new typed array with the one element changed
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object with(final Object self, final Object index, final Object value) {
+        final ArrayBufferView source = view(self);
+        final int length = source.getElementLength();
+        final double relative = JSType.toInteger(index);
+        final double actual = relative >= 0 ? relative : length + relative;
+        final Object numeric = source.isBigIntArray() ? NativeBigInt.toBigInt(value) : (Object)JSType.toNumber(value);
+        if (actual < 0 || actual >= length) {
+            throw rangeError("inappropriate.array.index", JSType.toString(index));
+        }
+        final ArrayBufferView result = ArrayBufferView.createSameType(source, length);
+        final int target = (int)actual;
+        for (int i = 0; i < length; i++) {
+            result.set(i, i == target ? numeric : source.get(i), 0);
+        }
+        return result;
     }
 
     /**
