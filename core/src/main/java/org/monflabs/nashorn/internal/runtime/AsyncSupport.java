@@ -73,16 +73,26 @@ public final class AsyncSupport {
     private final Object[] args;
     private final Global global;
 
+    /**
+     * Set-up to run on the body's own thread before it starts, for a caller that
+     * needs a thread-local established there (ES2022 top-level await runs a module
+     * body here and needs its STARTING binding on this thread). Null for an
+     * ordinary async function.
+     */
+    private final Runnable onBodyThread;
+
     private Thread thread;
 
     /** The promise the call handed back, which the body's completion settles. */
     private NativePromise promise;
 
-    private AsyncSupport(final ScriptFunction body, final Object self, final Object[] args, final Global global) {
+    private AsyncSupport(final ScriptFunction body, final Object self, final Object[] args, final Global global,
+            final Runnable onBodyThread) {
         this.body = body;
         this.self = self;
         this.args = args;
         this.global = global;
+        this.onBodyThread = onBodyThread;
     }
 
     /**
@@ -116,7 +126,25 @@ public final class AsyncSupport {
      */
     public static Object start(final ScriptFunction body, final Object self, final Object[] args,
             final Global global) {
-        final AsyncSupport support = new AsyncSupport(body, self, args, global);
+        return start(body, self, args, global, null);
+    }
+
+    /**
+     * As {@link #start(ScriptFunction, Object, Object[], Global)}, but with a
+     * set-up action run on the body's own thread first, so a thread-local the
+     * body relies on is in place there. ES2022 top-level await runs a module body
+     * this way, to re-establish its STARTING binding on the body thread.
+     *
+     * @param body   the function to run on its own thread
+     * @param self   its receiver
+     * @param args   its arguments
+     * @param global the realm
+     * @param onBodyThread set-up to run on the body thread before the body, or null
+     * @return the promise the call evaluates to
+     */
+    public static Object start(final ScriptFunction body, final Object self, final Object[] args,
+            final Global global, final Runnable onBodyThread) {
+        final AsyncSupport support = new AsyncSupport(body, self, args, global, onBodyThread);
         support.promise = NativePromise.newAsyncPromise(global);
         support.advance(null);
         return support.promise;
@@ -175,8 +203,12 @@ public final class AsyncSupport {
             // be established on this thread before anything script-visible runs -
             // scoped values are not inherited by an unstructured thread start.
             try {
-                Context.runWithGlobal(global, () ->
-                    deliver(new Step.Returned(ScriptRuntime.apply(body, self, args))));
+                Context.runWithGlobal(global, () -> {
+                    if (onBodyThread != null) {
+                        onBodyThread.run();
+                    }
+                    deliver(new Step.Returned(ScriptRuntime.apply(body, self, args)));
+                });
             } catch (final RuntimeException e) {
                 deliver(new Step.Failed(e));
             } finally {

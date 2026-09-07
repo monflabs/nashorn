@@ -112,6 +112,7 @@ public final class Test262Selector {
         "class-fields-public", "class-static-fields-public", "static-initialization-blocks",
         "class-fields-private", "class-methods-private", "class-static-fields-private",
         "class-static-methods-private", "class-fields-private-in",
+        "top-level-await",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -163,11 +164,7 @@ public final class Test262Selector {
      * list is deliberately explicit: a rule that skipped anything unparseable
      * would hide real failures.
      */
-    private static final Set<String> LATER_SYNTAX = Set.of(
-            // ES2022 top-level await: this test lives under top-level-await/ and
-            // is written with a module-top-level await, but is tagged only
-            // dynamic-import, so the feature deny rule does not catch it
-            "language/module-code/top-level-await/dynamic-import-of-waiting-module.js");
+    private static final Set<String> LATER_SYNTAX = Set.of();
 
     /**
      * Tests keyed to a Unicode version newer than the one the JDK carries.

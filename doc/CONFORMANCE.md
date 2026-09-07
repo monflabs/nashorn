@@ -4,19 +4,19 @@ ECMAScript 2021 conformance
 This engine implements [ECMAScript 2021](https://262.ecma-international.org/12.0/)
 (ECMA-262, 12th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 73,808 executions
-**90 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+selected at runtime by `Test262Selector`, and of its 74,069 executions
+**92 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
-only move forwards. (The ES2022 additions are being layered on incrementally -
-`.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d` flag, class fields, and
-now **private class members** - private fields, private methods and accessors,
-their static forms, and the ergonomic `#x in obj` brand check - which is why the
-slice now selects those ES2022 feature tags; only top-level await is not yet in.)
+only move forwards. (All ten ES2022 additions are now in - `.at`, `Object.hasOwn`,
+`Error` `cause`, the RegExp `d` flag, class fields, private class members - fields,
+methods and accessors, their static forms, and the ergonomic `#x in obj` brand
+check - and **top-level await** - so the slice now selects the ES2022 feature tags.
+The edition-level documentation catches up to ES2022 separately.)
 
-Of the 90, **8** are the one carried-over Annex B shape: an indirect `eval` whose
+Of the 92, **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **82** fall in
-three ES2022 groups, and every one is a corner rather than a hole:
+rooted in how the engine merges eval scopes (see below). The other **84** fall in
+four ES2022 groups, and every one is a corner rather than a hole:
 
 - **The direct-`eval` interaction with the new lexical features** (the largest
   group). A private-name reference is resolved lexically - `#x` compiles to a read
@@ -34,6 +34,13 @@ three ES2022 groups, and every one is a corner rather than a hole:
   its own, and at that scale the class's generated method passes the JVM's 64 KB
   method limit even after the splitter runs - a size a real program never reaches
   (a class of four thousand *public* fields compiles, having no such bindings).
+- **Two top-level-await corners**: `new await` at a module's top level is not
+  rejected at parse (it is read as the `await` operator), and one asynchronous
+  *cycle* settles a module's fulfilment one microtask later than a spec erratum
+  requires, swapping the last two entries of an ordering probe. Everything else
+  about top-level await conforms - the `await` operator and `for await` at a
+  module's top level, the asynchronous evaluation order across a dependency graph,
+  dynamic `import()` of a module that awaits, and rejection propagation.
 
 Everything else about class fields and private members - public, static, and
 private fields, private methods and accessors and their static forms, field
@@ -73,8 +80,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 73808 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 90   expected to fail: 90
+    test262: 74069 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 92   expected to fail: 92
 
 What is not measured, and why
 -----------------------------
@@ -113,8 +120,8 @@ them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
 named in the expectations file (see below).
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after the target - top-level await (the
-one ES2022 piece not yet landed), the RegExp `v` flag, `Array.prototype.findLast`
+`features:` tag names something introduced after the target - the RegExp `v` flag,
+`Array.prototype.findLast`
 and the change-array-by-copy methods, and the rest. Those are not failures; they
 are outside the target. Most would fail if run, because the features are not
 implemented.

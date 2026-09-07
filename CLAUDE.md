@@ -153,10 +153,11 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 90 of the 73,808 executions: 8 Annex B indirect-eval "existing var
-  update" cases and 82 ES2022 class-fields / private-members corners (direct eval not validating
+  lists the settled failures — 92 of the 74,069 executions: 8 Annex B indirect-eval "existing var
+  update" cases and 84 ES2022 corners: class-fields / private-members (direct eval not validating
   the no-`arguments` or private environment at parse, two `#x in` grammar edges, and 18 Unicode
   identifier torture tests whose thousands of private-name bindings overflow the 64KB method limit),
+  plus two top-level-await corners (`new await`, and one async-cycle fulfilment-order erratum),
   whose reasons `doc/CONFORMANCE.md` records — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with

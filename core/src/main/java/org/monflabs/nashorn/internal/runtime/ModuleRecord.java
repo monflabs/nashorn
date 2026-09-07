@@ -25,7 +25,10 @@ import static org.monflabs.nashorn.internal.runtime.ECMAErrors.referenceError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.syntaxError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -89,6 +92,8 @@ public final class ModuleRecord {
         INSTANTIATED,
         /** its body is running, or one of its dependencies is */
         EVALUATING,
+        /** ES2022: its synchronous part has run; it is waiting on an await (its own or a dependency's) */
+        EVALUATING_ASYNC,
         /** its body has finished */
         EVALUATED
     }
@@ -105,6 +110,20 @@ public final class ModuleRecord {
     private ScriptObject namespace;
     private ScriptObject importMeta;
     private RuntimeException evaluationError;
+
+    // ES2022 asynchronous module evaluation (16.2.1.5) bookkeeping.
+    /** Assigns the order asynchronous modules become async, which is the order they later run in. */
+    private static final java.util.concurrent.atomic.AtomicLong ASYNC_EVALUATION_ORDER = new java.util.concurrent.atomic.AtomicLong(1);
+    private boolean asyncEvaluation;
+    private long asyncEvaluationOrder;
+    private int dfsIndex;
+    private int dfsAncestorIndex;
+    private int pendingAsyncDependencies;
+    private ModuleRecord cycleRoot;
+    private final java.util.List<ModuleRecord> asyncParentModules = new ArrayList<>();
+    private org.monflabs.nashorn.internal.objects.NativePromise topLevelCapability;
+    private boolean topLevelRejected;
+    private Object topLevelRejectReason;
 
     /** What this module's specifiers resolved to: link, bind and evaluate all ask, the loaders answer once. */
     private final java.util.Map<String, ModuleRecord> dependencies = new java.util.HashMap<>();
@@ -312,19 +331,46 @@ public final class ModuleRecord {
     }
 
     /**
-     * Runs the module's body, and everything it depends on first.
+     * Runs the module's body, and everything it depends on first (ES2022
+     * 16.2.1.5.2 Evaluate). The graph may contain top-level await, so evaluation
+     * is asynchronous under the hood; this drives it to completion on the realm's
+     * event loop and re-throws the module's evaluation error once it settles, so
+     * an embedder keeps the synchronous contract it had before top-level await.
      *
-     * @return the module itself, once its body has finished
+     * @return the module itself, once the graph has finished evaluating
      */
     public ModuleRecord evaluate() {
+        JobQueue.enterScript();
+        try {
+            evaluateToPromise();
+        } finally {
+            if (JobQueue.exitScriptShouldDrain()) {
+                global.getJobQueue().drain();
+            }
+        }
         if (evaluationError != null) {
-            // ES2020 15.2.1.20: a module that threw once is permanently errored,
-            // and every later evaluation (a re-import included) throws the same.
             throw evaluationError;
         }
+        if (topLevelRejected) {
+            throw ECMAException.create(topLevelRejectReason, null, -1, -1);
+        }
+        return this;
+    }
+
+    /**
+     * ES2022 16.2.1.5.2 Evaluate without draining: links and instantiates the
+     * graph (synchronously - the instantiation pass only declares, it does not
+     * await) and starts the asynchronous evaluation, returning the promise that
+     * settles when the whole graph is done. Dynamic import chains on this.
+     *
+     * @return the top-level evaluation promise
+     */
+    org.monflabs.nashorn.internal.objects.NativePromise evaluateToPromise() {
         if (values != null) {
             state = State.EVALUATED;
-            return this;
+            final org.monflabs.nashorn.internal.objects.NativePromise settled = org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
+            org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(settled, ScriptRuntime.UNDEFINED);
+            return settled;
         }
         if (state == State.NEW) {
             link();
@@ -337,34 +383,251 @@ public final class ModuleRecord {
             } catch (final RuntimeException | Error e) {
                 state = State.EVALUATED;
                 evaluationError = e instanceof RuntimeException re ? re : new RuntimeException(e);
-                throw e;
+                final org.monflabs.nashorn.internal.objects.NativePromise rejected = org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
+                org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(rejected, errorValue(e));
+                return rejected;
             }
         }
-        if (state != State.INSTANTIATED) {
-            // already run, or being run further down the same stack: a cycle
-            return this;
+        ModuleRecord module = this;
+        if (module.state == State.EVALUATING_ASYNC || module.state == State.EVALUATED) {
+            // a re-evaluation resolves against the cycle root, as the spec does
+            module = module.cycleRoot != null ? module.cycleRoot : module;
+        }
+        if (module.topLevelCapability != null) {
+            return module.topLevelCapability;
+        }
+        final Deque<ModuleRecord> stack = new ArrayDeque<>();
+        final org.monflabs.nashorn.internal.objects.NativePromise capability = org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
+        module.topLevelCapability = capability;
+        // Capture the settlement so evaluate() can re-throw a rejection as the
+        // embedder's synchronous error - and so the rejection counts as handled.
+        final ModuleRecord root = module;
+        org.monflabs.nashorn.internal.objects.NativePromise.await(global, capability, value -> { },
+                reason -> { root.topLevelRejected = true; root.topLevelRejectReason = reason; });
+        try {
+            module.innerModuleEvaluation(stack, 0);
+        } catch (final RuntimeException err) {
+            for (final ModuleRecord m : stack) {
+                m.state = State.EVALUATED;
+                m.evaluationError = err;
+            }
+            evaluationError = err;
+            org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(capability, errorValue(err));
+            return capability;
+        }
+        if (!module.asyncEvaluation) {
+            org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(capability, ScriptRuntime.UNDEFINED);
+        }
+        return capability;
+    }
+
+    /** Whether this module awaits at its own top level, making its evaluation asynchronous. */
+    private boolean hasTopLevelAwait() {
+        return module != null && module.hasTopLevelAwait();
+    }
+
+    /**
+     * ES2022 16.2.1.5.2.1 InnerModuleEvaluation: the depth-first walk that runs
+     * each module after its dependencies, tracking strongly-connected components
+     * so a cycle evaluates as one unit and an asynchronous dependency defers the
+     * modules waiting on it.
+     */
+    private int innerModuleEvaluation(final Deque<ModuleRecord> stack, final int indexIn) {
+        int index = indexIn;
+        if (values != null) {
+            // a pure-Java module has no body and no dependencies: it is evaluated
+            // the moment it is reached, and is its own (trivial) cycle root
+            if (state != State.EVALUATED) {
+                state = State.EVALUATED;
+                cycleRoot = this;
+            }
+            return index;
+        }
+        if (state == State.EVALUATING_ASYNC || state == State.EVALUATED) {
+            if (evaluationError == null) {
+                return index;
+            }
+            throw evaluationError;
+        }
+        if (state == State.EVALUATING) {
+            return index;
         }
         state = State.EVALUATING;
+        dfsIndex = index;
+        dfsAncestorIndex = index;
+        pendingAsyncDependencies = 0;
+        index++;
+        stack.addLast(this);
 
+        for (final String requested : module.getRequestedModules()) {
+            ModuleRecord required = dependency(requested);
+            index = required.innerModuleEvaluation(stack, index);
+            if (required.state == State.EVALUATING_ASYNC || required.state == State.EVALUATED) {
+                required = required.cycleRoot != null ? required.cycleRoot : required;
+            }
+            if (required.state == State.EVALUATING) {
+                dfsAncestorIndex = Math.min(dfsAncestorIndex, required.dfsAncestorIndex);
+            } else if (required.state == State.EVALUATING_ASYNC) {
+                // a cycle root that is still evaluating asynchronously: this module
+                // waits on it. A dependency that has fully evaluated (even one that
+                // was asynchronous) is done and adds no pending dependency, or the
+                // waiter would never be released.
+                pendingAsyncDependencies++;
+                required.asyncParentModules.add(this);
+            }
+        }
+
+        if (pendingAsyncDependencies > 0 || hasTopLevelAwait()) {
+            asyncEvaluation = true;
+            asyncEvaluationOrder = ASYNC_EVALUATION_ORDER.getAndIncrement();
+            if (pendingAsyncDependencies == 0) {
+                executeAsyncModule();
+            }
+        } else {
+            runBody();
+        }
+
+        if (dfsAncestorIndex == dfsIndex) {
+            ModuleRecord m;
+            do {
+                m = stack.removeLast();
+                m.state = m.asyncEvaluation ? State.EVALUATING_ASYNC : State.EVALUATED;
+                m.cycleRoot = this;
+            } while (m != this);
+        }
+        return index;
+    }
+
+    /** Runs the module body synchronously on the current thread, with its STARTING binding set. */
+    private void runBody() {
+        final ModuleRecord previous = STARTING.get();
+        STARTING.set(this);
         try {
-            for (final String requested : module.getRequestedModules()) {
-                dependency(requested).evaluate();
-            }
+            ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
+        } finally {
+            STARTING.set(previous);
+        }
+    }
 
-            final ModuleRecord previous = STARTING.get();
-            STARTING.set(this);
+    /**
+     * ES2022 ExecuteAsyncModule: runs an asynchronous module's body. One with a
+     * top-level await runs on its own thread so the await can suspend it; one that
+     * is asynchronous only because a dependency is has no await, so it runs
+     * synchronously and reports completion as a job, matching a resolved
+     * capability's reaction order.
+     */
+    private void executeAsyncModule() {
+        if (hasTopLevelAwait()) {
+            final Object bodyPromise = AsyncSupport.start(body, ScriptRuntime.UNDEFINED, ScriptRuntime.EMPTY_ARRAY,
+                    global, () -> { STARTING.set(this); INSTANTIATING.set(Boolean.FALSE); });
+            org.monflabs.nashorn.internal.objects.NativePromise.await(global, bodyPromise,
+                    value -> asyncModuleExecutionFulfilled(),
+                    reason -> asyncModuleExecutionRejected(reason));
+        } else {
+            RuntimeException failure = null;
             try {
-                ScriptRuntime.apply(body, ScriptRuntime.UNDEFINED);
-            } finally {
-                STARTING.set(previous);
+                runBody();
+            } catch (final RuntimeException err) {
+                failure = err;
             }
-        } catch (final RuntimeException | Error e) {
-            state = State.EVALUATED;
-            evaluationError = e instanceof RuntimeException re ? re : new RuntimeException(e);
-            throw e;
+            final RuntimeException thrown = failure;
+            global.getJobQueue().enqueue(() -> {
+                if (thrown != null) {
+                    asyncModuleExecutionRejected(errorValue(thrown));
+                } else {
+                    asyncModuleExecutionFulfilled();
+                }
+            });
+        }
+    }
+
+    /**
+     * ES2022 AsyncModuleExecutionFulfilled: this module's body has finished, so it
+     * is evaluated; every ancestor whose last pending dependency this was may now
+     * run, in dependency order.
+     */
+    private void asyncModuleExecutionFulfilled() {
+        if (state == State.EVALUATED) {
+            return; // already errored
         }
         state = State.EVALUATED;
-        return this;
+        if (topLevelCapability != null) {
+            org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(topLevelCapability, ScriptRuntime.UNDEFINED);
+        }
+        final List<ModuleRecord> execList = new ArrayList<>();
+        gatherAvailableAncestors(execList);
+        execList.sort(Comparator.comparingLong(m -> m.asyncEvaluationOrder));
+        for (final ModuleRecord m : execList) {
+            if (m.state == State.EVALUATED) {
+                continue; // errored
+            }
+            if (m.hasTopLevelAwait()) {
+                m.executeAsyncModule();
+            } else {
+                try {
+                    m.runBody();
+                } catch (final RuntimeException err) {
+                    m.asyncModuleExecutionRejected(errorValue(err));
+                    continue;
+                }
+                m.state = State.EVALUATED;
+                if (m.topLevelCapability != null) {
+                    org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(m.topLevelCapability, ScriptRuntime.UNDEFINED);
+                }
+            }
+        }
+    }
+
+    /**
+     * ES2022 GatherAvailableAncestors: decrements each async parent's pending
+     * count and collects those that have become ready, descending through
+     * synchronous ones whose completion is immediate.
+     */
+    private void gatherAvailableAncestors(final List<ModuleRecord> execList) {
+        for (final ModuleRecord parent : asyncParentModules) {
+            if (execList.contains(parent)) {
+                continue;
+            }
+            if (parent.cycleRoot != null && parent.cycleRoot.evaluationError != null) {
+                continue;
+            }
+            parent.pendingAsyncDependencies--;
+            if (parent.pendingAsyncDependencies == 0) {
+                execList.add(parent);
+                if (!parent.hasTopLevelAwait()) {
+                    parent.gatherAvailableAncestors(execList);
+                }
+            }
+        }
+    }
+
+    /**
+     * ES2022 AsyncModuleExecutionRejected: this module's evaluation threw; it and
+     * every module waiting on it are permanently errored with the same reason.
+     */
+    private void asyncModuleExecutionRejected(final Object reason) {
+        if (state == State.EVALUATED) {
+            return; // already settled
+        }
+        state = State.EVALUATED;
+        evaluationError = ECMAException.create(reason, null, -1, -1);
+        for (final ModuleRecord parent : asyncParentModules) {
+            parent.asyncModuleExecutionRejected(reason);
+        }
+        if (topLevelCapability != null) {
+            org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(topLevelCapability, reason);
+        }
+    }
+
+    /** The JavaScript value to settle a promise with for a Java throwable from evaluation. */
+    private Object errorValue(final Throwable t) {
+        if (t instanceof ECMAException ee) {
+            return ee.getThrown();
+        }
+        if (t instanceof ParserException pe) {
+            return ECMAErrors.asEcmaException(global, pe).getThrown();
+        }
+        return t == null ? ScriptRuntime.UNDEFINED : String.valueOf(t.getMessage());
     }
 
     /**

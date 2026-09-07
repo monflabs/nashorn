@@ -3502,8 +3502,14 @@ public final class ScriptRuntime {
                 if (loaded == null) {
                     throw typeError("cant.load.module", spec, "not found");
                 }
-                loaded.link().evaluate();
-                org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, loaded.namespace());
+                // ES2022: a module may finish evaluating asynchronously (top-level
+                // await), so the import promise chains on its evaluation promise
+                // rather than assuming it is done on return.
+                final ModuleRecord imported = loaded;
+                final org.monflabs.nashorn.internal.objects.NativePromise evaluation = loaded.link().evaluateToPromise();
+                org.monflabs.nashorn.internal.objects.NativePromise.await(global, evaluation,
+                        value -> org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, imported.namespace()),
+                        reason -> org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason));
             } catch (final Throwable t) {
                 final Object reason;
                 if (t instanceof ECMAException ee) {

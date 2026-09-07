@@ -336,6 +336,26 @@ public final class Module implements Serializable {
         this.starExportEntries = starExportEntries;
     }
 
+    /** ES2022: whether this module contains a top-level await, making it async-evaluated. */
+    private boolean hasTopLevelAwait;
+
+    /**
+     * Whether this module has a top-level {@code await} (directly or through an
+     * arrow at its top level), which makes its evaluation asynchronous.
+     * @return true if the module awaits at its top level
+     */
+    public boolean hasTopLevelAwait() {
+        return hasTopLevelAwait;
+    }
+
+    /**
+     * Records that this module has a top-level {@code await}.
+     * @param hasTopLevelAwait true if it does
+     */
+    public void setHasTopLevelAwait(final boolean hasTopLevelAwait) {
+        this.hasTopLevelAwait = hasTopLevelAwait;
+    }
+
     /**
      * Returns the list of requested modules.
      *

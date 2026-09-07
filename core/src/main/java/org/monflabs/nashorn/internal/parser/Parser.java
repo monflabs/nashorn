@@ -2959,10 +2959,17 @@ public class Parser extends AbstractParser implements Loggable {
             // FOR tested in caller.
             next();
 
-            // ES2018 for await (... of ...), valid only in an async context.
-            if (type == IDENT && "await".equals(getValue()) && inAsyncFunction()) {
+            // ES2018 for await (... of ...), valid in an async context - and,
+            // ES2022, at a module's top level, which makes the module async.
+            if (type == IDENT && "await".equals(getValue()) && (inAsyncFunction() || inModuleTopLevel())) {
                 forAwait = true;
                 flags |= ForNode.IS_FOR_AWAIT;
+                if (!inAsyncFunction()) {
+                    final ParserContextModuleNode topLevelModule = lc.getCurrentModule();
+                    if (topLevelModule != null) {
+                        topLevelModule.setHasTopLevelAwait();
+                    }
+                }
                 next();
             }
 
@@ -7915,13 +7922,47 @@ public class Parser extends AbstractParser implements Loggable {
 
     /** Whether the current token is a contextual "await" that opens an AwaitExpression. */
     private boolean isAwaitExpression() {
-        return type == IDENT && AWAIT_NAME.equals(getValue()) && inAsyncFunction();
+        return type == IDENT && AWAIT_NAME.equals(getValue()) && (inAsyncFunction() || inModuleTopLevel());
+    }
+
+    /**
+     * Whether {@code await} here is a top-level await: the nearest enclosing
+     * function frame, arrows passed through, is the module itself. ES2022 makes
+     * {@code await} an operator at a module's top level (and in an arrow there),
+     * but not in an ordinary function nested in the module.
+     */
+    private boolean inModuleTopLevel() {
+        final Iterator<ParserContextFunctionNode> iter = lc.getFunctions();
+        while (iter.hasNext()) {
+            final FunctionNode.Kind kind = iter.next().getKind();
+            if (kind == FunctionNode.Kind.MODULE) {
+                return true;
+            }
+            if (kind != FunctionNode.Kind.ARROW && kind != FunctionNode.Kind.ASYNC_ARROW) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /**
      * AwaitExpression : await UnaryExpression (ES2017 14.6).
      */
     private Expression awaitExpression() {
+        // a keyword may not be spelled with a unicode escape; an escaped await is
+        // not the operator, and where the operator was required this is an error
+        if (Token.descLength(token) != AWAIT_NAME.length()) {
+            throw error(AbstractParser.message("keyword.escaped.character"), token);
+        }
+        // ES2022: a top-level await makes the module async-evaluated. Flag it now,
+        // when it is not inside a nested async function but at the module's own
+        // top level (the module frame the await belongs to).
+        if (!inAsyncFunction() && inModuleTopLevel()) {
+            final ParserContextModuleNode module = lc.getCurrentModule();
+            if (module != null) {
+                module.setHasTopLevelAwait();
+            }
+        }
         final long awaitToken = Token.recast(token, TokenType.AWAIT);
         next();
         return new UnaryNode(awaitToken, unaryExpression());

@@ -4344,7 +4344,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * ES6 for loops with LET init need a new scope for each iteration. We just create a shallow copy here.
      */
     private void copyPerIterationScope(final LoopNode loopNode) {
-        if (loopNode.hasPerIterationScope() && lc.getCurrentBlock().needsScope()) {
+        // Emitted at the loop's back edge; when the body never falls through to it
+        // (an unconditional break), that edge is dead. A scoped block would have
+        // this load a compiler constant onto a stack that is not there - so skip
+        // it when unreachable, as the modify/goto below already do.
+        if (method.isReachable() && loopNode.hasPerIterationScope() && lc.getCurrentBlock().needsScope()) {
             method.loadCompilerConstant(SCOPE);
             method.invoke(virtualCallNoLookup(ScriptObject.class, "copy", ScriptObject.class));
             method.storeCompilerConstant(SCOPE);

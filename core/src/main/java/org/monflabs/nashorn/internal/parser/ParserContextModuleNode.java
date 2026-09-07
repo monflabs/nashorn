@@ -51,6 +51,12 @@ class ParserContextModuleNode extends ParserContextBaseNode {
     private final List<ExportEntry> indirectExportEntries = new ArrayList<>();
     private final List<ExportEntry> starExportEntries = new ArrayList<>();
 
+    private boolean hasTopLevelAwait;
+
+    void setHasTopLevelAwait() {
+        hasTopLevelAwait = true;
+    }
+
     /**
      * Constructor.
      *
@@ -116,7 +122,9 @@ class ParserContextModuleNode extends ParserContextBaseNode {
                         .withFrom(imported.getModuleRequest(), local.getEndPosition()));
             }
         }
-        return new Module(requestedModules, importEntries, locals, indirects, starExportEntries);
+        final Module result = new Module(requestedModules, importEntries, locals, indirects, starExportEntries);
+        result.setHasTopLevelAwait(hasTopLevelAwait);
+        return result;
     }
 
     private ImportEntry importOf(final String localName) {
