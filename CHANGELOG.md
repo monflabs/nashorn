@@ -69,6 +69,28 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2022.0.0 (2026.09.07)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2022 (ECMA-262, 13th edition).** Everything the 2021 release implemented is unchanged; the ES2022 additions are layered on top, and the `tc39/test262` slice is retargeted to the 13th edition.
+
+`   ` `           ` **`Array`/`String`/`%TypedArray%`.prototype.`at`.** Index access that accepts a negative index counting from the end (`[-1]` is the last element); out of range is `undefined`.
+
+`   ` `           ` **`Object.hasOwn`.** A robust own-property test that works where `obj.hasOwnProperty` cannot - a null-prototype object, or one that redefined `hasOwnProperty`.
+
+`   ` `           ` **`Error` `cause`.** Every `Error` constructor takes an options object with a `cause`, installed as a non-enumerable own property, so a wrapping error keeps the one it wrapped reachable.
+
+`   ` `           ` **RegExp match indices (the `d` flag).** A match result carries an `indices` array of `[start, end]` offsets for the whole match and each capture group (with an `indices.groups` for named groups), gated strictly behind the flag so an ordinary match is unchanged. Works under both the JDK and Joni backends.
+
+`   ` `           ` **Class fields and static initializer blocks.** Public and `static` fields, with computed keys evaluated once in source order and per-instance initializers bound to `this`; `static { ... }` blocks that run once at class definition. Field initializers and static blocks compile as synthetic methods that reparse from source, so lazy on-demand compilation reaches them.
+
+`   ` `           ` **Private class members.** `#x` fields, methods and accessors, their `static` forms, and the ergonomic `#x in obj` brand check. A private name is resolved by ordinary lexical scoping (a synthetic `const` per class body holding a fresh private name), and each object's private elements live in a per-object store held apart from the property map - so they are invisible to `Object.keys`, `JSON.stringify`, `for`-`in`, proxies and every other form of reflection, and are never on the prototype chain.
+
+`   ` `           ` **Top-level `await`.** `await` and `for await` at a module's top level, which makes the module asynchronously evaluated. `ModuleRecord.evaluate` is rewritten into the ES2022 asynchronous-evaluation algorithm (strongly-connected-component tracking, `ExecuteAsyncModule`, fulfilment/rejection propagation to waiting parents); a module with top-level await runs its body on a virtual thread over the existing `AsyncSupport` driver, instantiation stays synchronous, and dynamic `import()` chains on the module's evaluation promise. The embedder keeps its synchronous throw-on-error contract.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2021 to ES2022. Of the 74,069 selected executions, **92** fail: the 8 carried-over Annex B indirect-eval cases, plus 84 documented ES2022 corners - direct `eval` not validating the no-`arguments` or enclosing private environment at parse (private names resolve lexically at run time instead, so they are correctly visible to a direct eval), two `#x in` grammar edges, eighteen exhaustive Unicode identifier tests that spell thousands of distinct private names in one class and overflow the JVM 64KB method limit, and two top-level-await corners (`new await`, and one async-cycle fulfilment-order erratum). No performance regression. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 13th edition, and the playground gains an `ES2022` sample category - one runnable sample per feature - run headlessly by the build.
+
 2021.0.0 (2026.09.06)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2021 (ECMA-262, 12th edition).** Everything the 2020 release implemented is unchanged; the ES2021 additions are layered on top, and the `tc39/test262` slice is retargeted to the 12th edition.

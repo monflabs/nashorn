@@ -42,7 +42,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>25</maven.compiler.release>
     <!-- the released version to test; bump to match what you installed -->
-    <nashorn.version>2021.0.0</nashorn.version>
+    <nashorn.version>2022.0.0</nashorn.version>
     <junit.version>5.10.2</junit.version>
   </properties>
 
