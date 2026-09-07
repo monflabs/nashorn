@@ -1,22 +1,24 @@
-ECMAScript 2022 conformance
+ECMAScript 2023 conformance
 ===========================
 
-This engine implements [ECMAScript 2022](https://262.ecma-international.org/13.0/)
-(ECMA-262, 13th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2023](https://262.ecma-international.org/14.0/)
+(ECMA-262, 14th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 74,069 executions
+selected at runtime by `Test262Selector`, and of its 74,600 executions
 **92 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
-only move forwards. (All ten ES2022 additions are now in - `.at`, `Object.hasOwn`,
-`Error` `cause`, the RegExp `d` flag, class fields, private class members - fields,
-methods and accessors, their static forms, and the ergonomic `#x in obj` brand
-check - and **top-level await** - so the slice now selects the ES2022 feature tags.
-The edition-level documentation catches up to ES2022 separately.)
+only move forwards. (The ES2022 additions - class fields, private members, static
+blocks, top-level await, `.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d`
+flag - are all in, and so now are the four **ES2023** additions:
+`Array.prototype.findLast`/`findLastIndex`, the change-array-by-copy methods
+`toReversed`/`toSorted`/`toSpliced`/`with`, the hashbang grammar, and
+non-registered symbols as `WeakMap`/`WeakSet` keys. The slice selects their feature
+tags; ES2023 introduced no new settled failure.)
 
 Of the 92, **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **84** fall in
-four ES2022 groups, and every one is a corner rather than a hole:
+rooted in how the engine merges eval scopes (see below). The other **84** are the
+ES2022 corners, in four groups, every one a corner rather than a hole:
 
 - **The direct-`eval` interaction with the new lexical features** (the largest
   group). A private-name reference is resolved lexically - `#x` compiles to a read
@@ -80,7 +82,7 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 74069 executions from src/test/scripts/external/test262-main, in 12 processes
+    test262: 74600 executions from src/test/scripts/external/test262-main, in 12 processes
     failing: 92   expected to fail: 92
 
 What is not measured, and why
@@ -89,7 +91,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2022.
+everything else outside the slice is simply later than ECMAScript 2023.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -117,20 +119,23 @@ them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
 `Promise.any` with `AggregateError`, the logical assignment operators
 (`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef` /
 `FinalizationRegistry`. A handful of BigInt corner cases are settled divergences,
-named in the expectations file (see below). And the ES2022 additions — the target
-of this edition — are in scope: `Array`/`String`/`%TypedArray%`.prototype.`at`,
-`Object.hasOwn`, the `cause` option on the `Error` constructors, the RegExp `d`
-flag (match indices), class fields and static initializer blocks, private class
-members (`#x` fields, methods, accessors, their static forms, and `#x in obj`),
-and top-level `await`. Their settled corners are the ES2022 ones named at the top
-of this document.
+named in the expectations file (see below). The ES2022 additions are in scope:
+`Array`/`String`/`%TypedArray%`.prototype.`at`, `Object.hasOwn`, the `cause` option
+on the `Error` constructors, the RegExp `d` flag (match indices), class fields and
+static initializer blocks, private class members (`#x` fields, methods, accessors,
+their static forms, and `#x in obj`), and top-level `await`; their settled corners
+are the ones named at the top of this document. And the ES2023 additions — the
+target of this edition — are in scope and pass: `Array.prototype.findLast` /
+`findLastIndex` (and the `%TypedArray%` forms), the change-array-by-copy methods
+`toReversed` / `toSorted` / `toSpliced` / `with`, the hashbang grammar (`#!` at a
+script or module's very start), and non-registered symbols as `WeakMap` / `WeakSet`
+keys and `WeakRef` / `FinalizationRegistry` targets.
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after the target - the RegExp `v` flag,
-`Array.prototype.findLast`
-and the change-array-by-copy methods, and the rest. Those are not failures; they
-are outside the target. Most would fail if run, because the features are not
-implemented.
+`features:` tag names something introduced after the target - the RegExp `v` flag
+(`unicodeSets`), `Array.fromAsync`, `Promise.withResolvers`, `Object.groupBy` and
+`Map.groupBy`, and the rest. Those are not failures; they are outside the target.
+Most would fail if run, because the features are not implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -

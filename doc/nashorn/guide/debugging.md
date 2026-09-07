@@ -17,7 +17,7 @@ Add `nashorn-debugger` next to `nashorn-core` on the class path or module path a
 `--inspect`:
 
 ```bash
-java -cp nashorn-core-2022.0.0.jar:nashorn-debugger-2022.0.0.jar org.monflabs.nashorn.tools.Shell --inspect script.js
+java -cp nashorn-core-2023.0.0.jar:nashorn-debugger-2023.0.0.jar org.monflabs.nashorn.tools.Shell --inspect script.js
 ```
 
 ```text
@@ -30,7 +30,7 @@ may attach. The script runs meanwhile; use `--inspect-brk` to wait for a client 
 first statement instead — the way to debug something that runs to completion in a moment:
 
 ```bash
-java -cp nashorn-core-2022.0.0.jar:nashorn-debugger-2022.0.0.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
+java -cp nashorn-core-2023.0.0.jar:nashorn-debugger-2023.0.0.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
 ```
 
 A `debugger;` statement in the script is the other way to stop somewhere in particular: with a
@@ -41,7 +41,7 @@ Both take an optional `[host:]port` — `--inspect=9230`, `--inspect=0.0.0.0:922
 debugger needs. On the module path the debugger module has to be resolved:
 
 ```bash
-java --module-path nashorn-core-2022.0.0.jar:nashorn-debugger-2022.0.0.jar --add-modules org.monflabs.nashorn.debugger \
+java --module-path nashorn-core-2023.0.0.jar:nashorn-debugger-2023.0.0.jar --add-modules org.monflabs.nashorn.debugger \
      -m org.monflabs.nashorn/org.monflabs.nashorn.tools.Shell --inspect script.js
 ```
 

@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2022
+## Language: ES5.1 → ECMAScript 2023
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2022](https://262.ecma-international.org/13.0/) (ES13) as the only
+**[ECMAScript 2023](https://262.ecma-international.org/14.0/) (ES14) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -68,6 +68,12 @@ Added on top of the ES5.1 baseline:
   held in a per-object slot invisible to reflection), and **top-level `await`**
   (`await`/`for await` at a module's top level, module evaluation made asynchronous
   through the ES2022 async-evaluation algorithm).
+- **ES2023:** `Array.prototype.findLast`/`findLastIndex` (and the `%TypedArray%`
+  forms), the change-array-by-copy methods `toReversed`/`toSorted`/`toSpliced`/`with`
+  (`toSpliced` is Array-only; the typed-array copies are same-type), the hashbang
+  grammar (`#!` a comment at the very start of a script or module), and
+  non-registered symbols as keys in `WeakMap`/`WeakSet` and targets of
+  `WeakRef`/`FinalizationRegistry`.
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -221,7 +227,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2022
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2023
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

@@ -6,12 +6,12 @@ Nashorn is published to Maven Central as a single, dependency-free artifact:
 <dependency>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-core</artifactId>
-    <version>2022.0.0</version>
+    <version>2023.0.0</version>
 </dependency>
 ```
 
 ```groovy
-implementation 'org.monflabs.nashorn:nashorn-core:2022.0.0'
+implementation 'org.monflabs.nashorn:nashorn-core:2023.0.0'
 ```
 
 It requires **JDK 25 or later**, at build and at run time. Releases up to 15.7 were published by the
@@ -107,7 +107,7 @@ covers the choice and every option in full.
 
 ## What language you get
 
-The engine speaks **ECMAScript 2022**, whole: `let`/`const`, classes, arrow functions, template
+The engine speaks **ECMAScript 2023**, whole: `let`/`const`, classes, arrow functions, template
 literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
 `SharedArrayBuffer` and `Atomics`, plus the ES2018 additions — object rest/spread (`{...o}`), async
 iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the
@@ -124,7 +124,10 @@ well-formed `JSON.stringify` — and the ES2020 additions: nullish coalescing (`
 ES2022 additions: `Array`/`String`/`%TypedArray%`.prototype.`at`, `Object.hasOwn`, the `cause` option
 on `Error`, the RegExp `d` (match-indices) flag, **class fields** and **static initializer blocks**,
 **private class members** (`#x` fields, methods, accessors, static forms, and `#x in obj`), and
-**top-level `await`**. There is
+**top-level `await`** — and the ES2023 additions: `Array.prototype.findLast`/`findLastIndex`
+(and the typed-array forms), the change-array-by-copy methods `toReversed`/`toSorted`/`toSpliced`/`with`,
+the hashbang line (`#!`), and non-registered symbols as `WeakMap`/`WeakSet` keys and
+`WeakRef`/`FinalizationRegistry` targets. There is
 no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).
