@@ -2443,6 +2443,53 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * ECMAScript 2023 Array.prototype.findLast(predicate, thisArg): as find, but
+     * scanning from the last element towards the first.
+     *
+     * @param self      self reference
+     * @param predicate called for each element, last to first, until it returns a truthy value
+     * @param thisArg   the this value for the predicate
+     * @return the last element the predicate accepts, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object findLast(final Object self, final Object predicate, final Object thisArg) {
+        return findLastInternal(self, predicate, thisArg, true);
+    }
+
+    /**
+     * ECMAScript 2023 Array.prototype.findLastIndex(predicate, thisArg): as
+     * findIndex, but scanning from the last element towards the first.
+     *
+     * @param self      self reference
+     * @param predicate called for each element, last to first, until it returns a truthy value
+     * @param thisArg   the this value for the predicate
+     * @return the index of the last element the predicate accepts, or -1
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object findLastIndex(final Object self, final Object predicate, final Object thisArg) {
+        return findLastInternal(self, predicate, thisArg, false);
+    }
+
+    /** Shared by findLast and findLastIndex; visits holes as undefined, last to first. */
+    private static Object findLastInternal(final Object self, final Object predicate, final Object thisArg,
+            final boolean wantValue) {
+        final ScriptObject sobj = Global.toObject(self) instanceof ScriptObject o ? o : null;
+        if (sobj == null) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+        }
+        final long length = toLength(sobj.getLength());
+        final ScriptFunction callback = asFunction(predicate);
+
+        for (long i = length - 1; i >= 0; i--) {
+            final Object value = sobj.get(i);
+            if (JSType.toBoolean(ScriptRuntime.apply(callback, thisArg, value, (double)i, sobj))) {
+                return wantValue ? value : (double)i;
+            }
+        }
+        return wantValue ? ScriptRuntime.UNDEFINED : Double.valueOf(-1);
+    }
+
+    /**
      * ECMAScript 2015 22.1.3.6 Array.prototype.fill(value, start, end)
      *
      * @param self  self reference

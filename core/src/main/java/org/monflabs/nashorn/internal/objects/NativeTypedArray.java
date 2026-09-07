@@ -617,6 +617,32 @@ public final class NativeTypedArray extends ScriptObject {
     }
 
     /**
+     * ES2023 %TypedArray%.prototype.findLast.
+     *
+     * @param self      self reference
+     * @param predicate the test
+     * @param thisArg   its this
+     * @return the last element that passes, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object findLast(final Object self, final Object predicate, final Object thisArg) {
+        return NativeArray.findLast(view(self), predicate, thisArg);
+    }
+
+    /**
+     * ES2023 %TypedArray%.prototype.findLastIndex.
+     *
+     * @param self      self reference
+     * @param predicate the test
+     * @param thisArg   its this
+     * @return the index of the last element that passes, or -1
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object findLastIndex(final Object self, final Object predicate, final Object thisArg) {
+        return NativeArray.findLastIndex(view(self), predicate, thisArg);
+    }
+
+    /**
      * ES2015 22.2.3.6 %TypedArray%.prototype.entries.
      *
      * @param self self reference
