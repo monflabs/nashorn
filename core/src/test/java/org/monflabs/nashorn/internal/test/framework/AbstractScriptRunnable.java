@@ -97,6 +97,11 @@ public abstract class AbstractScriptRunnable {
         this.testFile = testFile;
         this.buildDir = TestHelper.makeBuildDir(testFile);
         this.engineOptions = engineOptions;
+        // A bare engine has the event loop off; the script suite relies on it
+        // (Promise, async/await, the timers), so enable it by default. It goes
+        // first so a test that deliberately wants it off can override with
+        // @option --event-loop=false, which, coming later, wins.
+        this.engineOptions.add(0, "--event-loop");
         this.scriptArguments = scriptArguments;
 
         this.expectCompileFailure = testOptions.containsKey(OPTIONS_EXPECT_COMPILE_FAIL);

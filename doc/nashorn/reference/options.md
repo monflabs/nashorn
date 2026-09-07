@@ -22,6 +22,7 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 | `-D` | | | `-Dname=value` — set a system property; repeatable. |
 | `--debugger` | | `false` | Compile scripts with debugger hooks and keep every variable in a scope object, so that a debugger can set breakpoints, step and inspect variables. Implied by `--inspect`. See [Debugging scripts](../guide/debugging.md). |
 | `-dump-on-error` | `-doe` | `false` | Dump a full stack trace on errors, instead of the one-line message. |
+| `--event-loop` | | `false` | Enable the event loop. It backs every asynchronous capability — `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch` — so with it **off (the default)** each of those throws a `TypeError` when used. Leave it off for a purely synchronous embedder whose scripts never wait; turn it on to run asynchronous code. `jjs` turns it on with the standard libraries (see [jjs](jjs.md)). See [The event loop](../libraries/overview.md#the-event-loop). |
 | `-fullversion` | `-fv` | | Print the full version and exit. |
 | `-fx` | | `false` | Launch the script as a JavaFX application (requires a JavaFX-bearing JDK). |
 | `--help` | `-h` | | Print the help message. |

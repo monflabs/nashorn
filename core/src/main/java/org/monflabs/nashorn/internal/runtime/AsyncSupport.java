@@ -144,6 +144,7 @@ public final class AsyncSupport {
      */
     public static Object start(final ScriptFunction body, final Object self, final Object[] args,
             final Global global, final Runnable onBodyThread) {
+        Global.requireEventLoop("async functions");
         final AsyncSupport support = new AsyncSupport(body, self, args, global, onBodyThread);
         support.promise = NativePromise.newAsyncPromise(global);
         support.advance(null);

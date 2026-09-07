@@ -45,7 +45,7 @@ public class NodeFsTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        engine = new NashornScriptEngineBuilder().moduleLoader(new NodeModuleLoader()).build();
+        engine = new NashornScriptEngineBuilder().eventLoop(true).moduleLoader(new NodeModuleLoader()).build();
         dir = Files.createTempDirectory("nodefs");
         engine.put("DIR", dir.toString().replace("\\", "/"));
     }

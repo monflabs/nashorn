@@ -100,6 +100,7 @@ public final class AsyncGeneratorSupport {
      * @param global the realm
      */
     public AsyncGeneratorSupport(final ScriptFunction body, final Object self, final Object[] args, final Global global) {
+        Global.requireEventLoop("async generators");
         this.body = body;
         this.self = self;
         this.args = args;

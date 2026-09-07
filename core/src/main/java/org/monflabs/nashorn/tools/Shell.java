@@ -227,6 +227,11 @@ public class Shell implements PartialParser {
         // must add them itself. --std-libraries=false (or --no-std-libraries)
         // gives a bare shell.
         boolean stdLibraries = true;
+        // The standard libraries need the event loop (their timers and fetch
+        // schedule on it), so the shell turns the loop on by default alongside
+        // them, and --no-std-libraries turns it back off. An explicit
+        // --event-loop on the command line still wins either way.
+        Boolean eventLoopExplicit = null;
 
         // parse options
         if (args != null) {
@@ -243,6 +248,9 @@ public class Shell implements PartialParser {
                     } else if (!pastOptions && (arg.equals("--std-libraries=false") || arg.equals("--no-std-libraries"))) {
                         stdLibraries = false;
                     } else {
+                        if (!pastOptions && arg.startsWith("--event-loop")) {
+                            eventLoopExplicit = !arg.equals("--event-loop=false");
+                        }
                         if (arg.equals("--")) {
                             pastOptions = true;
                         }
@@ -255,6 +263,12 @@ public class Shell implements PartialParser {
                 options.displayHelp(e);
                 return null;
             }
+        }
+
+        // Default the event loop to whether the standard libraries are on,
+        // unless the command line named --event-loop for itself.
+        if (eventLoopExplicit == null) {
+            options.set("event.loop", stdLibraries);
         }
 
         // detect scripting mode by any source's first character being '#'

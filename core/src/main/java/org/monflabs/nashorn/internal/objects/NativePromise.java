@@ -156,6 +156,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Constructor(arity = 1)
     public static Object construct(final boolean newObj, final Object self, final Object executor) {
+        Global.requireEventLoop("Promise");
         if (!newObj) {
             throw typeError("constructor.requires.new", "Promise");
         }
@@ -268,6 +269,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object resolve(final Object self, final Object x) {
+        Global.requireEventLoop("Promise.resolve");
         if (!(self instanceof ScriptObject)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
@@ -290,6 +292,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object reject(final Object self, final Object r) {
+        Global.requireEventLoop("Promise.reject");
         final Capability capability = newPromiseCapability(self);
         capability.reject(r);
         return capability.promise();
@@ -304,6 +307,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object all(final Object self, final Object iterable) {
+        Global.requireEventLoop("Promise.all");
         requireConstructor(self);
         final Capability result = newPromiseCapability(self);
         final List<Object> values = new ArrayList<>();
@@ -357,6 +361,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object any(final Object self, final Object iterable) {
+        Global.requireEventLoop("Promise.any");
         requireConstructor(self);
         final Capability result = newPromiseCapability(self);
         final List<Object> errors = new ArrayList<>();
@@ -408,6 +413,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object allSettled(final Object self, final Object iterable) {
+        Global.requireEventLoop("Promise.allSettled");
         requireConstructor(self);
         final Capability result = newPromiseCapability(self);
         final List<Object> records = new ArrayList<>();
@@ -457,6 +463,7 @@ public final class NativePromise extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object race(final Object self, final Object iterable) {
+        Global.requireEventLoop("Promise.race");
         requireConstructor(self);
         final Capability result = newPromiseCapability(self);
         try {

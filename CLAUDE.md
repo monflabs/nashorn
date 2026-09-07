@@ -214,16 +214,36 @@ by `ScriptRuntime.apply` when the per-thread script depth returns to zero - runs
 then macrotasks (timers in a priority queue, tasks posted from other threads, and a count of
 pending operations that keeps the loop waiting) until idle. **`eval` returns when the script is
 idle**; a script that schedules nothing is unaffected. Interruption abandons everything, which is
-what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`. The standard
-libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrary`, plain
+what Stop/`terminate` rely on. The public face is `api.scripting.EventLoop`.
+
+**The event loop is off by default** (`--event-loop` / builder `.eventLoop(true)` /
+`ScriptEnvironment._event_loop`), for a purely synchronous embedder whose scripts never wait. With
+it off, every capability the loop backs throws a TypeError (`type.error.event.loop.disabled`) at its
+script-visible entry rather than scheduling work nothing would run: `Global.requireEventLoop(feature)`
+is the single choke, called from `NativePromise` (the constructor and `resolve`/`reject`/`all`/`any`/
+`allSettled`/`race`), `AsyncSupport.start` (async functions **and** a module's top-level `await`),
+the `AsyncGeneratorSupport` constructor (async generators, `for await`), `HostLibrary`
+(`setTimeout`/`setInterval`/`queueMicrotask`) and `FetchLibrary` (`fetch`); `EventLoop.current()`
+throws too. Nothing else changes - `allocate`/`newAsyncPromise` are **not** gated, so a plain
+(non-async) module still builds and settles its top-level capability synchronously, and `drain()`
+on the empty queue is a no-op. So the gates fire only where a script actually reaches for asynchrony.
+The tests turn the loop on centrally: `Test262Runner` passes `--event-loop`, `AbstractScriptRunnable`
+prepends it to every script test's options (a test can still override with `@option --event-loop=false`,
+which, coming later, wins), and the handful of Java tests that exercise it (`PromiseFromJavaTest`,
+`HostLibraryTest`, `FetchLibraryTest`, `EventLoopTest`, `NodeFsTest`) build with `.eventLoop(true)`;
+`NashornScriptEngineBuilderTest` is the one that tests its absence.
+
+The standard libraries live in core: `org.monflabs.nashorn.libs` (`HostLibrary`, `FetchLibrary`, plain
 `ScriptLibrary` classes the embedder hands to the builder - **not** registered as services and not
 installed automatically) over `@ScriptClass` built-ins `NativeHeaders`/`NativeRequest`/`NativeResponse`
 in `internal.objects`, installed per global by `Global.installFetchLibrary`. Their globals are
-NOT_ENUMERABLE anyway; a bare engine (which `Test262Runner` builds - no libraries, no option) has
+NOT_ENUMERABLE anyway; a bare engine (which `Test262Runner` builds - no libraries) has
 none of them at all. **`jjs` is the one exception**: `Shell.makeContext` installs `HostLibrary` +
 `FetchLibrary` by default via a jjs-only `--std-libraries` switch (stripped from argv before the
 engine's option parser sees it, since it is deliberately not an engine option), so the REPL is
-usable; `--std-libraries=false` / `--no-std-libraries` turns them off. A test that leaves
+usable; `--std-libraries=false` / `--no-std-libraries` turns them off. The shell also turns the
+event loop on alongside the standard libraries (so the REPL's timers and `fetch` work), unless the
+command line named `--event-loop` for itself. A test that leaves
 an interval running blocks its `eval` forever: clear intervals in the same eval and give tests a
 timeout.
 

@@ -119,8 +119,10 @@ public final class HostLibrary implements ScriptLibrary {
     private static Object call(final Function function, final Timers timers, final Object self, final Object... args) {
         switch (function) {
         case setTimeout:
+            Global.requireEventLoop("setTimeout");
             return schedule(timers, args, false);
         case setInterval:
+            Global.requireEventLoop("setInterval");
             return schedule(timers, args, true);
         case clearTimeout:
         case clearInterval:
@@ -128,6 +130,7 @@ public final class HostLibrary implements ScriptLibrary {
             cancel(timers, args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED);
             return ScriptRuntime.UNDEFINED;
         case queueMicrotask:
+            Global.requireEventLoop("queueMicrotask");
             if (args.length == 0 || !Bootstrap.isCallable(args[0])) {
                 throw typeError("queueMicrotask: the argument is not a function");
             }

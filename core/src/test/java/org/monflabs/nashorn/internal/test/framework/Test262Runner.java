@@ -475,8 +475,10 @@ public final class Test262Runner {
             // is not one where "i" has a dot when it grows.
             // Libraries are never discovered now, and this runner passes none,
             // so the conformance globals stay pristine without an option.
+            // The event loop is off by default; the conformance suite needs it
+            // for Promise, async/await and the timers, so this runner turns it on.
             options.process(new String[] { "--class-cache-size=50",
-                    "--locale=en-US" });
+                    "--locale=en-US", "--event-loop" });
             this.errors = new ErrorManager(errWriter);
             // negative tests are expected to produce parse errors by the thousand;
             // the default limit of 100 would abort the run

@@ -73,7 +73,9 @@ libraries and no module loaders**. When a script needs more than the language it
 engine with the fork's own **`NashornScriptEngineBuilder`** instead — the fluent, type-safe way to
 configure:
 
-- **engine [options](../reference/options.md)** — strict mode, sandboxing, the time zone, the debugger…;
+- **engine [options](../reference/options.md)** — strict mode, sandboxing, the time zone, the
+  debugger, the [event loop](../libraries/overview.md#the-event-loop) (off by default —
+  `.eventLoop(true)` to run `Promise`, `async`/`await`, timers and `fetch`)…;
 - **[script libraries](../extending/script-libraries.md)** — the `host` timers and `fetch`, or your
   own values installed into every realm (there is no discovery, so a bare engine has none);
 - **[module loaders](../extending/module-loaders.md)** — resolving `import` to files, class-path

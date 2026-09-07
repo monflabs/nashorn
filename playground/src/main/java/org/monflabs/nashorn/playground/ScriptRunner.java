@@ -237,6 +237,9 @@ public final class ScriptRunner {
             }
             engine = new NashornScriptEngineBuilder()
                     .debugger(true)
+                    // samples use Promise, async/await, timers and fetch, so the
+                    // playground turns the event loop on (it is off by default)
+                    .eventLoop(true)
                     .dumpStackOnError(true)
                     // no class cache: every run recompiles, so a cleared debugger
                     // registry is repopulated with exactly this run's scripts (a

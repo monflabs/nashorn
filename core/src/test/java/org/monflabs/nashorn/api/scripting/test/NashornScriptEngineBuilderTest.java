@@ -61,12 +61,34 @@ public class NashornScriptEngineBuilderTest {
         assertEquals(new NashornScriptEngineBuilder().annexB(false).build().eval("typeof escape"), "undefined");
         assertEquals(new NashornScriptEngineBuilder().strict(true).build().eval("try { undeclared = 1; 'assigned' } catch (e) { e.name }"), "ReferenceError");
         assertEquals(new NashornScriptEngineBuilder().scripting(true).build().eval("var x = <<EOS\nheredoc\nEOS\nx.trim()"), "heredoc");
+        assertEquals(new NashornScriptEngineBuilder().eventLoop(true).build().eval("typeof Promise.resolve(1).then"), "function");
         assertEquals(new NashornScriptEngineBuilder().build().eval("typeof setTimeout + typeof fetch"), "undefinedundefined");
         assertEquals(new NashornScriptEngineBuilder().library(new HostLibrary()).build().eval("typeof setTimeout + ' ' + typeof fetch"), "function undefined");
         assertEquals(new NashornScriptEngineBuilder().debugger(true).build().eval("typeof console"), "object");
         assertEquals(new NashornScriptEngineBuilder().dumpStackOnError(true).options(), List.of("-doe=true"));
         assertEquals(new NashornScriptEngineBuilder().inspect("9229", true).options(), List.of("--inspect-brk=9229"));
         assertEquals(new NashornScriptEngineBuilder().inspect("127.0.0.1:0", false).options(), List.of("--inspect=127.0.0.1:0"));
+    }
+
+    @Test
+    public void theEventLoopIsOffByDefaultAndItsCapabilitiesThrow() throws ScriptException {
+        // A bare engine has no event loop, so every capability that would need
+        // one throws a TypeError rather than scheduling work that never runs.
+        assertEquals(new NashornScriptEngineBuilder().build().eval(
+                "try { new Promise(function () {}); 'made' } catch (e) { e.name }"), "TypeError");
+        assertEquals(new NashornScriptEngineBuilder().build().eval(
+                "try { Promise.resolve(1); 'made' } catch (e) { e.name }"), "TypeError");
+        // An async function needs the loop for the promise it returns, so calling
+        // one throws up front.
+        assertEquals(new NashornScriptEngineBuilder().build().eval(
+                "var f = async function () {}; try { f(); 'called' } catch (e) { e.name }"), "TypeError");
+        // The timers throw too, even with their library installed, since they
+        // have nothing to schedule on.
+        assertEquals(new NashornScriptEngineBuilder().library(new HostLibrary()).build().eval(
+                "try { setTimeout(function () {}, 0); 'armed' } catch (e) { e.name }"), "TypeError");
+        // With the loop on, all of it works again.
+        assertEquals(new NashornScriptEngineBuilder().eventLoop(true).build().eval(
+                "typeof (async function () {})().then"), "function");
     }
 
     @Test

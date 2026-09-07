@@ -76,6 +76,11 @@ Unlike the embeddable engine — which installs nothing unless the builder's `li
 an engine option: pass **`--std-libraries=false`** (or `--no-std-libraries`) for a bare shell with none
 of them — the right setting for reproducing the plain engine's environment.
 
+Because those libraries need it, `jjs` also turns the [event loop](../libraries/overview.md#the-event-loop)
+on by default (it is off in a bare engine), so `Promise`, `async`/`await`, the timers and `fetch` all
+work at the prompt; `--no-std-libraries` turns it back off, and an explicit `--event-loop` (or
+`--event-loop=false`) on the command line overrides either way.
+
 ```text
 jjs> typeof setTimeout          // "function"
 jjs --std-libraries=false>      // typeof setTimeout is "undefined"

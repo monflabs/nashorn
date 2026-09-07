@@ -27,7 +27,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 import org.monflabs.nashorn.api.scripting.JSObject;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.testng.annotations.Test;
 
 /**
@@ -52,7 +52,7 @@ public class PromiseFromJavaTest {
 
     @Test
     public void aJavaExecutorIsCallable() throws ScriptException {
-        final ScriptEngine e = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine e = new NashornScriptEngineBuilder().eventLoop(true).build();
         final Object[] settlers = new Object[2];
         final JSObject promiseCtor = (JSObject)e.eval("Promise");
         final Object promise = promiseCtor.newObject(function((thiz, args) -> {

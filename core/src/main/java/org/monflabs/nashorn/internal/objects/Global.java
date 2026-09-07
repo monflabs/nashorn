@@ -2469,6 +2469,31 @@ public final class Global extends Scope {
         return jobQueue;
     }
 
+    /**
+     * Is the event loop enabled for this realm? When off, every asynchronous
+     * capability - Promise, async functions, async generators, the timers,
+     * queueMicrotask and fetch - throws rather than scheduling, since there is
+     * no loop to run what it would schedule.
+     *
+     * @return whether the event loop is enabled ({@code --event-loop})
+     */
+    public boolean isEventLoopEnabled() {
+        return getContext().getEnv()._event_loop;
+    }
+
+    /**
+     * Throws unless the event loop is enabled on the realm bound to this thread.
+     * Called at the entry to every capability the loop backs.
+     *
+     * @param feature what the caller needs the loop for, named in the error
+     * @throws ECMAException a TypeError when the loop is off
+     */
+    public static void requireEventLoop(final String feature) {
+        if (!instance().isEventLoopEnabled()) {
+            throw typeError("event.loop.disabled", feature);
+        }
+    }
+
     public ScriptObject getGeneratorPrototype() {
         if (builtinGeneratorPrototype == null) {
             builtinGeneratorPrototype = initPrototype("NativeGenerator", getIteratorPrototype());

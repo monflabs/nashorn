@@ -67,6 +67,9 @@ public final class EventLoop {
         if (global == null) {
             throw new IllegalStateException("no script realm is bound on this thread: call this from where a script called you");
         }
+        if (!global.isEventLoopEnabled()) {
+            throw new IllegalStateException("the event loop is not enabled for this engine: enable it with NashornScriptEngineBuilder.eventLoop(true)");
+        }
         return new EventLoop(global.getJobQueue());
     }
 

@@ -80,6 +80,12 @@ queue turn** either way. The settlement re-enters with `Resume.Value` or `Resume
 `Step.Returned` resolves the async function's promise (adopting thenables), `Step.Failed` rejects
 it.
 
+All of this needs the [event loop](../libraries/overview.md#the-event-loop), which is off by
+default: `AsyncSupport.start` and the `AsyncGeneratorSupport` constructor call
+`Global.requireEventLoop`, so calling an async function, or an async generator, throws a `TypeError`
+up front on an engine built without `.eventLoop(true)`. Plain generators (below) are synchronous and
+need no loop, so they are never gated.
+
 ## Async generators and `for await`
 
 An `async function*` both `yield`s and `await`s, so `AsyncGeneratorSupport` is the two mechanisms

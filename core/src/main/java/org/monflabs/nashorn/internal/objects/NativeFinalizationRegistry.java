@@ -106,6 +106,9 @@ public final class NativeFinalizationRegistry extends ScriptObject {
      */
     @Constructor(arity = 1)
     public static Object construct(final boolean isNew, final Object self, final Object cleanupCallback) {
+        // Cleanup callbacks are delivered on the event loop; without it they
+        // could never fire, so a registry is of no use and construction throws.
+        Global.requireEventLoop("FinalizationRegistry");
         if (!isNew) {
             throw typeError("constructor.requires.new", "FinalizationRegistry");
         }

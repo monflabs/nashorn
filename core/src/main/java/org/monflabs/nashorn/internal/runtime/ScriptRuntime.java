@@ -3485,6 +3485,10 @@ public final class ScriptRuntime {
      * @return a promise of the imported module's namespace
      */
     public static Object DYNAMIC_IMPORT(final Object referrerName, final Object specifier) {
+        // A dynamic import answers a promise and runs as a job, so it needs the
+        // event loop: without it, throw rather than hand back a promise nothing
+        // would ever settle.
+        Global.requireEventLoop("dynamic import");
         final Global global = Global.instance();
         final org.monflabs.nashorn.internal.objects.NativePromise promise =
                 org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);

@@ -120,6 +120,15 @@ public final class ScriptEnvironment {
     /** Empty statements should be preserved in the AST */
     public final boolean _empty_statements;
 
+    /**
+     * Is the event loop enabled? Off by default. The event loop backs every
+     * asynchronous capability - {@code Promise}, {@code async}/{@code await},
+     * async generators, {@code setTimeout} and its kin, {@code queueMicrotask}
+     * and {@code fetch} - so with it off each of those throws when used. A
+     * purely synchronous embedder, whose scripts never wait, can leave it off.
+     */
+    public final boolean _event_loop;
+
     /** Show full Nashorn version */
     public final boolean _fullversion;
 
@@ -264,6 +273,7 @@ public final class ScriptEnvironment {
         _dump_on_error        = options.getBoolean("doe");
         _early_lvalue_error   = options.getBoolean("early.lvalue.error");
         _empty_statements     = options.getBoolean("empty.statements");
+        _event_loop           = options.getBoolean("event.loop");
         _fullversion          = options.getBoolean("fullversion");
         _fx                   = options.getBoolean("fx");
         _global_per_engine    = options.getBoolean("global.per.engine");

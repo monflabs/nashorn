@@ -101,6 +101,21 @@ public final class NashornScriptEngineBuilder {
     }
 
     /**
+     * Whether the event loop is enabled. Off by default. The event loop backs
+     * every asynchronous capability - {@code Promise}, {@code async}/{@code await},
+     * async generators, {@code setTimeout} and its kin, {@code queueMicrotask}
+     * and {@code fetch} - so with it off each of those throws a {@code TypeError}
+     * when used. Leave it off for a purely synchronous embedder whose scripts
+     * never wait; turn it on to run asynchronous code.
+     *
+     * @param enabled whether
+     * @return this
+     */
+    public NashornScriptEngineBuilder eventLoop(final boolean enabled) {
+        return option("--event-loop=" + enabled);
+    }
+
+    /**
      * Whether every script runs in strict mode, as if it began with
      * {@code "use strict"}. Off by default.
      *

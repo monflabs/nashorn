@@ -100,6 +100,7 @@ public final class FetchLibrary implements ScriptLibrary {
      */
     @SuppressWarnings("unused")
     private static Object fetch(final Object self, final Object input, final Object init) {
+        Global.requireEventLoop("fetch");
         final Global global = Global.instance();
         final NativePromise promise = NativePromise.newAsyncPromise(global);
         final NativeRequest request;

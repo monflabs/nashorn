@@ -44,6 +44,15 @@ or function call from Java unwinds: first the microtasks, then, for as long as a
 a task is posted or an operation is pending, it waits for the next of them, runs it, and runs the
 microtasks it produced.
 
+**The event loop is off by default**, and turning it on is one builder call —
+`new NashornScriptEngineBuilder().eventLoop(true)`, or the `--event-loop`
+[option](../reference/options.md). With it off, every capability that would need it —
+`Promise`, `async`/`await`, async generators, the timers, `queueMicrotask` and `fetch` — throws a
+`TypeError` the moment it is used, rather than quietly scheduling work that would never run. A
+purely synchronous embedder, whose scripts never wait, keeps the loop off and pays nothing for it;
+anything asynchronous turns it on. `jjs` turns it on for you alongside the standard libraries (and
+`--no-std-libraries` turns both back off).
+
 The consequence for an embedder is the one rule worth remembering: **`eval` returns when the script
 is idle**, not merely when its synchronous code is done. A script that schedules nothing returns
 exactly as it always did; one that sets a 300 ms timer returns after 300 ms; one that starts a

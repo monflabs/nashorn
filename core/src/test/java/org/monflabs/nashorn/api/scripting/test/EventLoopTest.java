@@ -34,7 +34,7 @@ import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 import org.monflabs.nashorn.api.scripting.EventLoop;
 import org.monflabs.nashorn.api.scripting.JSObject;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptUtils;
 import org.testng.annotations.Test;
@@ -74,7 +74,7 @@ public class EventLoopTest {
             });
             return ScriptUtils.undefined();
         });
-        return new NashornScriptEngineFactory().getScriptEngine(ScriptLibrary.of("loop", Map.of("later", later, "cancel", cancel, "soon", soon, "request", request)));
+        return new NashornScriptEngineBuilder().eventLoop(true).library(ScriptLibrary.of("loop", Map.of("later", later, "cancel", cancel, "soon", soon, "request", request))).build();
     }
 
     private interface Body {
