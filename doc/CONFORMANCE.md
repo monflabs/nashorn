@@ -5,7 +5,7 @@ This engine implements [ECMAScript 2023](https://262.ecma-international.org/14.0
 (ECMA-262, 14th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its 74,600 executions
-**92 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+**44 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2022 additions - class fields, private members, static
 blocks, top-level await, `.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d`
@@ -15,34 +15,44 @@ flag - are all in, and so now are the four **ES2023** additions:
 non-registered symbols as `WeakMap`/`WeakSet` keys. The slice selects their feature
 tags; ES2023 introduced no new settled failure.)
 
-Of the 92, **8** are the one carried-over Annex B shape: an indirect `eval` whose
+Of the 44, **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other **84** are the
-ES2022 corners, in four groups, every one a corner rather than a hole:
+rooted in how the engine merges eval scopes (see below). The other **36** are a
+single ES2022 corner - a limit of the JVM, not a hole in the language:
 
-- **The direct-`eval` interaction with the new lexical features** (the largest
-  group). A private-name reference is resolved lexically - `#x` compiles to a read
-  of a synthetic `const` the class body binds - so it is correctly visible to a
-  direct `eval` nested in a class method; but the engine does not carry the
-  enclosing *private environment* or the field-initializer's no-`arguments`
-  context into the eval's own parse. So an `eval` naming `arguments` in an
-  initializer, or one naming a private member the surrounding class did not
-  declare, reads as a runtime error rather than the parse-time `SyntaxError` the
-  specification asks for. The same shape covers the empty-`#` eval case.
-- **Two `#x in obj` grammar corners**: a private-name operand nested as the *right*
-  side of `in`, and one used as a `for`-`in` target, are not rejected at parse.
 - **Eighteen exhaustive Unicode identifier tests** that spell *thousands* of
   distinct private names in a single class. Each private name binds a `const` of
   its own, and at that scale the class's generated method passes the JVM's 64 KB
-  method limit even after the splitter runs - a size a real program never reaches
-  (a class of four thousand *public* fields compiles, having no such bindings).
-- **Two top-level-await corners**: `new await` at a module's top level is not
-  rejected at parse (it is read as the `await` operator), and one asynchronous
-  *cycle* settles a module's fulfilment one microtask later than a spec erratum
-  requires, swapping the last two entries of an ordering probe. Everything else
-  about top-level await conforms - the `await` operator and `for await` at a
-  module's top level, the asynchronous evaluation order across a dependency graph,
-  dynamic `import()` of a module that awaits, and rejection propagation.
+  method limit even after the splitter runs, which cannot move a lexical
+  declaration into a sub-method without changing the scope it binds in - a size a
+  real program never reaches (a class of four thousand *public* fields compiles,
+  having no such bindings).
+
+The ES2022 corners earlier documented here are now **fixed**:
+
+- **The direct-`eval` interaction with the new lexical features**. A direct
+  `eval` now carries its caller's ES2022 early-error context into its own parse:
+  an `eval` whose body names `arguments`, written where a field initializer or
+  static block forbids it, is the parse-time `SyntaxError` the specification asks
+  for (the caller's no-`arguments` context is read from its function, the eval
+  program's `arguments` use tested the same arrow-transparent way the initializer
+  itself is), and an `eval` naming a private member the caller's private
+  environment does not hold - gathered from the `:private:x` bindings on the
+  caller's scope chain, an empty environment for a top-level eval - is likewise a
+  `SyntaxError`. A private-name reference remains lexically visible to a direct
+  `eval` nested in a class method.
+- **Two `#x in obj` grammar corners**: a private identifier is a primary only as
+  the immediate left operand of `in`, so one surviving as an operator's right
+  operand (`#a in #b in c`) or as a `for`-`in` target is now a `SyntaxError`.
+- **Two top-level-await corners**: `new await` at a module's top level (or in an
+  async function) is a `SyntaxError` - `await` is a `UnaryExpression`, not the
+  `MemberExpression` `new` wants - and an asynchronous *cycle* now settles a
+  module's fulfilment in the order the 2025 InnerModuleEvaluation erratum
+  requires, a cyclic async dependency counted as pending so it runs to completion
+  before its waiter's body. Everything else about top-level await conforms - the
+  `await` operator and `for await` at a module's top level, the asynchronous
+  evaluation order across a dependency graph, dynamic `import()` of a module that
+  awaits, and rejection propagation.
 
 Everything else about class fields and private members - public, static, and
 private fields, private methods and accessors and their static forms, field

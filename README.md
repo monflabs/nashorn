@@ -105,10 +105,10 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2023 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2023. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 92 of the 74,600 selected executions fail — the 8 carried-over
-Annex B indirect-eval cases and a set of documented ES2022 corners (direct eval's
-interaction with private names and `arguments`, a couple of `#x in` and top-level-await
-grammar edges, and the Unicode identifier torture tests); everything else passes.
+moves forwards. 44 of the 74,600 selected executions fail — the 8 carried-over
+Annex B indirect-eval cases and one documented ES2022 corner, the Unicode
+identifier torture tests (thousands of private names in a single class, whose
+bindings overflow the JVM's 64 KB method limit); everything else passes.
 Three things are excluded,
 all outside ECMA-262 14th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.

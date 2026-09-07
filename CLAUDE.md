@@ -153,12 +153,14 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 92 of the 74,600 executions: 8 Annex B indirect-eval "existing var
-  update" cases and 84 ES2022 corners: class-fields / private-members (direct eval not validating
-  the no-`arguments` or private environment at parse, two `#x in` grammar edges, and 18 Unicode
-  identifier torture tests whose thousands of private-name bindings overflow the 64KB method limit),
-  plus two top-level-await corners (`new await`, and one async-cycle fulfilment-order erratum),
-  whose reasons `doc/CONFORMANCE.md` records — so any
+  lists the settled failures — 44 of the 74,600 executions: 8 Annex B indirect-eval "existing var
+  update" cases and one ES2022 corner, the 18 Unicode identifier torture tests (each spelling
+  thousands of private names in a single class, whose `const :private:x` bindings overflow the 64KB
+  method limit — the splitter cannot move a lexical declaration into a sub-method without changing the
+  scope it binds in). The direct-eval early errors (no-`arguments` in a field initializer, a private
+  member the caller's environment lacks), the two `#x in` grammar edges, and both top-level-await
+  corners (`new await`, the async-cycle fulfilment order) are now fixed, their reasons still recorded in
+  `doc/CONFORMANCE.md` — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with

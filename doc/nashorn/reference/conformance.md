@@ -4,10 +4,14 @@ This engine implements ECMAScript 2023 — ECMA-262, 14th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 74,600 selected executions, 92 expected failures.** Everything else passes,
+**The headline numbers: 74,600 selected executions, 44 expected failures.** Everything else passes,
 in both of the engine's typing modes. Eight are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
 scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). The
+other thirty-six are one ES2022 corner — the exhaustive Unicode identifier tests, each spelling
+thousands of private names in a single class, whose per-name `const` bindings overflow the JVM's 64 KB
+method limit (the splitter cannot move a lexical declaration into a sub-method without changing the
+scope it binds in) — a size a real program never reaches. The
 run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
 forwards: a fix must remove its expectation line, and a regression cannot hide.
 
