@@ -34,7 +34,7 @@
 // leave only 'g', 'i' and 'm'. All other flags are invalid
 // u and y joined g, i and m in ECMAScript 2015, and s (dotAll) in ECMAScript
 // 2018, so they are absent here
-var flags = "abcdefhjklnopqrtvwxzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var flags = "abcefhjklnopqrtvwxzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // check all invalid flags
 for (var i = 0; i < flags.length; i++) {

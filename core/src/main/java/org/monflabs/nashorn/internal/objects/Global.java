@@ -2708,7 +2708,7 @@ public final class Global extends Scope {
         final ScriptObject unscopables = newEmptyInstance();
         unscopables.setProto(null);
         for (final String name : new String[] {
-                "copyWithin", "entries", "fill", "find", "findIndex", "flat", "flatMap",
+                "at", "copyWithin", "entries", "fill", "find", "findIndex", "flat", "flatMap",
                 "includes", "keys", "values" }) {
             unscopables.addOwnProperty(name, 0, true);
         }
