@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2023
+## Language: ES5.1 → ECMAScript 2024
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2023](https://262.ecma-international.org/14.0/) (ES14) as the only
+**[ECMAScript 2024](https://262.ecma-international.org/15.0/) (ES15) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -74,6 +74,13 @@ Added on top of the ES5.1 baseline:
   grammar (`#!` a comment at the very start of a script or module), and
   non-registered symbols as keys in `WeakMap`/`WeakSet` and targets of
   `WeakRef`/`FinalizationRegistry`.
+- **ES2024:** `Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`,
+  `String.prototype.isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and
+  growable `SharedArrayBuffer` (`{maxByteLength}`, `resize`/`grow`,
+  `transfer`/`transferToFixedLength`, length-tracking and out-of-bounds views),
+  `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag — the class-set
+  grammar transcribed to the JDK engine, bar a `\q{…}` multi-character string and
+  `\p{…}` properties of strings, which the JDK regex backend cannot express.
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -227,7 +234,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2023
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2024
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

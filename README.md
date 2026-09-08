@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2023 Language Specification](https://262.ecma-international.org/14.0/)
+[ECMAScript 2024 Language Specification](https://262.ecma-international.org/15.0/)
 (ECMAScript 9). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2023 together with its Annex B - the additional
+This fork implements ECMAScript 2024 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -22,7 +22,7 @@ editions after them - `**`, `Object.values`, `String.prototype.padStart`,
 async functions, `SharedArrayBuffer` and `Atomics`, the ES2018 additions
 (object rest/spread, async iteration with `for await`, `Promise.prototype.finally`,
 and the RegExp `s` flag, named groups, lookbehind and `\p{…}` property escapes),
-and everything through ES2023 - optional chaining and nullish coalescing, `BigInt`,
+and everything through ES2024 - optional chaining and nullish coalescing, `BigInt`,
 logical-assignment operators, class fields, **private members** (`#x`), static
 blocks, **top-level `await`**, the change-array-by-copy methods (`toSorted`, `with`,
 ...), `findLast`, and the hashbang line - are simply the language. Proper tail calls are a documented exclusion, as is
@@ -45,7 +45,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2023.0.1-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2024.0.0-all.jar`.
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
@@ -54,14 +54,14 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2023.0.1, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2024.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 ### Versioning
 
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
-implements, rather than a sequential number. So `2023.0.1` targets
-[ECMAScript 2023](https://262.ecma-international.org/14.0/) (ES14), just as the earlier
+implements, rather than a sequential number. So `2024.0.0` targets
+[ECMAScript 2024](https://262.ecma-international.org/15.0/) (ES15), just as the earlier
 `2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
 a later edition of the language, the major number moves to that edition's year (for
@@ -102,14 +102,14 @@ mvn -Ptest262 -DskipTests verify
 ```
 
 test262 has no branch for any edition, so the suite is pinned by commit and the
-ES2023 slice is selected out of it: a test counts unless it needs a feature that
-postdates ES2023. The run is compared against a checked-in expectations file and
+ES2024 slice is selected out of it: a test counts unless it needs a feature that
+postdates ES2024. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 8 of the 74,600 selected executions fail — all of them the
-carried-over Annex B indirect-eval cases; everything else passes, ES2022 and
-ES2023 corners included.
+moves forwards. 17 of the ~76,000 selected executions fail — the 8 carried-over
+Annex B indirect-eval cases, one top-level-await ordering case, and 8 resizable
+typed-array element-access corners; everything else passes, through ES2024.
 Three things are excluded,
-all outside ECMA-262 14th edition proper: proper tail calls, ECMA-402
+all outside ECMA-262 15th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

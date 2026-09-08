@@ -1,16 +1,21 @@
 # Conformance
 
-This engine implements ECMAScript 2023 — ECMA-262, 14th edition — together with its Annex B, and is
+This engine implements ECMAScript 2024 — ECMA-262, 15th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: 74,600 selected executions, 8 expected failures.** Everything else passes,
-in both of the engine's typing modes. All eight are one shape — an indirect `eval` whose block-level
+**The headline numbers: ~76,000 selected executions, 17 expected failures.** Everything else passes,
+in both of the engine's typing modes. Eight are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
-scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). No
-ES2022 or ES2023 corner remains: the exhaustive Unicode identifier tests (thousands of private names
+scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). One
+is a top-level-await rejection-ordering case, and eight are resizable typed-array element-access
+corners (a typed array's out-of-bounds index reached through the fast element linker — fixing it means
+touching the element hot path the performance gate protects). No ES2022, ES2023 or ES2024 feature
+corner otherwise remains: the exhaustive Unicode identifier tests (thousands of private names
 in a single class) now compile, since the splitter divides a block of lexical declarations across
-sub-methods rather than overflowing the JVM's 64 KB method limit. The
+sub-methods rather than overflowing the JVM's 64 KB method limit; the ES2024 RegExp `v` flag's
+class-set grammar is implemented (bar two JDK-backend string-set limits, held out as the ES2018
+property escapes are). The
 run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
 forwards: a fix must remove its expectation line, and a regression cannot hide.
 
@@ -42,7 +47,7 @@ an engine with none of it. 1,078 of the annex's 1,086 test files pass.
 | `legacy-regexp` | `RegExp.$1` and its kin are a Stage 3 proposal the suite files under Annex B; the properties themselves have always been present, but the proposal's tests are out of scope. |
 | `[[IsHTMLDDA]]` | `document.all` emulation can only be produced by a web host. |
 
-Everything else outside the selected slice is simply a later edition — ES2023 and beyond — which
+Everything else outside the selected slice is simply a later edition — ES2025 and beyond — which
 this engine does not claim.
 
 The full report — how the slice is selected, the exact exclusion lists, what Annex B costs, and how

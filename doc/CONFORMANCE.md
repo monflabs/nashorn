@@ -1,24 +1,38 @@
-ECMAScript 2023 conformance
+ECMAScript 2024 conformance
 ===========================
 
-This engine implements [ECMAScript 2023](https://262.ecma-international.org/14.0/)
-(ECMA-262, 14th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2024](https://262.ecma-international.org/15.0/)
+(ECMA-262, 15th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its 74,600 executions
-**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+selected at runtime by `Test262Selector`, and of its ~76,000 executions
+**17 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
-only move forwards. (The ES2022 additions - class fields, private members, static
-blocks, top-level await, `.at`, `Object.hasOwn`, `Error` `cause`, the RegExp `d`
-flag - are all in, and so now are the four **ES2023** additions:
-`Array.prototype.findLast`/`findLastIndex`, the change-array-by-copy methods
-`toReversed`/`toSorted`/`toSpliced`/`with`, the hashbang grammar, and
-non-registered symbols as `WeakMap`/`WeakSet` keys. The slice selects their feature
-tags; ES2023 introduced no new settled failure.)
+only move forwards. (The ES2023 additions - `Array.prototype.findLast`/
+`findLastIndex`, the change-array-by-copy methods, the hashbang grammar and
+symbols as `WeakMap` keys - are all in, and so now are the **ES2024** additions:
+`Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`,
+`String.prototype.isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and
+growable `SharedArrayBuffer` with `transfer`/`transferToFixedLength`,
+`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag. The slice selects
+their feature tags.)
 
-All **8** are the one carried-over Annex B shape: an indirect `eval` whose
-block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). No ES2022 or ES2023
-corner remains.
+The **17** are: the **8** carried-over Annex B indirect-eval cases (an indirect
+`eval` whose block-level function declaration must update a `var` the global
+already had, rooted in how the engine merges eval scopes - see below); one
+**top-level-await** case (`rejection-order`, the order in which a rejected async
+module's dependents observe the rejection); and **8** resizable typed-array
+**element-access** corners - see *Resizable ArrayBuffers and the element hot path*
+below. No other ES2022, ES2023 or ES2024 feature corner remains.
+
+Two shapes of the ES2024 RegExp `v` flag are held out because
+`java.util.regex` has no character-class member that is a string (the same kind
+of substrate limit as the ES2018 property escapes) - a `\q{...}` string
+disjunction with a multi-character string, and `\p{...}` properties of strings
+(RGI_Emoji and its kin). Both raise a `SyntaxError` at compile time and are
+excluded from the slice by `Test262Selector.unicodeSetsInScope`; every other
+part of the class-set grammar - nested classes, union, intersection (`&&`),
+difference (`--`), ranges, single-code-point `\q{...}`, and property escapes -
+is implemented and passes.
 
 The ES2022 corners earlier documented here are now **fixed**:
 
@@ -94,8 +108,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 74600 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 92   expected to fail: 92
+    test262: 76063 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 17   expected to fail: 17
 
 What is not measured, and why
 -----------------------------
@@ -103,7 +117,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2023.
+everything else outside the slice is simply later than ECMAScript 2024.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -136,18 +150,25 @@ named in the expectations file (see below). The ES2022 additions are in scope:
 on the `Error` constructors, the RegExp `d` flag (match indices), class fields and
 static initializer blocks, private class members (`#x` fields, methods, accessors,
 their static forms, and `#x in obj`), and top-level `await`; their settled corners
-are the ones named at the top of this document. And the ES2023 additions — the
-target of this edition — are in scope and pass: `Array.prototype.findLast` /
-`findLastIndex` (and the `%TypedArray%` forms), the change-array-by-copy methods
-`toReversed` / `toSorted` / `toSpliced` / `with`, the hashbang grammar (`#!` at a
-script or module's very start), and non-registered symbols as `WeakMap` / `WeakSet`
-keys and `WeakRef` / `FinalizationRegistry` targets.
+are the ones named at the top of this document. The ES2023 additions are in scope
+and pass: `Array.prototype.findLast` / `findLastIndex` (and the `%TypedArray%`
+forms), the change-array-by-copy methods `toReversed` / `toSorted` / `toSpliced` /
+`with`, the hashbang grammar (`#!` at a script or module's very start), and
+non-registered symbols as `WeakMap` / `WeakSet` keys and `WeakRef` /
+`FinalizationRegistry` targets. And the ES2024 additions — the target of this
+edition — are in scope and pass: `Object.groupBy` / `Map.groupBy`,
+`Promise.withResolvers`, `String.prototype.isWellFormed` / `toWellFormed`,
+resizable `ArrayBuffer` and growable `SharedArrayBuffer` (with `transfer` /
+`transferToFixedLength`), `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`)
+flag; their settled corners are the 8 resizable element-access cases and the two
+`v`-flag string-set limits named at the top of this document.
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after the target - the RegExp `v` flag
-(`unicodeSets`), `Array.fromAsync`, `Promise.withResolvers`, `Object.groupBy` and
-`Map.groupBy`, and the rest. Those are not failures; they are outside the target.
-Most would fail if run, because the features are not implemented.
+`features:` tag names something introduced after the target - `Array.fromAsync`,
+the `Iterator` helper methods, the new `Set` methods (`intersection`, `union`,
+`difference`, and their kin), `RegExp.escape`, `Promise.try`, `Float16Array`, and
+the rest. Those are not failures; they are outside the target. Most would fail if
+run, because the features are not implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -
@@ -266,6 +287,55 @@ unsupported-property errors). The exhaustive `generated/` trees are held out for
 Full property-escape support in the exhaustive sense would mean bundling and version-pinning the UCD;
 that is a deliberate non-goal, on a par with the regexp-engine limits above rather than a defect to
 fix.
+
+ES2024 RegExp `v` flag: what the backend cannot do
+--------------------------------------------------
+
+The ES2024 `v` (`unicodeSets`) flag adds the class-set grammar to character classes. Almost all of it
+maps onto `java.util.regex`: nested classes and intersection (`&&`) are native there, so union and
+intersection are close to a pass-through; difference (`--`) becomes the `&&`-negated idiom (with De
+Morgan for a negated right operand); every `ClassSetCharacter` is emitted as `\x{…}`, so no
+metacharacter, surrogate or astral code point needs special handling; and the `v`-mode syntax
+restrictions (an unescaped `ClassSetSyntaxCharacter`, a reserved double punctuator) are enforced. The
+whole generated character / class / escape / property matrix and the `breaking-change-from-u-to-v`
+syntax tests pass.
+
+Two shapes cannot be expressed, because a `java.util.regex` character class has no member that is a
+string, and both are held out by `Test262Selector.unicodeSetsInScope` (a compile-time `SyntaxError`
+in the scanner, so they never reach the engine):
+
+- a **`\q{…}` string disjunction with a multi-character (or empty) string** — a class that contains a
+  whole string, not a code point (`generated/string-literal-*`);
+- **`\p{…}` properties of strings** — `RGI_Emoji`, `Basic_Emoji`, `Emoji_Keycap_Sequence` and their
+  kin, whose members are sequences (`generated/property-of-strings-*`, `generated/rgi-emoji-*`).
+
+These are the same substrate limit as the ES2018 property escapes, not a settled exclusion or a later
+edition. Single-code-point `\q{…}` (which is just a set of characters) is implemented and passes.
+
+Resizable ArrayBuffers and the element hot path
+-----------------------------------------------
+
+Resizable `ArrayBuffer`s and growable `SharedArrayBuffer`s are implemented — the `{maxByteLength}`
+option, `resize`/`grow`, the `resizable`/`growable`/`maxByteLength`/`detached` accessors,
+`transfer`/`transferToFixedLength`, length-tracking views and out-of-bounds views (a fixed-length view
+a shrink pushed past the end), views rebuilt over the same never-moved storage on a resize. The
+standalone `ArrayBuffer`, `SharedArrayBuffer` and `DataView` surfaces pass, and so do the generic
+`Array.prototype` methods on a resized typed array (a generic method skips an out-of-bounds index
+where the `%TypedArray%` method visits it as `undefined` — the two now iterate differently).
+
+Eight tests remain settled, all one shape: a typed array's **out-of-bounds integer index reached
+through the fast element linker**. A typed array's `[[Get]]`/`[[Set]]` for a canonical numeric index
+must never consult the prototype — out of range reads as `undefined` and a write is dropped — but the
+`invokedynamic`-linked element path answers an out-of-range index by falling to the prototype, which
+an ES2024 resize (or a value-coercion side effect that shrinks the buffer mid-operation) makes
+observable. The `get(Object)`/`has(Object)` overrides handle it, but the linked `get(int)`/`set` fast
+path does not, and correcting it there means changing the element read/write hot path that the
+performance gate exists to protect. The affected tests are
+`Array/prototype/fill/typed-array-resize`, `TypedArray/of/resized-with-out-of-bounds-and-in-bounds-indices`,
+`TypedArray/out-of-bounds-behaves-like-detached`, and
+`TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index` (each strict and
+sloppy). This is a bounded, documented divergence weighed against a measured performance cost, not an
+unfinished feature.
 
 Tail calls: never
 -----------------

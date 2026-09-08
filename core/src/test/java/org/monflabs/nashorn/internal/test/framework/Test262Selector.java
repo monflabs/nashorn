@@ -25,14 +25,14 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2023 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2024 conformance.
  *
  * test262 has no branch or tag for any edition - only the frozen
  * {@code es5-tests} branch and {@code main}, which tracks the current draft
  * spec. The suite for an edition has to be selected out of {@code main}, and the
  * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2023.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2024.</b>
  *
  * <p>That is deliberate. An allow rule - take only tests tagged with a feature
  * of the edition - would quietly drop the thousands of untagged tests covering
@@ -49,7 +49,7 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015 through ES2023 introduced. A
+     * Every {@code features:} tag that ES2015 through ES2024 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
@@ -184,12 +184,12 @@ public final class Test262Selector {
      * when Nashorn does.
      */
     /**
-     * Tests about a feature that postdates ES2023 and says so nowhere.
+     * Tests about a feature that postdates ES2024 and says so nowhere.
      *
      * The deny rule reads {@code features:}, and a test written before that
      * convention - or one whose author saw no feature worth naming - declares
      * nothing to deny, so it would be named here one by one for the same reason
-     * the async-generator directories are. At the ES2023 target the set is empty:
+     * the async-generator directories are. At the ES2024 target the set is empty:
      * the one former entry, a harness self-test written with {@code Object.hasOwn},
      * is in scope now that the method is implemented.
      */
@@ -266,7 +266,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2023 conformance
+     * @return true if the test counts towards ES2024 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 
@@ -293,7 +293,9 @@ public final class Test262Selector {
      * The two character-class range tests want a SyntaxError for a property
      * escape used as a range bound, a grammar rule not enforced here. See
      * doc/CONFORMANCE.md. ({@code generated/strings/} is Property_of_Strings, the
-     * RegExp {@code v} flag - a later edition, also excluded by feature tag.)
+     * ES2024 RegExp {@code v} flag - in scope now, but these string-set
+     * properties the JDK engine cannot express are held out by
+     * {@link #unicodeSetsInScope}.)
      */
     private static boolean propertyEscapeInScope(final String path) {
         if (!path.contains("/property-escapes/")) {

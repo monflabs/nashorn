@@ -6,12 +6,12 @@ Nashorn is published to Maven Central as a single, dependency-free artifact:
 <dependency>
     <groupId>org.monflabs.nashorn</groupId>
     <artifactId>nashorn-core</artifactId>
-    <version>2023.0.1</version>
+    <version>2024.0.0</version>
 </dependency>
 ```
 
 ```groovy
-implementation 'org.monflabs.nashorn:nashorn-core:2023.0.1'
+implementation 'org.monflabs.nashorn:nashorn-core:2024.0.0'
 ```
 
 It requires **JDK 25 or later**, at build and at run time. Releases up to 15.7 were published by the
@@ -109,7 +109,7 @@ covers the choice and every option in full.
 
 ## What language you get
 
-The engine speaks **ECMAScript 2023**, whole: `let`/`const`, classes, arrow functions, template
+The engine speaks **ECMAScript 2024**, whole: `let`/`const`, classes, arrow functions, template
 literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
 `SharedArrayBuffer` and `Atomics`, plus the ES2018 additions — object rest/spread (`{...o}`), async
 iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the
@@ -129,7 +129,11 @@ on `Error`, the RegExp `d` (match-indices) flag, **class fields** and **static i
 **top-level `await`** — and the ES2023 additions: `Array.prototype.findLast`/`findLastIndex`
 (and the typed-array forms), the change-array-by-copy methods `toReversed`/`toSorted`/`toSpliced`/`with`,
 the hashbang line (`#!`), and non-registered symbols as `WeakMap`/`WeakSet` keys and
-`WeakRef`/`FinalizationRegistry` targets. There is
+`WeakRef`/`FinalizationRegistry` targets — and the ES2024 additions:
+`Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`,
+`String.prototype.isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and growable
+`SharedArrayBuffer` (`{maxByteLength}`, `resize`/`grow`, `transfer`/`transferToFixedLength`),
+`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag with its class-set grammar. There is
 no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
 (`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
 entirely by the `--annexB=false` [option](../reference/options.md).

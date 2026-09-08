@@ -69,6 +69,26 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2024.0.0 (2026.09.07)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2024 (ECMA-262, 15th edition).** Everything the 2023 release implemented is unchanged; the ES2024 additions are layered on top, and the `tc39/test262` slice is retargeted to the 15th edition.
+
+`   ` `           ` **Array and Map grouping.** `Object.groupBy(items, callback)` returns a null-prototype object and `Map.groupBy(items, callback)` a `Map`, each keyed by what the callback returns for an element (`SameValueZero` keys for the `Map`).
+
+`   ` `           ` **`Promise.withResolvers`.** Returns `{ promise, resolve, reject }` - a promise and the two functions that settle it, without the executor-closure dance.
+
+`   ` `           ` **Well-formed Unicode strings.** `String.prototype.isWellFormed` reports whether a string has no lone surrogate, and `toWellFormed` returns a copy with each lone surrogate replaced by U+FFFD.
+
+`   ` `           ` **Resizable and growable ArrayBuffers.** `new ArrayBuffer(n, { maxByteLength })` is resizable (`resize`, `resizable`, `maxByteLength`), `new SharedArrayBuffer(n, { maxByteLength })` growable (`grow`, `growable`); `ArrayBuffer.prototype.transfer`/`transferToFixedLength` move the bytes to a new buffer and detach the old one (`detached`). A length-tracking view (one built with no explicit length) follows its buffer; a fixed-length view a shrink pushes past the end reads as out of bounds. Views are rebuilt over the same, never-moved storage on a resize, so an ordinary fixed buffer's element path is untouched.
+
+`   ` `           ` **`Atomics.waitAsync`.** The non-blocking companion to `Atomics.wait`, over a shared buffer: it answers `{ async, value }` straight away - `async` false with an outcome string when the wait would not block, otherwise a promise that settles with `"ok"` on a notify or `"timed-out"` when a finite timeout runs out. Its timeout resolves the promise as a promise job (a microtask), so a script polling on a promise chain cannot starve it.
+
+`   ` `           ` **RegExp `v` flag (`unicodeSets`).** Unicode (code-point) mode with the class-set grammar in character classes - nested classes, the union / intersection (`&&`) / difference (`--`) operators, ranges and `\q{...}` string literals - transcribed to what the JDK regex engine accepts; `u` and `v` are mutually exclusive, and the `unicodeSets` accessor and a `v` in `flags` join the others. Two shapes the JDK engine cannot express - a `\q{...}` with a multi-character string, and `\p{...}` properties of strings (RGI_Emoji and its kin) - are a syntax error and held out of the conformance gate, as the ES2018 property-escape data limits already are.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2023 to ES2024. The settled test262 failures are **17**: the 8 carried-over Annex B indirect-eval cases, one top-level-await rejection-order case, and 8 resizable typed-array element-access corners (a typed array's out-of-bounds index reached through the fast element linker). All ES2024 features are otherwise complete; the generic-Array-method-on-a-resized-typed-array corners are fixed. No performance regression. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 15th edition, and the playground gains an `ES2024` sample category - one runnable sample per feature - run headlessly by the build.
+
 2023.0.1 (2026.09.07)
 ---------------------
 `   ` `           ` **The event loop is now optional, and off by default.** The per-realm event loop that backs every asynchronous capability - `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch`, and a `FinalizationRegistry`'s cleanup - is enabled with `NashornScriptEngineBuilder.eventLoop(true)` (or the `--event-loop` option). With it off, each of those throws a `TypeError` where it is used, rather than scheduling work nothing would run - the right default for a purely synchronous embedder whose scripts never wait. A plain (non-async) module still evaluates synchronously. `jjs` turns the loop on alongside its standard libraries; the tests turn it on centrally.
