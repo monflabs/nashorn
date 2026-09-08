@@ -256,7 +256,14 @@ public final class NativeTypedArray extends ScriptObject {
             if (source.isDetached()) {
                 throw typeError("detached.array.buffer");
             }
-            for (int i = from, j = 0; i < to; i++, j++) {
+            // ES2024: they can also have resized it - a fixed source left out of
+            // bounds throws, a length-tracking one clamps the copy to what still
+            // fits, leaving the rest of the result at zero.
+            if (source.isOutOfBounds()) {
+                throw typeError("detached.array.buffer");
+            }
+            final int copyTo = Math.min(to, source.getElementLength());
+            for (int i = from, j = 0; i < copyTo; i++, j++) {
                 result.set(j, source.get(i), 0);
             }
         }
@@ -465,7 +472,10 @@ public final class NativeTypedArray extends ScriptObject {
         final double relative = JSType.toInteger(index);
         final double actual = relative >= 0 ? relative : length + relative;
         final Object numeric = source.isBigIntArray() ? NativeBigInt.toBigInt(value) : (Object)JSType.toNumber(value);
-        if (actual < 0 || actual >= length) {
+        // ES2024 IsValidIntegerIndex: the index is checked against the current
+        // length - the coercions above can have resized the backing buffer - and
+        // rejected if the view was left out of bounds.
+        if (source.isOutOfBounds() || actual < 0 || actual >= source.getElementLength()) {
             throw rangeError("inappropriate.array.index", JSType.toString(index));
         }
         final ArrayBufferView result = ArrayBufferView.createSameType(source, length);
@@ -502,8 +512,15 @@ public final class NativeTypedArray extends ScriptObject {
         if (array.isDetached()) {
             throw typeError("detached.array.buffer");
         }
+        // ES2024: those conversions can have resized the buffer - a fixed view
+        // left out of bounds throws, a length-tracking one fills only what still
+        // fits.
+        if (array.isOutOfBounds()) {
+            throw typeError("detached.array.buffer");
+        }
+        final int fillTo = Math.min(to, array.getElementLength());
 
-        for (int i = from; i < to; i++) {
+        for (int i = from; i < fillTo; i++) {
             array.set(i, filler, 0);
         }
         return array;
@@ -526,7 +543,7 @@ public final class NativeTypedArray extends ScriptObject {
         final int to    = ArrayBufferView.relativeIndex(target, length, 0);
         final int from  = ArrayBufferView.relativeIndex(start, length, 0);
         final int last  = ArrayBufferView.relativeIndex(end, length, length);
-        final int count = Math.min(last - from, length - to);
+        int count = Math.min(last - from, length - to);
 
         if (count > 0) {
             // 22.2.3.5 step 15.a, after the three conversions and only if there
@@ -534,6 +551,14 @@ public final class NativeTypedArray extends ScriptObject {
             if (array.isDetached()) {
                 throw typeError("detached.array.buffer");
             }
+            // ES2024: those conversions can have resized the backing buffer - a
+            // fixed view left out of bounds throws, a length-tracking one clamps
+            // the move to what still fits.
+            if (array.isOutOfBounds()) {
+                throw typeError("detached.array.buffer");
+            }
+            final int currentLength = array.getElementLength();
+            count = Math.max(0, Math.min(count, Math.min(currentLength - to, currentLength - from)));
             // the ranges may overlap, so the source is read out before the
             // first element of the target is written
             final Object[] values = new Object[count];

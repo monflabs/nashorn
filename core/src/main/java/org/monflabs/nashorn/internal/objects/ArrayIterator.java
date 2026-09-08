@@ -100,9 +100,11 @@ public class ArrayIterator extends AbstractIterator {
         final long index = nextIndex;
 
         // 22.1.5.2.1 step 8.a: a typed array is validated on every step, so a
-        // buffer detached in the middle of a loop stops it with an error rather
-        // than with an end
-        if (iteratedObject instanceof ArrayBufferView view && view.isDetached()) {
+        // buffer detached in the middle of a loop - or (ES2024) a view a resize
+        // left out of bounds - stops it with an error rather than with an end. A
+        // length-tracking view is not out of bounds; the length re-read below
+        // simply follows it.
+        if (iteratedObject instanceof ArrayBufferView view && (view.isDetached() || view.isOutOfBounds())) {
             throw typeError("detached.array.buffer");
         }
 

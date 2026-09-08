@@ -113,6 +113,40 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         this.autoLength = true;
     }
 
+    /** @return whether this view's length tracks its (resizable) buffer */
+    boolean isAutoLength() {
+        return autoLength;
+    }
+
+    /**
+     * ES2024 %TypedArray% [[PreventExtensions]]: a view over a resizable buffer
+     * is not fixed-length, so it cannot be made non-extensible - which is what
+     * makes Object.freeze / seal / preventExtensions throw on one.
+     */
+    @Override
+    public ScriptObject preventExtensions() {
+        if (buffer.isResizable()) {
+            throw typeError("cannot.prevent.extensions.typed.array");
+        }
+        return super.preventExtensions();
+    }
+
+    @Override
+    public ScriptObject freeze() {
+        if (buffer.isResizable()) {
+            throw typeError("cannot.prevent.extensions.typed.array");
+        }
+        return super.freeze();
+    }
+
+    @Override
+    public ScriptObject seal() {
+        if (buffer.isResizable()) {
+            throw typeError("cannot.prevent.extensions.typed.array");
+        }
+        return super.seal();
+    }
+
     /**
      * Whether this view no longer fits its (resizable) buffer, after a shrink.
      * An out-of-bounds view behaves like one over a detached buffer: length and
@@ -384,14 +418,18 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         final long byteLength = buffer.getByteLength();
         final long newByteLength;
         if (requested == ScriptRuntime.UNDEFINED) {
-            if (byteLength % elementSize != 0) {
+            // ES2024: a length-tracking view over a resizable buffer takes as many
+            // whole elements as fit - the buffer's byte length need not be an exact
+            // multiple of the element size - rather than requiring an exact fit.
+            if (!buffer.isResizable() && byteLength % elementSize != 0) {
                 throw rangeError("bytelength.not.multiple.of.element.size",
                         JSType.toString((double)byteLength), JSType.toString(elementSize));
             }
-            newByteLength = byteLength - offset;
-            if (newByteLength < 0) {
+            final long available = byteLength - offset;
+            if (available < 0) {
                 throw rangeError("typed.array.out.of.range", JSType.toString((double)offset));
             }
+            newByteLength = buffer.isResizable() ? available / elementSize * elementSize : available;
         } else {
             newByteLength = length * elementSize;
             if (offset + newByteLength > byteLength) {
@@ -410,7 +448,7 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
 
     /** ES2015 22.2.4.3, a copy of another typed array, converted element by element. */
     private static ArrayBufferView fromTypedArray(final ArrayBufferView source, final Factory factory) {
-        if (source.isDetached()) {
+        if (source.isDetached() || source.isOutOfBounds()) {
             throw typeError("detached.array.buffer");
         }
         final int length = source.elementLength();
@@ -646,13 +684,29 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         final int begin = relativeIndex(begin0, elementLength, 0);
         final int end = relativeIndex(end0, elementLength, elementLength);
         final int length = Math.max(end - begin, 0);
+        // ES2024 23.2.3.30 uses the raw [[ByteOffset]]: the result view starts
+        // there plus the begin, so a subarray whose start no longer fits a shrunk
+        // buffer fails to construct, as the spec requires.
         final int byteOffset = begin * bytesPerElement + source.byteOffset;
 
-        assert source.byteOffset % bytesPerElement == 0;
+        // ES2024 23.2.3.30: a subarray of a length-tracking view with no explicit
+        // end is itself length-tracking - the new length is left unspecified so
+        // the result follows the buffer too.
+        final boolean lengthTracking = source.isAutoLength() && end0 == ScriptRuntime.UNDEFINED;
 
         final ScriptFunction species = speciesConstructor(source);
         if (species == null) {
+            if (lengthTracking) {
+                final int available = Math.max(0, source.buffer.getByteLength() - byteOffset) / bytesPerElement;
+                final ArrayBufferView result = source.factory().construct(source.buffer, byteOffset, available);
+                result.setAutoLength();
+                return result;
+            }
             return source.factory().construct(source.buffer, byteOffset, length);
+        }
+        if (lengthTracking) {
+            return typedArrayCreate(
+                    ScriptRuntime.construct(species, source.buffer, (double)byteOffset), -1);
         }
         return typedArrayCreate(
                 ScriptRuntime.construct(species, source.buffer, (double)byteOffset, (double)length), -1);
@@ -702,14 +756,16 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         if (offset < 0) {
             throw rangeError("typed.array.offset.out.of.range", JSType.toString(offset0));
         }
-        if (dest.isDetached()) {
+        if (dest.isDetached() || dest.isOutOfBounds()) {
             throw typeError("detached.array.buffer");
         }
 
-        final int targetLength = dest.elementLength();
+        final int targetLength = dest.getElementLength();
 
         if (array instanceof ArrayBufferView source) {
-            if (source.isDetached()) {
+            // ES2024: a source typed array left out of bounds by a resize is
+            // rejected, like a detached one
+            if (source.isDetached() || source.isOutOfBounds()) {
                 throw typeError("detached.array.buffer");
             }
             final int length = source.elementLength();
