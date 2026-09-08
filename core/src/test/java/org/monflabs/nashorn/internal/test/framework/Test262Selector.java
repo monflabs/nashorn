@@ -128,6 +128,7 @@ public final class Test262Selector {
         "set-methods",
         "iterator-helpers",
         "regexp-modifiers",
+        "regexp-duplicate-named-groups",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -272,7 +273,28 @@ public final class Test262Selector {
             "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-b.js",
             "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-lower-w.js",
             "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-w.js",
-            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-p.js");
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-p.js",
+            // ES2025 duplicate named groups: .groups/.indices, enumeration order
+            // and match/replace/replaceAll/matchAll/split/search all work (the
+            // name -> capture-indices map picks whichever participated), but a
+            // named backreference \k<name> to a duplicated name must reference
+            // whichever alternative's group participated - and fail, not match
+            // empty, when that group's captured text does not reoccur. A single
+            // numbered backreference in java.util.regex cannot express "the one
+            // of these groups that matched", and the empty-alternative fallback
+            // that would rescue the disjoint-alternative case wrongly lets the
+            // backreference match empty where the participant's text mismatched.
+            // The same limit as the held-out lookBehind backreferences above.
+            // The two exec/*-properties tests exercise the same \k<name> over a
+            // duplicated name (their iterated matcher) alongside the .groups and
+            // .indices checks that do pass.
+            "built-ins/RegExp/named-groups/duplicate-names-exec.js",
+            "built-ins/RegExp/named-groups/duplicate-names-match.js",
+            "built-ins/RegExp/named-groups/duplicate-names-test.js",
+            "built-ins/RegExp/prototype/exec/duplicate-named-groups-properties.js",
+            "built-ins/RegExp/prototype/exec/duplicate-named-indices-groups-properties.js",
+            "built-ins/String/prototype/match/duplicate-named-groups-properties.js",
+            "built-ins/String/prototype/match/duplicate-named-indices-groups-properties.js");
 
     private static final Set<String> LATER_UNICODE = Set.of(
             "language/identifiers/start-unicode-17.0.0.js",

@@ -69,11 +69,12 @@ final class RegExpScanner extends Scanner {
     private boolean inCharClass = false;
 
     /**
-     * ES2018 named capture groups: the (decoded) group name to its 1-based
-     * capture index, in source order. Empty unless the pattern uses {@code
+     * ES2018 named capture groups: the (decoded) group name to the 1-based
+     * capture indices bearing it (more than one only for a name repeated
+     * across disjoint alternatives), in source order. Empty unless the pattern uses {@code
      * (?<name>...)}.
      */
-    private final java.util.LinkedHashMap<String, Integer> namedGroups = new java.util.LinkedHashMap<>();
+    private final java.util.LinkedHashMap<String, java.util.List<Integer>> namedGroups = new java.util.LinkedHashMap<>();
 
     /**
      * Every named group in the whole pattern to its 1-based capture index,
@@ -81,7 +82,7 @@ final class RegExpScanner extends Scanner {
      * later resolves, and so {@code \k} is known to be a named backreference
      * (ES2018) rather than, under Annex B, a legacy identity escape.
      */
-    private final java.util.Map<String, Integer> namedGroupIndices;
+    private final java.util.Map<String, java.util.List<Integer>> namedGroupIndices;
 
     /** Whether the whole pattern contains at least one named group. */
     private final boolean hasNamedGroups;
@@ -166,14 +167,28 @@ final class RegExpScanner extends Scanner {
 
     /**
      * Pre-scan the whole pattern for its named groups, mapping each (decoded)
-     * name to its 1-based capture index. Capturing groups are counted in source
+     * name to the 1-based capture indices bearing it. Capturing groups are counted in source
      * order - a plain {@code (} and a named {@code (?<name>} each take an index,
      * while {@code (?:}, lookahead and lookbehind do not. Escapes and character
-     * classes are respected. The main scan validates the names; this only needs
-     * name -> index so that a forward {@code \k<name>} resolves.
+     * classes are respected. The name -> indices map lets a forward
+     * {@code \k<name>} resolve and {@code .groups} be built.
+     *
+     * <p>This is also where the ES2025 duplicate-name rule is enforced: a name
+     * may be borne by several groups only if no two of them can match in the
+     * same attempt, i.e. they are in different alternatives of some disjunction.
+     * Each open group (and the top level) is a frame carrying the names of its
+     * current alternative and the union over its earlier alternatives; a
+     * {@code |} starts a fresh alternative, a {@code )} folds a closed group's
+     * names into the enclosing alternative, and a name that lands in an
+     * alternative already holding it is two definitions in one alternative - a
+     * SyntaxError.
      */
-    private static java.util.Map<String, Integer> collectNamedGroups(final String s) {
-        final java.util.LinkedHashMap<String, Integer> map = new java.util.LinkedHashMap<>();
+    private static java.util.Map<String, java.util.List<Integer>> collectNamedGroups(final String s) {
+        final java.util.LinkedHashMap<String, java.util.List<Integer>> map = new java.util.LinkedHashMap<>();
+        final java.util.ArrayDeque<java.util.Set<String>> altNames = new java.util.ArrayDeque<>();
+        final java.util.ArrayDeque<java.util.Set<String>> groupNames = new java.util.ArrayDeque<>();
+        altNames.push(new java.util.HashSet<>());
+        groupNames.push(new java.util.HashSet<>());
         int index = 0;
         boolean escaped = false;
         boolean inClass = false;
@@ -193,6 +208,28 @@ final class RegExpScanner extends Scanner {
                 i++;
             } else if (c == '[') {
                 inClass = true;
+                i++;
+            } else if (c == '|') {
+                // a new alternative in the innermost open group: the names seen
+                // so far join the union and the fresh alternative starts empty
+                groupNames.peek().addAll(altNames.peek());
+                altNames.peek().clear();
+                i++;
+            } else if (c == ')') {
+                if (altNames.size() > 1) {
+                    // close the innermost group: its names (over all its
+                    // alternatives) belong to the enclosing alternative,
+                    // concatenated with whatever else that alternative holds
+                    final java.util.Set<String> closedAlt = altNames.pop();
+                    final java.util.Set<String> closedAll = groupNames.pop();
+                    closedAll.addAll(closedAlt);
+                    for (final String n : closedAll) {
+                        if (!altNames.peek().add(n)) {
+                            throw new RuntimeException("Duplicate capture group name: " + n);
+                        }
+                    }
+                }
+                // an unbalanced ')' is left for the main scan to reject
                 i++;
             } else if (c == '(') {
                 if (i + 1 < s.length() && s.charAt(i + 1) == '?') {
@@ -230,13 +267,22 @@ final class RegExpScanner extends Scanner {
                                 j++;
                             }
                         }
-                        map.putIfAbsent(name.toString(), index);
+                        final String nameStr = name.toString();
+                        // the name belongs to the enclosing alternative
+                        if (!altNames.peek().add(nameStr)) {
+                            throw new RuntimeException("Duplicate capture group name: " + nameStr);
+                        }
+                        map.computeIfAbsent(nameStr, k -> new java.util.ArrayList<>()).add(index);
                         i = j; // at '>' or end
                     }
-                    // (?:, (?=, (?!, (?<=, (?<! are non-capturing
+                    // (?:, (?=, (?!, (?<=, (?<!, (?ims: are non-capturing
+                    altNames.push(new java.util.HashSet<>());
+                    groupNames.push(new java.util.HashSet<>());
                     i++;
                 } else {
                     index++; // plain capturing group
+                    altNames.push(new java.util.HashSet<>());
+                    groupNames.push(new java.util.HashSet<>());
                     i++;
                 }
             } else {
@@ -373,7 +419,14 @@ final class RegExpScanner extends Scanner {
      */
     public static RegExpScanner scan(final String string, final boolean unicode, final boolean unicodeSets,
             final boolean annexB) {
-        final RegExpScanner scanner = new RegExpScanner(string, unicode, unicodeSets, annexB);
+        final RegExpScanner scanner;
+        try {
+            // the constructor pre-scans for named groups and can reject a
+            // duplicate name; that is a syntax error like any other
+            scanner = new RegExpScanner(string, unicode, unicodeSets, annexB);
+        } catch (final RuntimeException e) {
+            throw new PatternSyntaxException(e.getMessage(), string, 0);
+        }
 
         try {
             scanner.disjunction();
@@ -405,7 +458,7 @@ final class RegExpScanner extends Scanner {
      *
      * @return the named-group map
      */
-    java.util.Map<String, Integer> getNamedGroups() {
+    java.util.Map<String, java.util.List<Integer>> getNamedGroups() {
         return namedGroups;
     }
 
@@ -751,9 +804,12 @@ final class RegExpScanner extends Scanner {
                 skip(3); // (?<
                 final String name = scanGroupName();
                 caps.add(new Capture(negLookaheadGroup, negLookaheadLevel));
-                if (namedGroups.putIfAbsent(name, caps.size()) != null) {
-                    throw new RuntimeException("Duplicate capture group name: " + name);
-                }
+                // ES2025 allows the same name on more than one group as long as
+                // no two share an alternative; the caller-side validation of
+                // that is left to the pre-scan, and .groups picks whichever
+                // participated. Record every index under the name, keeping the
+                // name's enumeration slot at its first (source-order) occurrence.
+                namedGroups.computeIfAbsent(name, k -> new java.util.ArrayList<>()).add(caps.size());
                 // Emit a plain numbered capture: .groups is built from the
                 // name -> index map, and \k<name> is emitted as a numbered
                 // backreference - so the backend never sees an ES group name
@@ -922,15 +978,18 @@ final class RegExpScanner extends Scanner {
         }
         skip(2); // k<
         final String name = scanGroupName();
-        final Integer indexObj = namedGroupIndices.get(name);
-        if (indexObj == null) {
+        final java.util.List<Integer> indexList = namedGroupIndices.get(name);
+        if (indexList == null) {
             throw new RuntimeException("Reference to undefined group name " + name);
         }
         // The backslash is already emitted by the caller. Emit a numbered
         // backreference, following decimalEscape() exactly: a forward reference
         // (or one to a capture in a negative lookahead) is always undefined, so
-        // it is omitted from the output and matches empty.
-        final int index = indexObj;
+        // it is omitted from the output and matches empty. When the name is
+        // borne by several groups (only possible in disjoint alternatives), the
+        // first is emitted - at most one participates in any match, and a
+        // backreference to a non-participating group matches empty regardless.
+        final int index = indexList.get(0);
         if (index <= caps.size()) {
             final Capture capture = caps.get(index - 1);
             if (!capture.canBeReferencedFrom(negLookaheadGroup, negLookaheadLevel)) {

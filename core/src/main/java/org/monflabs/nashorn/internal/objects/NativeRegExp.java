@@ -1379,15 +1379,25 @@ public final class NativeRegExp extends ScriptObject {
      * undefined when the pattern declared no named groups.
      */
     private Object buildGroupObject(final Object[] numberedGroups) {
-        final java.util.Map<String, Integer> names = regexp.getGroupNames();
+        final java.util.Map<String, java.util.List<Integer>> names = regexp.getGroupNames();
         if (names.isEmpty()) {
             return UNDEFINED;
         }
         final ScriptObject groups = globalObject.newObject();
         groups.setProto(null);
-        for (final java.util.Map.Entry<String, Integer> e : names.entrySet()) {
-            final int idx = e.getValue();
-            groups.set(e.getKey(), idx >= 0 && idx < numberedGroups.length ? numberedGroups[idx] : UNDEFINED, 0);
+        for (final java.util.Map.Entry<String, java.util.List<Integer>> e : names.entrySet()) {
+            // ES2025: a name may be borne by several groups (in disjoint
+            // alternatives), of which at most one participates in a match - use
+            // that one's capture, else undefined. Enumeration follows source
+            // order, which the map's insertion order already gives.
+            Object value = UNDEFINED;
+            for (final int idx : e.getValue()) {
+                if (idx >= 0 && idx < numberedGroups.length && numberedGroups[idx] != UNDEFINED) {
+                    value = numberedGroups[idx];
+                    break;
+                }
+            }
+            groups.set(e.getKey(), value, 0);
         }
         return groups;
     }
@@ -1593,13 +1603,19 @@ public final class NativeRegExp extends ScriptObject {
                     if (close < 0) {
                         sb.append('$');
                     } else {
-                        final Integer idx = regexp.getGroupNames().get(replacement.substring(cursor + 1, close));
-                        if (idx != null) {
+                        final java.util.List<Integer> idxs = regexp.getGroupNames().get(replacement.substring(cursor + 1, close));
+                        if (idxs != null) {
                             if (groups == null) {
                                 groups = groups(matcher);
                             }
-                            if (groups[idx] != UNDEFINED) {
-                                sb.append((String) groups[idx]);
+                            // ES2025: with a duplicated name, substitute the
+                            // capture of whichever group participated (at most
+                            // one does)
+                            for (final int idx : idxs) {
+                                if (groups[idx] != UNDEFINED) {
+                                    sb.append((String) groups[idx]);
+                                    break;
+                                }
                             }
                         }
                         // an unknown name (or a matched-but-empty group) contributes nothing

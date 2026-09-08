@@ -72,7 +72,7 @@ public abstract class RegExp {
     protected BitVector groupsInNegativeLookahead;
 
     /** ES2018 named capture groups: name to 1-based index, in source order; empty if none. */
-    private java.util.Map<String, Integer> groupNames = java.util.Collections.emptyMap();
+    private java.util.Map<String, java.util.List<Integer>> groupNames = java.util.Collections.emptyMap();
 
     /**
      * Constructor.
@@ -264,16 +264,17 @@ public abstract class RegExp {
      *
      * @return the named-group map
      */
-    public java.util.Map<String, Integer> getGroupNames() {
+    public java.util.Map<String, java.util.List<Integer>> getGroupNames() {
         return groupNames;
     }
 
     /**
      * Record the named capture groups discovered while scanning the pattern.
      *
-     * @param groupNames name to 1-based index
+     * @param groupNames name to its 1-based capture indices (more than one only
+     *                   for duplicate names in disjoint alternatives)
      */
-    protected void setGroupNames(final java.util.Map<String, Integer> groupNames) {
+    protected void setGroupNames(final java.util.Map<String, java.util.List<Integer>> groupNames) {
         if (groupNames != null && !groupNames.isEmpty()) {
             this.groupNames = groupNames;
         }
