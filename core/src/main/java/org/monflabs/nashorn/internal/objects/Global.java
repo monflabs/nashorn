@@ -76,6 +76,7 @@ import org.monflabs.nashorn.internal.runtime.NativeJavaPackage;
 import org.monflabs.nashorn.internal.runtime.PropertyDescriptor;
 import org.monflabs.nashorn.internal.runtime.ModuleRecord;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
+import org.monflabs.nashorn.internal.runtime.PrototypeObject;
 import org.monflabs.nashorn.internal.runtime.Scope;
 import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
@@ -2430,7 +2431,16 @@ public final class Global extends Scope {
             // %IteratorPrototype%, not the fresh object nasgen made, so every
             // built-in iterator inherits the helpers and the constructor accessor
             // on %IteratorPrototype% resolves back here
-            ctor.setPrototype(getIteratorPrototype());
+            final ScriptObject ip = getIteratorPrototype();
+            ctor.setPrototype(ip);
+            // ES2025 25.1.4.12: %Iterator.prototype%.constructor is an accessor
+            // (get returns %Iterator%, set ignores writes onto %IteratorPrototype%
+            // itself), replacing the plain constructor slot PrototypeObject put
+            // on the shared prototype
+            final ScriptFunction constructorGet = ScriptFunction.createBuiltin("get constructor", AbstractIterator.CONSTRUCTOR_GET);
+            final ScriptFunction constructorSet = ScriptFunction.createBuiltin("set constructor", AbstractIterator.CONSTRUCTOR_SET);
+            ip.delete("constructor", false);
+            ip.addOwnProperty("constructor", Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR, constructorGet, constructorSet);
             this.builtinIterator = ctor;
         }
         return this.builtinIterator;

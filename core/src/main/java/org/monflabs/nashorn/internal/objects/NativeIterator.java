@@ -65,13 +65,16 @@ public final class NativeIterator extends ScriptObject {
         if (!isNew) {
             throw typeError("constructor.requires.new", "Iterator");
         }
-        // ES2025 25.1.3.1 also throws when new.target is Iterator itself
-        // (Iterator is abstract). A built-in base constructor allocates the same
-        // shape whether called directly or through a subclass's super() - the
-        // runtime re-parents the result to new.target's prototype afterwards -
-        // so the two cannot be told apart here; subclass construction is
-        // honoured and a bare new Iterator() is left to succeed rather than
-        // break it. The object's prototype is the shared %IteratorPrototype%.
+        // ES2025 25.1.3.1: Iterator is abstract - throw when new.target is
+        // Iterator itself. The runtime records a pending new.target only when a
+        // built-in base constructor runs for another (a subclass's super()); a
+        // bare `new Iterator()` runs it for itself and leaves none. So no pending
+        // new.target here means new.target is Iterator, which is the error.
+        if (!Global.instance().hasPendingNewTarget()) {
+            throw typeError("abstract.class.instantiation", "Iterator");
+        }
+        // The object's prototype is the shared %IteratorPrototype%; the runtime
+        // re-parents it to the subclass's prototype on return.
         return new NativeIterator(Global.instance().getIteratorPrototype(), $nasgenmap$);
     }
 

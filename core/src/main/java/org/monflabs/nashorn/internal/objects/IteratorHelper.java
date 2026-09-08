@@ -71,6 +71,13 @@ public final class IteratorHelper extends AbstractIterator {
     private Object innerIterated;
     private Object innerNext;
 
+    /**
+     * ES2025 GeneratorValidate: an iterator helper is a generator that is
+     * "executing" while its next/return runs, and resuming one that is already
+     * executing (a callback re-entering it) is a TypeError.
+     */
+    private boolean running;
+
     IteratorHelper(final Kind kind, final Object iterated, final Object nextMethod,
             final Object callback, final double limit, final Global global) {
         super(global.getIteratorHelperPrototype(), $nasgenmap$);
@@ -113,6 +120,9 @@ public final class IteratorHelper extends AbstractIterator {
     public static Object ret(final Object self, final Object arg) {
         if (!(self instanceof IteratorHelper helper)) {
             throw typeError("not.a.iterator", ScriptRuntime.safeToString(self));
+        }
+        if (helper.running) {
+            throw typeError("generator.already.running");
         }
         // an explicit return() is a normal completion: the underlying's return
         // method's throw (if any) propagates
@@ -186,6 +196,18 @@ public final class IteratorHelper extends AbstractIterator {
 
     @Override
     protected IteratorResult next(final Object arg) {
+        if (running) {
+            throw typeError("generator.already.running");
+        }
+        running = true;
+        try {
+            return doNext(arg);
+        } finally {
+            running = false;
+        }
+    }
+
+    private IteratorResult doNext(final Object arg) {
         if (iterated == null) {
             return makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, global);
         }

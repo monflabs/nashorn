@@ -666,39 +666,67 @@ public abstract class AbstractIterator extends ScriptObject {
         setIgnoringPrototype(self, NativeSymbol.toStringTag, value);
     }
 
+    // ES2025 25.1.4.12 %Iterator.prototype%.constructor is an accessor whose get
+    // returns %Iterator% and whose set is a SetterThatIgnoresPrototypeProperties.
+    // A @Getter/@Setter named "constructor" collides with the constructor slot
+    // PrototypeObject puts on every prototype and degrades to a data property,
+    // so Global installs this pair on %IteratorPrototype% by hand, from these
+    // handles, replacing PrototypeObject's slot.
+
+    /** Handle for the get %Iterator.prototype%.constructor accessor. */
+    public static final MethodHandle CONSTRUCTOR_GET;
+    /** Handle for the set %Iterator.prototype%.constructor accessor. */
+    public static final MethodHandle CONSTRUCTOR_SET;
+    static {
+        try {
+            final java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();
+            CONSTRUCTOR_GET = lookup.findStatic(AbstractIterator.class, "constructorGet",
+                    java.lang.invoke.MethodType.methodType(Object.class, Object.class));
+            CONSTRUCTOR_SET = lookup.findStatic(AbstractIterator.class, "constructorSet",
+                    java.lang.invoke.MethodType.methodType(void.class, Object.class, Object.class));
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /**
-     * ES2025 25.1.4.12 get %Iterator.prototype%.constructor.
-     *
-     * @param self the receiver
+     * ES2025 25.1.4.12 get %Iterator.prototype%.constructor: returns %Iterator%.
+     * @param self the receiver (ignored)
      * @return the %Iterator% constructor
      */
-    @Getter(where = Where.PROTOTYPE, name = "constructor", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
-    public static Object constructor(final Object self) {
+    public static Object constructorGet(final Object self) {
         return Global.instance().getIteratorConstructor();
     }
 
     /**
-     * ES2025 25.1.4.12 set %Iterator.prototype%.constructor - a
+     * ES2025 25.1.4.12 set %Iterator.prototype%.constructor: a
      * SetterThatIgnoresPrototypeProperties.
-     *
-     * @param self the receiver
+     * @param self  the receiver
      * @param value the value to set
      */
-    @Setter(where = Where.PROTOTYPE, name = "constructor", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
-    public static void constructor(final Object self, final Object value) {
+    public static void constructorSet(final Object self, final Object value) {
         setIgnoringPrototype(self, "constructor", value);
     }
 
     /**
-     * ES2025 SetterThatIgnoresPrototypeProperties: a write through the prototype
-     * accessor lands as an own data property of the receiver, unless the
-     * receiver is %Iterator.prototype% itself, where it is ignored.
+     * ES2025 10.4.7 SetterThatIgnoresPrototypeProperties(this, home, key, value):
+     * throw if {@code this} is not an object or is the home prototype itself
+     * (emulating a write to a non-writable own data property in strict mode);
+     * otherwise set an existing own property or create a new own data one. The
+     * home is always {@code %Iterator.prototype%} here.
      */
     private static void setIgnoringPrototype(final Object self, final Object key, final Object value) {
         final Global global = Global.instance();
-        if (self == global.getIteratorPrototype() || !(self instanceof ScriptObject sobj)) {
-            return;
+        if (!(self instanceof ScriptObject sobj)) {
+            throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        sobj.defineOwnProperty(key, global.newDataDescriptor(value, true, true, true), false);
+        if (sobj == global.getIteratorPrototype()) {
+            throw typeError("cant.set.prototype.property", ScriptRuntime.safeToString(key));
+        }
+        if (sobj.hasOwnProperty(key)) {
+            sobj.set(key, value, NashornCallSiteDescriptor.CALLSITE_STRICT);
+        } else {
+            sobj.defineOwnProperty(key, global.newDataDescriptor(value, true, true, true), true);
+        }
     }
 }

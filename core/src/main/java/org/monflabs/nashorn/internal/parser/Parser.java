@@ -4527,8 +4527,12 @@ public class Parser extends AbstractParser implements Loggable {
             final String ident = (String)expectValue(IDENT);
 
             // "async get x() {}" is not an accessor: after async comes a
-            // property name and nothing else
-            if (!async && type != COLON && type != LPAREN) {
+            // property name and nothing else. Nor is a bare "get"/"set" used as
+            // a shorthand ({ get, set }), a shorthand with a default in a pattern
+            // ({ get = 1 }), or the last shorthand before "}" - only "get" or
+            // "set" directly followed by a property name opens an accessor.
+            if (!async && type != COLON && type != LPAREN
+                    && type != COMMARIGHT && type != RBRACE && type != ASSIGN) {
 
                 // an object-literal accessor may not name a private member
                 if (type == PRIVATE_IDENT && (GET_NAME.equals(ident) || SET_NAME.equals(ident))) {
