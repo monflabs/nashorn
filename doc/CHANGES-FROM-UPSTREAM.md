@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2024
+## Language: ES5.1 → ECMAScript 2025
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2024](https://262.ecma-international.org/15.0/) (ES15) as the only
+**[ECMAScript 2025](https://262.ecma-international.org/16.0/) (ES16) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -81,6 +81,18 @@ Added on top of the ES5.1 baseline:
   `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag — the class-set
   grammar transcribed to the JDK engine, bar a `\q{…}` multi-character string and
   `\p{…}` properties of strings, which the JDK regex backend cannot express.
+- **ES2025:** the **iterator helpers** (a new `Iterator` global — abstract, its
+  `.prototype` the shared `%IteratorPrototype%` — with `Iterator.from` and the lazy
+  `map`/`filter`/`take`/`drop`/`flatMap` and eager
+  `reduce`/`toArray`/`forEach`/`some`/`every`/`find` methods), the **`Set` methods**
+  (`union`, `intersection`, `difference`, `symmetricDifference`, `isSubsetOf`,
+  `isSupersetOf`, `isDisjointFrom`), **`Float16Array`** (with `Math.f16round` and the
+  `DataView` `getFloat16`/`setFloat16` accessors), **`RegExp.escape`**,
+  **`Promise.try`**, the **RegExp pattern modifiers** `(?ims-ims:…)` (routed to the
+  JDK engine, since Joni has no inline flags), **duplicate named capture groups** (in
+  disjoint alternatives), and **import attributes** with **JSON modules**
+  (`import x from "m" with { type: "json" }`, the `with` clause on static
+  import/export and as the second argument of dynamic `import()`).
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -234,7 +246,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2024
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2025
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

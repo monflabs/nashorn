@@ -1,24 +1,30 @@
-ECMAScript 2024 conformance
+ECMAScript 2025 conformance
 ===========================
 
-This engine implements [ECMAScript 2024](https://262.ecma-international.org/15.0/)
-(ECMA-262, 15th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2025](https://262.ecma-international.org/16.0/)
+(ECMA-262, 16th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its ~76,000 executions
-**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+selected at runtime by `Test262Selector`, and of its ~78,000 executions
+**24 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
-only move forwards. (The ES2023 additions - `Array.prototype.findLast`/
-`findLastIndex`, the change-array-by-copy methods, the hashbang grammar and
-symbols as `WeakMap` keys - are all in, and so now are the **ES2024** additions:
-`Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`,
-`String.prototype.isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and
-growable `SharedArrayBuffer` with `transfer`/`transferToFixedLength`,
-`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag. The slice selects
-their feature tags.)
+only move forwards. (The ES2024 additions - `Object.groupBy`/`Map.groupBy`,
+`Promise.withResolvers`, `String.prototype.isWellFormed`/`toWellFormed`, resizable
+`ArrayBuffer` and growable `SharedArrayBuffer` with `transfer`, `Atomics.waitAsync`
+and the RegExp `v` flag - are all in, and so now are the **ES2025** additions:
+**iterator helpers** (a new `Iterator` global, `Iterator.from`, and the
+`map`/`filter`/`take`/`drop`/`flatMap`/`reduce`/`toArray`/`forEach`/`some`/`every`/
+`find` methods), the **`Set` methods** (`union`, `intersection`, `difference`,
+`symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`),
+**`Float16Array`** (with `Math.f16round` and `DataView` `getFloat16`/`setFloat16`),
+**`RegExp.escape`**, **`Promise.try`**, the **RegExp pattern modifiers**
+`(?ims-ims:…)`, **duplicate named capture groups**, and **import attributes** with
+**JSON modules** (`with { type: "json" }`). The slice selects their feature tags.)
 
-All **8** are the one carried-over Annex B shape: an indirect `eval` whose
+Of the **24**, 8 are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). No ES2022, ES2023 or
+rooted in how the engine merges eval scopes (see below). The other 16 (8 tests,
+strict and sloppy) are the ES2025 JDK-backend and engine corners detailed under
+[ES2025 corners](#es2025-corners-what-is-held-out) below. No ES2022, ES2023 or
 ES2024 feature corner remains.
 
 The resizable typed-array corners once settled here are now **fixed**: a typed
@@ -116,8 +122,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # once
 mvn -Ptest262 -DskipTests verify
 ```
 
-    test262: 76063 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 8   expected to fail: 8
+    test262: 77976 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 24   expected to fail: 24
 
 What is not measured, and why
 -----------------------------
@@ -163,19 +169,28 @@ and pass: `Array.prototype.findLast` / `findLastIndex` (and the `%TypedArray%`
 forms), the change-array-by-copy methods `toReversed` / `toSorted` / `toSpliced` /
 `with`, the hashbang grammar (`#!` at a script or module's very start), and
 non-registered symbols as `WeakMap` / `WeakSet` keys and `WeakRef` /
-`FinalizationRegistry` targets. And the ES2024 additions — the target of this
-edition — are in scope and pass: `Object.groupBy` / `Map.groupBy`,
-`Promise.withResolvers`, `String.prototype.isWellFormed` / `toWellFormed`,
-resizable `ArrayBuffer` and growable `SharedArrayBuffer` (with `transfer` /
-`transferToFixedLength`), `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`)
-flag; the only ES2024 shapes not measured are the two `v`-flag string-set limits
-named at the top of this document, held out because the JDK regex backend cannot
-express a class member that is a string.
+`FinalizationRegistry` targets. The ES2024 additions are in scope and pass:
+`Object.groupBy` / `Map.groupBy`, `Promise.withResolvers`,
+`String.prototype.isWellFormed` / `toWellFormed`, resizable `ArrayBuffer` and
+growable `SharedArrayBuffer` (with `transfer` / `transferToFixedLength`),
+`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag; the only ES2024
+shapes not measured are the two `v`-flag string-set limits, held out because the
+JDK regex backend cannot express a class member that is a string. And the ES2025
+additions — the target of this edition — are in scope and pass: the iterator
+helpers (a new `Iterator` global, `Iterator.from`, and
+`map`/`filter`/`take`/`drop`/`flatMap`/`reduce`/`toArray`/`forEach`/`some`/`every`/
+`find`), the new `Set` methods (`union`, `intersection`, `difference`,
+`symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`),
+`Float16Array` (with `Math.f16round` and `DataView` `getFloat16`/`setFloat16`),
+`RegExp.escape`, `Promise.try`, the RegExp pattern modifiers `(?ims-ims:…)`,
+duplicate named capture groups, and import attributes with JSON modules; the
+ES2025 shapes not measured are the backend and engine corners named under
+[ES2025 corners](#es2025-corners-what-is-held-out) above.
 
 Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after the target - `Array.fromAsync`,
-the `Iterator` helper methods, the new `Set` methods (`intersection`, `union`,
-`difference`, and their kin), `RegExp.escape`, `Promise.try`, `Float16Array`, and
+`features:` tag names something introduced after the target - explicit resource
+management (`using` / `await using`), the `Uint8Array` base64/hex methods
+(`toBase64`, `fromHex`, and their kin), `Array.fromAsync`, `Error.isError`, and
 the rest. Those are not failures; they are outside the target. Most would fail if
 run, because the features are not implemented.
 
@@ -320,6 +335,51 @@ in the scanner, so they never reach the engine):
 
 These are the same substrate limit as the ES2018 property escapes, not a settled exclusion or a later
 edition. Single-code-point `\q{…}` (which is just a set of characters) is implemented and passes.
+
+ES2025 corners: what is held out
+--------------------------------
+
+The ES2025 additions - iterator helpers, the `Set` methods, `Float16Array`, `RegExp.escape`,
+`Promise.try`, RegExp pattern modifiers, duplicate named capture groups, and import attributes with
+JSON modules - are implemented and in scope. Sixteen executions (**8 tests, strict and sloppy**) are
+held out, each a backend or engine corner rather than a missing feature:
+
+- **`Iterator.from` on a primitive string** (`built-ins/Iterator/from/iterable-primitives`) — the
+  `@@iterator` getter must run with the primitive string as its `this`; the wrapper object is made
+  only to iterate, so a getter observing `typeof this` sees `"string"`. The engine reads the method
+  off the wrapper, so it observes `"object"`. A this-binding order corner, not a functional one:
+  `Iterator.from(5)` still throws, and `Iterator.from("s")` / `Iterator.from(new Number(5))` still
+  iterate correctly.
+- **`Iterator.from` return-method call sequence** (`built-ins/Iterator/from/return-method-calls-base-return-method`)
+  — the exact order of property accesses the wrapper makes on a foreign iterator's `return`.
+- **The symbol-keyed `@@toStringTag` redefinition corner** — after
+  `Object.defineProperty(%IteratorPrototype%, @@toStringTag, {value: null})`, the internal read the
+  engine uses for `Object.prototype.toString` and the ordinary JS property read disagree (the internal
+  one returns a stale value); a `delete` is seen correctly, and a string key (`constructor`) is seen
+  correctly. This one property-map / switch-point interaction is shared by five tests:
+  `built-ins/Iterator/prototype/Symbol.toStringTag/weird-setter` and the four
+  `built-ins/Object/prototype/toString/symbol-tag-{array,map,set,string}-builtin` cases, which are in
+  scope only now that the `iterator-helpers` feature tag is selected.
+- **`Float16Array` bit-precision** (`built-ins/TypedArray/prototype/set/bit-precision`) — a same-type
+  `Float16Array`→`Float16Array` `set` round-trips each value through a `double`, which does not
+  preserve a NaN's exact bit pattern.
+
+Two RegExp shapes are held out in `Test262Selector.REGEXP_ENGINE_LIMITS`, the same kind of substrate
+limit as the ES2018 property escapes and the ES2024 `v`-flag string-sets, because a modifier-bearing
+or duplicate-name pattern must compile with the JDK engine (Joni has no inline flags) and that engine's
+flavour diverges from ES in a few places:
+
+- **RegExp pattern modifiers** — a non-unicode `.` under `(?s:…)` matches a whole code point rather
+  than one code unit (the same code-unit-vs-code-point limit as the ES2022 non-unicode match indices),
+  and `$` under multiline and the case folding of `\b`/`\w`/`\P{…}` under `(?i:…)` follow
+  `java.util.regex`, not the ES `Canonicalize`. The modifier grammar itself parses and the ordinary
+  cases pass; twelve dotAll/multiline/ignoreCase files are held out.
+- **A `\k<name>` backreference to a duplicated name** — a single numbered backreference cannot select
+  "whichever of these groups matched" and still fail (not match empty) on a text mismatch, so three
+  `named-groups/duplicate-names-*` files and the two `duplicate-named-*-properties` files (whose
+  iterated matcher uses such a backreference) are held out. Everything else about duplicate names -
+  `.groups`, `.indices`, enumeration order, `match`/`replace`/`replaceAll`/`matchAll`/`split`/`search`,
+  and the same-alternative syntax rejection - passes.
 
 Resizable ArrayBuffers and the element hot path
 -----------------------------------------------

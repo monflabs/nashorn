@@ -69,6 +69,30 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2025.0.0 (2026.09.08)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2025 (ECMA-262, 16th edition).** Everything the 2024 release implemented is unchanged; the ES2025 additions are layered on top, and the `tc39/test262` slice is retargeted to the 16th edition.
+
+`   ` `           ` **Iterator helpers.** A new `Iterator` global - abstract (calling it, or `new Iterator()` directly, is a `TypeError`; only a subclass may construct), its `.prototype` the shared `%IteratorPrototype%` so every built-in iterator inherits the helpers. `Iterator.from(o)` adapts any iterable or iterator (and a string) into one that does; `map`, `filter`, `take`, `drop` and `flatMap` return a lazy iterator helper, and `reduce`, `toArray`, `forEach`, `some`, `every` and `find` consume eagerly. A helper is a generator that rejects re-entry while it is running.
+
+`   ` `           ` **`Set` methods.** `union`, `intersection`, `difference`, `symmetricDifference`, `isSubsetOf`, `isSupersetOf` and `isDisjointFrom`, each over a GetSetRecord of the other argument's `size`, `has` and `keys` (a `RangeError` for a negative or NaN size), preserving insertion order and closing the other set's iterator on an early return.
+
+`   ` `           ` **`Float16Array`.** The IEEE binary16 typed array (`BYTES_PER_ELEMENT` 2), with `Math.f16round` and the `DataView` `getFloat16`/`setFloat16` accessors. A `double` is rounded to binary16 through a round-to-odd intermediate, so a value just above the half-precision subnormal boundary does not double-round to zero.
+
+`   ` `           ` **`RegExp.escape`.** `RegExp.escape(s)` returns a string that matches `s` literally, escaping the first character if it is alphanumeric and every syntax character, whitespace and other punctuator, per 22.2.5.2.
+
+`   ` `           ` **`Promise.try`.** `Promise.try(fn, ...args)` runs `fn` synchronously and returns a promise of its result, rejecting with anything it throws - the promise the callback would itself return is not re-wrapped.
+
+`   ` `           ` **RegExp pattern modifiers.** `(?ims-ims:…)` (and the `(?ims:…)` / `(?-ims:…)` forms) turn `i`/`m`/`s` on or off for a subexpression; only those three flags, no duplicate within a set, and the added and removed sets disjoint. The header maps onto `java.util.regex`'s inline-flag groups, so a modifier-bearing pattern compiles with the JDK engine (the bundled Joni has no inline flags), like the `u`/`v` flags. A handful of dotAll/multiline/`\w`/`\P` cases where the JDK backend's flavour diverges from ES are held out.
+
+`   ` `           ` **Duplicate named capture groups.** The same `(?<name>…)` name may appear on groups in disjoint alternatives (a duplicate within one alternative is still a `SyntaxError`); the name maps to the list of capture indices, and `.groups`, `.indices` and a `$<name>` replacement resolve to whichever group participated. A `\k<name>` backreference to a duplicated name is the one JDK-backend limit held out.
+
+`   ` `           ` **Import attributes and JSON modules.** A `with { key: "value", … }` clause after a module specifier - on a static `import`/`export … from`, and as the second argument of a dynamic `import(specifier, options)` - carries import attributes (a duplicate key is an early `SyntaxError`; the options bag is processed in `EvaluateImportCall` order, so a non-object, a non-string value or a throwing getter rejects the import promise). A `type: "json"` attribute loads the resolved file as a JSON module: a values-backed record with a single `default` export holding the parsed value, keyed distinctly in the module registry so the same file imported as JavaScript stays a separate record and every JSON import of it shares one parsed object. Invalid JSON is the `SyntaxError` `JSON.parse` makes, thrown at link time; any other type is an unsupported-type `TypeError`.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2024 to ES2025. Of the ~78,000 selected executions, the settled failures are **24**: the 8 carried-over Annex B indirect-eval cases, and 16 (8 tests, strict and sloppy) ES2025 JDK-backend and engine corners - `Iterator.from`'s `@@iterator` this-binding for a primitive string, its return-method call sequence, the symbol-keyed `@@toStringTag` redefinition corner (shared with the four `Object.prototype.toString` built-in-iterator cases), and `Float16Array` bit-precision (a NaN's bit pattern through a same-type `set`). No performance regression. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 16th edition, and the playground gains an `ES2025` sample category - one runnable sample per feature - run headlessly by the build.
+
 2024.0.0 (2026.09.07)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2024 (ECMA-262, 15th edition).** Everything the 2023 release implemented is unchanged; the ES2024 additions are layered on top, and the `tc39/test262` slice is retargeted to the 15th edition.

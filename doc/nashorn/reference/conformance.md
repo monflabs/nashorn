@@ -1,22 +1,23 @@
 # Conformance
 
-This engine implements ECMAScript 2024 — ECMA-262, 15th edition — together with its Annex B, and is
+This engine implements ECMAScript 2025 — ECMA-262, 16th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: ~76,000 selected executions, 8 expected failures.** Everything else passes,
-in both of the engine's typing modes. All eight are one shape — an indirect `eval` whose block-level
+**The headline numbers: ~78,000 selected executions, 24 expected failures.** Everything else passes,
+in both of the engine's typing modes. 8 are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
-scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). No
-ES2022, ES2023 or ES2024 feature corner remains: the top-level-await rejection-ordering case and the
-resizable typed-array out-of-bounds element-access corners (a canonical numeric index's `[[Get]]`/
-`[[Set]]`/`[[HasProperty]]` no longer consults the prototype, and a resizable-buffer write coerces
-before re-checking bounds — both gated off the fixed-buffer hot path) are now fixed, and the
-exhaustive Unicode identifier tests (thousands of private names
-in a single class) now compile, since the splitter divides a block of lexical declarations across
-sub-methods rather than overflowing the JVM's 64 KB method limit; the ES2024 RegExp `v` flag's
-class-set grammar is implemented (bar two JDK-backend string-set limits, held out as the ES2018
-property escapes are). The
+scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). The
+other 16 (8 tests, strict and sloppy) are ES2025 JDK-backend and engine corners: `Iterator.from`'s
+`@@iterator` this-binding for a primitive string and its return-method call sequence, the symbol-keyed
+`@@toStringTag` redefinition corner it shares with four `Object.prototype.toString` built-in-iterator
+cases, and `Float16Array` bit-precision — all detailed in
+[doc/CONFORMANCE.md](../../CONFORMANCE.md). No ES2022, ES2023, ES2024 or ES2025 feature corner beyond
+those remains: the ES2025 iterator helpers, `Set` methods, `Float16Array`, `RegExp.escape`,
+`Promise.try`, RegExp pattern modifiers, duplicate named capture groups and import attributes / JSON
+modules are all implemented and pass (the pattern-modifier and duplicate-name JDK-backend flavour
+limits are held out in the selector, as the ES2018 property escapes and the ES2024 `v`-flag string-sets
+are). The
 run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
 forwards: a fix must remove its expectation line, and a regression cannot hide.
 
@@ -48,8 +49,9 @@ an engine with none of it. 1,078 of the annex's 1,086 test files pass.
 | `legacy-regexp` | `RegExp.$1` and its kin are a Stage 3 proposal the suite files under Annex B; the properties themselves have always been present, but the proposal's tests are out of scope. |
 | `[[IsHTMLDDA]]` | `document.all` emulation can only be produced by a web host. |
 
-Everything else outside the selected slice is simply a later edition — ES2025 and beyond — which
-this engine does not claim.
+Everything else outside the selected slice is simply a later edition — ES2026 and beyond (explicit
+resource management, the `Uint8Array` base64/hex methods, `Array.fromAsync`, `Error.isError`, and the
+rest) — which this engine does not claim.
 
 The full report — how the slice is selected, the exact exclusion lists, what Annex B costs, and how
 to reproduce every number — is the canonical

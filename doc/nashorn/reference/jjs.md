@@ -13,8 +13,8 @@ arguments.
 The shell lives in `nashorn-core`, so this works with nothing but the published artifact:
 
 ```bash
-java -cp nashorn-core-2024.0.0.jar org.monflabs.nashorn.tools.Shell script.js
-java -cp nashorn-core-2024.0.0.jar org.monflabs.nashorn.tools.Shell -scripting script.js -- arg1 arg2
+java -cp nashorn-core-2025.0.0.jar org.monflabs.nashorn.tools.Shell script.js
+java -cp nashorn-core-2025.0.0.jar org.monflabs.nashorn.tools.Shell -scripting script.js -- arg1 arg2
 ```
 
 Exit codes: `0` success, `100` command-line error, `101` compilation error, `102` runtime error,
@@ -24,17 +24,17 @@ To debug a script, add `nashorn-debugger` and `--inspect` or `--inspect-brk` —
 [Debugging scripts](../guide/debugging.md):
 
 ```bash
-java -cp nashorn-core-2024.0.0.jar:nashorn-debugger-2024.0.0.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
+java -cp nashorn-core-2025.0.0.jar:nashorn-debugger-2025.0.0.jar org.monflabs.nashorn.tools.Shell --inspect-brk script.js
 ```
 
 ## Running jjs
 
-`nashorn-shell` is built by the reactor (`mvn package` → `shell/target/nashorn-shell-2024.0.0.jar`) but
+`nashorn-shell` is built by the reactor (`mvn package` → `shell/target/nashorn-shell-2025.0.0.jar`) but
 not published to Maven Central — it reaches into the JDK-internal line-editing modules, which is
 also why the interactive form needs `--add-exports`. Running a **script file** needs none of that:
 
 ```bash
-java --module-path nashorn-core-2024.0.0.jar:nashorn-shell-2024.0.0.jar \
+java --module-path nashorn-core-2025.0.0.jar:nashorn-shell-2025.0.0.jar \
      -m org.monflabs.nashorn.shell/org.monflabs.nashorn.tools.jjs.Main script.js
 ```
 
@@ -42,7 +42,7 @@ The **interactive REPL** constructs a console on JDK-internal jline packages, so
 export list (this exact line is verified against JDK 25):
 
 ```bash
-java --module-path nashorn-core-2024.0.0.jar:nashorn-shell-2024.0.0.jar \
+java --module-path nashorn-core-2025.0.0.jar:nashorn-shell-2025.0.0.jar \
      --add-exports jdk.internal.ed/jdk.internal.editor.spi=org.monflabs.nashorn.shell \
      --add-exports jdk.internal.ed/jdk.internal.editor.external=org.monflabs.nashorn.shell \
      --add-exports jdk.internal.le/jdk.internal.org.jline.reader=org.monflabs.nashorn.shell \
