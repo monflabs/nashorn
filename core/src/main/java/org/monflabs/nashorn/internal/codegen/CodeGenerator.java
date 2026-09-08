@@ -5044,8 +5044,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final boolean discard = lc.popDiscardIfCurrent(importCallNode);
         method.load(compiler.getSource().getName());
         loadExpressionAsObject(importCallNode.getArgument());
+        // ES2025: the options bag (or undefined when absent)
+        if (importCallNode.getOptions() != null) {
+            loadExpressionAsObject(importCallNode.getOptions());
+        } else {
+            method.loadUndefined(Type.OBJECT);
+        }
         method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "DYNAMIC_IMPORT",
-                new FunctionSignature(false, false, Type.OBJECT, 2).toString());
+                new FunctionSignature(false, false, Type.OBJECT, 3).toString());
         if (discard) {
             method.pop();
         } else {

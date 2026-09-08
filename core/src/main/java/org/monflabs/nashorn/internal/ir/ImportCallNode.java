@@ -27,9 +27,10 @@ import org.monflabs.nashorn.internal.ir.annotations.Immutable;
 import org.monflabs.nashorn.internal.ir.visitor.NodeVisitor;
 
 /**
- * IR representation of an ES2020 dynamic import call {@code import(specifier)}
- * (13.3.10). It evaluates its specifier argument and answers a promise of the
- * imported module's namespace object.
+ * IR representation of an ES2020 dynamic import call {@code import(specifier)},
+ * with the ES2025 second options argument {@code import(specifier, options)}
+ * (13.3.10). It evaluates its specifier (and options) argument and answers a
+ * promise of the imported module's namespace object.
  */
 @Immutable
 public final class ImportCallNode extends Expression {
@@ -38,6 +39,9 @@ public final class ImportCallNode extends Expression {
     /** The module-specifier expression. */
     private final Expression argument;
 
+    /** ES2025 the optional second argument (the options bag), or null. */
+    private final Expression options;
+
     /**
      * Constructor.
      * @param token    token
@@ -45,13 +49,26 @@ public final class ImportCallNode extends Expression {
      * @param argument the module-specifier expression
      */
     public ImportCallNode(final long token, final int finish, final Expression argument) {
-        super(token, Token.descPosition(token), finish);
-        this.argument = argument;
+        this(token, finish, argument, null);
     }
 
-    private ImportCallNode(final ImportCallNode node, final Expression argument) {
+    /**
+     * Constructor with the ES2025 options argument.
+     * @param token    token
+     * @param finish   finish
+     * @param argument the module-specifier expression
+     * @param options  the options-bag expression, or null
+     */
+    public ImportCallNode(final long token, final int finish, final Expression argument, final Expression options) {
+        super(token, Token.descPosition(token), finish);
+        this.argument = argument;
+        this.options = options;
+    }
+
+    private ImportCallNode(final ImportCallNode node, final Expression argument, final Expression options) {
         super(node);
         this.argument = argument;
+        this.options = options;
     }
 
     /**
@@ -63,21 +80,32 @@ public final class ImportCallNode extends Expression {
     }
 
     /**
-     * Reset the module-specifier expression.
+     * Get the ES2025 options-bag expression.
+     * @return the options expression, or null if none was written
+     */
+    public Expression getOptions() {
+        return options;
+    }
+
+    /**
+     * Reset the specifier and options expressions.
      * @param argument the new specifier expression
+     * @param options  the new options expression, or null
      * @return this or a new node
      */
-    public ImportCallNode setArgument(final Expression argument) {
-        if (this.argument == argument) {
+    public ImportCallNode setArguments(final Expression argument, final Expression options) {
+        if (this.argument == argument && this.options == options) {
             return this;
         }
-        return new ImportCallNode(this, argument);
+        return new ImportCallNode(this, argument, options);
     }
 
     @Override
     public Node accept(final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterImportCallNode(this)) {
-            return visitor.leaveImportCallNode(setArgument((Expression)argument.accept(visitor)));
+            return visitor.leaveImportCallNode(setArguments(
+                    (Expression) argument.accept(visitor),
+                    options == null ? null : (Expression) options.accept(visitor)));
         }
         return this;
     }
@@ -91,6 +119,10 @@ public final class ImportCallNode extends Expression {
     public void toString(final StringBuilder sb, final boolean printType) {
         sb.append("import(");
         argument.toString(sb, printType);
+        if (options != null) {
+            sb.append(", ");
+            options.toString(sb, printType);
+        }
         sb.append(')');
     }
 }

@@ -94,6 +94,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.Map;
 import java.util.Objects;
@@ -4859,8 +4860,21 @@ public class Parser extends AbstractParser implements Loggable {
             next();
             next();
             final Expression specifier = assignmentExpression(false);
+            // ES2025 13.3.10 the optional second argument (the options bag,
+            // carrying import attributes under a "with" property); a trailing
+            // comma after it or after the specifier is allowed
+            Expression options = null;
+            if (type == COMMARIGHT) {
+                next();
+                if (type != RPAREN) {
+                    options = assignmentExpression(false);
+                    if (type == COMMARIGHT) {
+                        next();
+                    }
+                }
+            }
             expect(RPAREN);
-            lhs0 = new ImportCallNode(importToken, finish, specifier);
+            lhs0 = new ImportCallNode(importToken, finish, specifier, options);
         } else {
             lhs0 = memberExpression();
         }
@@ -7342,7 +7356,7 @@ public class Parser extends AbstractParser implements Loggable {
             // import ModuleSpecifier ;
             final IdentNode moduleSpecifier = createIdentNode(token, finish, (String) getValue());
             next();
-            module.addModuleRequest(moduleSpecifier);
+            module.addModuleRequest(moduleSpecifier, withClause());
         } else {
             // import ImportClause FromClause ;
             List<Module.ImportEntry> importEntries;
@@ -7382,7 +7396,7 @@ public class Parser extends AbstractParser implements Loggable {
             }
 
             final IdentNode moduleSpecifier = fromClause();
-            module.addModuleRequest(moduleSpecifier);
+            module.addModuleRequest(moduleSpecifier, withClause());
             for (final Module.ImportEntry importEntry : importEntries) {
                 module.addImportEntry(importEntry.withFrom(moduleSpecifier, finish));
                 declareImportedBinding(importEntry.getLocalName(), importLine);
@@ -7493,6 +7507,48 @@ public class Parser extends AbstractParser implements Loggable {
     }
 
     /**
+     * ES2025 15.2.1.1 WithClause: {@code with { key : "value" , ... }} import
+     * attributes written after a module specifier. A key is an IdentifierName
+     * or a StringLiteral, a value is a StringLiteral, a trailing comma is
+     * allowed, and it may be empty. A key repeated in one clause is an early
+     * SyntaxError. Returns the attributes in source order, an empty map when
+     * there is no {@code with} clause (a line terminator may precede it).
+     */
+    private Map<String, String> withClause() {
+        if (type != TokenType.WITH) {
+            return Collections.emptyMap();
+        }
+        next(); // with
+        expect(LBRACE);
+        final Map<String, String> attributes = new LinkedHashMap<>();
+        while (type != RBRACE) {
+            final String key;
+            if (type == STRING || type == ESCSTRING) {
+                key = (String) getValue();
+                next();
+            } else {
+                key = getIdentifierName().getName();
+            }
+            expect(COLON);
+            if (type != STRING && type != ESCSTRING) {
+                throw error(expectMessage(STRING));
+            }
+            final String value = (String) getValue();
+            next();
+            if (attributes.put(key, value) != null) {
+                throw error(AbstractParser.message("duplicate.import.attribute", key));
+            }
+            if (type == COMMARIGHT) {
+                next();
+            } else {
+                break;
+            }
+        }
+        expect(RBRACE);
+        return attributes;
+    }
+
+    /**
      * Parse export declaration.
      *
      * ExportDeclaration :
@@ -7523,13 +7579,15 @@ public class Parser extends AbstractParser implements Loggable {
                     next();
                     final IdentNode nsName = getIdentifierName();
                     final IdentNode moduleRequest = fromClause();
+                    final Map<String, String> attributes = withClause();
                     endOfLine();
-                    module.addModuleRequest(moduleRequest);
+                    module.addModuleRequest(moduleRequest, attributes);
                     module.addIndirectExportEntry(Module.ExportEntry.exportSpecifier(nsName, starName, startPosition, finish).withFrom(moduleRequest, finish));
                 } else {
                     final IdentNode moduleRequest = fromClause();
+                    final Map<String, String> attributes = withClause();
                     endOfLine();
-                    module.addModuleRequest(moduleRequest);
+                    module.addModuleRequest(moduleRequest, attributes);
                     module.addStarExportEntry(Module.ExportEntry.exportStarFrom(starName, moduleRequest, startPosition, finish));
                 }
                 break;
@@ -7538,7 +7596,7 @@ public class Parser extends AbstractParser implements Loggable {
                 final List<Module.ExportEntry> exportEntries = exportClause(startPosition);
                 if (isUnescaped("from")) {
                     final IdentNode moduleRequest = fromClause();
-                    module.addModuleRequest(moduleRequest);
+                    module.addModuleRequest(moduleRequest, withClause());
                     for (final Module.ExportEntry exportEntry : exportEntries) {
                         module.addIndirectExportEntry(exportEntry.withFrom(moduleRequest, finish));
                     }

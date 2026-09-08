@@ -523,6 +523,9 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterImportCallNode(final ImportCallNode importCallNode) {
         visitExpression(importCallNode.getArgument());
+        if (importCallNode.getOptions() != null) {
+            visitExpression(importCallNode.getOptions());
+        }
         return pushExpressionType(importCallNode);
     }
 

@@ -31,6 +31,7 @@ package org.monflabs.nashorn.internal.ir;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 
 /**
  * ES6 Module information.
@@ -307,8 +308,70 @@ public final class Module implements Serializable {
         }
     }
 
+    /**
+     * ES2025 a module request: the specifier string together with the import
+     * attributes ({@code with { type: "json" }}) written on the declaration.
+     * Two requests for the same specifier under different attributes are
+     * distinct, which is why the attributes travel with the specifier rather
+     * than being kept as a plain string.
+     */
+    public static final class ModuleRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private final String specifier;
+        @SuppressWarnings("serial")
+        private final Map<String, String> attributes;
+
+        /**
+         * A module request.
+         * @param specifier  the module specifier string
+         * @param attributes the import attributes, never null (empty when none)
+         */
+        public ModuleRequest(final String specifier, final Map<String, String> attributes) {
+            this.specifier = specifier;
+            this.attributes = attributes;
+        }
+
+        /** @return the specifier string */
+        public String getSpecifier() {
+            return specifier;
+        }
+
+        /** @return the import attributes, key to value, in source order (empty when none) */
+        public Map<String, String> getAttributes() {
+            return attributes;
+        }
+
+        /** @return the {@code type} attribute, or null if none was written */
+        public String getType() {
+            return attributes.get("type");
+        }
+
+        @Override
+        public int hashCode() {
+            return specifier.hashCode() * 31 + attributes.hashCode();
+        }
+
+        @Override
+        public boolean equals(final Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ModuleRequest)) {
+                return false;
+            }
+            final ModuleRequest o = (ModuleRequest) other;
+            return specifier.equals(o.specifier) && attributes.equals(o.attributes);
+        }
+
+        @Override
+        public String toString() {
+            return attributes.isEmpty() ? specifier : specifier + " " + attributes;
+        }
+    }
+
     @SuppressWarnings("serial")
-    private final List<String> requestedModules;
+    private final List<ModuleRequest> requestedModules;
     @SuppressWarnings("serial")
     private final List<ImportEntry> importEntries;
     @SuppressWarnings("serial")
@@ -327,7 +390,7 @@ public final class Module implements Serializable {
      * @param indirectExportEntries indirect export entries
      * @param starExportEntries star export entries
      */
-    public Module(final List<String> requestedModules, final List<ImportEntry> importEntries, final List<ExportEntry> localExportEntries,
+    public Module(final List<ModuleRequest> requestedModules, final List<ImportEntry> importEntries, final List<ExportEntry> localExportEntries,
                   final List<ExportEntry> indirectExportEntries, final List<ExportEntry> starExportEntries) {
         this.requestedModules = requestedModules;
         this.importEntries = importEntries;
@@ -361,7 +424,7 @@ public final class Module implements Serializable {
      *
      * @return the requested modules
      */
-    public List<String> getRequestedModules() {
+    public List<ModuleRequest> getRequestedModules() {
         return requestedModules;
     }
 

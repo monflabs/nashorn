@@ -31,11 +31,13 @@ package org.monflabs.nashorn.internal.parser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.Module;
 import org.monflabs.nashorn.internal.ir.Module.ExportEntry;
 import org.monflabs.nashorn.internal.ir.Module.ImportEntry;
+import org.monflabs.nashorn.internal.ir.Module.ModuleRequest;
 
 /**
  * ParserContextNode that represents a module.
@@ -45,7 +47,7 @@ class ParserContextModuleNode extends ParserContextBaseNode {
     /** Module name. */
     private final String name;
 
-    private final List<String> requestedModules = new ArrayList<>();
+    private final List<ModuleRequest> requestedModules = new ArrayList<>();
     private final List<ImportEntry> importEntries = new ArrayList<>();
     private final List<ExportEntry> localExportEntries = new ArrayList<>();
     private final List<ExportEntry> indirectExportEntries = new ArrayList<>();
@@ -75,8 +77,8 @@ class ParserContextModuleNode extends ParserContextBaseNode {
         return name;
     }
 
-    public void addModuleRequest(final IdentNode moduleRequest) {
-        requestedModules.add(moduleRequest.getName());
+    public void addModuleRequest(final IdentNode moduleRequest, final Map<String, String> attributes) {
+        requestedModules.add(new ModuleRequest(moduleRequest.getName(), attributes));
     }
 
     public void addImportEntry(final ImportEntry importEntry) {

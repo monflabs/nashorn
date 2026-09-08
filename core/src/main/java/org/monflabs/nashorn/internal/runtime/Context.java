@@ -61,6 +61,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -106,6 +107,7 @@ import org.monflabs.nashorn.internal.ir.debug.PrintVisitor;
 import org.monflabs.nashorn.internal.ir.visitor.NodeVisitor;
 import org.monflabs.nashorn.internal.lookup.MethodHandleFactory;
 import org.monflabs.nashorn.internal.objects.Global;
+import org.monflabs.nashorn.internal.parser.JSONParser;
 import org.monflabs.nashorn.internal.parser.Parser;
 import org.monflabs.nashorn.internal.runtime.events.RuntimeEvent;
 import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
@@ -887,6 +889,20 @@ public final class Context {
      * @return the module it names, already loaded if it has been asked for before
      */
     public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer) {
+        return loadModule(specifier, referrer, null);
+    }
+
+    /**
+     * Loads a module named by an import, honouring the ES2025 {@code type}
+     * import attribute: {@code "json"} loads the resolved file as a JSON module,
+     * a null type loads it as JavaScript, and any other type is unsupported.
+     *
+     * @param specifier the text between the quotes
+     * @param referrer  the module the import was written in
+     * @param type      the {@code type} import attribute, or null if none
+     * @return the module it names, already loaded if it has been asked for before
+     */
+    public ModuleRecord loadModule(final String specifier, final ModuleRecord referrer, final String type) {
         if (!moduleLoaders.isEmpty()) {
             final org.monflabs.nashorn.api.modules.Module referrerView = referrer == null ? null : referrer.moduleView();
             for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {
@@ -902,11 +918,51 @@ public final class Context {
         if (resolved == null) {
             return null;
         }
+        if (type != null) {
+            return loadTypedModule(resolved, type);
+        }
         try {
             return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString(), resolved);
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * ES2025 loads a module whose import carried a {@code type} attribute. Only
+     * {@code "json"} is supported (a JSON module, per 16.2.1.8 - a values-backed
+     * record with a single {@code default} export holding the parsed value);
+     * anything else is a TypeError. A JSON module keys the registry on the path
+     * under a {@code json} qualifier so the same file imported as JavaScript
+     * stays a separate record, and so every JSON import of it shares one parsed
+     * object.
+     */
+    private ModuleRecord loadTypedModule(final Path resolved, final String type) {
+        if (!"json".equals(type)) {
+            throw typeError("unsupported.import.type", type);
+        }
+        final Global global = getGlobal();
+        final String key = "[json] " + resolved.toString();
+        final ModuleRecord known = global.getModule(key);
+        if (known != null) {
+            return known;
+        }
+        final String text;
+        try {
+            text = new String(Files.readAllBytes(resolved), StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+        final Object parsed;
+        try {
+            parsed = new JSONParser(text, global, ((ScriptObject) global).useDualFields()).parse();
+        } catch (final ParserException e) {
+            throw ECMAErrors.syntaxError(e, "invalid.json", e.getMessage());
+        }
+        final ModuleRecord record = new ModuleRecord(resolved.toString(),
+                Collections.singletonMap("default", parsed), global);
+        global.registerModule(key, record);
+        return record;
     }
 
     /**
@@ -919,6 +975,20 @@ public final class Context {
      * @return the module it names
      */
     public ModuleRecord loadModuleWithBase(final String specifier, final String base) {
+        return loadModuleWithBase(specifier, base, null);
+    }
+
+    /**
+     * As {@link #loadModuleWithBase(String, String)} but honouring the ES2025
+     * {@code type} import attribute (used by dynamic {@code import()} with an
+     * options bag).
+     *
+     * @param specifier the text between the quotes
+     * @param base      the name of the source the import was written in, or null
+     * @param type      the {@code type} import attribute, or null
+     * @return the module it names
+     */
+    public ModuleRecord loadModuleWithBase(final String specifier, final String base, final String type) {
         if (!moduleLoaders.isEmpty()) {
             for (final org.monflabs.nashorn.api.modules.ModuleLoader loader : moduleLoaders) {
                 final org.monflabs.nashorn.api.modules.Module loaded = loader.load(specifier, null);
@@ -931,6 +1001,9 @@ public final class Context {
         final Path resolved = resolveModule(specifier, base);
         if (resolved == null) {
             return null;
+        }
+        if (type != null) {
+            return loadTypedModule(resolved, type);
         }
         try {
             return loadModule(Source.sourceFor(resolved.toString(), resolved.toFile()), resolved.toString(), resolved);

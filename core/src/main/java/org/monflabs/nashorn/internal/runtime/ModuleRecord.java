@@ -178,7 +178,7 @@ public final class ModuleRecord {
         }
         state = State.LINKING;
 
-        for (final String requested : module.getRequestedModules()) {
+        for (final Module.ModuleRequest requested : module.getRequestedModules()) {
             dependency(requested).link();
         }
 
@@ -311,7 +311,7 @@ public final class ModuleRecord {
         }
         state = State.INSTANTIATING;
 
-        for (final String requested : module.getRequestedModules()) {
+        for (final Module.ModuleRequest requested : module.getRequestedModules()) {
             dependency(requested).instantiate();
         }
 
@@ -459,7 +459,7 @@ public final class ModuleRecord {
         index++;
         stack.addLast(this);
 
-        for (final String requested : module.getRequestedModules()) {
+        for (final Module.ModuleRequest requested : module.getRequestedModules()) {
             ModuleRecord required = dependency(requested);
             index = required.innerModuleEvaluation(stack, index);
             if (required.state == State.EVALUATING) {
@@ -826,9 +826,25 @@ public final class ModuleRecord {
     }
 
     private ModuleRecord dependency(final String specifier) {
+        return dependency(specifier, null);
+    }
+
+    /**
+     * ES2025 the request carries import attributes; the {@code type} attribute
+     * (the only host-supported one) chooses how the specifier is loaded - as a
+     * JSON module when it is {@code "json"}. The dependency cache is keyed by
+     * specifier alone, which the graph honours because every requested module
+     * is loaded from the {@link Module#getRequestedModules() requested list}
+     * (with its attributes) before any import entry names it.
+     */
+    private ModuleRecord dependency(final Module.ModuleRequest request) {
+        return dependency(request.getSpecifier(), request.getType());
+    }
+
+    private ModuleRecord dependency(final String specifier, final String type) {
         ModuleRecord loaded = dependencies.get(specifier);
         if (loaded == null) {
-            loaded = Context.getContext().loadModule(specifier, this);
+            loaded = Context.getContext().loadModule(specifier, this, type);
             if (loaded == null) {
                 throw typeError("module.not.found", specifier, name);
             }

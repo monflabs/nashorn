@@ -3482,9 +3482,11 @@ public final class ScriptRuntime {
      *
      * @param referrerName the name of the module the import() appears in, or null
      * @param specifier    the module specifier expression's value
+     * @param options      the ES2025 options bag (carrying import attributes under
+     *                     a {@code with} property), or undefined
      * @return a promise of the imported module's namespace
      */
-    public static Object DYNAMIC_IMPORT(final Object referrerName, final Object specifier) {
+    public static Object DYNAMIC_IMPORT(final Object referrerName, final Object specifier, final Object options) {
         // A dynamic import answers a promise and runs as a job, so it needs the
         // event loop: without it, throw rather than hand back a promise nothing
         // would ever settle.
@@ -3493,16 +3495,29 @@ public final class ScriptRuntime {
         final org.monflabs.nashorn.internal.objects.NativePromise promise =
                 org.monflabs.nashorn.internal.objects.NativePromise.newAsyncPromise(global);
         final String refName = referrerName == null ? null : JSType.toString(referrerName);
+        // ES2025 13.3.10.1: ToString(specifier) and processing the options bag's
+        // import attributes happen synchronously, in EvaluateImportCall - before
+        // the job. A test observes the attribute getters running at that point
+        // (2nd-param-with-enumeration). An abrupt completion still only rejects
+        // the returned promise (IfAbruptRejectPromise), never throws to the
+        // caller, so the load itself is what the job defers.
+        final String spec;
+        final String type;
+        try {
+            spec = JSType.toString(specifier);
+            type = importAttributeType(options);
+        } catch (final Throwable t) {
+            org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, importRejectReason(global, t, null));
+            return promise;
+        }
         global.getJobQueue().enqueue(() -> {
-            String spec = null;
             try {
-                spec = JSType.toString(specifier);
                 final ModuleRecord referrer = refName == null ? null : global.getModule(refName);
                 // A registered module referrer keeps its loader view; a plain script
                 // referrer resolves by its base name instead.
                 final ModuleRecord loaded = referrer != null
-                        ? Context.getContext().loadModule(spec, referrer)
-                        : Context.getContext().loadModuleWithBase(spec, refName);
+                        ? Context.getContext().loadModule(spec, referrer, type)
+                        : Context.getContext().loadModuleWithBase(spec, refName, type);
                 if (loaded == null) {
                     throw typeError("cant.load.module", spec, "not found");
                 }
@@ -3515,20 +3530,63 @@ public final class ScriptRuntime {
                         value -> org.monflabs.nashorn.internal.objects.NativePromise.resolveAsyncPromise(promise, imported.namespace()),
                         reason -> org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason));
             } catch (final Throwable t) {
-                final Object reason;
-                if (t instanceof ECMAException ee) {
-                    reason = ee.getThrown();
-                } else if (t instanceof ParserException pe) {
-                    // a module that fails to parse rejects with the SyntaxError it is,
-                    // not a generic wrapper
-                    reason = ECMAErrors.asEcmaException(global, pe).getThrown();
-                } else {
-                    reason = typeError("cant.load.module", String.valueOf(spec), String.valueOf(t.getMessage())).getThrown();
-                }
-                org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, reason);
+                org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(promise, importRejectReason(global, t, spec));
             }
         });
         return promise;
+    }
+
+    /** The value a failed dynamic import rejects with: the thrown ECMA value, a
+     *  parse failure as the SyntaxError it is, else a generic load TypeError. */
+    private static Object importRejectReason(final Global global, final Throwable t, final String spec) {
+        if (t instanceof ECMAException ee) {
+            return ee.getThrown();
+        }
+        if (t instanceof ParserException pe) {
+            return ECMAErrors.asEcmaException(global, pe).getThrown();
+        }
+        return typeError("cant.load.module", String.valueOf(spec), String.valueOf(t.getMessage())).getThrown();
+    }
+
+    /**
+     * ES2025 13.3.10.1: read the import attributes from a dynamic import's
+     * options bag and return the {@code type} attribute (the only host-supported
+     * one), or null. The options must be undefined or an object; its {@code with}
+     * property, if present, must be an object whose every enumerable own
+     * property has a string value. A getter that throws, a non-object, or a
+     * non-string value is a TypeError - which, thrown here inside the import
+     * job, rejects the import promise.
+     *
+     * @param options the options bag, or undefined
+     * @return the {@code type} attribute value, or null when none was given
+     */
+    private static String importAttributeType(final Object options) {
+        if (options == UNDEFINED) {
+            return null;
+        }
+        // only undefined means "no options"; null and every other primitive is
+        // a non-object and rejects
+        if (!(options instanceof ScriptObject optObj)) {
+            throw typeError("not.an.object", safeToString(options));
+        }
+        final Object withValue = optObj.get("with");
+        if (withValue == UNDEFINED) {
+            return null;
+        }
+        if (!(withValue instanceof ScriptObject withObj)) {
+            throw typeError("not.an.object", safeToString(withValue));
+        }
+        String type = null;
+        for (final String key : withObj.getOwnKeys(false)) {
+            final Object value = withObj.get(key);
+            if (!JSType.isString(value)) {
+                throw typeError("not.a.string", safeToString(value));
+            }
+            if ("type".equals(key)) {
+                type = value.toString();
+            }
+        }
+        return type;
     }
 
     /**
