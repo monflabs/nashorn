@@ -68,7 +68,7 @@ public class JdkRegExp extends RegExp {
             // only under the unicode flag: without it, a character outside
             // Latin-1 that folds into it stays where it is, so the Kelvin sign
             // is not a k
-            if (isUnicode()) {
+            if (isUnicodeMode()) {
                 intFlags |= UNICODE_CASE;
             }
         }
@@ -83,7 +83,7 @@ public class JdkRegExp extends RegExp {
             RegExpScanner parsed;
 
             try {
-                parsed = RegExpScanner.scan(source, isUnicode(), RegExpFactory.annexBEnabled());
+                parsed = RegExpScanner.scan(source, isUnicodeMode(), isUnicodeSets(), RegExpFactory.annexBEnabled());
             } catch (final PatternSyntaxException e) {
                 // refine the exception with a better syntax error, if this
                 // passes, just rethrow what we have
@@ -92,7 +92,7 @@ public class JdkRegExp extends RegExp {
             }
 
             if (parsed != null) {
-                final String javaPattern = isUnicode() && isIgnoreCase()
+                final String javaPattern = isUnicodeMode() && isIgnoreCase()
                         ? withUnicodeFolds(parsed.getJavaPattern())
                         : parsed.getJavaPattern();
                 this.pattern = Pattern.compile(javaPattern, intFlags);

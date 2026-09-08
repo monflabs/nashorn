@@ -88,6 +88,8 @@ final class UnicodeProperty {
      * alias) to the JDK {@code Is...} spelling.
      */
     private static final Map<String, String> BINARY = Map.ofEntries(
+            Map.entry("ASCII", "ASCII"),
+            Map.entry("ASCII_Hex_Digit", "XDigit"), Map.entry("AHex", "XDigit"),
             Map.entry("Alphabetic", "IsAlphabetic"), Map.entry("Alpha", "IsAlphabetic"),
             Map.entry("Assigned", "IsAssigned"),
             Map.entry("Hex_Digit", "IsHex_Digit"), Map.entry("Hex", "IsHex_Digit"),
@@ -141,6 +143,31 @@ final class UnicodeProperty {
             return bin;
         }
         throw new RuntimeException("Unsupported Unicode property: " + value);
+    }
+
+    /**
+     * The ES2024 "binary properties of strings" - sets whose members are
+     * strings rather than single code points, valid only under the v flag.
+     * java.util.regex has no notion of a class member that is a string, so
+     * these are held out as an engine limit rather than translated.
+     */
+    private static final java.util.Set<String> PROPERTIES_OF_STRINGS = java.util.Set.of(
+            "Basic_Emoji",
+            "Emoji_Keycap_Sequence",
+            "RGI_Emoji",
+            "RGI_Emoji_Flag_Sequence",
+            "RGI_Emoji_Modifier_Sequence",
+            "RGI_Emoji_Tag_Sequence",
+            "RGI_Emoji_ZWJ_Sequence");
+
+    /**
+     * Whether a {@code \p{...}} body names a binary property of strings.
+     *
+     * @param raw the text between the braces of {@code \p{...}}
+     * @return true for a property whose members are strings
+     */
+    static boolean isPropertyOfStrings(final String raw) {
+        return PROPERTIES_OF_STRINGS.contains(raw);
     }
 
     private static String generalCategory(final String value) {

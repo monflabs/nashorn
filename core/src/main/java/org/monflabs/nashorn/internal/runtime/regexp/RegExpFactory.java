@@ -156,7 +156,8 @@ public class RegExpFactory {
             // named groups or lookbehind; the JDK engine has both. So an ES2018
             // pattern that uses them is compiled with the JDK engine too - the
             // scanner emits JDK-compatible syntax for those constructs.
-            regexp = (flags != null && flags.indexOf('u') >= 0) || usesJdkOnlySyntax(pattern)
+            regexp = (flags != null && (flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0))
+                        || usesJdkOnlySyntax(pattern)
                     ? new JdkRegExp(pattern, flags)
                     : instance.compile(pattern, flags);
             REGEXP_CACHE.put(key, regexp);

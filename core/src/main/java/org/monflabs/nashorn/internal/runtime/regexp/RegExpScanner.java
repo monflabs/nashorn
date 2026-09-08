@@ -139,12 +139,22 @@ final class RegExpScanner extends Scanner {
      */
     private final boolean annexB;
 
+    /**
+     * Whether the pattern was written with the ES2024 unicodeSets ({@code v})
+     * flag, which replaces the character-class grammar with the class-set one:
+     * nested classes, the union/intersection/difference operators and string
+     * literals. Implies {@link #unicode}.
+     */
+    private final boolean unicodeSets;
+
     /** Whether the assertion just read was a lookahead, which B.1.4 lets a quantifier follow. */
     private boolean quantifiableAssertion;
 
-    private RegExpScanner(final String string, final boolean unicode, final boolean annexB) {
+    private RegExpScanner(final String string, final boolean unicode, final boolean unicodeSets,
+            final boolean annexB) {
         super(string);
         this.unicode = unicode;
+        this.unicodeSets = unicodeSets;
         this.annexB = annexB;
         this.namedGroupIndices = collectNamedGroups(string);
         this.hasNamedGroups = !namedGroupIndices.isEmpty();
@@ -337,19 +347,33 @@ final class RegExpScanner extends Scanner {
      * @return Java safe regex string.
      */
     public static RegExpScanner scan(final String string) {
-        return scan(string, false, RegExpFactory.annexBEnabled());
+        return scan(string, false, false, RegExpFactory.annexBEnabled());
     }
 
     /**
      * Scan a JavaScript regexp string returning a Java safe regex string.
      *
      * @param string  JavaScript regexp string.
-     * @param unicode whether it was written with the unicode flag
+     * @param unicode whether it was written with the unicode (u or v) flag
      * @param annexB  whether Annex B's extensions to the grammar are recognised
      * @return Java safe regex string.
      */
     public static RegExpScanner scan(final String string, final boolean unicode, final boolean annexB) {
-        final RegExpScanner scanner = new RegExpScanner(string, unicode, annexB);
+        return scan(string, unicode, false, annexB);
+    }
+
+    /**
+     * Scan a JavaScript regexp string returning a Java safe regex string.
+     *
+     * @param string      JavaScript regexp string.
+     * @param unicode     whether it is in unicode (code-point) mode - u or v
+     * @param unicodeSets whether it was written with the ES2024 v flag
+     * @param annexB      whether Annex B's extensions to the grammar are recognised
+     * @return Java safe regex string.
+     */
+    public static RegExpScanner scan(final String string, final boolean unicode, final boolean unicodeSets,
+            final boolean annexB) {
+        final RegExpScanner scanner = new RegExpScanner(string, unicode, unicodeSets, annexB);
 
         try {
             scanner.disjunction();
@@ -1251,6 +1275,9 @@ final class RegExpScanner extends Scanner {
      *      [ ^ ClassRanges ]
      */
     private boolean characterClass() {
+        if (unicodeSets) {
+            return classSetClass();
+        }
         final int startIn  = position;
         final int startOut = sb.length();
 
@@ -1288,6 +1315,443 @@ final class RegExpScanner extends Scanner {
 
         restart(startIn, startOut);
         return false;
+    }
+
+    // ------------------------------------------------------------------------
+    // ES2024 v-flag (unicodeSets) character classes.
+    //
+    // The class-set grammar - nested classes, the union / intersection (&&) /
+    // difference (--) operators and \q{...} string literals - is transcribed to
+    // what java.util.regex accepts, which is close: nested classes and && are
+    // native, so union and intersection are almost pass-through; only -- has to
+    // become the "&& negated" idiom. Every ClassSetCharacter is rendered as
+    // \x{...} so no metacharacter, surrogate or astral code point needs
+    // special handling. Two things the JDK engine cannot express are held out
+    // with a syntax error and listed as engine limits: a \q{...} whose
+    // alternatives are not all single code points (a set that contains a
+    // multi-character string), and \p{...} of strings (RGI_Emoji and its kin).
+    // ------------------------------------------------------------------------
+
+    /** A parsed v-mode class-set operand, rendered for the several places it can go. */
+    private static final class SetOperand {
+        /** Rendered to sit inside {@code [ ... ]} in a union or an intersection. */
+        String union;
+        /** The positive body to put inside {@code [^ ... ]} for a difference right side. */
+        String body;
+        /** Whether the operand was itself a negated nested class (flips difference to intersection). */
+        boolean negated;
+        /** Whether the operand denotes a set that may contain multi-character strings. */
+        boolean mayStrings;
+        /** The single code point when the operand is one character (so it can be a range end); else -1. */
+        int rangeChar = -1;
+    }
+
+    private boolean classSetClass() {
+        if (ch0 != '[') {
+            return false;
+        }
+        final boolean prevInClass = inCharClass;
+        final boolean prevNeg = inNegativeClass;
+        try {
+            inCharClass = true;
+            skip(1); // '['
+            boolean negated = false;
+            if (ch0 == '^') {
+                negated = true;
+                skip(1);
+            }
+            inNegativeClass = negated;
+            if (ch0 == ']') {
+                // an empty class: [] never matches, [^] matches anything
+                skip(1);
+                sb.append(negated ? "[\\s\\S]" : "[^\\s\\S]");
+                return true;
+            }
+            final SetOperand set = classSetExpression();
+            if (ch0 != ']') {
+                throw new RuntimeException("Unterminated character class in unicode pattern");
+            }
+            skip(1); // ']'
+            if (negated && set.mayStrings) {
+                throw new RuntimeException("A negated character class may not contain strings");
+            }
+            sb.append('[');
+            if (negated) {
+                sb.append('^');
+            }
+            sb.append(set.union);
+            sb.append(']');
+            return true;
+        } finally {
+            inCharClass = prevInClass;
+            inNegativeClass = prevNeg;
+        }
+    }
+
+    /**
+     * ClassSetExpression: a first operand, then either a run of {@code &&}
+     * intersections, a run of {@code --} differences, or a union of further
+     * operands and ranges.
+     */
+    private SetOperand classSetExpression() {
+        final SetOperand first = classSetOperandOrRange();
+
+        if (ch0 == '&' && ch1 == '&') {
+            final StringBuilder u = new StringBuilder(first.union);
+            boolean mayStrings = first.mayStrings;
+            while (ch0 == '&' && ch1 == '&') {
+                skip(2);
+                if (ch0 == '&') {
+                    throw new RuntimeException("Invalid && operand in unicode pattern");
+                }
+                final SetOperand next = classSetOperand();
+                // A && B keeps a string only if both sides can; approximate by
+                // requiring both, which is all the held-out string cases need.
+                mayStrings = mayStrings && next.mayStrings;
+                u.append("&&").append(next.negated ? "[^" + next.body + "]" : next.union);
+            }
+            final SetOperand r = new SetOperand();
+            r.union = u.toString();
+            r.body = r.union;
+            r.mayStrings = mayStrings;
+            return r;
+        }
+
+        if (ch0 == '-' && ch1 == '-') {
+            final StringBuilder u = new StringBuilder(first.union);
+            while (ch0 == '-' && ch1 == '-') {
+                skip(2);
+                final SetOperand next = classSetOperand();
+                // A -- B = A intersect not-B; a negated B is A intersect B
+                u.append("&&").append(next.negated ? "[" + next.body + "]" : "[^" + next.body + "]");
+            }
+            final SetOperand r = new SetOperand();
+            r.union = u.toString();
+            r.body = r.union;
+            r.mayStrings = first.mayStrings;
+            return r;
+        }
+
+        // union
+        final StringBuilder u = new StringBuilder(first.union);
+        boolean mayStrings = first.mayStrings;
+        while (ch0 != ']' && !atEOF() && !(ch0 == '&' && ch1 == '&') && !(ch0 == '-' && ch1 == '-')) {
+            final SetOperand next = classSetOperandOrRange();
+            u.append(next.union);
+            mayStrings = mayStrings || next.mayStrings;
+        }
+        final SetOperand r = new SetOperand();
+        r.union = u.toString();
+        r.body = r.union;
+        r.mayStrings = mayStrings;
+        return r;
+    }
+
+    /** A union member: an operand, possibly the low end of a {@code x-y} range. */
+    private SetOperand classSetOperandOrRange() {
+        final SetOperand op = classSetOperand();
+        // a range only between two single characters
+        if (op.rangeChar >= 0 && ch0 == '-' && !(ch1 == '-') && ch1 != ']') {
+            skip(1); // '-'
+            final SetOperand hi = classSetOperand();
+            if (hi.rangeChar < 0) {
+                throw new RuntimeException("Invalid class set range in unicode pattern");
+            }
+            if (hi.rangeChar < op.rangeChar) {
+                throw new RuntimeException("Range out of order in character class");
+            }
+            final SetOperand r = new SetOperand();
+            r.union = "\\x{" + Integer.toHexString(op.rangeChar) + "}-\\x{" + Integer.toHexString(hi.rangeChar) + "}";
+            r.body = r.union;
+            return r;
+        }
+        return op;
+    }
+
+    /**
+     * ClassSetOperand: a nested class, a {@code \q{...}} string disjunction, a
+     * character-class escape, or a single ClassSetCharacter.
+     */
+    private SetOperand classSetOperand() {
+        final SetOperand r = new SetOperand();
+        r.rangeChar = -1;
+
+        if (ch0 == '[') {
+            // a nested class: parse it, then unwrap the [ ... ] it produced
+            final int mark = sb.length();
+            classSetClass();
+            final String nested = sb.substring(mark);
+            sb.setLength(mark);
+            // nested is "[...]" or "[^...]"
+            if (nested.length() >= 2 && nested.charAt(1) == '^') {
+                r.negated = true;
+                r.body = nested.substring(2, nested.length() - 1);
+                r.union = nested;
+            } else {
+                r.body = nested.substring(1, nested.length() - 1);
+                r.union = nested;
+            }
+            return r;
+        }
+
+        if (ch0 == '\\') {
+            if (ch1 == 'q') {
+                return classStringDisjunction();
+            }
+            skip(1); // '\'
+            // character-class escapes keep their class meaning
+            switch (ch0) {
+            case 'd': case 'D': case 'w': case 'W':
+                r.union = "\\" + ch0;
+                r.body = r.union;
+                skip(1);
+                return r;
+            case 's':
+                r.union = Lexer.getWhitespaceRegExp();
+                r.body = r.union;
+                skip(1);
+                return r;
+            case 'S':
+                // \S is not-whitespace: [^ws] in a union, and in a difference
+                // right side it behaves as a negated operand over ws
+                r.union = "[^" + Lexer.getWhitespaceRegExp() + "]";
+                r.body = Lexer.getWhitespaceRegExp();
+                r.negated = true;
+                skip(1);
+                return r;
+            case 'p': case 'P': {
+                final boolean neg = ch0 == 'P';
+                final String prop = readPropertyEscapeVMode();
+                r.union = (neg ? "\\P{" : "\\p{") + prop + "}";
+                r.body = r.union;
+                return r;
+            }
+            default: {
+                final int cp = readClassEscapeChar();
+                r.rangeChar = cp;
+                r.union = "\\x{" + Integer.toHexString(cp) + "}";
+                r.body = r.union;
+                return r;
+            }
+            }
+        }
+
+        // a plain ClassSetCharacter, with the v-mode restrictions
+        if (ch0 == ']') {
+            throw new RuntimeException("Expected a class set operand in unicode pattern");
+        }
+        // ES2024 ClassSetSyntaxCharacter: these must be escaped in a v-mode class
+        if (ch0 == '(' || ch0 == ')' || ch0 == '{' || ch0 == '}' || ch0 == '/' || ch0 == '|' || ch0 == '-') {
+            throw new RuntimeException("Unescaped '" + ch0 + "' in a unicodeSets character class");
+        }
+        // ES2024 ClassSetReservedDoublePunctuator: a doubled punctuator is reserved
+        if (ch0 == ch1 && isClassSetReservedPunctuator(ch0)) {
+            throw new RuntimeException("Reserved double punctuator '" + ch0 + ch0
+                    + "' in a unicodeSets character class");
+        }
+        final int cp = readSourceCodePoint();
+        r.rangeChar = cp;
+        r.union = "\\x{" + Integer.toHexString(cp) + "}";
+        r.body = r.union;
+        return r;
+    }
+
+    /** The punctuators ES2024 reserves when doubled inside a v-mode class. */
+    private static boolean isClassSetReservedPunctuator(final char c) {
+        switch (c) {
+        case '&': case '-': case '!': case '#': case '%': case ',': case ':':
+        case ';': case '<': case '=': case '>': case '@': case '`': case '~':
+        case '$': case '*': case '+': case '.': case '?': case '^':
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    /** ES2024 ClassStringDisjunction {@code \q{ a | bc | ... }}. */
+    private SetOperand classStringDisjunction() {
+        skip(2); // '\q'
+        if (ch0 != '{') {
+            throw new RuntimeException("\\q not followed by {");
+        }
+        skip(1); // '{'
+        final java.util.List<Integer> singles = new java.util.ArrayList<>();
+        boolean multi = false;
+        StringBuilder current = new StringBuilder();
+        int currentCount = 0;
+        int firstCp = -1;
+        for (;;) {
+            if (atEOF()) {
+                throw new RuntimeException("Unterminated \\q{...}");
+            }
+            if (ch0 == '}' || ch0 == '|') {
+                if (currentCount == 1) {
+                    singles.add(firstCp);
+                } else {
+                    multi = true; // empty string or a multi-character string
+                }
+                current = new StringBuilder();
+                currentCount = 0;
+                firstCp = -1;
+                final boolean end = ch0 == '}';
+                skip(1);
+                if (end) {
+                    break;
+                }
+                continue;
+            }
+            final int cp = ch0 == '\\' ? classStringEscapeChar() : readSourceCodePoint();
+            if (currentCount == 0) {
+                firstCp = cp;
+            }
+            currentCount++;
+        }
+        final SetOperand r = new SetOperand();
+        r.rangeChar = -1;
+        if (multi) {
+            // a set that contains a multi-character (or empty) string: the JDK
+            // engine cannot hold strings in a class - held out as an engine limit
+            throw new RuntimeException("A \\q{...} string set with a multi-character string is not supported");
+        }
+        final StringBuilder chars = new StringBuilder();
+        for (final int cp : singles) {
+            chars.append("\\x{").append(Integer.toHexString(cp)).append('}');
+        }
+        r.union = chars.toString();
+        r.body = r.union;
+        return r;
+    }
+
+    /** Reads one code point of a \q{} class string, decoding an escape. */
+    private int classStringEscapeChar() {
+        skip(1); // '\'
+        if (ch0 == 'p' || ch0 == 'P' || ch0 == 'd' || ch0 == 'D' || ch0 == 's' || ch0 == 'S'
+                || ch0 == 'w' || ch0 == 'W' || ch0 == 'b' || ch0 == 'q') {
+            throw new RuntimeException("A \\q{...} string set with a class escape is not supported");
+        }
+        return readClassEscapeChar();
+    }
+
+    /** Reads a \p{...}/\P{...} property name in v-mode, holding out properties of strings. */
+    private String readPropertyEscapeVMode() {
+        skip(1); // 'p' or 'P'
+        if (ch0 != '{') {
+            throw new RuntimeException("\\p not followed by a property");
+        }
+        skip(1); // '{'
+        final StringBuilder raw = new StringBuilder();
+        while (!atEOF() && ch0 != '}') {
+            raw.append(ch0);
+            skip(1);
+        }
+        if (ch0 != '}') {
+            throw new RuntimeException("Unterminated \\p{...}");
+        }
+        skip(1); // '}'
+        final String name = raw.toString();
+        // properties of strings (RGI_Emoji and its kin) are sets of strings the
+        // JDK engine cannot express - held out as an engine limit
+        if (UnicodeProperty.isPropertyOfStrings(name)) {
+            throw new RuntimeException("A \\p{...} property of strings is not supported");
+        }
+        return UnicodeProperty.toJavaProperty(name);
+    }
+
+    /** Reads one code point after a backslash inside a v-mode class (identity/character escape). */
+    private int readClassEscapeChar() {
+        // ch0 is the character after the backslash
+        switch (ch0) {
+        case 'n': skip(1); return '\n';
+        case 'r': skip(1); return '\r';
+        case 't': skip(1); return '\t';
+        case 'f': skip(1); return '\f';
+        case 'v': skip(1); return 0x0B;
+        case '0': skip(1); return 0;
+        case 'b': skip(1); return '\b';
+        case 'c': {
+            skip(1);
+            if ((ch0 >= 'a' && ch0 <= 'z') || (ch0 >= 'A' && ch0 <= 'Z')) {
+                final int c = ch0 % 32;
+                skip(1);
+                return c;
+            }
+            throw new RuntimeException("Invalid \\c escape in unicode pattern");
+        }
+        case 'x': {
+            skip(1);
+            int v = 0;
+            for (int i = 0; i < 2; i++) {
+                v = (v << 4) | hexValue(ch0);
+                skip(1);
+            }
+            return v;
+        }
+        case 'u':
+            return readUnicodeEscapeCodePoint();
+        default:
+            // identity escape of a ClassSetSyntaxCharacter or other allowed char
+            final int cp = readSourceCodePoint();
+            return cp;
+        }
+    }
+
+    /** Reads a \\u escape (either \\uXXXX, a surrogate pair, or \\u{...}) as a code point. */
+    private int readUnicodeEscapeCodePoint() {
+        skip(1); // 'u'
+        if (ch0 == '{') {
+            skip(1);
+            int v = 0;
+            while (ch0 != '}') {
+                v = (v << 4) | hexValue(ch0);
+                skip(1);
+            }
+            skip(1); // '}'
+            return v;
+        }
+        int hi = 0;
+        for (int i = 0; i < 4; i++) {
+            hi = (hi << 4) | hexValue(ch0);
+            skip(1);
+        }
+        if (Character.isHighSurrogate((char) hi) && ch0 == '\\' && ch1 == 'u') {
+            final int mark = position;
+            skip(2);
+            int lo = 0;
+            for (int i = 0; i < 4; i++) {
+                lo = (lo << 4) | hexValue(ch0);
+                skip(1);
+            }
+            if (Character.isLowSurrogate((char) lo)) {
+                return Character.toCodePoint((char) hi, (char) lo);
+            }
+            reset(mark);
+        }
+        return hi;
+    }
+
+    /** Reads one source code point (a surrogate pair counts as one). */
+    private int readSourceCodePoint() {
+        final char c = ch0;
+        if (Character.isHighSurrogate(c) && Character.isLowSurrogate(ch1)) {
+            final int cp = Character.toCodePoint(c, ch1);
+            skip(2);
+            return cp;
+        }
+        skip(1);
+        return c;
+    }
+
+    private static int hexValue(final char c) {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return c - 'a' + 10;
+        }
+        if (c >= 'A' && c <= 'F') {
+            return c - 'A' + 10;
+        }
+        throw new RuntimeException("Invalid hex digit in unicode pattern");
     }
 
     /*

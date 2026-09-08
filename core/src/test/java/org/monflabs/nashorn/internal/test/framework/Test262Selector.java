@@ -120,6 +120,7 @@ public final class Test262Selector {
         "array-grouping", "promise-with-resolvers",
         "String.prototype.isWellFormed", "String.prototype.toWellFormed",
         "resizable-arraybuffer", "arraybuffer-transfer", "Atomics.waitAsync",
+        "regexp-v-flag",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -310,6 +311,37 @@ public final class Test262Selector {
         return !path.contains(GENERATED);
     }
 
+    /**
+     * Whether a RegExp {@code v}-flag (unicodeSets) test is one held to the
+     * conformance gate.
+     *
+     * The class-set grammar - nested classes, the union / intersection ({@code
+     * &&}) / difference ({@code --}) operators, ranges and single-code-point
+     * {@code \q{...}} string literals - is implemented and passes, including the
+     * exhaustive {@code generated/} matrix over characters, character classes,
+     * class escapes and property escapes, and the {@code breaking-change-from-u-to-v}
+     * syntax tests. Two shapes are out, both because {@code java.util.regex} has
+     * no notion of a character class whose member is a string:
+     * <ul>
+     *   <li>a {@code \q{...}} whose alternatives are not all single code points -
+     *       a class that contains a multi-character (or empty) string, which the
+     *       {@code generated/string-literal-*} tree exercises;</li>
+     *   <li>{@code \p{...}} properties of strings (RGI_Emoji and its kin), the
+     *       {@code generated/property-of-strings-*} and {@code generated/rgi-emoji-*}
+     *       tree.</li>
+     * </ul>
+     * Both are held out with a syntax error at compile time and listed here. See
+     * doc/CONFORMANCE.md.
+     */
+    private static boolean unicodeSetsInScope(final String path) {
+        if (!path.contains("/unicodeSets/generated/")) {
+            return true;
+        }
+        return !(path.contains("string-literal")
+                || path.contains("property-of-strings")
+                || path.contains("rgi-emoji"));
+    }
+
     public static boolean isInScope(final Path suiteRoot, final Path testFile, final Test262Frontmatter frontmatter) {
         final Path relative = suiteRoot.relativize(testFile);
         for (int i = 0; i < relative.getNameCount(); i++) {
@@ -346,6 +378,9 @@ public final class Test262Selector {
             }
         }
         if (!propertyEscapeInScope(path)) {
+            return false;
+        }
+        if (!unicodeSetsInScope(path)) {
             return false;
         }
 

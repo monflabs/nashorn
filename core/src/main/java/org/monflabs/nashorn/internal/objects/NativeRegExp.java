@@ -402,6 +402,9 @@ public final class NativeRegExp extends ScriptObject {
         if (regexp.isUnicode()) {
             sb.append('u');
         }
+        if (regexp.isUnicodeSets()) {
+            sb.append('v');
+        }
         if (regexp.isSticky()) {
             sb.append('y');
         }
@@ -954,6 +957,9 @@ public final class NativeRegExp extends ScriptObject {
         if (JSType.toBoolean(rx.get("unicode"))) {
             sb.append('u');
         }
+        if (JSType.toBoolean(rx.get("unicodeSets"))) {
+            sb.append('v');
+        }
         if (JSType.toBoolean(rx.get("sticky"))) {
             sb.append('y');
         }
@@ -980,6 +986,17 @@ public final class NativeRegExp extends ScriptObject {
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object unicode(final Object self) {
         return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isUnicode();
+    }
+
+    /**
+     * ECMAScript 2024 22.2.6.18 unicodeSets
+     *
+     * @param self self reference
+     * @return true if this regexp was given the v flag
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object unicodeSets(final Object self) {
+        return isRegExpPrototype(self) ? UNDEFINED : checkRegExp(self).getRegExp().isUnicodeSets();
     }
 
     /**

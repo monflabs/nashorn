@@ -59,6 +59,9 @@ public abstract class RegExp {
     /** Is this regexp in unicode mode? */
     private boolean unicode;
 
+    /** ES2024 unicodeSets ({@code v}) flag: unicode mode with the class-set grammar. */
+    private boolean unicodeSets;
+
     /** ES2018 dotAll flag: does {@code .} match line terminators too? */
     private boolean dotAll;
 
@@ -112,6 +115,12 @@ public abstract class RegExp {
                 }
                 this.unicode = true;
                 break;
+            case 'v':
+                if (this.unicodeSets) {
+                    throwParserException("repeated.flag", "v");
+                }
+                this.unicodeSets = true;
+                break;
             case 's':
                 if (this.dotAll) {
                     throwParserException("repeated.flag", "s");
@@ -127,6 +136,10 @@ public abstract class RegExp {
             default:
                 throwParserException("unsupported.flag", Character.toString(ch));
             }
+        }
+        // ES2024 22.2.3.4: u and v are mutually exclusive
+        if (this.unicode && this.unicodeSets) {
+            throwParserException("repeated.flag", "v");
         }
     }
 
@@ -189,6 +202,27 @@ public abstract class RegExp {
      */
     public boolean isUnicode() {
         return unicode;
+    }
+
+    /**
+     * Whether this regexp has the ES2024 unicodeSets ({@code v}) flag: unicode
+     * (code-point) mode extended with the class-set grammar in character
+     * classes - nested classes, set operations and string literals.
+     *
+     * @return true if the v flag was given
+     */
+    public boolean isUnicodeSets() {
+        return unicodeSets;
+    }
+
+    /**
+     * Whether the pattern is read as code points rather than code units, which
+     * both the {@code u} and the {@code v} flag ask for.
+     *
+     * @return true if either the u or the v flag was given
+     */
+    public boolean isUnicodeMode() {
+        return unicode || unicodeSets;
     }
 
     public boolean isMultiline() {
