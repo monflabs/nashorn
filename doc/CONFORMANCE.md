@@ -5,7 +5,7 @@ This engine implements [ECMAScript 2024](https://262.ecma-international.org/15.0
 (ECMA-262, 15th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its ~76,000 executions
-**17 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2023 additions - `Array.prototype.findLast`/
 `findLastIndex`, the change-array-by-copy methods, the hashbang grammar and
@@ -16,13 +16,21 @@ growable `SharedArrayBuffer` with `transfer`/`transferToFixedLength`,
 `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag. The slice selects
 their feature tags.)
 
-The **17** are: the **8** carried-over Annex B indirect-eval cases (an indirect
-`eval` whose block-level function declaration must update a `var` the global
-already had, rooted in how the engine merges eval scopes - see below); one
-**top-level-await** case (`rejection-order`, the order in which a rejected async
-module's dependents observe the rejection); and **8** resizable typed-array
-**element-access** corners - see *Resizable ArrayBuffers and the element hot path*
-below. No other ES2022, ES2023 or ES2024 feature corner remains.
+All **8** are the one carried-over Annex B shape: an indirect `eval` whose
+block-level function declaration must update a `var` the global already had,
+rooted in how the engine merges eval scopes (see below). No ES2022, ES2023 or
+ES2024 feature corner remains.
+
+The resizable typed-array corners once settled here are now **fixed**: a typed
+array's `[[Get]]`/`[[Set]]`/`[[HasProperty]]` for a canonical numeric index no
+longer consults the prototype - an out-of-range index, or one an ES2024 resize
+left out of bounds, reads as `undefined`, reports absent, and drops a write - and
+an element write on a resizable buffer coerces its value before it re-checks the
+bounds (a `valueOf` that resizes the buffer is seen). The fixed-buffer element
+path is unchanged, so nothing on the hot path pays for it. The top-level-await
+`rejection-order` case is fixed too: `AsyncModuleExecutionRejected` now rejects a
+module's own top-level capability before recursing into its async parents, so a
+graph settles its rejections leaf-to-root.
 
 Two shapes of the ES2024 RegExp `v` flag are held out because
 `java.util.regex` has no character-class member that is a string (the same kind
@@ -109,7 +117,7 @@ mvn -Ptest262 -DskipTests verify
 ```
 
     test262: 76063 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 17   expected to fail: 17
+    failing: 8   expected to fail: 8
 
 What is not measured, and why
 -----------------------------
@@ -160,8 +168,9 @@ edition — are in scope and pass: `Object.groupBy` / `Map.groupBy`,
 `Promise.withResolvers`, `String.prototype.isWellFormed` / `toWellFormed`,
 resizable `ArrayBuffer` and growable `SharedArrayBuffer` (with `transfer` /
 `transferToFixedLength`), `Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`)
-flag; their settled corners are the 8 resizable element-access cases and the two
-`v`-flag string-set limits named at the top of this document.
+flag; the only ES2024 shapes not measured are the two `v`-flag string-set limits
+named at the top of this document, held out because the JDK regex backend cannot
+express a class member that is a string.
 
 Everything else the selector leaves out is a later edition: every test whose
 `features:` tag names something introduced after the target - `Array.fromAsync`,
@@ -321,21 +330,23 @@ option, `resize`/`grow`, the `resizable`/`growable`/`maxByteLength`/`detached` a
 a shrink pushed past the end), views rebuilt over the same never-moved storage on a resize. The
 standalone `ArrayBuffer`, `SharedArrayBuffer` and `DataView` surfaces pass, and so do the generic
 `Array.prototype` methods on a resized typed array (a generic method skips an out-of-bounds index
-where the `%TypedArray%` method visits it as `undefined` — the two now iterate differently).
+where the `%TypedArray%` method visits it as `undefined` — the two iterate differently).
 
-Eight tests remain settled, all one shape: a typed array's **out-of-bounds integer index reached
-through the fast element linker**. A typed array's `[[Get]]`/`[[Set]]` for a canonical numeric index
-must never consult the prototype — out of range reads as `undefined` and a write is dropped — but the
-`invokedynamic`-linked element path answers an out-of-range index by falling to the prototype, which
-an ES2024 resize (or a value-coercion side effect that shrinks the buffer mid-operation) makes
-observable. The `get(Object)`/`has(Object)` overrides handle it, but the linked `get(int)`/`set` fast
-path does not, and correcting it there means changing the element read/write hot path that the
-performance gate exists to protect. The affected tests are
-`Array/prototype/fill/typed-array-resize`, `TypedArray/of/resized-with-out-of-bounds-and-in-bounds-indices`,
+**The out-of-bounds element corners are fixed.** A typed array's `[[Get]]`, `[[Set]]` and
+`[[HasProperty]]` for a canonical numeric index must never consult the prototype — out of range reads
+as `undefined`, reports absent, and drops a write. The `get(Object)`/`has(Object)` overrides always
+did that for a string key; the number-keyed reads (`get(int)`/`get(double)`), `has(int)`/`has(double)`,
+and a boxed-number key handed to `get(Object)`/`has(Object)` by the `in` operator and the reflective
+operations now do too, each still delegating an in-range access to the fast path so a normal read pays
+one range test and no more. And an element write on a resizable buffer coerces its value to a
+primitive (`10.4.5.16` step, where a `valueOf`/`Symbol.toPrimitive` may resize the buffer) *before* it
+judges the index against the resulting length — gated on the buffer being resizable and the key being
+a numeric index, so a fixed buffer's writes and every named-property write keep the plain order. This
+clears `Array/prototype/fill/typed-array-resize`,
+`TypedArray/of/resized-with-out-of-bounds-and-in-bounds-indices`,
 `TypedArray/out-of-bounds-behaves-like-detached`, and
-`TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index` (each strict and
-sloppy). This is a bounded, documented divergence weighed against a measured performance cost, not an
-unfinished feature.
+`TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index`, with no measured
+performance cost on the fixed-buffer element path.
 
 Tail calls: never
 -----------------

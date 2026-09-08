@@ -153,18 +153,19 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 17 of the ~76,000 executions: the 8 Annex B indirect-eval "existing
-  var update" cases, one top-level-await `rejection-order` case, and 8 resizable typed-array
-  element-access corners (a typed array's out-of-bounds integer index reached through the fast element
-  linker still consults the prototype instead of reading as `undefined`; fixing it means changing the
-  element `get`/`set` hot path, which the performance gate refuses). No ES2022, ES2023 or ES2024
-  feature corner otherwise remains: the ES2022 direct-eval early errors, the `#x in` grammar edges, the
-  top-level-await `new await` corner, the Unicode identifier torture tests (the splitter divides a
-  block of lexical `let`/`const` declarations across sub-methods), and — from ES2024 — the whole v-flag
-  class-set grammar (bar the two JDK-backend string-set limits, held out with the ES2018
-  property-escape data) and the generic-`Array`-method-on-a-resized-typed-array corners (a generic
-  method skips an out-of-bounds index where the `%TypedArray%` one visits it as `undefined`) are all
-  fixed; the four Unicode-17.0.0 files stay in the selector's `LATER_UNICODE` hold-out (JDK 25 is
+  lists the settled failures — 8 of the ~76,000 executions, all 8 the Annex B indirect-eval "existing
+  var update" cases. No ES2022, ES2023 or ES2024 feature corner remains: the ES2022 direct-eval early
+  errors, the `#x in` grammar edges, the top-level-await `new await` corner, the Unicode identifier
+  torture tests (the splitter divides a block of lexical `let`/`const` declarations across
+  sub-methods), and — from ES2024 — the whole v-flag class-set grammar (bar the two JDK-backend
+  string-set limits, held out with the ES2018 property-escape data), the top-level-await
+  `rejection-order` case (`AsyncModuleExecutionRejected` rejects a module's own capability before
+  recursing to its async parents, so a graph settles leaf-to-root), and the resizable typed-array
+  element-access corners (a canonical numeric index's `[[Get]]`/`[[Set]]`/`[[HasProperty]]` never
+  consults the prototype — the number-keyed reads/`has` and the boxed-number key the `in` operator
+  hands over now match the string-keyed overrides — and a resizable-buffer element write coerces its
+  value before re-checking bounds, both gated so the fixed-buffer element hot path is untouched) are
+  all fixed; the four Unicode-17.0.0 files stay in the selector's `LATER_UNICODE` hold-out (JDK 25 is
   Unicode 16). Reasons are recorded in `doc/CONFORMANCE.md` — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with

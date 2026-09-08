@@ -4,14 +4,15 @@ This engine implements ECMAScript 2024 — ECMA-262, 15th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: ~76,000 selected executions, 17 expected failures.** Everything else passes,
-in both of the engine's typing modes. Eight are one shape — an indirect `eval` whose block-level
+**The headline numbers: ~76,000 selected executions, 8 expected failures.** Everything else passes,
+in both of the engine's typing modes. All eight are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
-scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). One
-is a top-level-await rejection-ordering case, and eight are resizable typed-array element-access
-corners (a typed array's out-of-bounds index reached through the fast element linker — fixing it means
-touching the element hot path the performance gate protects). No ES2022, ES2023 or ES2024 feature
-corner otherwise remains: the exhaustive Unicode identifier tests (thousands of private names
+scopes (the feature works in ordinary use; the failures need the runner's pre-populated global). No
+ES2022, ES2023 or ES2024 feature corner remains: the top-level-await rejection-ordering case and the
+resizable typed-array out-of-bounds element-access corners (a canonical numeric index's `[[Get]]`/
+`[[Set]]`/`[[HasProperty]]` no longer consults the prototype, and a resizable-buffer write coerces
+before re-checking bounds — both gated off the fixed-buffer hot path) are now fixed, and the
+exhaustive Unicode identifier tests (thousands of private names
 in a single class) now compile, since the splitter divides a block of lexical declarations across
 sub-methods rather than overflowing the JVM's 64 KB method limit; the ES2024 RegExp `v` flag's
 class-set grammar is implemented (bar two JDK-backend string-set limits, held out as the ES2018

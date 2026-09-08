@@ -617,11 +617,15 @@ public final class ModuleRecord {
         }
         state = State.EVALUATED;
         evaluationError = ECMAException.create(reason, null, -1, -1);
-        for (final ModuleRecord parent : asyncParentModules) {
-            parent.asyncModuleExecutionRejected(reason);
-        }
+        // 16.2.1.5.2.4 steps 9-10: reject this module's own top-level capability
+        // *before* recursing into its async parents, so a graph settles its
+        // rejections leaf-to-root (a child's dynamic import() rejects ahead of
+        // its parent's).
         if (topLevelCapability != null) {
             org.monflabs.nashorn.internal.objects.NativePromise.rejectAsyncPromise(topLevelCapability, reason);
+        }
+        for (final ModuleRecord parent : asyncParentModules) {
+            parent.asyncModuleExecutionRejected(reason);
         }
     }
 

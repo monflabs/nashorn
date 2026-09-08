@@ -52,6 +52,7 @@ import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.arrays.ArrayData;
+import org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import org.monflabs.nashorn.internal.runtime.linker.NashornGuards;
 import org.monflabs.nashorn.internal.runtime.arrays.TypedArrayData;
@@ -912,6 +913,13 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
 
     @Override
     public Object get(final Object key) {
+        // a number key is a canonical numeric index straight away (IN and the
+        // reflective operations hand one over unboxed); its ToString would be
+        // canonical, so a miss is "not an element", never the prototype's
+        if (key instanceof Number number) {
+            final int index = ArrayIndex.getArrayIndex(number.doubleValue());
+            return getArray().has(index) ? super.get(key) : ScriptRuntime.UNDEFINED;
+        }
         final Double index = canonicalNumericIndex(key);
         if (index != null && !isElementIndex(index)) {
             // 9.4.5.4 step 3.c: undefined, rather than whatever the prototype
@@ -921,13 +929,53 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         return super.get(key);
     }
 
+    // An integer-indexed exotic object's [[Get]] for a canonical numeric index
+    // never consults the prototype: an index that is not an element - out of
+    // range, or one an ES2024 resize left out of bounds - reads as undefined.
+    // A number key is always a canonical numeric index, so a miss on the array
+    // data can only mean "not an element" and must not fall through, the way
+    // ScriptObject's element read otherwise would. In-range reads delegate to
+    // the fast path unchanged.
+
+    @Override
+    public Object get(final int key) {
+        return getArray().has(key) ? super.get(key) : ScriptRuntime.UNDEFINED;
+    }
+
+    @Override
+    public Object get(final double key) {
+        final int index = ArrayIndex.getArrayIndex(key);
+        return getArray().has(index) ? super.get(key) : ScriptRuntime.UNDEFINED;
+    }
+
     @Override
     public boolean has(final Object key) {
+        // 10.4.5.2: a canonical numeric index is present only as a valid element,
+        // never through the prototype. A number key is already one; a string key
+        // is decoded below.
+        if (key instanceof Number number) {
+            return getArray().has(ArrayIndex.getArrayIndex(number.doubleValue()));
+        }
         final Double index = canonicalNumericIndex(key);
         if (index != null) {
             return isElementIndex(index);
         }
         return super.has(key);
+    }
+
+    // A number key is a canonical numeric index: it is present only if it is an
+    // element of this view, never through the prototype - so an out-of-range or
+    // resize-orphaned index reports absent rather than finding a like-named
+    // property up the chain.
+
+    @Override
+    public boolean has(final int key) {
+        return getArray().has(key);
+    }
+
+    @Override
+    public boolean has(final double key) {
+        return getArray().has(ArrayIndex.getArrayIndex(key));
     }
 
     /**
@@ -959,10 +1007,28 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
         return key < 0 || key >= getElementLength();
     }
 
+    /**
+     * ES2021 10.4.5.16 IntegerIndexedElementSet coerces the value <em>before</em>
+     * it decides whether the index is in range. For an object value that
+     * coercion runs user code (`valueOf`/`Symbol.toPrimitive`), which on a
+     * resizable buffer may resize it - so the value is reduced to a primitive
+     * here, ahead of {@link #dropWrite}, and the range is then judged against the
+     * buffer as the coercion left it. A fixed buffer cannot move under a write,
+     * so its writes keep the plain order and pay nothing.
+     */
+    private Object coercedElement(final Object value) {
+        return buffer.isResizable() ? JSType.toPrimitive(value, Number.class) : value;
+    }
+
     @Override
     public void set(final Object key, final Object value, final int callSiteFlags) {
+        // only an element write - a canonical numeric index - is coerced first;
+        // a named or symbol property is set as-is (its value is not a number and
+        // coercing it would be wrong)
+        final boolean numericIndex = key instanceof Number || canonicalNumericIndex(key) != null;
+        final Object coerced = numericIndex ? coercedElement(value) : value;
         if (!dropWrite(key)) {
-            super.set(key, value, callSiteFlags);
+            super.set(key, coerced, callSiteFlags);
         }
     }
 
@@ -1004,8 +1070,9 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
 
     @Override
     public void set(final double key, final Object value, final int callSiteFlags) {
+        final Object coerced = coercedElement(value);
         if (!dropWrite(key)) {
-            super.set(key, value, callSiteFlags);
+            super.set(key, coerced, callSiteFlags);
         }
     }
 
@@ -1025,8 +1092,9 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
 
     @Override
     public void set(final int key, final Object value, final int callSiteFlags) {
+        final Object coerced = coercedElement(value);
         if (!dropWrite(key)) {
-            super.set(key, value, callSiteFlags);
+            super.set(key, coerced, callSiteFlags);
         }
     }
 

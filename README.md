@@ -105,9 +105,8 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2024 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2024. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 17 of the ~76,000 selected executions fail — the 8 carried-over
-Annex B indirect-eval cases, one top-level-await ordering case, and 8 resizable
-typed-array element-access corners; everything else passes, through ES2024.
+moves forwards. 8 of the ~76,000 selected executions fail — all of them the
+carried-over Annex B indirect-eval cases; everything else passes, through ES2024.
 Three things are excluded,
 all outside ECMA-262 15th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
