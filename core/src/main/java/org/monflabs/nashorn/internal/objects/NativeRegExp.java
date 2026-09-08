@@ -53,6 +53,7 @@ import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
+import org.monflabs.nashorn.internal.parser.Lexer;
 import org.monflabs.nashorn.internal.runtime.regexp.RegExp;
 import org.monflabs.nashorn.internal.runtime.regexp.RegExpFactory;
 import org.monflabs.nashorn.internal.runtime.regexp.RegExpMatcher;
@@ -88,6 +89,78 @@ public final class NativeRegExp extends ScriptObject {
     @Getter(where = Where.CONSTRUCTOR, name = "@@species", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static Object species(final Object self) {
         return self;
+    }
+
+    /** ES2025 22.2.5.2 SyntaxCharacter, each escaped with a leading backslash. */
+    private static final String ESCAPE_SYNTAX_CHARS = "^$\\.*+?()[]{}|";
+    /** ES2025 22.2.5.2 the punctuators RegExp.escape hex-encodes so a run of them cannot combine. */
+    private static final String ESCAPE_OTHER_PUNCTUATORS = ",-=<>#&!%:;@~'`\"";
+
+    /**
+     * ES2025 22.2.5.2 RegExp.escape(S): a string that, used as a pattern, matches
+     * S literally. The first character is hex-escaped if it is ASCII
+     * alphanumeric, so the result can never begin an identifier or a quantifier.
+     *
+     * @param self self reference (the RegExp constructor)
+     * @param string the string to escape
+     * @return the escaped pattern string
+     */
+    @Function(where = Where.CONSTRUCTOR, attributes = Attribute.NOT_ENUMERABLE, name = "escape", arity = 1)
+    public static Object escape(final Object self, final Object string) {
+        if (!JSType.isString(string)) {
+            throw typeError("not.a.string", ScriptRuntime.safeToString(string));
+        }
+        final String s = string.toString();
+        final StringBuilder sb = new StringBuilder(s.length() + 8);
+        boolean first = true;
+        int i = 0;
+        while (i < s.length()) {
+            final int c = s.codePointAt(i);
+            i += Character.charCount(c);
+            if (first && ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
+                sb.append("\\x").append(hex(c, 2));
+            } else {
+                encodeForRegExpEscape(c, sb);
+            }
+            first = false;
+        }
+        return sb.toString();
+    }
+
+    /** ES2025 22.2.5.2.1 EncodeForRegExpEscape. */
+    private static void encodeForRegExpEscape(final int c, final StringBuilder sb) {
+        if (c == '/' || (c <= 0xFFFF && ESCAPE_SYNTAX_CHARS.indexOf((char) c) >= 0)) {
+            sb.append('\\').appendCodePoint(c);
+            return;
+        }
+        switch (c) {
+        case 0x09: sb.append("\\t"); return;
+        case 0x0A: sb.append("\\n"); return;
+        case 0x0B: sb.append("\\v"); return;
+        case 0x0C: sb.append("\\f"); return;
+        case 0x0D: sb.append("\\r"); return;
+        default: break;
+        }
+        final boolean punct = c <= 0xFFFF && ESCAPE_OTHER_PUNCTUATORS.indexOf((char) c) >= 0;
+        final boolean space = c <= 0xFFFF && (Lexer.isJSWhitespace((char) c) || Lexer.isJSEOL((char) c));
+        final boolean loneSurrogate = c >= 0xD800 && c <= 0xDFFF;
+        if (punct || space || loneSurrogate) {
+            if (c <= 0xFF) {
+                sb.append("\\x").append(hex(c, 2));
+            } else {
+                for (final char unit : Character.toChars(c)) {
+                    sb.append("\\u").append(hex(unit & 0xFFFF, 4));
+                }
+            }
+            return;
+        }
+        sb.appendCodePoint(c);
+    }
+
+    /** Lowercase hex of {@code value}, left-padded with zeros to {@code width}. */
+    private static String hex(final int value, final int width) {
+        final String s = Integer.toHexString(value);
+        return s.length() >= width ? s : "0".repeat(width - s.length()) + s;
     }
 
     private NativeRegExp(final Global global) {
