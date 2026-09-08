@@ -767,6 +767,19 @@ final class RegExpScanner extends Scanner {
                 return false;
             }
 
+            // ES2025 pattern modifiers: (?ims-ims:...), (?ims:...), (?-ims:...).
+            // i/m/s map straight onto java.util.regex's inline-flag groups.
+            if (ch1 == '?' && (ch2 == 'i' || ch2 == 'm' || ch2 == 's' || ch2 == '-')) {
+                commit(1); // (
+                modifierGroup();
+                disjunction();
+                if (ch0 == ')') {
+                    return commit(1);
+                }
+                restart(startIn, startOut);
+                return false;
+            }
+
             commit(1);
             if (ch0 == '?' && ch1 == ':') {
                 commit(2);
@@ -784,6 +797,48 @@ final class RegExpScanner extends Scanner {
 
         restart(startIn, startOut);
         return false;
+    }
+
+    /**
+     * ES2025 pattern-modifier header {@code ?ims-ims:}. On entry {@code ch0} is
+     * {@code ?}; on return the {@code :} has been consumed. Only {@code i}, {@code m}
+     * and {@code s} are allowed, a flag may not repeat within the added or the
+     * removed set, and no flag may be both added and removed. The header is
+     * emitted verbatim - the JDK engine reads i/m/s inline flags the same way.
+     */
+    private void modifierGroup() {
+        commit(1); // ?
+        final boolean[] added = new boolean[128];
+        final boolean[] removed = new boolean[128];
+        int count = 0;
+        while (ch0 == 'i' || ch0 == 'm' || ch0 == 's') {
+            if (added[ch0]) {
+                throw new RuntimeException("Repeated modifier '" + ch0 + "' in regexp");
+            }
+            added[ch0] = true;
+            count++;
+            commit(1);
+        }
+        if (ch0 == '-') {
+            // an empty removal set after the dash is allowed - (?s-:...) adds s
+            // and removes nothing - so long as some flag is present overall
+            commit(1);
+            while (ch0 == 'i' || ch0 == 'm' || ch0 == 's') {
+                if (removed[ch0] || added[ch0]) {
+                    throw new RuntimeException("Repeated modifier '" + ch0 + "' in regexp");
+                }
+                removed[ch0] = true;
+                count++;
+                commit(1);
+            }
+        }
+        if (count == 0) {
+            throw new RuntimeException("Empty modifier in regexp");
+        }
+        if (ch0 != ':') {
+            throw new RuntimeException("Invalid modifier in regexp");
+        }
+        commit(1); // :
     }
 
     /*

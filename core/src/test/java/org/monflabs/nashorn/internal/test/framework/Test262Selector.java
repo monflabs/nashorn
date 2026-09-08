@@ -127,6 +127,7 @@ public final class Test262Selector {
         "Float16Array",
         "set-methods",
         "iterator-helpers",
+        "regexp-modifiers",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -249,7 +250,29 @@ public final class Test262Selector {
             // too - it is the underlying code-unit-vs-code-point divergence, not
             // the indices themselves. The unicode variant, where a code point is
             // one match unit, passes.
-            "built-ins/RegExp/match-indices/indices-array-non-unicode-match.js");
+            "built-ins/RegExp/match-indices/indices-array-non-unicode-match.js",
+            // ES2025 pattern modifiers (?ims-ims:...) must compile with the JDK
+            // engine - the bundled Joni JS flavour has no inline flag groups - so
+            // a modifier-bearing pattern inherits the JDK backend's flavour
+            // divergences from JS: a non-unicode "." matches a whole code point
+            // rather than one code unit (the same code-unit-vs-code-point limit
+            // as indices-array-non-unicode-match above, surfaced through (?s:.));
+            // "$" under multiline and the case folding of "\b"/"\w"/"\P{...}"
+            // under ignoreCase follow java.util.regex, not the ES Canonicalize.
+            // The modifier syntax itself parses and the ordinary cases pass; only
+            // these backend-semantics corners are held out.
+            "built-ins/RegExp/regexp-modifiers/add-dotAll.js",
+            "built-ins/RegExp/regexp-modifiers/remove-dotAll.js",
+            "built-ins/RegExp/regexp-modifiers/changing-dotAll-flag-does-not-affect-dotAll-modifier.js",
+            "built-ins/RegExp/regexp-modifiers/nesting-add-dotAll-within-remove-dotAll.js",
+            "built-ins/RegExp/regexp-modifiers/nesting-remove-dotAll-within-add-dotAll.js",
+            "built-ins/RegExp/regexp-modifiers/remove-multiline-does-not-affect-dotAll-flag.js",
+            "built-ins/RegExp/regexp-modifiers/add-multiline.js",
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-lower-b.js",
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-b.js",
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-lower-w.js",
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-w.js",
+            "built-ins/RegExp/regexp-modifiers/add-ignoreCase-affects-slash-upper-p.js");
 
     private static final Set<String> LATER_UNICODE = Set.of(
             "language/identifiers/start-unicode-17.0.0.js",

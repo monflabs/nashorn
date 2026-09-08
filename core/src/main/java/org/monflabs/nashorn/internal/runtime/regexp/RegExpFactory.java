@@ -127,9 +127,34 @@ public class RegExpFactory {
                 inClass = true;
             } else if (c == '(' && i + 2 < pattern.length() && pattern.charAt(i + 1) == '?' && pattern.charAt(i + 2) == '<') {
                 return true; // (?<name>, (?<=, (?<!
+            } else if (c == '(' && i + 1 < pattern.length() && pattern.charAt(i + 1) == '?'
+                    && isModifierGroupAt(pattern, i + 2)) {
+                return true; // ES2025 (?ims-ims:...) - Joni has no inline flags
             }
         }
         return false;
+    }
+
+    /**
+     * Whether {@code pattern} from index {@code j} (just past {@code (?}) is an
+     * ES2025 pattern-modifier prefix: {@code [ims]*} then an optional
+     * {@code -[ims]*}, with at least one flag, ending in {@code :}.
+     */
+    private static boolean isModifierGroupAt(final String pattern, final int j) {
+        int i = j;
+        int flags = 0;
+        while (i < pattern.length() && "ims".indexOf(pattern.charAt(i)) >= 0) {
+            i++;
+            flags++;
+        }
+        if (i < pattern.length() && pattern.charAt(i) == '-') {
+            i++;
+            while (i < pattern.length() && "ims".indexOf(pattern.charAt(i)) >= 0) {
+                i++;
+                flags++;
+            }
+        }
+        return flags > 0 && i < pattern.length() && pattern.charAt(i) == ':';
     }
 
     /**
