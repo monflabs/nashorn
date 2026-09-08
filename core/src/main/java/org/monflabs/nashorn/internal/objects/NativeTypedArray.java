@@ -782,9 +782,10 @@ public final class NativeTypedArray extends ScriptObject {
 
     private static ArrayBufferView view(final Object self) {
         final ArrayBufferView view = described(self);
-        if (view.isDetached()) {
-            // ES2015 22.2.3.5.1 ValidateTypedArray: a detached buffer is checked
-            // for before any argument is even looked at
+        if (view.isDetached() || view.isOutOfBounds()) {
+            // ES2015 22.2.3.5.1 / ES2024 ValidateTypedArray: a detached buffer -
+            // or (ES2024) a view left out of bounds by a resize - is checked for
+            // before any argument is even looked at.
             throw typeError("detached.array.buffer");
         }
         return view;

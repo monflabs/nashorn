@@ -66,7 +66,7 @@ import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
  * </p>
  */
 @ScriptClass("DataView")
-public class NativeDataView extends ScriptObject {
+public class NativeDataView extends ScriptObject implements NativeArrayBuffer.ResizeListener {
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
 
@@ -83,10 +83,16 @@ public class NativeDataView extends ScriptObject {
     private final int byteOffset;
 
     /** The number of bytes from the offset that this DataView will reference */
-    private final int byteLength;
+    private int byteLength;
 
     // underlying ByteBuffer
-    private final ByteBuffer buf;
+    private ByteBuffer buf;
+
+    /** ES2024: a view with no explicit length over a resizable buffer tracks it. */
+    private boolean autoLength;
+
+    /** The fixed length, for a non-auto view whose out-of-bounds state may flip. */
+    private final int fixedLength;
 
     private NativeDataView(final NativeArrayBuffer arrBuf, final int offset, final int length) {
         this(arrBuf, bufferFrom(arrBuf, offset, length), offset, length);
@@ -94,10 +100,42 @@ public class NativeDataView extends ScriptObject {
 
     private NativeDataView(final NativeArrayBuffer arrBuf, final ByteBuffer buf, final int offset, final int length) {
         super(Global.instance().getDataViewPrototype(), $nasgenmap$);
-        this.buffer     = arrBuf;
-        this.byteOffset = offset;
-        this.byteLength = length;
-        this.buf        = buf;
+        this.buffer      = arrBuf;
+        this.byteOffset  = offset;
+        this.byteLength  = length;
+        this.fixedLength = length;
+        this.buf         = buf;
+        // a resizable buffer rebuilds its views on resize; a no-op for a fixed one
+        arrBuf.registerView(this);
+    }
+
+    /** Whether this view no longer fits its (resizable) buffer, after a shrink. */
+    boolean isOutOfBounds() {
+        if (!(buffer instanceof NativeArrayBuffer arrayBuffer) || !arrayBuffer.isResizable() || arrayBuffer.isDetached()) {
+            return false;
+        }
+        final int bufferLength = arrayBuffer.getByteLength();
+        if (byteOffset > bufferLength) {
+            return true;
+        }
+        return !autoLength && byteOffset + fixedLength > bufferLength;
+    }
+
+    /** The buffer resized: recompute this view's length and rebuild its window. */
+    @Override
+    public void bufferResized() {
+        final NativeArrayBuffer arrayBuffer = (NativeArrayBuffer) buffer;
+        final int bufferLength = arrayBuffer.getByteLength();
+        final int newLength;
+        if (byteOffset > bufferLength) {
+            newLength = 0;
+        } else if (autoLength) {
+            newLength = bufferLength - byteOffset;
+        } else {
+            newLength = byteOffset + fixedLength <= bufferLength ? fixedLength : 0;
+        }
+        this.byteLength = newLength;
+        this.buf = arrayBuffer.getBuffer(byteOffset, newLength);
     }
 
     /**
@@ -142,24 +180,33 @@ public class NativeDataView extends ScriptObject {
             throw rangeError("dataview.constructor.offset");
         }
 
-        final int length;
-        if (requested == UNDEFINED) {
-            length = bufferLength - offset;
-        } else {
-            length = requestedLength;
-            if (offset + length > bufferLength) {
-                throw rangeError("dataview.constructor.offset");
-            }
-        }
-        // 24.2.2.1 step 12 reads new.target's prototype once the offset and the
-        // length have been found to fit, and step 13 asks again whether the
-        // buffer is detached: reading it can have detached it
+        // 24.2.2.1 step 12 reads new.target's prototype once the offset has been
+        // found to fit; reading it can run user code that detaches or - ES2024 -
+        // resizes the buffer, so step 13 re-checks and the length is measured
+        // against the buffer as it stands afterwards.
         final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
         if (arrayBuffer.isDetached()) {
             throw typeError("detached.array.buffer");
         }
+        final int currentLength = arrayBuffer.getByteLength();
+        if (offset > currentLength) {
+            throw rangeError("dataview.constructor.offset");
+        }
+        final int length;
+        if (requested == UNDEFINED) {
+            length = currentLength - offset;
+        } else {
+            length = requestedLength;
+            if (offset + length > currentLength) {
+                throw rangeError("dataview.constructor.offset");
+            }
+        }
 
         final NativeDataView view = new NativeDataView(arrayBuffer, offset, length);
+        // ES2024: no explicit length over a resizable buffer means length-tracking
+        if (requested == UNDEFINED && arrayBuffer.isResizable()) {
+            view.autoLength = true;
+        }
         if (prototype != null) {
             view.setInitialProto(prototype);
         }
@@ -185,7 +232,11 @@ public class NativeDataView extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static int byteLength(final Object self) {
-        return checkSelf(self).byteLength;
+        final NativeDataView view = checkSelf(self);
+        if (view.isOutOfBounds()) {
+            throw typeError("detached.array.buffer");
+        }
+        return view.byteLength;
     }
 
     /**
@@ -196,7 +247,11 @@ public class NativeDataView extends ScriptObject {
      */
     @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
     public static int byteOffset(final Object self) {
-        return checkSelf(self).byteOffset;
+        final NativeDataView view = checkSelf(self);
+        if (view.isOutOfBounds()) {
+            throw typeError("detached.array.buffer");
+        }
+        return view.byteOffset;
     }
 
     /**
@@ -621,6 +676,11 @@ public class NativeDataView extends ScriptObject {
             // the index conversion, and for a set the value conversion, both run
             // script and either can have detached the buffer since the receiver
             // was checked
+            throw typeError("detached.array.buffer");
+        }
+        // ES2024: a view whose range no longer fits a resized buffer is out of
+        // bounds - like a detached one, it has nothing to look at
+        if (view.isOutOfBounds()) {
             throw typeError("detached.array.buffer");
         }
         if (index + size > view.byteLength) {

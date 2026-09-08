@@ -58,6 +58,10 @@ public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
         super(nb, global.getSharedArrayBufferPrototype(), $nasgenmap$);
     }
 
+    private NativeSharedArrayBuffer(final ByteBuffer nb, final int byteLength, final int maxByteLength, final Global global) {
+        super(nb, byteLength, maxByteLength, global.getSharedArrayBufferPrototype(), $nasgenmap$);
+    }
+
     /**
      * Wraps storage that already exists in the realm asking for it.
      *
@@ -104,18 +108,79 @@ public final class NativeSharedArrayBuffer extends NativeArrayBuffer {
             throw typeError("constructor.requires.new", "SharedArrayBuffer");
         }
         final long byteLength = args.length == 0 ? 0 : ArrayBufferView.toIndexLong(args[0]);
-        // 24.2.1.1 reads new.target's prototype before it allocates the data,
-        // which is what a length there is no room for fails at
+        // ES2024 25.2.3.1: a maxByteLength option makes it growable, its store
+        // allocated to the maximum up front so concurrent agents keep valid
+        // views as it grows.
+        final long maxByteLength = NativeArrayBuffer.maxByteLengthOption(args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED);
+        // ES2024 AllocateSharedArrayBuffer compares the length against
+        // maxByteLength before reading new.target's prototype...
+        if (maxByteLength >= 0 && byteLength > maxByteLength) {
+            throw rangeError("arraybuffer.length.exceeds.max");
+        }
         final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
-        if (byteLength > Integer.MAX_VALUE) {
+        // ...and allocates the data block, which fails for a length there is no
+        // room for, afterwards.
+        if (byteLength > Integer.MAX_VALUE || maxByteLength > Integer.MAX_VALUE) {
             throw rangeError("not.an.index", JSType.toString(args[0]));
         }
+        final int max = (int) maxByteLength;
+        final ByteBuffer store = ByteBuffer.allocateDirect(maxByteLength >= 0 ? max : (int) byteLength);
         final NativeSharedArrayBuffer buffer =
-                new NativeSharedArrayBuffer(ByteBuffer.allocateDirect((int)byteLength), Global.instance());
+                new NativeSharedArrayBuffer(store, (int) byteLength, max, Global.instance());
         if (prototype != null) {
             buffer.setInitialProto(prototype);
         }
         return buffer;
+    }
+
+    /**
+     * ES2024 25.2.5.4 get SharedArrayBuffer.prototype.maxByteLength - the
+     * growable maximum, or the current byte length for a fixed-length buffer.
+     *
+     * @param self the buffer
+     * @return the maximum byte length
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static int maxByteLength(final Object self) {
+        final NativeSharedArrayBuffer buffer = check(self);
+        return buffer.isResizable() ? buffer.getMaxByteLength() : buffer.getByteLength();
+    }
+
+    /**
+     * ES2024 25.2.5.2 get SharedArrayBuffer.prototype.growable.
+     *
+     * @param self the buffer
+     * @return whether the buffer can grow
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object growable(final Object self) {
+        return check(self).isResizable();
+    }
+
+    /**
+     * ES2024 25.2.5.3 SharedArrayBuffer.prototype.grow ( newLength )
+     *
+     * Grows a growable buffer to a larger byte length (never smaller). The store
+     * was allocated to the maximum up front and starts zeroed, so growing only
+     * exposes more of it - no reallocation, safe for the other agents holding
+     * views over the same bytes.
+     *
+     * @param self      the buffer
+     * @param newLength the requested new byte length
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object grow(final Object self, final Object newLength) {
+        final NativeSharedArrayBuffer buffer = check(self);
+        if (!buffer.isResizable()) {
+            throw typeError("arraybuffer.not.resizable");
+        }
+        final long requested = ArrayBufferView.toIndexLong(newLength);
+        if (requested > buffer.getMaxByteLength() || requested < buffer.getByteLength()) {
+            throw rangeError("arraybuffer.length.exceeds.max");
+        }
+        buffer.growTo((int) requested);
+        return ScriptRuntime.UNDEFINED;
     }
 
     /**

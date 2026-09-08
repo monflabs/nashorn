@@ -61,9 +61,18 @@ import org.monflabs.nashorn.internal.runtime.arrays.TypedArrayData;
  */
 @ScriptClass("ArrayBufferView")
 @SuppressWarnings("this-escape")
-public abstract class ArrayBufferView extends ScriptObject {
+public abstract class ArrayBufferView extends ScriptObject implements NativeArrayBuffer.ResizeListener {
     private final NativeArrayBuffer buffer;
     private final int byteOffset;
+
+    /**
+     * ES2024: a view over a resizable buffer created with no explicit length
+     * tracks the buffer's current length rather than fixing its own.
+     */
+    private boolean autoLength;
+
+    /** The fixed element length, for a non-auto view whose OOB state may flip. */
+    private final int fixedLength;
 
     // initialized by nasgen
     private static PropertyMap $nasgenmap$;
@@ -81,8 +90,9 @@ public abstract class ArrayBufferView extends ScriptObject {
         checkConstructorArgs(buffer.getByteLength(), bytesPerElement, byteOffset, elementLength);
         setProto(getPrototype(global));
 
-        this.buffer     = buffer;
-        this.byteOffset = byteOffset;
+        this.buffer      = buffer;
+        this.byteOffset  = byteOffset;
+        this.fixedLength = elementLength;
 
         assert byteOffset % bytesPerElement == 0;
         final int start = byteOffset / bytesPerElement;
@@ -90,6 +100,57 @@ public abstract class ArrayBufferView extends ScriptObject {
         final ArrayData  data         = factory().createArrayData(newNioBuffer, start, start + elementLength);
 
         setArray(data);
+        // a resizable buffer's views are rebuilt when it resizes; a no-op here
+        // for a fixed buffer, so an ordinary typed array pays nothing
+        buffer.registerView(this);
+    }
+
+    /**
+     * Marks this view as length-tracking (ES2024) - constructed with no explicit
+     * length over a resizable buffer, so its length follows the buffer's.
+     */
+    void setAutoLength() {
+        this.autoLength = true;
+    }
+
+    /**
+     * Whether this view no longer fits its (resizable) buffer, after a shrink.
+     * An out-of-bounds view behaves like one over a detached buffer: length and
+     * offset read as zero, and its indices are absent.
+     *
+     * @return true if the view is out of bounds
+     */
+    boolean isOutOfBounds() {
+        if (!buffer.isResizable() || buffer.isDetached()) {
+            return false; // detachment is handled separately
+        }
+        final int bufferLength = buffer.getByteLength();
+        if (byteOffset > bufferLength) {
+            return true;
+        }
+        return !autoLength && byteOffset + fixedLength * bytesPerElement() > bufferLength;
+    }
+
+    /**
+     * The buffer resized: recompute this view's element length (tracking the
+     * buffer for an auto-length view, or flipping in/out of bounds for a fixed
+     * one) and rebuild its array data over the same, never-moved storage.
+     */
+    @Override
+    public void bufferResized() {
+        final int bytesPerElement = bytesPerElement();
+        final int bufferLength = buffer.getByteLength();
+        final int newElementLength;
+        if (byteOffset > bufferLength) {
+            newElementLength = 0;
+        } else if (autoLength) {
+            newElementLength = (bufferLength - byteOffset) / bytesPerElement;
+        } else {
+            newElementLength = byteOffset + fixedLength * bytesPerElement <= bufferLength ? fixedLength : 0;
+        }
+        final int start = byteOffset / bytesPerElement;
+        final ByteBuffer newNioBuffer = buffer.getNioBuffer().duplicate().order(ByteOrder.nativeOrder());
+        setArray(factory().createArrayData(newNioBuffer, start, start + newElementLength));
     }
 
     /**
@@ -144,7 +205,7 @@ public abstract class ArrayBufferView extends ScriptObject {
     }
 
     int getViewByteOffset() {
-        return isDetached() ? 0 : byteOffset;
+        return isDetached() || isOutOfBounds() ? 0 : byteOffset;
     }
 
     int getViewByteLength() {
@@ -338,7 +399,13 @@ public abstract class ArrayBufferView extends ScriptObject {
             }
         }
 
-        return factory.construct(buffer, (int)offset, (int)(newByteLength / elementSize));
+        final ArrayBufferView view = factory.construct(buffer, (int)offset, (int)(newByteLength / elementSize));
+        // ES2024: a view over a resizable buffer with no explicit length tracks
+        // the buffer's current length rather than fixing its own.
+        if (requested == ScriptRuntime.UNDEFINED && buffer.isResizable()) {
+            view.setAutoLength();
+        }
+        return view;
     }
 
     /** ES2015 22.2.4.3, a copy of another typed array, converted element by element. */

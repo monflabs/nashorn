@@ -55,7 +55,33 @@ import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
  */
 @ScriptClass("ArrayBuffer")
 public class NativeArrayBuffer extends ScriptObject {
+    /**
+     * The backing store. For a fixed-length buffer its capacity is the byte
+     * length. For a resizable one (ES2024) it is allocated to {@link
+     * #maxByteLength} up front and never reallocated, so a view's cached
+     * duplicate stays valid across a resize; {@link #byteLength} tracks the
+     * currently-exposed prefix.
+     */
     private final ByteBuffer nb;
+
+    /** The currently-exposed byte length (≤ the backing capacity). */
+    private int byteLength;
+
+    /** The resizable/growable maximum, or -1 for a fixed-length buffer. */
+    private final int maxByteLength;
+
+    /**
+     * The views (typed arrays and DataViews) over a resizable buffer, so a
+     * resize can rebuild their bounds. Null for a fixed buffer, which never
+     * needs it; entries are weak so a view that is gone is not retained.
+     */
+    private java.util.List<java.lang.ref.WeakReference<ResizeListener>> views;
+
+    /** A view whose bounds follow a resizable buffer's current byte length. */
+    interface ResizeListener {
+        /** The buffer's byte length changed; recompute this view's bounds. */
+        void bufferResized();
+    }
 
     /**
      * Whether the host has detached this buffer.
@@ -91,8 +117,22 @@ public class NativeArrayBuffer extends ScriptObject {
      * @param global global instance
      */
     protected NativeArrayBuffer(final ByteBuffer nb, final Global global) {
+        this(nb, nb.limit(), -1, global);
+    }
+
+    /**
+     * Constructor for a buffer with an explicit (possibly resizable) length.
+     *
+     * @param nb            backing store (capacity is the max for a resizable one)
+     * @param byteLength     the currently-exposed byte length
+     * @param maxByteLength  the resizable maximum, or -1 for fixed length
+     * @param global         global instance
+     */
+    protected NativeArrayBuffer(final ByteBuffer nb, final int byteLength, final int maxByteLength, final Global global) {
         super(global.getArrayBufferPrototype(), $nasgenmap$);
         this.nb = nb;
+        this.byteLength = byteLength;
+        this.maxByteLength = maxByteLength;
     }
 
     /**
@@ -103,8 +143,24 @@ public class NativeArrayBuffer extends ScriptObject {
      * @param map       its property map
      */
     protected NativeArrayBuffer(final ByteBuffer nb, final ScriptObject prototype, final PropertyMap map) {
+        this(nb, nb.limit(), -1, prototype, map);
+    }
+
+    /**
+     * Constructor for a subclass with an explicit (possibly resizable/growable)
+     * length, prototype and map of its own.
+     *
+     * @param nb            backing store (capacity is the max for a resizable one)
+     * @param byteLength     the currently-exposed byte length
+     * @param maxByteLength  the resizable/growable maximum, or -1 for fixed length
+     * @param prototype     what the buffer inherits from
+     * @param map           its property map
+     */
+    protected NativeArrayBuffer(final ByteBuffer nb, final int byteLength, final int maxByteLength, final ScriptObject prototype, final PropertyMap map) {
         super(prototype, map);
         this.nb = nb;
+        this.byteLength = byteLength;
+        this.maxByteLength = maxByteLength;
     }
 
     /**
@@ -167,17 +223,47 @@ public class NativeArrayBuffer extends ScriptObject {
         // ES2015 24.1.2.1: ToIndex, so a negative or excessive length is a
         // RangeError rather than something silently truncated to an int
         final long byteLength = ArrayBufferView.toIndexLong(arg0);
-        // 24.1.1.1 reads new.target's prototype before it allocates the data,
-        // which is what a length there is no room for fails at
+        // ES2024 25.1.3.1: the second argument is an options bag; a
+        // maxByteLength there makes the buffer resizable, its store allocated up
+        // front to the maximum.
+        final long maxByteLength = maxByteLengthOption(args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED);
+        // ES2024 AllocateArrayBuffer step 1 compares the length against
+        // maxByteLength before OrdinaryCreateFromConstructor reads new.target's
+        // prototype, so this RangeError precedes that get...
+        if (maxByteLength >= 0 && byteLength > maxByteLength) {
+            throw rangeError("arraybuffer.length.exceeds.max");
+        }
         final ScriptObject prototype = Global.instance().takeNewTargetPrototype();
-        if (byteLength > Integer.MAX_VALUE) {
+        // ...whereas allocating the data block (where a length there is no room
+        // for fails) happens after, so its RangeError follows the prototype get.
+        if (byteLength > Integer.MAX_VALUE || maxByteLength > Integer.MAX_VALUE) {
             throw rangeError("not.an.index", JSType.toString(arg0));
         }
-        final NativeArrayBuffer buffer = new NativeArrayBuffer((int)byteLength);
+        final int max = (int) maxByteLength;
+        final ByteBuffer store = ByteBuffer.allocateDirect(maxByteLength >= 0 ? max : (int) byteLength);
+        final NativeArrayBuffer buffer = new NativeArrayBuffer(store, (int) byteLength, max, Global.instance());
         if (prototype != null) {
             buffer.setInitialProto(prototype);
         }
         return buffer;
+    }
+
+    /**
+     * Reads the {@code maxByteLength} option (ES2024 25.1.3.1 /
+     * GetArrayBufferMaxByteLengthOption): -1 when the argument is not an object
+     * or has no such property, otherwise the ToIndex of the property.
+     */
+    static long maxByteLengthOption(final Object options) {
+        if (!(options instanceof ScriptObject bag)) {
+            // a non-object (undefined included) means "not resizable"; a
+            // primitive that is not undefined is simply not an options object
+            return -1;
+        }
+        final Object max = bag.get("maxByteLength");
+        if (max == ScriptRuntime.UNDEFINED) {
+            return -1;
+        }
+        return ArrayBufferView.toIndexLong(max);
     }
 
     /**
@@ -251,6 +337,158 @@ public class NativeArrayBuffer extends ScriptObject {
         // ES2015 24.1.4.1 step 4: a detached buffer has no bytes rather than
         // an unknown number of them
         return arrayBuffer.isDetached() ? 0 : arrayBuffer.getByteLength();
+    }
+
+    private static NativeArrayBuffer asArrayBuffer(final Object self) {
+        // the ArrayBuffer.prototype resizable/detached accessors and resize /
+        // transfer are not shared: a SharedArrayBuffer receiver is a TypeError.
+        if (self instanceof NativeArrayBuffer arrayBuffer && !arrayBuffer.isShared()) {
+            return arrayBuffer;
+        }
+        throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
+    }
+
+    /**
+     * ES2024 25.1.6.4 get ArrayBuffer.prototype.maxByteLength - the resizable
+     * maximum, or the current byte length for a fixed-length buffer.
+     *
+     * @param self self reference
+     * @return the maximum byte length
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static int maxByteLength(final Object self) {
+        final NativeArrayBuffer arrayBuffer = asArrayBuffer(self);
+        if (arrayBuffer.isDetached()) {
+            return 0;
+        }
+        return arrayBuffer.isResizable() ? arrayBuffer.getMaxByteLength() : arrayBuffer.getByteLength();
+    }
+
+    /**
+     * ES2024 25.1.6.5 get ArrayBuffer.prototype.resizable.
+     *
+     * @param self self reference
+     * @return whether the buffer can be resized
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object resizable(final Object self) {
+        return asArrayBuffer(self).isResizable();
+    }
+
+    /**
+     * ES2024 25.1.6.3 get ArrayBuffer.prototype.detached.
+     *
+     * @param self self reference
+     * @return whether the buffer has been detached (e.g. transferred away)
+     */
+    @Getter(where = Where.PROTOTYPE, attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object detached(final Object self) {
+        return asArrayBuffer(self).isDetached();
+    }
+
+    /**
+     * ES2024 25.1.6.14 ArrayBuffer.prototype.resize ( newLength )
+     *
+     * Changes the exposed byte length of a resizable buffer, zeroing the bytes
+     * that move across the boundary so a later grow never reveals stale data,
+     * and rebuilds the bounds of every view over it.
+     *
+     * @param self       self reference
+     * @param newLength  the requested new byte length
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE)
+    public static Object resize(final Object self, final Object newLength) {
+        final NativeArrayBuffer arrayBuffer = asArrayBuffer(self);
+        if (!arrayBuffer.isResizable()) {
+            throw typeError("arraybuffer.not.resizable");
+        }
+        // ToIndex runs user code (a valueOf), which can detach the buffer, so
+        // the detached check follows the coercion rather than preceding it.
+        final long requested = ArrayBufferView.toIndexLong(newLength);
+        if (arrayBuffer.isDetached()) {
+            throw typeError("arraybuffer.is.detached");
+        }
+        if (requested > arrayBuffer.getMaxByteLength()) {
+            throw rangeError("arraybuffer.length.exceeds.max");
+        }
+        final int newLen = (int) requested;
+        final int oldLen = arrayBuffer.byteLength;
+        // zero the bytes on the moved side of the boundary: on a shrink so a
+        // later grow re-reveals zeros, on a grow so the newly-exposed bytes are
+        // zero as CreateByteDataBlock would leave them.
+        final int from = Math.min(oldLen, newLen);
+        final int to   = Math.max(oldLen, newLen);
+        final ByteBuffer store = arrayBuffer.nb;
+        for (int i = from; i < to; i++) {
+            store.put(i, (byte) 0);
+        }
+        arrayBuffer.setByteLengthAndRebuild(newLen);
+        return ScriptRuntime.UNDEFINED;
+    }
+
+    /**
+     * ES2024 25.1.6.15 ArrayBuffer.prototype.transfer ( [ newLength ] ) and
+     * 25.1.6.16 transferToFixedLength: hand this buffer's bytes to a new buffer
+     * and detach this one. {@code transfer} keeps resizability (the new buffer's
+     * maxByteLength is this one's); {@code transferToFixedLength} makes a
+     * fixed-length buffer.
+     *
+     * @param self        self reference
+     * @param newLength   the new byte length, or undefined to keep the current
+     * @param fixedLength true for transferToFixedLength
+     * @return the new ArrayBuffer
+     */
+    private static NativeArrayBuffer transferImpl(final Object self, final Object newLength, final boolean fixedLength) {
+        final NativeArrayBuffer source = asArrayBuffer(self);
+        if (source.isShared()) {
+            throw typeError("not.an.arraybuffer.in.dataview", ScriptRuntime.safeToString(self));
+        }
+        if (source.isDetached()) {
+            throw typeError("arraybuffer.is.detached");
+        }
+        final long requested = newLength == ScriptRuntime.UNDEFINED
+                ? source.getByteLength() : ArrayBufferView.toIndexLong(newLength);
+        if (requested > Integer.MAX_VALUE) {
+            throw rangeError("not.an.index", JSType.toString(newLength));
+        }
+        final int newLen = (int) requested;
+        final int newMax = fixedLength ? -1 : source.getMaxByteLength();
+        if (newMax >= 0 && newLen > newMax) {
+            throw rangeError("arraybuffer.length.exceeds.max");
+        }
+        final ByteBuffer store = ByteBuffer.allocateDirect(newMax >= 0 ? newMax : newLen);
+        final int copied = Math.min(newLen, source.getByteLength());
+        for (int i = 0; i < copied; i++) {
+            store.put(i, source.nb.get(i));
+        }
+        source.detached = true;
+        source.setByteLengthAndRebuild(0);
+        return new NativeArrayBuffer(store, newLen, newMax, Global.instance());
+    }
+
+    /**
+     * ES2024 25.1.6.15 ArrayBuffer.prototype.transfer ( [ newLength ] ).
+     *
+     * @param self      self reference
+     * @param newLength the new byte length, or undefined to keep the current
+     * @return the new ArrayBuffer, this one detached
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object transfer(final Object self, final Object newLength) {
+        return transferImpl(self, newLength, false);
+    }
+
+    /**
+     * ES2024 25.1.6.16 ArrayBuffer.prototype.transferToFixedLength ( [ newLength ] ).
+     *
+     * @param self      self reference
+     * @param newLength the new byte length, or undefined to keep the current
+     * @return the new fixed-length ArrayBuffer, this one detached
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object transferToFixedLength(final Object self, final Object newLength) {
+        return transferImpl(self, newLength, true);
     }
 
     /**
@@ -377,7 +615,69 @@ public class NativeArrayBuffer extends ScriptObject {
     }
 
     protected int getByteLength() {
-        return detached ? 0 : nb.limit();
+        return detached ? 0 : byteLength;
+    }
+
+    /**
+     * @return whether this buffer can be resized (ES2024) - constructed with a
+     *         {@code maxByteLength} option
+     */
+    public boolean isResizable() {
+        return maxByteLength >= 0;
+    }
+
+    /** The resizable/growable maximum, or -1 for a fixed-length buffer. */
+    int getMaxByteLength() {
+        return maxByteLength;
+    }
+
+    /**
+     * Registers a view so a later resize can rebuild its bounds. A no-op for a
+     * fixed buffer, whose views never move.
+     *
+     * @param view the typed array or DataView to keep in step
+     */
+    void registerView(final ResizeListener view) {
+        if (!isResizable()) {
+            return;
+        }
+        if (views == null) {
+            views = new java.util.ArrayList<>();
+        }
+        views.add(new java.lang.ref.WeakReference<>(view));
+    }
+
+    /**
+     * Grows a growable (shared) buffer's exposed length. No zeroing: the store
+     * was allocated to the maximum and starts zeroed, and a shared buffer only
+     * ever grows, so the newly-exposed bytes are already zero and zeroing them
+     * would race the other agents.
+     *
+     * @param newByteLength the larger byte length
+     */
+    void growTo(final int newByteLength) {
+        setByteLengthAndRebuild(newByteLength);
+    }
+
+    /**
+     * Sets a new byte length after a resize/grow and rebuilds every live view's
+     * bounds. Bytes are shared with the backing store, which never moves, so a
+     * view's cached duplicate stays valid; only its start/end change.
+     */
+    private void setByteLengthAndRebuild(final int newByteLength) {
+        this.byteLength = newByteLength;
+        if (views == null) {
+            return;
+        }
+        final java.util.Iterator<java.lang.ref.WeakReference<ResizeListener>> it = views.iterator();
+        while (it.hasNext()) {
+            final ResizeListener view = it.next().get();
+            if (view == null) {
+                it.remove();
+            } else {
+                view.bufferResized();
+            }
+        }
     }
 
     ByteBuffer getBuffer() {

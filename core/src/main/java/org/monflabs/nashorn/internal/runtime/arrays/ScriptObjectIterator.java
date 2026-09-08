@@ -64,7 +64,10 @@ class ScriptObjectIterator extends ArrayLikeIterator<Object> {
         }
 
         while (indexInArray()) {
-            if (obj.has(index) || includeUndefined) {
+            // An integer-indexed object (a typed array) is dense: every index in
+            // range is visited, and one left out of bounds by an ES2024 resize
+            // reads as undefined rather than being skipped as a hole.
+            if (obj.has(index) || includeUndefined || obj.isIntegerIndexed()) {
                 break;
             }
             bumpIndex();
