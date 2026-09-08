@@ -632,7 +632,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean every(final Object self, final Object callbackfn, final Object thisArg) {
-        return NativeArray.every(view(self), callbackfn, thisArg);
+        return NativeArray.everyDense(view(self), callbackfn, thisArg);
     }
 
     /**
@@ -645,7 +645,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean some(final Object self, final Object callbackfn, final Object thisArg) {
-        return NativeArray.some(view(self), callbackfn, thisArg);
+        return NativeArray.someDense(view(self), callbackfn, thisArg);
     }
 
     /**
@@ -658,7 +658,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object forEach(final Object self, final Object callbackfn, final Object thisArg) {
-        return NativeArray.forEach(view(self), callbackfn, thisArg);
+        return NativeArray.forEachDense(view(self), callbackfn, thisArg);
     }
 
     /**
@@ -670,7 +670,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object reduce(final Object self, final Object... args) {
-        return NativeArray.reduce(view(self), args);
+        return NativeArray.reduceDense(view(self), args);
     }
 
     /**
@@ -682,7 +682,7 @@ public final class NativeTypedArray extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object reduceRight(final Object self, final Object... args) {
-        return NativeArray.reduceRight(view(self), args);
+        return NativeArray.reduceRightDense(view(self), args);
     }
 
     /**

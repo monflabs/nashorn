@@ -1967,11 +1967,27 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean every(final Object self, final Object callbackfn, final Object thisArg) {
-        return applyEvery(Global.toObject(self), callbackfn, thisArg);
+        return applyEvery(Global.toObject(self), callbackfn, thisArg, false);
     }
 
-    private static boolean applyEvery(final Object self, final Object callbackfn, final Object thisArg) {
-        return new IteratorAction<>(Global.toObject(self), callbackfn, thisArg, true) {
+    /**
+     * The dense form, for a {@code %TypedArray%.prototype.every} that visits
+     * every index in the length it read - reading an out-of-bounds one as
+     * undefined - where the generic Array method skips it.
+     *
+     * @param self       the typed array
+     * @param callbackfn callback function per element
+     * @param thisArg    this argument
+     * @return whether the callback held for every element
+     */
+    static boolean everyDense(final Object self, final Object callbackfn, final Object thisArg) {
+        return applyEvery(Global.toObject(self), callbackfn, thisArg, true);
+    }
+
+    private static boolean applyEvery(final Object self, final Object callbackfn, final Object thisArg,
+            final boolean dense) {
+        return new IteratorAction<Boolean>(Global.toObject(self), callbackfn, thisArg, true,
+                ArrayLikeIterator.arrayLikeIterator(Global.toObject(self), dense)) {
             private final MethodHandle everyInvoker = getEVERY_CALLBACK_INVOKER();
 
             @Override
@@ -1991,7 +2007,25 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static boolean some(final Object self, final Object callbackfn, final Object thisArg) {
-        return new IteratorAction<>(Global.toObject(self), callbackfn, thisArg, false) {
+        return applySome(Global.toObject(self), callbackfn, thisArg, false);
+    }
+
+    /**
+     * The dense form of {@code some}, for {@code %TypedArray%.prototype.some}.
+     *
+     * @param self       the typed array
+     * @param callbackfn callback function per element
+     * @param thisArg    this argument
+     * @return whether the callback held for any element
+     */
+    static boolean someDense(final Object self, final Object callbackfn, final Object thisArg) {
+        return applySome(Global.toObject(self), callbackfn, thisArg, true);
+    }
+
+    private static boolean applySome(final Object self, final Object callbackfn, final Object thisArg,
+            final boolean dense) {
+        return new IteratorAction<Boolean>(Global.toObject(self), callbackfn, thisArg, false,
+                ArrayLikeIterator.arrayLikeIterator(Global.toObject(self), dense)) {
             private final MethodHandle someInvoker = getSOME_CALLBACK_INVOKER();
 
             @Override
@@ -2011,7 +2045,25 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object forEach(final Object self, final Object callbackfn, final Object thisArg) {
-        return new IteratorAction<Object>(Global.toObject(self), callbackfn, thisArg, ScriptRuntime.UNDEFINED) {
+        return applyForEach(Global.toObject(self), callbackfn, thisArg, false);
+    }
+
+    /**
+     * The dense form of {@code forEach}, for {@code %TypedArray%.prototype.forEach}.
+     *
+     * @param self       the typed array
+     * @param callbackfn callback function per element
+     * @param thisArg    this argument
+     * @return undefined
+     */
+    static Object forEachDense(final Object self, final Object callbackfn, final Object thisArg) {
+        return applyForEach(Global.toObject(self), callbackfn, thisArg, true);
+    }
+
+    private static Object applyForEach(final Object self, final Object callbackfn, final Object thisArg,
+            final boolean dense) {
+        return new IteratorAction<Object>(Global.toObject(self), callbackfn, thisArg, ScriptRuntime.UNDEFINED,
+                ArrayLikeIterator.arrayLikeIterator(Global.toObject(self), dense)) {
             private final MethodHandle forEachInvoker = getFOREACH_CALLBACK_INVOKER();
 
             @Override
@@ -2305,6 +2357,17 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     }
 
     /**
+     * The dense form of {@code reduce}, for {@code %TypedArray%.prototype.reduce}.
+     *
+     * @param self self reference (the typed array)
+     * @param args arguments to reduce
+     * @return accumulated result
+     */
+    static Object reduceDense(final Object self, final Object... args) {
+        return reduceInner(arrayLikeIterator(self, true), self, args);
+    }
+
+    /**
      * ECMA 15.4.4.22 Array.prototype.reduceRight ( callbackfn [ , initialValue ] )
      *
      * @param self        self reference
@@ -2314,6 +2377,17 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
     public static Object reduceRight(final Object self, final Object... args) {
         return reduceInner(reverseArrayLikeIterator(self), self, args);
+    }
+
+    /**
+     * The dense form of {@code reduceRight}, for {@code %TypedArray%.prototype.reduceRight}.
+     *
+     * @param self self reference (the typed array)
+     * @param args arguments to reduce
+     * @return accumulated result
+     */
+    static Object reduceRightDense(final Object self, final Object... args) {
+        return reduceInner(reverseArrayLikeIterator(self, true), self, args);
     }
 
     /**

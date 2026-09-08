@@ -64,10 +64,12 @@ class ScriptObjectIterator extends ArrayLikeIterator<Object> {
         }
 
         while (indexInArray()) {
-            // An integer-indexed object (a typed array) is dense: every index in
-            // range is visited, and one left out of bounds by an ES2024 resize
-            // reads as undefined rather than being skipped as a hole.
-            if (obj.has(index) || includeUndefined || obj.isIntegerIndexed()) {
+            // A generic Array.prototype method reached through the array-like
+            // path skips an index it has no property for - which, for a typed
+            // array an ES2024 resize left out of bounds, is how the generic
+            // methods differ from the %TypedArray% ones. The %TypedArray%
+            // methods ask for a dense visit with includeUndefined.
+            if (obj.has(index) || includeUndefined) {
                 break;
             }
             bumpIndex();

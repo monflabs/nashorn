@@ -459,7 +459,7 @@ public final class NativeRegExp extends ScriptObject {
             return regExpExec(rx, str);
         }
 
-        final boolean unicode = flags.indexOf('u') >= 0;
+        final boolean unicode = flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0;
         rx.set("lastIndex", 0, CALLSITE_STRICT);
 
         final List<Object> matches = new ArrayList<>();
@@ -495,7 +495,7 @@ public final class NativeRegExp extends ScriptObject {
         final ScriptObject matcher = construct(speciesConstructor(rx), rx, flags);
         matcher.set("lastIndex", (double)lastIndex(rx), CALLSITE_STRICT);
         final boolean global = flags.indexOf('g') >= 0;
-        final boolean unicode = flags.indexOf('u') >= 0;
+        final boolean unicode = flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0;
         return new RegExpStringIterator(matcher, str, global, unicode, Global.instance());
     }
 
@@ -540,7 +540,7 @@ public final class NativeRegExp extends ScriptObject {
 
         final String flags = JSType.toString(rx.get("flags"));
         final boolean global = flags.indexOf('g') >= 0;
-        final boolean unicode = global && flags.indexOf('u') >= 0;
+        final boolean unicode = global && (flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0);
         if (global) {
             rx.set("lastIndex", 0, CALLSITE_STRICT);
         }
@@ -629,7 +629,7 @@ public final class NativeRegExp extends ScriptObject {
         final String str = JSType.toString(string);
 
         final String flags = JSType.toString(rx.get("flags"));
-        final boolean unicode = flags.indexOf('u') >= 0;
+        final boolean unicode = flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0;
         final String stickyFlags = flags.indexOf('y') >= 0 ? flags : flags + "y";
         final ScriptObject splitter = construct(speciesConstructor(rx), rx, stickyFlags);
 
