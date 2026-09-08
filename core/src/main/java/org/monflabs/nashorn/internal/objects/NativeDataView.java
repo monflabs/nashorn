@@ -514,6 +514,42 @@ public class NativeDataView extends ScriptObject implements NativeArrayBuffer.Re
     }
 
     /**
+     * ES2025 25.3.4 DataView.prototype.getFloat16.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to read from
+     * @param littleEndian whether to read in little endian order
+     * @return the half-precision value at that offset, widened to a Number
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static double getFloat16(final Object self, final Object byteOffset, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final boolean little = JSType.toBoolean(littleEndian);
+        final ByteBuffer buffer = viewed(view, index, 2).order(order(little));
+        return Float.float16ToFloat(buffer.getShort(index));
+    }
+
+    /**
+     * ES2025 25.3.4 DataView.prototype.setFloat16.
+     *
+     * @param self DataView object
+     * @param byteOffset byte offset to write at
+     * @param value the value to write
+     * @param littleEndian whether to write in little endian order
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object setFloat16(final Object self, final Object byteOffset, final Object value, final Object littleEndian) {
+        final NativeDataView view = described(self);
+        final int index = ArrayBufferView.toIndex(byteOffset);
+        final double number = JSType.toNumber(value);
+        final boolean little = JSType.toBoolean(littleEndian);
+        viewed(view, index, 2).order(order(little)).putShort(index, NativeFloat16Array.doubleToFloat16(number));
+        return UNDEFINED;
+    }
+
+    /**
      * ES2015 24.2.4 DataView.prototype.getFloat64.
      *
      * @param self DataView object

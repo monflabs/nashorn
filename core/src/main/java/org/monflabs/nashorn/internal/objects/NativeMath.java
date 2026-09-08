@@ -1094,6 +1094,30 @@ public final class NativeMath extends ScriptObject {
     }
 
     /**
+     * ES2025 Math.f16round(x), x rounded to the nearest half-precision (binary16) value.
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.f16round(x)
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
+    public static double f16round(final Object self, final Object x) {
+        return f16round(self, JSType.toNumber(x));
+    }
+
+    /**
+     * ES2025 Math.f16round(x) - specialized version for doubles.
+     *
+     * @param self self reference
+     * @param x    argument
+     * @return Math.f16round(x)
+     */
+    @SpecializedFunction
+    public static double f16round(final Object self, final double x) {
+        return Float.float16ToFloat(NativeFloat16Array.doubleToFloat16(x));
+    }
+
+    /**
      * ECMAScript 2015 Math.clz32(x), the leading zero count of x as a 32 bit integer
      *
      * @param self self reference

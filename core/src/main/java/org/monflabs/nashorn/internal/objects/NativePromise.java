@@ -321,6 +321,37 @@ public final class NativePromise extends ScriptObject {
     }
 
     /**
+     * ECMAScript 2025 27.2.4.6 Promise.try ( callbackfn, ...args )
+     *
+     * Runs {@code callbackfn} synchronously and wraps its completion in a
+     * promise: a normal return resolves it, a thrown value rejects it. Unlike
+     * {@code Promise.resolve().then(cb)} the callback runs now, not on a later
+     * microtask, while still funnelling any throw into the promise.
+     *
+     * @param self the Promise constructor (or a subclass)
+     * @param args the callback followed by the arguments to pass it
+     * @return a promise for the callback's completion
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1, name = "try")
+    public static Object _try(final Object self, final Object... args) {
+        Global.requireEventLoop("Promise.try");
+        requireConstructor(self);
+        final Object callbackfn = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        final Object[] rest = args.length > 1 ? java.util.Arrays.copyOfRange(args, 1, args.length) : new Object[0];
+        try {
+            // a normal return goes through PromiseResolve, so a promise of this
+            // very constructor is handed straight back rather than wrapped in a
+            // fresh one
+            return resolve(self, ScriptRuntime.call(callbackfn, ScriptRuntime.UNDEFINED, rest));
+        } catch (final ECMAException e) {
+            // an abrupt completion rejects a new promise of this constructor
+            final Capability capability = newPromiseCapability(self);
+            capability.reject(e.getThrown());
+            return capability.promise();
+        }
+    }
+
+    /**
      * ECMAScript 2015 25.4.4.1 Promise.all(iterable)
      *
      * @param self     self reference

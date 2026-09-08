@@ -33,7 +33,11 @@ import java.lang.invoke.MethodHandle;
 import java.util.function.Consumer;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Function;
+import org.monflabs.nashorn.internal.objects.annotations.Getter;
+import org.monflabs.nashorn.internal.objects.annotations.Property;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
+import org.monflabs.nashorn.internal.objects.annotations.Setter;
+import org.monflabs.nashorn.internal.objects.annotations.Where;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
@@ -43,6 +47,7 @@ import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
 import org.monflabs.nashorn.internal.runtime.linker.InvokeByName;
 import org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 
+import static org.monflabs.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 
 /**
@@ -291,5 +296,409 @@ public abstract class AbstractIterator extends ScriptObject {
             throw new RuntimeException(t);
         }
 
+    }
+
+    // ------------------------------------------------------------------------
+    // ES2025 Iterator Helpers (25.1.4), which live on %Iterator.prototype% -
+    // this very object - so every iterator inherits them. The lazy ones
+    // (map/filter/take/drop/flatMap) return an IteratorHelper; the eager ones
+    // (reduce/toArray/forEach/some/every/find) drive the iterator to the end.
+    // Each captures GetIteratorDirect(this) = (this, this.next) up front.
+    // ------------------------------------------------------------------------
+
+    private static ScriptObject requireIteratorSelf(final Object self) {
+        if (self instanceof ScriptObject sobj) {
+            return sobj;
+        }
+        throw typeError("not.an.object", ScriptRuntime.safeToString(self));
+    }
+
+    private static void requireCallback(final Object fn) {
+        if (!Bootstrap.isCallable(fn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(fn));
+        }
+    }
+
+    /** As {@link #requireCallback} but, on failure, first closes {@code iterated}. */
+    private static void requireCallbackClosing(final Object fn, final ScriptObject iterated) {
+        if (!Bootstrap.isCallable(fn)) {
+            closeIteratorOnError(iterated);
+            throw typeError("not.a.function", ScriptRuntime.safeToString(fn));
+        }
+    }
+
+    /** ToIntegerOrInfinity of the take/drop limit, rejecting NaN and a negative result. */
+    private static double integerLimit(final Object arg) {
+        final double num = JSType.toNumber(arg);
+        if (Double.isNaN(num)) {
+            throw rangeError("invalid.iterator.limit", ScriptRuntime.safeToString(arg));
+        }
+        if (Double.isInfinite(num)) {
+            return num;
+        }
+        // ToIntegerOrInfinity truncates toward zero, so -0.5 becomes 0, not negative
+        final double integer = (double) (long) num;
+        // a finite limit must be a non-negative safe integer
+        if (integer < 0 || integer > 9007199254740991.0) {
+            throw rangeError("invalid.iterator.limit", ScriptRuntime.safeToString(arg));
+        }
+        return integer;
+    }
+
+    /** One IteratorNext on a captured (iterator, next); the result object, or null if done. */
+    static ScriptObject nextResult(final Object iterated, final Object nextMethod, final Global global) {
+        final MethodHandle call = getIteratorInvoker(global);
+        final Object result;
+        try {
+            result = call.invokeExact(nextMethod, iterated);
+            if (!(result instanceof ScriptObject sobj)) {
+                throw typeError("not.an.object", ScriptRuntime.safeToString(result));
+            }
+            return JSType.toBoolean((Object) getDoneInvoker(global).invokeExact((Object) sobj)) ? null : sobj;
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    static Object resultValue(final ScriptObject result, final Global global) {
+        try {
+            return (Object) getValueInvoker(global).invokeExact((Object) result);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    /**
+     * ES2025 7.4.11 IteratorClose for a normal completion: call {@code return}
+     * and let whatever it throws propagate.
+     */
+    static void closeIterator(final Object iterated) {
+        if (iterated instanceof ScriptObject sobj) {
+            final Object ret = sobj.get("return");
+            if (Bootstrap.isCallable(ret)) {
+                ScriptRuntime.apply((ScriptFunction) ret, iterated);
+            }
+        }
+    }
+
+    /**
+     * ES2025 7.4.11 IteratorClose for an abrupt completion: call {@code return}
+     * but drop whatever it throws, so the error already under way is the one
+     * that gets out.
+     */
+    static void closeIteratorOnError(final Object iterated) {
+        if (iterated instanceof ScriptObject sobj) {
+            final Object ret = sobj.get("return");
+            if (Bootstrap.isCallable(ret)) {
+                try {
+                    ScriptRuntime.apply((ScriptFunction) ret, iterated);
+                } catch (final RuntimeException ignored) {
+                    // the throw already under way is the one worth reporting
+                }
+            }
+        }
+    }
+
+    /**
+     * ES2025 25.1.4.6 Iterator.prototype.map ( mapper ).
+     *
+     * @param self the iterator
+     * @param mapper the mapping function
+     * @return a lazy iterator of the mapped values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object map(final Object self, final Object mapper) {
+        final ScriptObject iterated = requireIteratorSelf(self);
+        requireCallbackClosing(mapper, iterated);
+        return new IteratorHelper(IteratorHelper.Kind.MAP, iterated, iterated.get("next"), mapper, 0, Global.instance());
+    }
+
+    /**
+     * ES2025 25.1.4.3 Iterator.prototype.filter ( predicate ).
+     *
+     * @param self the iterator
+     * @param predicate the predicate
+     * @return a lazy iterator of the kept values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object filter(final Object self, final Object predicate) {
+        final ScriptObject iterated = requireIteratorSelf(self);
+        requireCallbackClosing(predicate, iterated);
+        return new IteratorHelper(IteratorHelper.Kind.FILTER, iterated, iterated.get("next"), predicate, 0, Global.instance());
+    }
+
+    /**
+     * ES2025 25.1.4.9 Iterator.prototype.take ( limit ).
+     *
+     * @param self the iterator
+     * @param limit how many values to yield
+     * @return a lazy iterator of at most {@code limit} values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object take(final Object self, final Object limit) {
+        final ScriptObject iterated = requireIteratorSelf(self);
+        final double lim;
+        try {
+            lim = integerLimit(limit);
+        } catch (final RuntimeException e) {
+            closeIteratorOnError(iterated);
+            throw e;
+        }
+        return new IteratorHelper(IteratorHelper.Kind.TAKE, iterated, iterated.get("next"), null, lim, Global.instance());
+    }
+
+    /**
+     * ES2025 25.1.4.2 Iterator.prototype.drop ( limit ).
+     *
+     * @param self the iterator
+     * @param limit how many values to skip
+     * @return a lazy iterator past the first {@code limit} values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object drop(final Object self, final Object limit) {
+        final ScriptObject iterated = requireIteratorSelf(self);
+        final double lim;
+        try {
+            lim = integerLimit(limit);
+        } catch (final RuntimeException e) {
+            closeIteratorOnError(iterated);
+            throw e;
+        }
+        return new IteratorHelper(IteratorHelper.Kind.DROP, iterated, iterated.get("next"), null, lim, Global.instance());
+    }
+
+    /**
+     * ES2025 25.1.4.4 Iterator.prototype.flatMap ( mapper ).
+     *
+     * @param self the iterator
+     * @param mapper the mapping function, whose results are flattened
+     * @return a lazy iterator of the flattened values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object flatMap(final Object self, final Object mapper) {
+        final ScriptObject iterated = requireIteratorSelf(self);
+        requireCallbackClosing(mapper, iterated);
+        return new IteratorHelper(IteratorHelper.Kind.FLATMAP, iterated, iterated.get("next"), mapper, 0, Global.instance());
+    }
+
+    /**
+     * ES2025 25.1.4.8 Iterator.prototype.reduce ( reducer [ , initialValue ] ).
+     *
+     * @param self the iterator
+     * @param args the reducer and an optional initial value
+     * @return the accumulated result
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object reduce(final Object self, final Object... args) {
+        final Global global = Global.instance();
+        final ScriptObject iterated = requireIteratorSelf(self);
+        final Object reducer = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        requireCallbackClosing(reducer, iterated);
+        final Object nextMethod = iterated.get("next");
+        Object accumulator;
+        long counter;
+        if (args.length > 1) {
+            accumulator = args[1];
+            counter = 0;
+        } else {
+            final ScriptObject r = nextResult(iterated, nextMethod, global);
+            if (r == null) {
+                throw typeError("array.reduce.invalid.init");
+            }
+            accumulator = resultValue(r, global);
+            counter = 1;
+        }
+        for (;;) {
+            final ScriptObject r = nextResult(iterated, nextMethod, global);
+            if (r == null) {
+                return accumulator;
+            }
+            final Object value = resultValue(r, global);
+            try {
+                accumulator = ScriptRuntime.call(reducer, ScriptRuntime.UNDEFINED, new Object[] { accumulator, value, (double) counter++ });
+            } catch (final RuntimeException e) {
+                closeIteratorOnError(iterated);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * ES2025 25.1.4.10 Iterator.prototype.toArray ( ).
+     *
+     * @param self the iterator
+     * @return an Array of the remaining values
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 0)
+    public static Object toArray(final Object self) {
+        final Global global = Global.instance();
+        final ScriptObject iterated = requireIteratorSelf(self);
+        final Object nextMethod = iterated.get("next");
+        final java.util.List<Object> values = new java.util.ArrayList<>();
+        for (;;) {
+            final ScriptObject r = nextResult(iterated, nextMethod, global);
+            if (r == null) {
+                break;
+            }
+            values.add(resultValue(r, global));
+        }
+        return new NativeArray(values.toArray());
+    }
+
+    /**
+     * ES2025 25.1.4.5 Iterator.prototype.forEach ( fn ).
+     *
+     * @param self the iterator
+     * @param fn the callback
+     * @return undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object forEach(final Object self, final Object fn) {
+        final Global global = Global.instance();
+        final ScriptObject iterated = requireIteratorSelf(self);
+        requireCallbackClosing(fn, iterated);
+        final Object nextMethod = iterated.get("next");
+        long counter = 0;
+        for (;;) {
+            final ScriptObject r = nextResult(iterated, nextMethod, global);
+            if (r == null) {
+                return ScriptRuntime.UNDEFINED;
+            }
+            final Object value = resultValue(r, global);
+            try {
+                ScriptRuntime.call(fn, ScriptRuntime.UNDEFINED, new Object[] { value, (double) counter++ });
+            } catch (final RuntimeException e) {
+                closeIteratorOnError(iterated);
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * ES2025 25.1.4.9 Iterator.prototype.some ( predicate ).
+     *
+     * @param self the iterator
+     * @param predicate the predicate
+     * @return whether any value satisfies it
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static boolean some(final Object self, final Object predicate) {
+        return findOrTest(self, predicate, Mode.SOME) == Boolean.TRUE;
+    }
+
+    /**
+     * ES2025 25.1.4.1 Iterator.prototype.every ( predicate ).
+     *
+     * @param self the iterator
+     * @param predicate the predicate
+     * @return whether every value satisfies it
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static boolean every(final Object self, final Object predicate) {
+        return findOrTest(self, predicate, Mode.EVERY) == Boolean.TRUE;
+    }
+
+    /**
+     * ES2025 25.1.4.5 Iterator.prototype.find ( predicate ).
+     *
+     * @param self the iterator
+     * @param predicate the predicate
+     * @return the first value satisfying it, or undefined
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 1)
+    public static Object find(final Object self, final Object predicate) {
+        return findOrTest(self, predicate, Mode.FIND);
+    }
+
+    private enum Mode { SOME, EVERY, FIND }
+
+    private static Object findOrTest(final Object self, final Object predicate, final Mode mode) {
+        final Global global = Global.instance();
+        final ScriptObject iterated = requireIteratorSelf(self);
+        requireCallbackClosing(predicate, iterated);
+        final Object nextMethod = iterated.get("next");
+        long counter = 0;
+        for (;;) {
+            final ScriptObject r = nextResult(iterated, nextMethod, global);
+            if (r == null) {
+                return mode == Mode.EVERY ? Boolean.TRUE : mode == Mode.SOME ? Boolean.FALSE : ScriptRuntime.UNDEFINED;
+            }
+            final Object value = resultValue(r, global);
+            final boolean matched;
+            try {
+                matched = JSType.toBoolean(ScriptRuntime.call(predicate, ScriptRuntime.UNDEFINED, new Object[] { value, (double) counter++ }));
+            } catch (final RuntimeException e) {
+                closeIteratorOnError(iterated);
+                throw e;
+            }
+            if (mode == Mode.EVERY ? !matched : matched) {
+                closeIterator(iterated);
+                return mode == Mode.EVERY ? Boolean.FALSE : mode == Mode.SOME ? Boolean.TRUE : value;
+            }
+        }
+    }
+
+    /**
+     * ES2025 25.1.4.11 get %Iterator.prototype% [ @@toStringTag ].
+     *
+     * @param self the receiver
+     * @return "Iterator"
+     */
+    @Getter(where = Where.PROTOTYPE, name = "@@toStringTag", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object toStringTag(final Object self) {
+        return "Iterator";
+    }
+
+    /**
+     * ES2025 25.1.4.11 set %Iterator.prototype% [ @@toStringTag ] - a
+     * SetterThatIgnoresPrototypeProperties, so a write on the prototype itself
+     * is a no-op while a write on an instance defines an own property.
+     *
+     * @param self the receiver
+     * @param value the value to set
+     */
+    @Setter(where = Where.PROTOTYPE, name = "@@toStringTag", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static void toStringTag(final Object self, final Object value) {
+        setIgnoringPrototype(self, NativeSymbol.toStringTag, value);
+    }
+
+    /**
+     * ES2025 25.1.4.12 get %Iterator.prototype%.constructor.
+     *
+     * @param self the receiver
+     * @return the %Iterator% constructor
+     */
+    @Getter(where = Where.PROTOTYPE, name = "constructor", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static Object constructor(final Object self) {
+        return Global.instance().getIteratorConstructor();
+    }
+
+    /**
+     * ES2025 25.1.4.12 set %Iterator.prototype%.constructor - a
+     * SetterThatIgnoresPrototypeProperties.
+     *
+     * @param self the receiver
+     * @param value the value to set
+     */
+    @Setter(where = Where.PROTOTYPE, name = "constructor", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
+    public static void constructor(final Object self, final Object value) {
+        setIgnoringPrototype(self, "constructor", value);
+    }
+
+    /**
+     * ES2025 SetterThatIgnoresPrototypeProperties: a write through the prototype
+     * accessor lands as an own data property of the receiver, unless the
+     * receiver is %Iterator.prototype% itself, where it is ignored.
+     */
+    private static void setIgnoringPrototype(final Object self, final Object key, final Object value) {
+        final Global global = Global.instance();
+        if (self == global.getIteratorPrototype() || !(self instanceof ScriptObject sobj)) {
+            return;
+        }
+        sobj.defineOwnProperty(key, global.newDataDescriptor(value, true, true, true), false);
     }
 }

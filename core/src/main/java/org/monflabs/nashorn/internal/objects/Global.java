@@ -829,6 +829,35 @@ public final class Global extends Scope {
     private volatile Object float32Array;
 
     /**
+     * Getter for the ES2025 Float16Array property.
+     *
+     * @param self self reference
+     * @return the value of the Float16Array property
+     */
+    @Getter(name = "Float16Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getFloat16Array(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.float16Array == LAZY_SENTINEL) {
+            global.float16Array = global.getBuiltinFloat16Array();
+        }
+        return global.float16Array;
+    }
+
+    /**
+     * Setter for the ES2025 Float16Array property.
+     *
+     * @param self self reference
+     * @param value value of the Float16Array property
+     */
+    @Setter(name = "Float16Array", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setFloat16Array(final Object self, final Object value) {
+        final Global global = Global.instanceFrom(self);
+        global.float16Array = value;
+    }
+
+    private volatile Object float16Array;
+
+    /**
      * Getter for the Float64Array property.
      *
      * @param self self reference
@@ -1109,6 +1138,32 @@ public final class Global extends Scope {
     private volatile Object weakRef;
 
     /**
+     * Getter for the ES2025 Iterator property.
+     * @param self self reference
+     * @return the value of the Iterator property
+     */
+    @Getter(name = "Iterator", attributes = Attribute.NOT_ENUMERABLE)
+    public static Object getIterator(final Object self) {
+        final Global global = Global.instanceFrom(self);
+        if (global.iterator == LAZY_SENTINEL) {
+            global.iterator = global.getBuiltinIterator();
+        }
+        return global.iterator;
+    }
+
+    /**
+     * Setter for the ES2025 Iterator property.
+     * @param self self reference
+     * @param value value of the Iterator property
+     */
+    @Setter(name = "Iterator", attributes = Attribute.NOT_ENUMERABLE)
+    public static void setIterator(final Object self, final Object value) {
+        Global.instanceFrom(self).iterator = value;
+    }
+
+    private volatile Object iterator;
+
+    /**
      * Getter for the FinalizationRegistry property.
      * @param self self reference
      * @return the value of the FinalizationRegistry property
@@ -1320,6 +1375,7 @@ public final class Global extends Scope {
     private ScriptFunction builtinInt32Array;
     private ScriptFunction builtinUint32Array;
     private ScriptFunction builtinFloat32Array;
+    private ScriptFunction builtinFloat16Array;
     private ScriptFunction builtinFloat64Array;
     private ScriptFunction builtinBigInt64Array;
     private ScriptFunction builtinBigUint64Array;
@@ -2363,6 +2419,42 @@ public final class Global extends Scope {
         return builtinIteratorPrototype;
     }
 
+    private ScriptFunction builtinIterator;
+    private ScriptObject builtinIteratorHelperPrototype;
+    private ScriptObject builtinWrapForValidIteratorPrototype;
+
+    private synchronized ScriptFunction getBuiltinIterator() {
+        if (this.builtinIterator == null) {
+            final ScriptFunction ctor = initConstructorAndSwitchPoint("Iterator", ScriptFunction.class);
+            // ES2025 25.1.3: the Iterator constructor's .prototype IS the shared
+            // %IteratorPrototype%, not the fresh object nasgen made, so every
+            // built-in iterator inherits the helpers and the constructor accessor
+            // on %IteratorPrototype% resolves back here
+            ctor.setPrototype(getIteratorPrototype());
+            this.builtinIterator = ctor;
+        }
+        return this.builtinIterator;
+    }
+
+    /** The ES2025 %Iterator% constructor (for the %IteratorPrototype%.constructor accessor). */
+    ScriptObject getIteratorConstructor() {
+        return getBuiltinIterator();
+    }
+
+    ScriptObject getIteratorHelperPrototype() {
+        if (builtinIteratorHelperPrototype == null) {
+            builtinIteratorHelperPrototype = initPrototype("IteratorHelper", getIteratorPrototype());
+        }
+        return builtinIteratorHelperPrototype;
+    }
+
+    ScriptObject getWrapForValidIteratorPrototype() {
+        if (builtinWrapForValidIteratorPrototype == null) {
+            builtinWrapForValidIteratorPrototype = initPrototype("WrapForValidIterator", getIteratorPrototype());
+        }
+        return builtinWrapForValidIteratorPrototype;
+    }
+
     ScriptObject getMapIteratorPrototype() {
         if (builtinMapIteratorPrototype == null) {
             builtinMapIteratorPrototype = initPrototype("MapIterator", getIteratorPrototype());
@@ -2853,6 +2945,17 @@ public final class Global extends Scope {
 
     ScriptObject getFloat32ArrayPrototype() {
         return ScriptFunction.getPrototype(getBuiltinFloat32Array());
+    }
+
+    private synchronized ScriptFunction getBuiltinFloat16Array() {
+        if (this.builtinFloat16Array == null) {
+            this.builtinFloat16Array = initTypedArrayConstructor("Float16Array");
+        }
+        return this.builtinFloat16Array;
+    }
+
+    ScriptObject getFloat16ArrayPrototype() {
+        return ScriptFunction.getPrototype(getBuiltinFloat16Array());
     }
 
     private synchronized ScriptFunction getBuiltinFloat64Array() {
@@ -3685,6 +3788,7 @@ public final class Global extends Scope {
         this.weakSet  = LAZY_SENTINEL;
         this.weakRef  = LAZY_SENTINEL;
         this.finalizationRegistry = LAZY_SENTINEL;
+        this.iterator = LAZY_SENTINEL;
 
         // Error stuff
         initErrorObjects();
@@ -3731,6 +3835,7 @@ public final class Global extends Scope {
             this.int32Array        = LAZY_SENTINEL;
             this.uint32Array       = LAZY_SENTINEL;
             this.float32Array      = LAZY_SENTINEL;
+            this.float16Array      = LAZY_SENTINEL;
             this.float64Array      = LAZY_SENTINEL;
             this.bigInt64Array     = LAZY_SENTINEL;
             this.bigUint64Array    = LAZY_SENTINEL;
@@ -3748,6 +3853,7 @@ public final class Global extends Scope {
             this.delete("Int32Array", false);
             this.delete("Uint32Array", false);
             this.delete("Float32Array", false);
+            this.delete("Float16Array", false);
             this.delete("Float64Array", false);
             this.delete("BigInt64Array", false);
             this.delete("BigUint64Array", false);
