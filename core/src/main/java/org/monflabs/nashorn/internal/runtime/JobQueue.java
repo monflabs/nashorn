@@ -25,6 +25,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -101,6 +104,28 @@ public final class JobQueue {
     private final Condition arrived = lock.newCondition();
 
     /**
+     * Microtasks handed in from another thread, drained as microtasks rather
+     * than macrotasks. A macrotask (a timer, a posted task) runs only once the
+     * microtask queue is empty, so a script spinning on a promise chain - the
+     * shape the test262 harness's own setTimeout takes when the host has no
+     * native one - would starve a macrotask forever. The ES2024
+     * {@code Atomics.waitAsync} timeout is a promise job, so it must reach the
+     * agent this way, over {@link #scheduleMicrotask}.
+     */
+    private final ConcurrentLinkedQueue<Runnable> externalMicrotasks = new ConcurrentLinkedQueue<>();
+
+    /** A do-nothing macrotask that bounces control back to the microtask drain. */
+    private static final Runnable BOUNCE = () -> { };
+
+    /** One shared daemon thread times every realm's {@link #scheduleMicrotask}. */
+    private static final ScheduledExecutorService TIMER =
+            Executors.newSingleThreadScheduledExecutor(runnable -> {
+                final Thread thread = new Thread(runnable, "nashorn-microtask-timer");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    /**
      * Schedules a job to run once the stack empties.
      *
      * @param job the job
@@ -132,6 +157,49 @@ public final class JobQueue {
         if (handle instanceof Timed timed) {
             timed.cancelled = true;
             timers.remove(timed);
+        }
+    }
+
+    /**
+     * Schedules a task to run as a microtask once the delay has passed. Unlike
+     * {@link #schedule}, the task is not a timer the loop polls for at the
+     * bottom of the stack: when it is due it is handed in as a microtask, so it
+     * runs even while the loop is busy with a promise chain. May be called from
+     * any thread.
+     *
+     * @param task the task
+     * @param delayMillis how long to wait, at least
+     * @return a handle to cancel it with
+     */
+    public Object scheduleMicrotask(final Runnable task, final long delayMillis) {
+        return TIMER.schedule(() -> enqueueExternalMicrotask(task),
+                Math.max(0, delayMillis), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Cancels a task scheduled with {@link #scheduleMicrotask}; nothing happens
+     * if it has run already.
+     *
+     * @param handle what {@link #scheduleMicrotask} returned
+     */
+    public void cancelMicrotask(final Object handle) {
+        if (handle instanceof ScheduledFuture<?> future) {
+            future.cancel(false);
+        }
+    }
+
+    /**
+     * Hands a microtask in from another thread, waking the loop if it is idle.
+     *
+     * @param task the microtask
+     */
+    public void enqueueExternalMicrotask(final Runnable task) {
+        externalMicrotasks.add(task);
+        lock.lock();
+        try {
+            arrived.signalAll();
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -176,7 +244,8 @@ public final class JobQueue {
 
     /** Whether anything at all is waiting to run: a microtask, a timer, a posted task or an operation in flight. */
     public boolean isBusy() {
-        return !jobs.isEmpty() || !timers.isEmpty() || !posted.isEmpty() || pending.get() > 0;
+        return !jobs.isEmpty() || !timers.isEmpty() || !posted.isEmpty()
+                || !externalMicrotasks.isEmpty() || pending.get() > 0;
     }
 
     /** Marks entry into script from Java. */
@@ -234,8 +303,18 @@ public final class JobQueue {
 
     /** Runs the microtasks; false if the thread was interrupted and the loop gave up. */
     private boolean drainMicrotasks() {
-        Runnable job;
-        while ((job = jobs.poll()) != null) {
+        for (;;) {
+            // microtasks handed in from another thread (a waitAsync timeout)
+            // join the queue, ahead of the macrotasks so a promise-chain spin
+            // cannot outrun them
+            Runnable external;
+            while ((external = externalMicrotasks.poll()) != null) {
+                jobs.add(external);
+            }
+            final Runnable job = jobs.poll();
+            if (job == null) {
+                return true;
+            }
             // A promise chain can schedule work forever - the specification
             // allows it, and a browser would spin too - but the host has to
             // be able to give up on it. Without this a runner that abandons a
@@ -247,7 +326,6 @@ public final class JobQueue {
             }
             job.run();
         }
-        return true;
     }
 
     /**
@@ -259,6 +337,11 @@ public final class JobQueue {
             if (Thread.currentThread().isInterrupted()) {
                 abandon();
                 return null;
+            }
+            // a microtask handed in while the loop was idle: bounce back up to
+            // the microtask drain to run it
+            if (!externalMicrotasks.isEmpty()) {
+                return BOUNCE;
             }
             final Runnable ready = posted.poll();
             if (ready != null) {
@@ -278,7 +361,7 @@ public final class JobQueue {
             }
             lock.lock();
             try {
-                if (!posted.isEmpty()) {
+                if (!posted.isEmpty() || !externalMicrotasks.isEmpty()) {
                     continue;
                 }
                 if (timer != null) {
@@ -301,6 +384,7 @@ public final class JobQueue {
         jobs.clear();
         timers.clear();
         posted.clear();
+        externalMicrotasks.clear();
         pending.set(0);
     }
 }

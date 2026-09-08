@@ -72,9 +72,11 @@ public final class Test262Host {
         final Thread thread = new Thread(() -> {
             INBOX.set(inbox);
             try {
+                // the event loop is off by default; an agent may use async
+                // functions and await Atomics.waitAsync, which need it
                 final javax.script.ScriptEngine engine =
-                        new org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory()
-                                .getScriptEngine();
+                        new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
+                                .eventLoop(true).build();
                 engine.eval(AGENT_HOST_OBJECT);
                 engine.eval(source);
             } catch (final Exception e) {

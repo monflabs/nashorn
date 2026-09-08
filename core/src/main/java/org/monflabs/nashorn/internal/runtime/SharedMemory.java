@@ -22,8 +22,10 @@
 package org.monflabs.nashorn.internal.runtime;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -68,6 +70,19 @@ public final class SharedMemory {
     /** One agent waiting at one address. */
     private static final class Waiter {
         private boolean notified;
+        /** For an async (ES2024 Atomics.waitAsync) waiter, run when woken; null for a blocking wait. */
+        private Runnable onNotify;
+    }
+
+    /** A handle to an ES2024 {@code Atomics.waitAsync} registration, for the timeout to cancel. */
+    public static final class AsyncWaiter {
+        private final Address address;
+        private final Waiter waiter;
+
+        AsyncWaiter(final Address address, final Waiter waiter) {
+            this.address = address;
+            this.waiter = waiter;
+        }
     }
 
     /**
@@ -191,16 +206,103 @@ public final class SharedMemory {
         if (queue == null) {
             return 0;
         }
+        final List<Runnable> asyncCallbacks = new ArrayList<>();
+        int woken = 0;
         synchronized (queue.monitor) {
-            int woken = 0;
+            boolean anyBlocking = false;
             while (woken < count && !queue.waiters.isEmpty()) {
-                queue.waiters.remove().notified = true;
+                final Waiter waiter = queue.waiters.remove();
+                waiter.notified = true;
+                if (waiter.onNotify != null) {
+                    // an ES2024 async waiter: its callback runs (posting to its
+                    // agent's loop) outside this monitor
+                    asyncCallbacks.add(waiter.onNotify);
+                } else {
+                    anyBlocking = true;
+                }
                 woken++;
             }
-            if (woken > 0) {
+            if (anyBlocking) {
                 queue.monitor.notifyAll();
             }
-            return woken;
+        }
+        // release the address once for each async waiter this woke (its own
+        // waitAsync acquired it), and run the callbacks - outside the monitor, so
+        // the QUEUES lock is never taken while holding it
+        for (final Runnable callback : asyncCallbacks) {
+            release(address);
+            callback.run();
+        }
+        return woken;
+    }
+
+    /**
+     * ES2024 25.4.12 Atomics.waitAsync: registers a non-blocking waiter that runs
+     * {@code onNotify} when woken, rather than parking a thread.
+     *
+     * @param storage  the buffer the address belongs to
+     * @param offset   the byte offset into it
+     * @param expected what the element must still hold for the wait to happen
+     * @param current  reads the element
+     * @param onNotify run (on the notifier's thread) when the wait is woken
+     * @return a handle to cancel the wait with, or null if the value had already
+     *         changed (a "not-equal" wait that never blocks)
+     */
+    public static AsyncWaiter waitAsync(final Object storage, final int offset, final int expected,
+            final IntSupplier current, final Runnable onNotify) {
+        return waitAsync(storage, offset, () -> current.getAsInt() == expected, onNotify);
+    }
+
+    /**
+     * The 64-bit form, for {@code Atomics.waitAsync} on a {@code BigInt64Array}.
+     *
+     * @param storage  the buffer the address belongs to
+     * @param offset   the byte offset into it
+     * @param expected what the element must still hold
+     * @param current  reads the 64-bit element
+     * @param onNotify run when the wait is woken
+     * @return a cancel handle, or null for a "not-equal" wait
+     */
+    public static AsyncWaiter waitAsync(final Object storage, final int offset, final long expected,
+            final LongSupplier current, final Runnable onNotify) {
+        return waitAsync(storage, offset, () -> current.getAsLong() == expected, onNotify);
+    }
+
+    private static AsyncWaiter waitAsync(final Object storage, final int offset,
+            final BooleanSupplier stillExpected, final Runnable onNotify) {
+        final Address address = new Address(storage, offset);
+        final Queue queue = acquire(address);
+        synchronized (queue.monitor) {
+            if (stillExpected.getAsBoolean()) {
+                final Waiter waiter = new Waiter();
+                waiter.onNotify = onNotify;
+                queue.waiters.add(waiter);
+                return new AsyncWaiter(address, waiter);
+            }
+        }
+        release(address); // the value had already changed: not-equal, nothing registered
+        return null;
+    }
+
+    /**
+     * Cancels an async wait (its timeout fired first). Releases the address only
+     * if the waiter was still queued - a concurrent notify may have taken it.
+     *
+     * @param handle what {@link #waitAsync} returned
+     */
+    public static void cancelAsyncWaiter(final AsyncWaiter handle) {
+        final Queue queue;
+        synchronized (QUEUES) {
+            queue = QUEUES.get(handle.address);
+        }
+        boolean removed = false;
+        if (queue != null) {
+            synchronized (queue.monitor) {
+                removed = queue.waiters.remove(handle.waiter);
+            }
+        }
+        if (removed) {
+            release(handle.address);
         }
     }
 

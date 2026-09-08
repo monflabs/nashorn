@@ -28,12 +28,14 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Function;
 import org.monflabs.nashorn.internal.objects.annotations.Property;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.objects.annotations.Where;
 import org.monflabs.nashorn.internal.runtime.JSType;
+import org.monflabs.nashorn.internal.runtime.JobQueue;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
@@ -277,6 +279,102 @@ public final class NativeAtomics extends ScriptObject {
             return SharedMemory.wait(at.storage, at.absoluteOffset, wantBig, millis, at::getLong);
         }
         return SharedMemory.wait(at.storage, at.absoluteOffset, want, millis, at::get);
+    }
+
+    /**
+     * ES2024 25.4.12 Atomics.waitAsync(typedArray, index, value, timeout).
+     *
+     * The non-blocking companion to {@code wait}: rather than parking the agent,
+     * it answers straight away with a record {@code {async, value}}. If the wait
+     * would not have blocked - the value had already changed, or the timeout is
+     * zero - {@code async} is false and {@code value} is the outcome string
+     * ("not-equal" / "timed-out"). Otherwise {@code async} is true and
+     * {@code value} is a promise that settles with "ok" when the element is
+     * notified, or "timed-out" when a finite timeout runs out first.
+     *
+     * Unlike {@code wait}, it does not require a shared buffer.
+     *
+     * @param self self reference
+     * @param args the array, the index, the value to wait on and how long for
+     * @return a {@code {async, value}} record
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 4, name = "waitAsync")
+    public static Object waitAsync(final Object self, final Object... args) {
+        final Object array = args.length > 0 ? args[0] : ScriptRuntime.UNDEFINED;
+        final Object index = args.length > 1 ? args[1] : ScriptRuntime.UNDEFINED;
+        final Object value = args.length > 2 ? args[2] : ScriptRuntime.UNDEFINED;
+        final Object timeout = args.length > 3 ? args[3] : ScriptRuntime.UNDEFINED;
+
+        // like wait, waitAsync validates a waitable (Int32/BigInt64) array over
+        // shared memory - a non-shared buffer is a TypeError, before the index,
+        // value or timeout is coerced
+        final Access at = access(array, index, true, true);
+        final long wantBig = at.bigint ? NativeBigInt.toBigInt(value).longValue() : 0;
+        final int want = at.bigint ? 0 : JSType.toInt32(value);
+        final double asNumber = timeout == ScriptRuntime.UNDEFINED ? Double.POSITIVE_INFINITY
+                : JSType.toNumber(timeout);
+        final double millis = Double.isNaN(asNumber) ? Double.POSITIVE_INFINITY : Math.max(asNumber, 0);
+
+        final Global global = Global.instance();
+        Global.requireEventLoop("Atomics.waitAsync");
+        final JobQueue loop = global.getJobQueue();
+        final ScriptObject result = global.newObject();
+
+        final NativePromise promise = NativePromise.newAsyncPromise(global);
+        // one settle wins between a notify and the timeout, whichever comes first
+        final AtomicBoolean done = new AtomicBoolean();
+        final Object[] timerHandle = new Object[1];
+
+        // begin() before registering, so a notify that fires from another agent
+        // the instant we register cannot post (and decrement the pending count)
+        // before there is a pending operation to end
+        loop.begin();
+        final Runnable onNotify = () -> {
+            if (done.compareAndSet(false, true)) {
+                // runs on the notifier's thread; hop to this agent's loop
+                loop.post(() -> {
+                    if (timerHandle[0] != null) {
+                        loop.cancelMicrotask(timerHandle[0]);
+                    }
+                    NativePromise.resolveAsyncPromise(promise, "ok");
+                }, true);
+            }
+        };
+        final SharedMemory.AsyncWaiter waiter = at.bigint
+                ? SharedMemory.waitAsync(at.storage, at.absoluteOffset, wantBig, at::getLong, onNotify)
+                : SharedMemory.waitAsync(at.storage, at.absoluteOffset, want, at::get, onNotify);
+
+        if (waiter == null) {
+            // the value had already changed: a synchronous "not-equal"
+            loop.discard();
+            result.set("async", Boolean.FALSE, 0);
+            result.set("value", "not-equal", 0);
+            return result;
+        }
+        if (millis == 0) {
+            // a zero timeout never blocks: cancel the just-registered waiter and
+            // answer "timed-out" synchronously
+            SharedMemory.cancelAsyncWaiter(waiter);
+            loop.discard();
+            result.set("async", Boolean.FALSE, 0);
+            result.set("value", "timed-out", 0);
+            return result;
+        }
+        if (millis != Double.POSITIVE_INFINITY) {
+            // the timeout resolves the promise as a microtask (a promise job),
+            // not a timer: a test polling with the harness's microtask-based
+            // setTimeout would otherwise starve a macrotask timer forever
+            timerHandle[0] = loop.scheduleMicrotask(() -> {
+                if (done.compareAndSet(false, true)) {
+                    SharedMemory.cancelAsyncWaiter(waiter);
+                    NativePromise.resolveAsyncPromise(promise, "timed-out");
+                    loop.discard();
+                }
+            }, (long)Math.min(millis, Long.MAX_VALUE));
+        }
+        result.set("async", Boolean.TRUE, 0);
+        result.set("value", promise, 0);
+        return result;
     }
 
     /**
