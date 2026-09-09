@@ -104,15 +104,18 @@ public final class NativeIterator extends ScriptObject {
         if (JSType.isPrimitive(obj) && !JSType.isString(obj)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(obj));
         }
-        final Object object = Global.toObject(obj);
-        final Object method = ((ScriptObject) object).get(NativeSymbol.iterator);
+        final ScriptObject object = (ScriptObject) Global.toObject(obj);
+        final MethodHandle call = AbstractIterator.getIteratorInvoker(global);
+        // GetMethod(obj, @@iterator) is a GetV: the property is read with obj
+        // itself as the receiver, so an @@iterator getter sees obj as its this -
+        // the string primitive, not the wrapper made only to reach the property.
+        final Object method = getMethod(object, obj, call);
         if (method == ScriptRuntime.UNDEFINED || method == null) {
             return object;
         }
         if (!Bootstrap.isCallable(method)) {
             throw typeError("not.a.function", ScriptRuntime.safeToString(method));
         }
-        final MethodHandle call = AbstractIterator.getIteratorInvoker(global);
         try {
             final Object iterator = call.invokeExact(method, obj);
             if (JSType.isPrimitive(iterator)) {
@@ -124,6 +127,39 @@ public final class NativeIterator extends ScriptObject {
         } catch (final Throwable t) {
             throw new RuntimeException(t);
         }
+    }
+
+    /**
+     * GetMethod(receiver, @@iterator): looks the property up on {@code wrapper}
+     * (ToObject of the receiver) but, when it is an accessor, runs the getter
+     * with the original {@code receiver} as its this, per GetV. For a string
+     * primitive that keeps the getter's this the primitive rather than a wrapper.
+     */
+    private static Object getMethod(final ScriptObject wrapper, final Object receiver, final MethodHandle call) {
+        if (!JSType.isPrimitive(receiver)) {
+            // receiver is already an object (its own ToObject): an ordinary
+            // [[Get]] reads it with itself as the receiver and runs any proxy
+            // trap, which a test observes. Only a primitive needs the wrapper.
+            return wrapper.get(NativeSymbol.iterator);
+        }
+        final org.monflabs.nashorn.internal.runtime.FindProperty found = wrapper.findProperty(NativeSymbol.iterator, true);
+        if (found == null) {
+            return ScriptRuntime.UNDEFINED;
+        }
+        if (found.getProperty().isAccessorProperty()) {
+            final org.monflabs.nashorn.internal.runtime.ScriptFunction getter = found.getProperty().getGetterFunction(found.getOwner());
+            if (getter == null) {
+                return ScriptRuntime.UNDEFINED;
+            }
+            try {
+                return call.invokeExact((Object) getter, receiver);
+            } catch (final RuntimeException | Error e) {
+                throw e;
+            } catch (final Throwable t) {
+                throw new RuntimeException(t);
+            }
+        }
+        return found.getObjectValue();
     }
 
     private static boolean inheritsIteratorPrototype(final Object iterator, final Global global) {

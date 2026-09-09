@@ -5,7 +5,7 @@ This engine implements [ECMAScript 2025](https://262.ecma-international.org/16.0
 (ECMA-262, 16th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its ~78,000 executions
-**24 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2024 additions - `Object.groupBy`/`Map.groupBy`,
 `Promise.withResolvers`, `String.prototype.isWellFormed`/`toWellFormed`, resizable
@@ -20,12 +20,12 @@ and the RegExp `v` flag - are all in, and so now are the **ES2025** additions:
 `(?ims-ims:…)`, **duplicate named capture groups**, and **import attributes** with
 **JSON modules** (`with { type: "json" }`). The slice selects their feature tags.)
 
-Of the **24**, 8 are the one carried-over Annex B shape: an indirect `eval` whose
+All **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). The other 16 (8 tests,
-strict and sloppy) are the ES2025 JDK-backend and engine corners detailed under
-[ES2025 corners](#es2025-corners-what-is-held-out) below. No ES2022, ES2023 or
-ES2024 feature corner remains.
+rooted in how the engine merges eval scopes (see below). No ES2022, ES2023,
+ES2024 or ES2025 feature corner remains - the eight ES2025 corners that were
+briefly held out are all fixed, detailed under
+[ES2025 corners](#es2025-corners-what-is-held-out) below.
 
 The resizable typed-array corners once settled here are now **fixed**: a typed
 array's `[[Get]]`/`[[Set]]`/`[[HasProperty]]` for a canonical numeric index no
@@ -123,7 +123,7 @@ mvn -Ptest262 -DskipTests verify
 ```
 
     test262: 77976 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 24   expected to fail: 24
+    failing: 8   expected to fail: 8
 
 What is not measured, and why
 -----------------------------
@@ -341,28 +341,30 @@ ES2025 corners: what is held out
 
 The ES2025 additions - iterator helpers, the `Set` methods, `Float16Array`, `RegExp.escape`,
 `Promise.try`, RegExp pattern modifiers, duplicate named capture groups, and import attributes with
-JSON modules - are implemented and in scope. Sixteen executions (**8 tests, strict and sloppy**) are
-held out, each a backend or engine corner rather than a missing feature:
+JSON modules - are implemented and in scope, and **every ES2025 feature corner passes**. Eight tests
+were briefly held out and then fixed, each an engine corner rather than a missing feature:
 
+- **`Object.prototype.toString` on an iterator with no `@@toStringTag`**
+  (`built-ins/Object/prototype/toString/symbol-tag-{array,map,set,string}-builtin`) — once the tag is
+  removed, an iterator has no `[[builtinTag]]` of its own and reads as `"[object Object]"`. The
+  `builtinTag` switch had listed the space-less prototype class names (`"ArrayIterator"`) but an
+  iterator *instance*'s class name carries a space (`"Array Iterator"`), so it fell through to that
+  name. Iterator instances are now matched by type.
+- **`%Iterator.prototype%` `@@toStringTag` / `constructor`**
+  (`built-ins/Iterator/prototype/Symbol.toStringTag/weird-setter`) — a `SetterThatIgnoresPrototype`-
+  Properties must see the assignment's *receiver*, but a nasgen `@Setter` binds `this` to the home
+  prototype. Both accessors are now hand-installed on the shared prototype (in `getIteratorPrototype`),
+  so a write through a child object defines an own property as the spec requires.
 - **`Iterator.from` on a primitive string** (`built-ins/Iterator/from/iterable-primitives`) — the
-  `@@iterator` getter must run with the primitive string as its `this`; the wrapper object is made
-  only to iterate, so a getter observing `typeof this` sees `"string"`. The engine reads the method
-  off the wrapper, so it observes `"object"`. A this-binding order corner, not a functional one:
-  `Iterator.from(5)` still throws, and `Iterator.from("s")` / `Iterator.from(new Number(5))` still
-  iterate correctly.
-- **`Iterator.from` return-method call sequence** (`built-ins/Iterator/from/return-method-calls-base-return-method`)
-  — the exact order of property accesses the wrapper makes on a foreign iterator's `return`.
-- **The symbol-keyed `@@toStringTag` redefinition corner** — after
-  `Object.defineProperty(%IteratorPrototype%, @@toStringTag, {value: null})`, the internal read the
-  engine uses for `Object.prototype.toString` and the ordinary JS property read disagree (the internal
-  one returns a stale value); a `delete` is seen correctly, and a string key (`constructor`) is seen
-  correctly. This one property-map / switch-point interaction is shared by five tests:
-  `built-ins/Iterator/prototype/Symbol.toStringTag/weird-setter` and the four
-  `built-ins/Object/prototype/toString/symbol-tag-{array,map,set,string}-builtin` cases, which are in
-  scope only now that the `iterator-helpers` feature tag is selected.
+  `@@iterator` getter now runs with the primitive as its `this` (GetV), not with the wrapper made only
+  to reach the property; a getter observing `typeof this` sees `"string"`.
+- **`Iterator.from` return-method** (`built-ins/Iterator/from/return-method-calls-base-return-method`)
+  — `%WrapForValidIteratorPrototype%.return` now returns the wrapped iterator's own `return` result
+  rather than a synthesized done result, and reads `return` off the iterator so the call sequence is
+  observed.
 - **`Float16Array` bit-precision** (`built-ins/TypedArray/prototype/set/bit-precision`) — a same-type
-  `Float16Array`→`Float16Array` `set` round-trips each value through a `double`, which does not
-  preserve a NaN's exact bit pattern.
+  `Float16Array`→`Float16Array` `set` copies the raw bytes (spec step 28a), preserving NaN payloads,
+  rather than round-tripping through a `double`; `Float16Array` also now reports `isFloatArray`.
 
 Two RegExp shapes are held out in `Test262Selector.REGEXP_ENGINE_LIMITS`, the same kind of substrate
 limit as the ES2018 property escapes and the ES2024 `v`-flag string-sets, because a modifier-bearing

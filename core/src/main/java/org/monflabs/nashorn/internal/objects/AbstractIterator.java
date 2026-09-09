@@ -642,27 +642,47 @@ public abstract class AbstractIterator extends ScriptObject {
         }
     }
 
+    // ES2025 25.1.4.11 %Iterator.prototype% [ @@toStringTag ] is an accessor
+    // whose get returns "Iterator" and whose set is a
+    // SetterThatIgnoresPrototypeProperties. Like the constructor accessor below
+    // it is installed by hand in Global from these handles, not via @Getter /
+    // @Setter: a nasgen-generated accessor setter is invoked with `this` bound
+    // to the home prototype rather than to the assignment's receiver, which
+    // breaks the ignore-prototype rule (a write through a child would look like
+    // a write on the home). A hand-built accessor gets the true receiver.
+
+    /** Handle for the get %Iterator.prototype% [ @@toStringTag ] accessor. */
+    public static final MethodHandle TOSTRINGTAG_GET;
+    /** Handle for the set %Iterator.prototype% [ @@toStringTag ] accessor. */
+    public static final MethodHandle TOSTRINGTAG_SET;
+    static {
+        try {
+            final java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();
+            TOSTRINGTAG_GET = lookup.findStatic(AbstractIterator.class, "toStringTagGet",
+                    java.lang.invoke.MethodType.methodType(Object.class, Object.class));
+            TOSTRINGTAG_SET = lookup.findStatic(AbstractIterator.class, "toStringTagSet",
+                    java.lang.invoke.MethodType.methodType(void.class, Object.class, Object.class));
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /**
-     * ES2025 25.1.4.11 get %Iterator.prototype% [ @@toStringTag ].
-     *
-     * @param self the receiver
+     * ES2025 25.1.4.11 get %Iterator.prototype% [ @@toStringTag ]: returns "Iterator".
+     * @param self the receiver (ignored)
      * @return "Iterator"
      */
-    @Getter(where = Where.PROTOTYPE, name = "@@toStringTag", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
-    public static Object toStringTag(final Object self) {
+    public static Object toStringTagGet(final Object self) {
         return "Iterator";
     }
 
     /**
-     * ES2025 25.1.4.11 set %Iterator.prototype% [ @@toStringTag ] - a
-     * SetterThatIgnoresPrototypeProperties, so a write on the prototype itself
-     * is a no-op while a write on an instance defines an own property.
-     *
+     * ES2025 25.1.4.11 set %Iterator.prototype% [ @@toStringTag ]: a
+     * SetterThatIgnoresPrototypeProperties.
      * @param self the receiver
      * @param value the value to set
      */
-    @Setter(where = Where.PROTOTYPE, name = "@@toStringTag", attributes = Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR)
-    public static void toStringTag(final Object self, final Object value) {
+    public static void toStringTagSet(final Object self, final Object value) {
         setIgnoringPrototype(self, NativeSymbol.toStringTag, value);
     }
 

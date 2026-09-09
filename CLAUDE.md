@@ -153,9 +153,8 @@ which this one can, so it is not selected either.
   whole run.
 - Results are diffed against `core/src/test/resources/test262-expectations.txt`, and the run fails on an
   unexpected **pass** as well as an unexpected failure, so conformance only moves forwards. The file
-  lists the settled failures — 24 of the ~78,000 executions: 8 the Annex B indirect-eval "existing
-  var update" cases, and 16 (8 tests, strict and sloppy) the ES2025 corners named at the end of this
-  paragraph. No ES2022, ES2023 or ES2024 feature corner remains: the ES2022 direct-eval early
+  lists the settled failures — 8 of the ~78,000 executions, all 8 the Annex B indirect-eval "existing
+  var update" cases. No ES2022, ES2023, ES2024 or ES2025 feature corner remains: the ES2022 direct-eval early
   errors, the `#x in` grammar edges, the top-level-await `new await` corner, the Unicode identifier
   torture tests (the splitter divides a block of lexical `let`/`const` declarations across
   sub-methods), and — from ES2024 — the whole v-flag class-set grammar (bar the two JDK-backend
@@ -167,13 +166,18 @@ which this one can, so it is not selected either.
   hands over now match the string-keyed overrides — and a resizable-buffer element write coerces its
   value before re-checking bounds, both gated so the fixed-buffer element hot path is untouched) are
   all fixed; the four Unicode-17.0.0 files stay in the selector's `LATER_UNICODE` hold-out (JDK 25 is
-  Unicode 16). The ES2025 work fixed all but eight corners, which stay settled: `Iterator.from` on a
-  primitive string must run the `@@iterator` getter with the primitive as `this` (the wrapper is made
-  only to iterate), the `from` return-method call-sequence observation, the symbol-keyed
-  `@@toStringTag` redefinition through the shared `%IteratorPrototype%` (the internal `get` and the JS
-  call site disagree after a `defineProperty` to a non-string — the same corner surfaces as the four
-  `Object.prototype.toString` built-in-iterator cases), and `Float16Array` bit-precision (a NaN's bit
-  pattern is not preserved through the double round-trip a same-type `set` takes). Reasons are recorded
+  Unicode 16). Every ES2025 feature corner is fixed too, including the eight that were briefly held
+  out and then resolved: `Object.prototype.toString` on a built-in iterator whose `@@toStringTag` has
+  been removed (its `builtinTag` fell through the class-name switch because an iterator instance's
+  class name carries a space — `"Array Iterator"` — where the switch listed the space-less prototype
+  name; instances are now matched by type), the `%Iterator.prototype%` `@@toStringTag` and
+  `constructor` accessors (hand-installed on the shared prototype, so their setters see the assignment
+  receiver rather than the home prototype a nasgen `@Setter` would bind), `Iterator.from` on a
+  primitive string (the `@@iterator` getter now runs with the primitive as `this`, per GetV, not with
+  the wrapper made only to reach the property), `%WrapForValidIteratorPrototype%.return` (which now
+  returns the wrapped iterator's own `return` result rather than a synthesized done result), and
+  `Float16Array` bit-precision (a same-type `set` copies the raw bytes, preserving NaN payloads, and
+  `Float16Array` now reports `isFloatArray`). Reasons are recorded
   in `doc/CONFORMANCE.md` — so any
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with

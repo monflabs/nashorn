@@ -782,9 +782,15 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
                 // (BigInt arrays fall through to the boxed path - their elements
                 // are BigInts, not the ints/doubles this branch moves.)
                 if (dest.isFloatArray()) {
-                    for (int i = 0; i < length; i++) {
-                        dest.set(at + i, source.getDouble(i, INVALID_PROGRAM_POINT), 0);
-                    }
+                    // ES2024 22.2.3.24 step 28a: for the same element type the
+                    // transfer must preserve the bit-level encoding, so copy the
+                    // raw bytes. Reading each element as a double and writing it
+                    // back would canonicalise a NaN's bit pattern (Float16 in
+                    // particular collapses every NaN to one payload).
+                    final int bpe = dest.bytesPerElement();
+                    final ByteBuffer from = source.buffer.getBuffer(source.byteOffset, length * bpe);
+                    final ByteBuffer to = dest.buffer.getBuffer(dest.byteOffset + at * bpe, length * bpe);
+                    to.put(from);
                 } else {
                     for (int i = 0; i < length; i++) {
                         dest.set(at + i, source.getInt(i, INVALID_PROGRAM_POINT), 0);

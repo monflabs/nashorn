@@ -2415,7 +2415,26 @@ public final class Global extends Scope {
 
     ScriptObject getIteratorPrototype() {
         if (builtinIteratorPrototype == null) {
-            builtinIteratorPrototype = initPrototype("AbstractIterator", getObjectPrototype());
+            final ScriptObject ip = initPrototype("AbstractIterator", getObjectPrototype());
+            // ES2025 25.1.4.11/25.1.4.12: %Iterator.prototype% carries @@toStringTag
+            // and constructor as accessors, installed here - on the shared
+            // prototype itself, not when the Iterator constructor is first
+            // touched - so every built-in iterator inherits them and a script
+            // that deletes an iterator subtype's own @@toStringTag falls back to
+            // the "Iterator" here. They are hand-built (not @Getter/@Setter): a
+            // nasgen accessor setter binds this to the home prototype rather than
+            // to the assignment's receiver, and a "constructor" @Getter collides
+            // with the slot PrototypeObject puts on every prototype. The getters
+            // resolve %Iterator% lazily, so installing them here needs no ctor.
+            final ScriptFunction constructorGet = ScriptFunction.createBuiltin("get constructor", AbstractIterator.CONSTRUCTOR_GET);
+            final ScriptFunction constructorSet = ScriptFunction.createBuiltin("set constructor", AbstractIterator.CONSTRUCTOR_SET);
+            ip.delete("constructor", false);
+            ip.addOwnProperty("constructor", Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR, constructorGet, constructorSet);
+            final ScriptFunction tagGet = ScriptFunction.createBuiltin("get [Symbol.toStringTag]", AbstractIterator.TOSTRINGTAG_GET);
+            final ScriptFunction tagSet = ScriptFunction.createBuiltin("set [Symbol.toStringTag]", AbstractIterator.TOSTRINGTAG_SET);
+            ip.delete(NativeSymbol.toStringTag, false);
+            ip.addOwnProperty(NativeSymbol.toStringTag, Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR, tagGet, tagSet);
+            builtinIteratorPrototype = ip;
         }
         return builtinIteratorPrototype;
     }
@@ -2428,19 +2447,11 @@ public final class Global extends Scope {
         if (this.builtinIterator == null) {
             final ScriptFunction ctor = initConstructorAndSwitchPoint("Iterator", ScriptFunction.class);
             // ES2025 25.1.3: the Iterator constructor's .prototype IS the shared
-            // %IteratorPrototype%, not the fresh object nasgen made, so every
-            // built-in iterator inherits the helpers and the constructor accessor
-            // on %IteratorPrototype% resolves back here
-            final ScriptObject ip = getIteratorPrototype();
-            ctor.setPrototype(ip);
-            // ES2025 25.1.4.12: %Iterator.prototype%.constructor is an accessor
-            // (get returns %Iterator%, set ignores writes onto %IteratorPrototype%
-            // itself), replacing the plain constructor slot PrototypeObject put
-            // on the shared prototype
-            final ScriptFunction constructorGet = ScriptFunction.createBuiltin("get constructor", AbstractIterator.CONSTRUCTOR_GET);
-            final ScriptFunction constructorSet = ScriptFunction.createBuiltin("set constructor", AbstractIterator.CONSTRUCTOR_SET);
-            ip.delete("constructor", false);
-            ip.addOwnProperty("constructor", Attribute.NOT_ENUMERABLE | Attribute.IS_ACCESSOR, constructorGet, constructorSet);
+            // %IteratorPrototype% (which already carries the constructor and
+            // @@toStringTag accessors - see getIteratorPrototype), not the fresh
+            // object nasgen made, so every built-in iterator inherits the helpers
+            // and the constructor accessor resolves back here.
+            ctor.setPrototype(getIteratorPrototype());
             this.builtinIterator = ctor;
         }
         return this.builtinIterator;

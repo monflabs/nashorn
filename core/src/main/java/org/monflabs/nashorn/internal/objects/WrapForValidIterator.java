@@ -26,9 +26,11 @@ import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Function;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
+import java.lang.invoke.MethodHandle;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
+import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
 
 /**
  * ES2025 25.1.3.2.1 a Wrap for Valid Iterator: what {@code Iterator.from}
@@ -85,8 +87,29 @@ public final class WrapForValidIterator extends AbstractIterator {
         if (!(self instanceof WrapForValidIterator wrap)) {
             throw typeError("not.a.iterator", ScriptRuntime.safeToString(self));
         }
-        AbstractIterator.closeIterator(wrap.iterated);
-        return wrap.makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, wrap.global);
+        // 25.1.3.2.1.2: GetMethod(iterator, "return"); if it has none, answer a
+        // done result; otherwise return Call(returnMethod, iterator) - the
+        // underlying return's own result, not a synthesized one (which is what
+        // closing it would give).
+        final Object iterator = wrap.iterated;
+        if (!(iterator instanceof ScriptObject it)) {
+            return wrap.makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, wrap.global);
+        }
+        final Object returnMethod = it.get("return");
+        if (returnMethod == ScriptRuntime.UNDEFINED || returnMethod == null) {
+            return wrap.makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, wrap.global);
+        }
+        if (!Bootstrap.isCallable(returnMethod)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(returnMethod));
+        }
+        final MethodHandle call = AbstractIterator.getIteratorInvoker(wrap.global);
+        try {
+            return call.invokeExact(returnMethod, iterator);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override

@@ -285,6 +285,16 @@ public final class ScriptRuntime {
         if (sobj instanceof ArrayBufferView) {
             return "Object";
         }
+        // An iterator or iterator helper is an ordinary object with no
+        // [[builtinTag]] of its own: it reads as "Array Iterator" and the like
+        // only because its prototype carries @@toStringTag, and reads as
+        // "Object" once that tag is removed. An iterator INSTANCE is matched by
+        // type - its class name ("Array Iterator", ...) carries a space; the
+        // iterator PROTOTYPE objects, whose class names are the space-less
+        // "ArrayIterator" etc., are matched in the switch below.
+        if (sobj instanceof org.monflabs.nashorn.internal.objects.AbstractIterator) {
+            return "Object";
+        }
         final String className = sobj.getClassName();
         return switch (className) {
             case "Math", "JSON", "Symbol", "BigInt", "Map", "Set", "WeakMap", "WeakSet", "Promise",

@@ -113,10 +113,9 @@ test262 has no branch for any edition, so the suite is pinned by commit and the
 ES2025 slice is selected out of it: a test counts unless it needs a feature that
 postdates ES2025. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 24 of the ~78,000 selected executions fail — 8 the carried-over
-Annex B indirect-eval cases and 16 (8 tests, strict and sloppy) a handful of
-ES2025 JDK-backend and engine corners named in doc/CONFORMANCE.md; everything
-else passes, through ES2025. Three things are excluded,
+moves forwards. 8 of the ~78,000 selected executions fail — all the carried-over
+Annex B indirect-eval cases; everything else passes, through ES2025 (the eight
+ES2025 corners once briefly held out are all fixed — see doc/CONFORMANCE.md). Three things are excluded,
 all outside ECMA-262 16th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what

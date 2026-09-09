@@ -217,6 +217,11 @@ public final class NativeFloat16Array extends ArrayBufferView {
     }
 
     @Override
+    protected boolean isFloatArray() {
+        return true;
+    }
+
+    @Override
     protected ScriptObject getPrototype(final Global global) {
         return global.getFloat16ArrayPrototype();
     }
