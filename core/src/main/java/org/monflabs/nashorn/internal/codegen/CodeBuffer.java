@@ -101,8 +101,23 @@ public final class CodeBuffer {
         });
     }
 
+    /** Whether local variable table entries are recorded; see {@link #dropLocalVariableTable}. */
+    private boolean localVariableTable = true;
+
+    /**
+     * Stops recording local variable table entries. For a method whose code the
+     * classfile library will partly patch out as unreachable - a rest-of
+     * method - entries for slots only that code touches would name a slot
+     * outside the max_locals it computes, and the JVM rejects the class.
+     */
+    public void dropLocalVariableTable() {
+        localVariableTable = false;
+    }
+
     public void localVariable(final String name, final ClassDesc type, final Label start, final Label end, final int slot) {
-        ops.add(cb -> cb.localVariable(slot, name, type, resolve(cb, start), resolve(cb, end)));
+        if (localVariableTable) {
+            ops.add(cb -> cb.localVariable(slot, name, type, resolve(cb, start), resolve(cb, end)));
+        }
     }
 
     public void lineNumber(final int line) {

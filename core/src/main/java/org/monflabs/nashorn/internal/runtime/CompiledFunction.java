@@ -605,9 +605,13 @@ final class CompiledFunction {
                 // the recompilation task we're dependent on. This can still happen if the switch point gets invalidated
                 // after we grabbed it here, in which case we'll indeed do one busy relink immediately.
                 try {
-                    wait();
+                    // bounded, so a waiter re-examines the switch point even if
+                    // a notification was somehow missed; and an interrupt is a
+                    // host giving up on the script, which this must honour
+                    wait(1000);
                 } catch (final InterruptedException e) {
-                    // Intentionally ignored. There's nothing meaningful we can do if we're interrupted
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("interrupted while waiting for a deoptimizing recompilation", e);
                 }
             } else {
                 return new HandleAndAssumptions(handle, assumptions);
@@ -760,6 +764,28 @@ final class CompiledFunction {
      * @return the method handle for the rest-of method, for folding composition.
      */
     private synchronized MethodHandle handleRewriteException(final OptimismInfo oldOptInfo, final RewriteException re) {
+        try {
+            return doHandleRewriteException(oldOptInfo, re);
+        } catch (final RuntimeException | Error e) {
+            // A recompilation that fails must not strand the other threads. The
+            // request invalidated the assumptions switch point, and until a new
+            // one exists every caller of this function - including the one
+            // that will retry the recompilation - sits in the wait below. So
+            // give them a fresh switch point to link against, and let the
+            // failure reach whoever asked; with nothing here, a single failed
+            // recompile hung every thread that ever called the function again.
+            final OptimismInfo info = optimismInfo;
+            if (info != null && info.optimisticAssumptions != null && info.optimisticAssumptions.hasBeenInvalidated()) {
+                info.newOptimisticAssumptions();
+            }
+            throw e;
+        } finally {
+            // on every exit, not just the successful one at the end of the body
+            notifyAll();
+        }
+    }
+
+    private MethodHandle doHandleRewriteException(final OptimismInfo oldOptInfo, final RewriteException re) {
         if (log.isEnabled()) {
             log.info(
                     new RecompilationEvent(
@@ -837,7 +863,6 @@ final class CompiledFunction {
         } else {
             optimismInfo = null; // If we got to a point where we no longer have optimistic assumptions, let the optimism info go.
         }
-        notifyAll();
 
         return restOf;
     }

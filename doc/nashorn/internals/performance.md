@@ -207,7 +207,25 @@ suite is run in. Measured on the ES2026 engine before this work, three iteration
 
 Dual fields alone give nothing; it is the optimistic typing that pays. A long-running embedder
 should turn it on. Flipping the default is the open decision; the prerequisite is running test262
-in that mode too.
+in that mode too, which `-Dnashorn.test262.optimistic=true` now does. The first such run did not
+get past its first shard: a deoptimising recompilation that threw left every subsequent caller of
+the function waiting on `CompiledFunction`'s monitor forever, and what threw was the JVM rejecting
+a rest-of method whose local variable table named slots in code the classfile library had patched
+out as unreachable. Both are fixed (see the changelog), and a rest-of method records no local
+variable table. With them the run completes, and it is what gates the default: **2 038 failing
+executions against the 8 settled ones**, in four families, all in features the six later editions
+added - the ES5 core is clean in this mode too.
+
+| Family | Executions | What goes wrong |
+| --- | ---: | --- |
+| Modules, dynamic `import()`, top-level `await` | 815 | `RecompilableScriptFunctionData.reparse()` re-parses a function with `Parser.parse`, never `parseModule`, so the first deoptimisation of a module function is a `SyntaxError` at its `import` or `export` |
+| Class private members and fields | 447 | a reparsed class loses its private-name resolution: reads answer `0` where a string was stored, and `AssignSymbols.enterBlock` trips an assertion on a nested class |
+| BigInt-typed arrays, `Atomics`, `DataView`, `ArrayBuffer` | 529 | "Failed generating bytecode" assertions on BigInt element operations, receivers reported as "not a typed array", BigInt-to-number coercions the pessimistic path never attempts |
+| Compound and logical assignment, `super`, `new.target` | 150 | slot bookkeeping in the rest-of continuation ("Index 6 out of bounds for length 6"), `eval` and `super` in a recompiled function |
+
+Everything else - `Promise`, `Function.prototype`, `Proxy` - is under a hundred. None of this is
+reachable with optimistic types off, which is why the pessimistic suite is green and why the
+default stays where it is until these are fixed.
 
 ## Not done, and why
 

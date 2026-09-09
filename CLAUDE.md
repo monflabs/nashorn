@@ -189,7 +189,11 @@ which this one can, so it is not selected either.
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with
-  `-Dnashorn.test262.include=/built-ins/Math/`. Regenerate through Maven, never by running
+  `-Dnashorn.test262.include=/built-ins/Math/`. The runner's engine has optimistic types off, like the
+  engine's default and like the expectations file; `-Dnashorn.test262.optimistic=true` runs the same
+  slice with `--optimistic-types=true` (slower by an order of magnitude: every test compiles
+  optimistically and pays its deoptimisations in a one-shot realm) - a run that used to wedge in the
+  first shard on the `CompiledFunction` deopt hang, fixed in 2026.1.0. Regenerate through Maven, never by running
   `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, to catch a case
   conversion in the engine that forgot to name one. The locale a *script* sees is a separate
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,

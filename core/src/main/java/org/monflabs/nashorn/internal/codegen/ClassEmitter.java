@@ -577,11 +577,22 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter restOfMethod(final FunctionNode functionNode) {
-        return newMethod(
+        final MethodEmitter method = newMethod(
             ACC_PUBLIC | ACC_STATIC,
             functionNode.getName(),
             Type.methodType(functionNode.getReturnType().getTypeClass(), RewriteException.class),
             functionNode);
+        // A rest-of method enters through a jump to its continuation point, so
+        // everything of the original body before that point is unreachable to
+        // the JVM. The classfile library patches such code out and computes
+        // max_locals from what remains, while the emitter has recorded local
+        // variable table entries for the whole body (ASM used to grow
+        // max_locals to fit them); an entry for a slot that only dead code
+        // touches makes the JVM reject the class with "Invalid index N in
+        // LocalVariableTable". A continuation has no use for a debug variable
+        // table, so a rest-of method records none.
+        method.dropLocalVariableTable();
+        return method;
     }
 
     /**

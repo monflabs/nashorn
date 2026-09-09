@@ -223,6 +223,11 @@ public class MethodEmitter {
         return stack != null;
     }
 
+    /** See {@link CodeBuffer#dropLocalVariableTable()}. */
+    void dropLocalVariableTable() {
+        method.dropLocalVariableTable();
+    }
+
     private void doesNotContinueSequentially() {
         stack = null;
     }

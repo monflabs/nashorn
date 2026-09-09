@@ -77,6 +77,7 @@ import org.monflabs.nashorn.internal.runtime.options.Options;
  *   <dt>test262.include</dt><dd>path substring, to run a slice while developing</dd>
  *   <dt>test262.threads</dt><dd>worker count, defaults to the CPU count</dd>
  *   <dt>test262.write.expectations</dt><dd>rewrite the expectations file from this run</dd>
+ *   <dt>test262.optimistic</dt><dd>run with {@code --optimistic-types=true} (off by default, like the engine)</dd>
  * </dl>
  */
 public final class Test262Runner {
@@ -91,6 +92,9 @@ public final class Test262Runner {
      * promise never settles would otherwise hang the whole run.
      */
     private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 120L);
+
+    /** Run the engine with {@code --optimistic-types=true}; see {@code test262.optimistic}. */
+    private static final boolean OPTIMISTIC = Boolean.getBoolean("test262.optimistic");
 
     /** The name the host object's bootstrap is compiled under. */
     private static final String HOST_OBJECT_NAME = "<$262>";
@@ -477,8 +481,14 @@ public final class Test262Runner {
             // so the conformance globals stay pristine without an option.
             // The event loop is off by default; the conformance suite needs it
             // for Promise, async/await and the timers, so this runner turns it on.
-            options.process(new String[] { "--class-cache-size=50",
-                    "--locale=en-US", "--event-loop" });
+            // Optimistic types are off by default and the expectations file
+            // describes that mode; -Dtest262.optimistic=true runs the same
+            // slice with deoptimising recompilation, the mode the core suite's
+            // second execution covers and this suite otherwise never sees.
+            options.process(OPTIMISTIC
+                    ? new String[] { "--class-cache-size=50", "--locale=en-US", "--event-loop",
+                            "--optimistic-types=true" }
+                    : new String[] { "--class-cache-size=50", "--locale=en-US", "--event-loop" });
             this.errors = new ErrorManager(errWriter);
             // negative tests are expected to produce parse errors by the thousand;
             // the default limit of 100 would abort the run
