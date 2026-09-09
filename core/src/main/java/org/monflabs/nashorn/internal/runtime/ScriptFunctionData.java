@@ -564,7 +564,9 @@ public abstract class ScriptFunctionData implements Serializable {
     }
 
     static boolean isPrimitiveThis(final Object obj) {
-        return JSType.isString(obj) || obj instanceof Number || obj instanceof Boolean;
+        // ToObject boxes a Symbol as well; a sloppy function called with a symbol
+        // this-value must see the wrapper, not the bare symbol
+        return JSType.isString(obj) || obj instanceof Number || obj instanceof Boolean || obj instanceof Symbol;
     }
 
     /**
