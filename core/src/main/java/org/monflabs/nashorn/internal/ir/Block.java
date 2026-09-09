@@ -55,7 +55,16 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
 
     /** Symbol table - keys must be returned in the order they were put in. */
     @SuppressWarnings("serial")
-    protected final Map<String, Symbol> symbols;
+    protected Map<String, Symbol> symbols;
+
+    /**
+     * Whether {@link #symbols} is shared with another Block version. A block is
+     * rewritten many times across the compilation phases (setStatements,
+     * setFlags, setConversion...) and every version used to deep-copy the
+     * symbol table; symbols reference no IR node, so the versions share it and
+     * {@link #putSymbol} copies on first write instead.
+     */
+    private boolean symbolsShared;
 
     /** Entry label. */
     private final Label entryLabel;
@@ -179,7 +188,11 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
         super(block, finish);
         this.statements = statements;
         this.flags      = flags;
-        this.symbols    = new LinkedHashMap<>(symbols); //todo - symbols have no dependencies on any IR node and can as far as we understand it be shallow copied now
+        // shared, copy-on-write - see symbolsShared. Both the source block and
+        // this one are marked, so a putSymbol on either copies first.
+        this.symbols       = symbols;
+        this.symbolsShared = true;
+        block.symbolsShared = true;
         this.entryLabel = new Label(block.entryLabel);
         this.breakLabel = new Label(block.breakLabel);
         this.conversion = conversion;
@@ -420,6 +433,10 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
      * @param symbol symbol
      */
     public void putSymbol(final Symbol symbol) {
+        if (symbolsShared) {
+            symbols = new LinkedHashMap<>(symbols);
+            symbolsShared = false;
+        }
         symbols.put(symbol.getName(), symbol);
     }
 

@@ -64,7 +64,9 @@ engine interactively, build and run [the playground](doc/nashorn/guide/playgroun
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
-picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
+picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md); for what the engine's performance work found
+and what it is worth against upstream 15.7,
+[doc/nashorn/internals/performance.md](doc/nashorn/internals/performance.md).
 
 
 Getting Started

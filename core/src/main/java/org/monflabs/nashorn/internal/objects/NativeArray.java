@@ -1423,7 +1423,9 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             // behaviour of sort is implementation-defined.
         }
 
-        return list.toArray(new Object[0]);
+        // Arrays.asList writes through to the array, which is already sorted in
+        // place; copying it out again was a second full copy per sort.
+        return array;
     }
 
     /**

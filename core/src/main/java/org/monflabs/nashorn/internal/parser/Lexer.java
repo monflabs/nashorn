@@ -64,6 +64,8 @@ import static org.monflabs.nashorn.internal.parser.TokenType.XML;
 
 import java.io.Serializable;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.monflabs.nashorn.internal.runtime.ECMAErrors;
 import org.monflabs.nashorn.internal.runtime.ErrorManager;
 import org.monflabs.nashorn.internal.runtime.JSErrorType;
@@ -936,10 +938,23 @@ public class Lexer extends Scanner {
      * @return Ident string or null if an error.
      */
     private String valueOfIdent(final int start, final int length) throws RuntimeException {
-        // Save the current position.
-        final int savePosition = position;
         // End of scan.
         final int end = start + length;
+        // Nearly every identifier has no escape in it: one substring, no
+        // character-by-character StringBuilder pass, and the same name gives
+        // the same String instance throughout the source (see intern).
+        boolean escaped = false;
+        for (int i = start; i < end; i++) {
+            if (content[i] == '\\') {
+                escaped = true;
+                break;
+            }
+        }
+        if (!escaped) {
+            return intern(new String(content, start, length));
+        }
+        // Save the current position.
+        final int savePosition = position;
         // Reset to beginning of content.
         reset(start);
         // Buffer for recording characters.
@@ -967,7 +982,19 @@ public class Lexer extends Scanner {
         // Restore position.
         reset(savePosition);
 
-        return sb.toString();
+        return intern(sb.toString());
+    }
+
+    /**
+     * Identifiers seen by this lexer, so that every occurrence of a name in a
+     * source is one String instance. Property maps compare keys by identity
+     * before equals, and a name used at many sites then hits the identity test.
+     */
+    private final Map<String, String> identifiers = new HashMap<>();
+
+    private String intern(final String ident) {
+        final String existing = identifiers.putIfAbsent(ident, ident);
+        return existing == null ? ident : existing;
     }
 
     /**

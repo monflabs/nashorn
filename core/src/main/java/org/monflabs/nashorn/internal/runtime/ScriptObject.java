@@ -87,6 +87,7 @@ import org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex;
 import org.monflabs.nashorn.internal.runtime.linker.LinkerCallSite;
 import org.monflabs.nashorn.internal.runtime.linker.NashornCallSiteDescriptor;
 import org.monflabs.nashorn.internal.runtime.linker.NashornGuards;
+import org.monflabs.nashorn.internal.runtime.logging.DebugLogger;
 
 /**
  * Base class for generic JavaScript objects.
@@ -2561,8 +2562,12 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     private static final MethodHandle DEAD_ZONE = findOwnMH_S("deadZone", Object.class, String.class);
 
     private static GuardedInvocation findMegaMorphicGetMethod(final CallSiteDescriptor desc, final String name, final boolean isMethod) {
-        Context.getContext()
-            .getLogger(ObjectClassGenerator.class).warning("Megamorphic getter: ", desc, " ", name + " ", isMethod);
+        final DebugLogger log = Context.getContext().getLogger(ObjectClassGenerator.class);
+        if (log.isEnabled()) {
+            // a megamorphic site relinks repeatedly by definition, so the
+            // message (a concat and a varargs array) is only built when it is wanted
+            log.warning("Megamorphic getter: ", desc, " ", name + " ", isMethod);
+        }
         final MethodHandle invoker = MH.insertArguments(MEGAMORPHIC_GET, 1, name, isMethod, NashornCallSiteDescriptor.isScope(desc));
         final MethodHandle guard   = getScriptObjectGuard(desc.getMethodType(), true);
         return new GuardedInvocation(invoker, guard);
@@ -2823,7 +2828,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     }
 
     private static GuardedInvocation findMegaMorphicSetMethod(final CallSiteDescriptor desc, final String name) {
-        Context.getContext().getLogger(ObjectClassGenerator.class).warning("Megamorphic setter: ", desc, " ", name);
+        final DebugLogger log = Context.getContext().getLogger(ObjectClassGenerator.class);
+        if (log.isEnabled()) {
+            log.warning("Megamorphic setter: ", desc, " ", name);
+        }
         final MethodType        type = desc.getMethodType().insertParameterTypes(1, Object.class);
         //never bother with ClassCastExceptionGuard for megamorphic callsites
         final GuardedInvocation inv = findSetIndexMethod(desc, false, type);
@@ -3466,10 +3474,21 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
         return getDouble(index, JSType.toString(key), programPoint);
     }
 
-    private Object get(final int index, final Object key) {
+    /**
+     * The slow path of a get that missed the array data. {@code key} may be
+     * null, in which case it is the string form of {@code numericKey}, made
+     * only on the branch that needs it: an out-of-range or hole read in a loop
+     * used to allocate that string on every iteration to pass it through here
+     * and never look at it.
+     */
+    private Object get(final int index, final Object keyOrNull, final double numericKey) {
+        Object key = keyOrNull;
         if (isValidArrayIndex(index)) {
             for (ScriptObject object = this; ; ) {
                 if (object.getMap().containsArrayKeys() || object.answersForEveryKey()) {
+                    if (key == null) {
+                        key = JSType.toString(numericKey);
+                    }
                     // the receiver is where the read began, not where the
                     // property was found, which is what a getter - and a
                     // proxy's trap - is handed
@@ -3491,6 +3510,9 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
                 }
             }
         } else {
+            if (key == null) {
+                key = JSType.toString(numericKey);
+            }
             final FindProperty find = findProperty(key, true);
 
             if (find != null) {
@@ -3498,11 +3520,25 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             }
         }
 
+        if (key == null) {
+            key = JSType.toString(numericKey);
+        }
         return invokeNoSuchProperty(key, false, INVALID_PROGRAM_POINT);
     }
 
     @Override
     public Object get(final Object key) {
+        if (key instanceof String || key instanceof Symbol) {
+            // Already a property key: this is what every well-known-symbol
+            // lookup and every internal string-keyed get passes, and it needs
+            // neither ToPrimitive nor ToPropertyKey (which ran ToPrimitive again).
+            final int       index = getArrayIndex(key);
+            final ArrayData array = getArray();
+            if (array.has(index)) {
+                return array.getObject(index);
+            }
+            return get(index, key, 0);
+        }
         final Object    primitiveKey = JSType.toPrimitive(key, String.class);
         final int       index        = getArrayIndex(primitiveKey);
         final ArrayData array        = getArray();
@@ -3511,7 +3547,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             return array.getObject(index);
         }
 
-        return get(index, JSType.toPropertyKey(primitiveKey));
+        return get(index, JSType.toPropertyKey(primitiveKey), 0);
     }
 
     @Override
@@ -3523,7 +3559,8 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             return array.getObject(index);
         }
 
-        return get(index, JSType.toString(key));
+        // the string form of the key is made only if a lookup needs it
+        return get(index, null, key);
     }
 
     @Override
@@ -3535,7 +3572,7 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             return array.getObject(index);
         }
 
-        return get(index, JSType.toString(key));
+        return get(index, null, key);
     }
 
     private boolean doesNotHaveCheckArrayKeys(final long longIndex, final int value, final int callSiteFlags) {
@@ -4173,15 +4210,30 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @return {@code true} if dual fields should be used.
      */
     protected boolean useDualFields() {
-        return !StructureLoader.isSingleFieldStructure(getClass().getName());
+        return DUAL_FIELDS.get(getClass());
     }
+
+    /**
+     * Whether a structure class uses dual fields, resolved once per class. This
+     * used to be a String.startsWith on the class name, on every spill growth
+     * and every spill property add.
+     */
+    private static final ClassValue<Boolean> DUAL_FIELDS = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(final Class<?> type) {
+            return !StructureLoader.isSingleFieldStructure(type.getName());
+        }
+    };
 
     Object ensureSpillSize(final int slot) {
         final int oldLength = objectSpill == null ? 0 : objectSpill.length;
         if (slot < oldLength) {
             return this;
         }
-        final int newLength = alignUp(slot + 1, SPILL_RATE);
+        // Grow geometrically past the first chunk: growing by one SPILL_RATE
+        // chunk at a time made adding N properties to one object copy the spill
+        // N/SPILL_RATE times, quadratic for wide (dictionary-shaped) objects.
+        final int newLength = Math.max(alignUp(slot + 1, SPILL_RATE), oldLength * 2);
         final Object[] newObjectSpill    = new Object[newLength];
         final long[]   newPrimitiveSpill = useDualFields() ? new long[newLength] : null;
 

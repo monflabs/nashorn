@@ -1320,6 +1320,17 @@ public final class Global extends Scope {
     private ScriptObject   builtinMath;
     private ScriptObject   builtinReflect;
     private ScriptFunction builtinPromise;
+
+    /**
+     * The realm's intrinsic %Promise%, for the built-ins that need the
+     * constructor itself (species checks, the default capability). This is what
+     * the spec names; reading the global "Promise" property instead cost a
+     * generic property lookup per then() and could be redirected by script.
+     * @return the intrinsic Promise constructor
+     */
+    ScriptFunction builtinPromise() {
+        return builtinPromise;
+    }
     private ScriptFunction builtinProxy;
 
     /** Where promise reactions wait until the JavaScript stack empties. */
@@ -2493,8 +2504,27 @@ public final class Global extends Scope {
     ScriptObject getArrayIteratorPrototype() {
         if (builtinArrayIteratorPrototype == null) {
             builtinArrayIteratorPrototype = initPrototype("ArrayIterator", getIteratorPrototype());
+            // captured before any script can see the prototype, so identity
+            // with it means "the built-in next, untouched"
+            builtinArrayIteratorNext = builtinArrayIteratorPrototype.get("next");
         }
         return builtinArrayIteratorPrototype;
+    }
+
+    /** The original %ArrayIteratorPrototype%.next, or null if no array iterator has been made yet. */
+    private Object builtinArrayIteratorNext;
+
+    /**
+     * The original {@code %ArrayIteratorPrototype%.next} function of this realm,
+     * for the for-of fast path in {@code ScriptRuntime.toES6Iterator}: when the
+     * {@code next} an iterator answers with is this very object, the loop steps
+     * the array iterator directly instead of calling it and reading
+     * {@code done} and {@code value} off a fresh result object.
+     *
+     * @return the built-in next, or null if the prototype has not been built yet
+     */
+    public Object getBuiltinArrayIteratorNext() {
+        return builtinArrayIteratorNext;
     }
 
     /**

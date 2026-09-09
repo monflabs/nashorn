@@ -62,6 +62,7 @@ import org.monflabs.nashorn.internal.codegen.CompilerConstants;
 import org.monflabs.nashorn.internal.codegen.CompilerConstants.Call;
 import org.monflabs.nashorn.internal.ir.debug.JSONWriter;
 import org.monflabs.nashorn.internal.objects.AbstractIterator;
+import org.monflabs.nashorn.internal.objects.ArrayIterator;
 import org.monflabs.nashorn.internal.objects.ArrayBufferView;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -465,6 +466,9 @@ public final class ScriptRuntime {
      * @param obj object to iterate on.
      * @return iterator based on the ECMA 6 Iterator interface.
      */
+    /** Marks a for-of step taken directly on a built-in array iterator; the value is in fastValue. */
+    private static final Object FAST_STEP = new Object();
+
     public static Iterator<?> toES6Iterator(final Object obj) {
         if (obj instanceof CloseableIterator closeable) {
             // a for-of loop whose iterator was obtained ahead of the loop, so that
@@ -524,10 +528,23 @@ public final class ScriptRuntime {
             private Object nextResult;
             private boolean fetched;
             private boolean exhausted;
+            /** The value of the step taken directly (nextResult == FAST_STEP), see nextResult(). */
+            private Object fastValue;
 
             private Object nextResult() {
                 try {
                     final Object next = nextInvoker.getGetter().invokeExact(iterator);
+                    if (next == global.getBuiltinArrayIteratorNext() && iterator instanceof ArrayIterator ai) {
+                        // The built-in next in person, on a built-in array
+                        // iterator: step it directly. Calling it and then
+                        // reading done and value off the result object it
+                        // makes is three dynamic invocations and an allocation
+                        // per element, for exactly this outcome. The next
+                        // property is still read on every step, so a next
+                        // swapped mid-loop is seen.
+                        fastValue = ai.stepValue();
+                        return FAST_STEP;
+                    }
                     if (Bootstrap.isCallable(next)) {
                         final Object result = nextInvoker.getInvoker().invokeExact(next, iterator, (Object) null);
                         // ES2015 7.4.2 step 3: what next answers with has to be
@@ -563,6 +580,13 @@ public final class ScriptRuntime {
                 if (nextResult == null) {
                     exhausted = true;
                     return false;
+                }
+                if (nextResult == FAST_STEP) {
+                    if (fastValue == AbstractIterator.ITERATION_DONE) {
+                        exhausted = true;
+                        return false;
+                    }
+                    return true;
                 }
                 try {
                     final Object done = doneInvoker.invokeExact(nextResult);
@@ -636,6 +660,9 @@ public final class ScriptRuntime {
                 fetched = false;
                 if (nextResult == null) {
                     return Undefined.getUndefined();
+                }
+                if (nextResult == FAST_STEP) {
+                    return fastValue;
                 }
                 try {
                     return valueInvoker.invokeExact(nextResult);
@@ -1004,8 +1031,31 @@ public final class ScriptRuntime {
         return JSType.toNumber(xPrim) + JSType.toNumber(yPrim);
     }
 
+    /**
+     * A value ToNumeric returns unchanged: one of the two boxes the engine itself
+     * produces for a JS number. Every generic operator below tests this first,
+     * because in pessimistic mode an Object-typed operand nearly always is one,
+     * and the full ToPrimitive chain behind it (eight instanceof tests plus two
+     * boxings per operand) was the single hottest runtime path in a profile of
+     * Octane - see doc/nashorn/PERFORMANCE.md.
+     */
+    private static boolean isNumberBox(final Object v) {
+        return v instanceof Double || v instanceof Integer;
+    }
+
+    /** The double behind a value {@link #isNumberBox} accepted. */
+    private static double numberValue(final Object v) {
+        return v instanceof Double d ? d : (Integer) v;
+    }
+
     /** ES2020 7.1.3 ToNumeric: a BigInt stays a BigInt, everything else becomes a Number. */
     private static Object toNumeric(final Object value) {
+        if (value instanceof Double) {
+            return value;
+        }
+        if (value instanceof Integer i) {
+            return (Object) Double.valueOf(i);
+        }
         final Object prim = JSType.toPrimitive(value, Number.class);
         return prim instanceof BigInteger ? prim : (Object) Double.valueOf(JSType.toNumber(prim));
     }
@@ -1034,6 +1084,9 @@ public final class ScriptRuntime {
      * @return the operand plus one (a BigInt for a BigInt, else a Number)
      */
     public static Object INC(final Object x) {
+        if (isNumberBox(x)) {
+            return numberValue(x) + 1;
+        }
         final Object n = toNumeric(x);
         return n instanceof BigInteger bx ? bx.add(BigInteger.ONE) : (Object)Double.valueOf((Double)n + 1);
     }
@@ -1044,6 +1097,9 @@ public final class ScriptRuntime {
      * @return the operand minus one (a BigInt for a BigInt, else a Number)
      */
     public static Object DEC(final Object x) {
+        if (isNumberBox(x)) {
+            return numberValue(x) - 1;
+        }
         final Object n = toNumeric(x);
         return n instanceof BigInteger bx ? bx.subtract(BigInteger.ONE) : (Object)Double.valueOf((Double)n - 1);
     }
@@ -1056,6 +1112,9 @@ public final class ScriptRuntime {
      * @return the difference
      */
     public static Object SUB(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) - numberValue(y);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1073,6 +1132,9 @@ public final class ScriptRuntime {
      * @return the product
      */
     public static Object MUL(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) * numberValue(y);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1090,6 +1152,9 @@ public final class ScriptRuntime {
      * @return the quotient
      */
     public static Object DIV(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) / numberValue(y);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1111,6 +1176,9 @@ public final class ScriptRuntime {
      * @return the remainder
      */
     public static Object MOD(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) % numberValue(y);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1132,6 +1200,9 @@ public final class ScriptRuntime {
      * @return the power
      */
     public static Object EXP(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return Math.pow(numberValue(x), numberValue(y));
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1148,6 +1219,12 @@ public final class ScriptRuntime {
 
     /** ES2020 bitwise AND, BigInt-aware. @param x left @param y right @return result */
     public static Object BIT_AND(final Object x, final Object y) {
+        if (x instanceof Integer a && y instanceof Integer b) {
+            return a & b;
+        }
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return JSType.toInt32(numberValue(x)) & JSType.toInt32(numberValue(y));
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1160,6 +1237,12 @@ public final class ScriptRuntime {
 
     /** ES2020 bitwise OR, BigInt-aware. @param x left @param y right @return result */
     public static Object BIT_OR(final Object x, final Object y) {
+        if (x instanceof Integer a && y instanceof Integer b) {
+            return a | b;
+        }
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return JSType.toInt32(numberValue(x)) | JSType.toInt32(numberValue(y));
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1172,6 +1255,12 @@ public final class ScriptRuntime {
 
     /** ES2020 bitwise XOR, BigInt-aware. @param x left @param y right @return result */
     public static Object BIT_XOR(final Object x, final Object y) {
+        if (x instanceof Integer a && y instanceof Integer b) {
+            return a ^ b;
+        }
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return JSType.toInt32(numberValue(x)) ^ JSType.toInt32(numberValue(y));
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1184,6 +1273,9 @@ public final class ScriptRuntime {
 
     /** ES2020 left shift, BigInt-aware. @param x value @param y shift @return result */
     public static Object SHL(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return JSType.toInt32(numberValue(x)) << (JSType.toInt32(numberValue(y)) & 31);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1196,6 +1288,9 @@ public final class ScriptRuntime {
 
     /** ES2020 signed right shift, BigInt-aware. @param x value @param y shift @return result */
     public static Object SAR(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return JSType.toInt32(numberValue(x)) >> (JSType.toInt32(numberValue(y)) & 31);
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
@@ -1208,6 +1303,9 @@ public final class ScriptRuntime {
 
     /** ES2020 unsigned right shift: undefined for BigInt (TypeError). @param x value @param y shift @return result */
     public static Object SHR(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return (double)(JSType.toUint32(numberValue(x)) >>> (JSType.toInt32(numberValue(y)) & 31));
+        }
         final Object nx = toNumeric(x);
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger || ny instanceof BigInteger) {
@@ -1218,6 +1316,9 @@ public final class ScriptRuntime {
 
     /** ES2020 unary negation, BigInt-aware. @param x operand @return the negation */
     public static Object NEG(final Object x) {
+        if (isNumberBox(x)) {
+            return -numberValue(x);
+        }
         final Object nx = toNumeric(x);
         if (nx instanceof BigInteger bx) {
             return bx.negate();
@@ -1227,6 +1328,12 @@ public final class ScriptRuntime {
 
     /** ES2020 bitwise NOT, BigInt-aware. @param x operand @return the complement */
     public static Object BIT_NOT(final Object x) {
+        if (x instanceof Integer i) {
+            return ~i;
+        }
+        if (isNumberBox(x)) {
+            return ~JSType.toInt32(numberValue(x));
+        }
         final Object nx = toNumeric(x);
         if (nx instanceof BigInteger bx) {
             return bx.not();
@@ -1441,6 +1548,12 @@ public final class ScriptRuntime {
 
     /** ECMA 11.9.3 The Abstract Equality Comparison Algorithm */
     private static boolean equals(final Object x, final Object y) {
+        // Two number boxes are the common case for an Object-typed ==; it also
+        // gets NaN right for free, and skips the two JSType.of classifications
+        // below. Kept first so the method stays small enough to inline.
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) == numberValue(y);
+        }
         // We want to keep this method small so we skip reference equality check for numbers
         // as NaN should return false when compared to itself (JDK-8043608).
         if (x == y && !(x instanceof Number)) {
@@ -1744,6 +1857,9 @@ public final class ScriptRuntime {
      * @return true if x is less than y
      */
     public static boolean LT(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) < numberValue(y);
+        }
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
@@ -1769,6 +1885,9 @@ public final class ScriptRuntime {
      * @return true if x is greater than y
      */
     public static boolean GT(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) > numberValue(y);
+        }
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
@@ -1790,6 +1909,9 @@ public final class ScriptRuntime {
      * @return true if x is less than or equal to y
      */
     public static boolean LE(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) <= numberValue(y);
+        }
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 
@@ -1811,6 +1933,9 @@ public final class ScriptRuntime {
      * @return true if x is greater than or equal to y
      */
     public static boolean GE(final Object x, final Object y) {
+        if (isNumberBox(x) && isNumberBox(y)) {
+            return numberValue(x) >= numberValue(y);
+        }
         final Object px = JSType.toPrimitive(x, Number.class);
         final Object py = JSType.toPrimitive(y, Number.class);
 

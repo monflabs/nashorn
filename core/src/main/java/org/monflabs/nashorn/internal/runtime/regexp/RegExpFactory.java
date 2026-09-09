@@ -29,9 +29,9 @@
 
 package org.monflabs.nashorn.internal.runtime.regexp;
 
-import java.util.Collections;
+import java.lang.ref.SoftReference;
 import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import org.monflabs.nashorn.internal.runtime.Context;
 import org.monflabs.nashorn.internal.runtime.ParserException;
 import org.monflabs.nashorn.internal.runtime.options.Options;
@@ -47,13 +47,20 @@ public class RegExpFactory {
     private final static String JDK  = "jdk";
     private final static String JONI = "joni";
 
-    /** Weak cache of already validated regexps - when reparsing, we don't, for example
-     *  need to recompile (reverify) all regexps that have previously been parsed by this
-     *  RegExpFactory in a previous compilation. This saves significant time in e.g. avatar
-     *  startup
+    /**
+     * Cache of already compiled regexps, so that re-evaluating a literal (a regexp
+     * literal inside a loop constructs a NativeRegExp every time) or reparsing a
+     * script does not recompile the pattern.
+     *
+     * This used to be a synchronized WeakHashMap keyed by a freshly concatenated
+     * string that nothing else referenced, so an entry was collectable the moment
+     * it was put and the cache mostly missed - while every lookup still took a
+     * JVM-wide monitor. It is now a lock-free map with a structured key and soft
+     * values, cleared wholesale when it grows past {@link #CACHE_LIMIT} entries.
      */
-    private static final Map<String, RegExp> REGEXP_CACHE =
-            Collections.synchronizedMap(new WeakHashMap<String, RegExp>());
+    private record Key(String pattern, String flags, boolean annexB) {}
+    private static final Map<Key, SoftReference<RegExp>> REGEXP_CACHE = new ConcurrentHashMap<>();
+    private static final int CACHE_LIMIT = 4096;
 
     static {
         final String impl = Options.getStringProperty("nashorn.regexp.impl", JONI);
@@ -168,8 +175,9 @@ public class RegExpFactory {
     public static RegExp create(final String pattern, final String flags) {
         // the flag decides what the pattern means, so two engines that disagree
         // about it must not be handed each other's compilations
-        final String key = pattern + "/" + flags + (annexBEnabled() ? "/b" : "");
-        RegExp regexp = REGEXP_CACHE.get(key);
+        final Key key = new Key(pattern, flags, annexBEnabled());
+        final SoftReference<RegExp> cached = REGEXP_CACHE.get(key);
+        RegExp regexp = cached == null ? null : cached.get();
         if (regexp == null) {
             // The bundled Joni engine works in UTF-16 code units and has no
             // notion of a code point, which is the whole of what the unicode
@@ -185,7 +193,10 @@ public class RegExpFactory {
                         || usesJdkOnlySyntax(pattern)
                     ? new JdkRegExp(pattern, flags)
                     : instance.compile(pattern, flags);
-            REGEXP_CACHE.put(key, regexp);
+            if (REGEXP_CACHE.size() >= CACHE_LIMIT) {
+                REGEXP_CACHE.clear();
+            }
+            REGEXP_CACHE.put(key, new SoftReference<>(regexp));
         }
         return regexp;
     }

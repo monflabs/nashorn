@@ -52,8 +52,17 @@ import java.util.TreeMap;
  *   <li><b>startup</b> - time to build a Context and a Global. Every new builtin
  *       adds properties to the global object, and the test runner alone creates
  *       one Global per test.</li>
- *   <li><b>run</b> - throughput of small scripts, including ES6 constructs as
- *       they land, from {@code src/test/scripts/perf}.</li>
+ *   <li><b>run</b> - throughput of small scripts from {@code src/test/scripts/perf}.
+ *       Seven of them prove one ES2015 feature is free ({@code instanceof},
+ *       {@code toprimitive}, {@code concat}, {@code arraymap}, {@code typedarray},
+ *       {@code properties}, {@code protochain}); eight measure a hot path in its
+ *       own right, added with the 2026 performance work so the gate can see that
+ *       work move: Object-typed arithmetic ({@code arith}), string building
+ *       ({@code strbuild}), regexp exec/test/literal loops ({@code regexp}), wide
+ *       objects ({@code wideobject}), a megamorphic read ({@code megamorphic}),
+ *       the array iteration protocol ({@code forof}), closures and call/apply
+ *       ({@code closures}) and {@code sort}. What each of them found and what
+ *       was done about it is in {@code doc/nashorn/internals/performance.md}.</li>
  * </ul>
  *
  * Usage:
@@ -223,7 +232,14 @@ public final class PerfBenchmark {
             "startup.50globals.ms",  0.25,
             "compile.pdfjs.ms",      0.30);
 
-    /** Applied to any metric not in {@link #TOLERANCES} - i.e. newly added ones. */
+    /**
+     * Applied to any metric not in {@link #TOLERANCES}. The eight hot-path
+     * scripts added in 2026 run under this band: their spread has not been
+     * measured over five pairings the way the seven above were, and 20% is the
+     * cliff-detector setting - the regressions they exist to catch (a copied
+     * subject per regexp match, a boxed Double per arithmetic operation) are
+     * multiples, not percents.
+     */
     private static final double DEFAULT_TOLERANCE = 0.20;
 
     /** Overrides every band at once, for a deliberate high-precision comparison. */

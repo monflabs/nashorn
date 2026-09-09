@@ -1,6 +1,10 @@
 OpenJDK Nashorn Changelog
 =========================
 
+2026.1.0 (unreleased)
+---------------------
+`   ` `           ` **Performance.** A profile of Octane on the ES2026 engine put a quarter of all samples in the generic arithmetic path - the ES2020 BigInt-aware `ScriptRuntime` operators coerced each Object-typed operand through the whole `ToPrimitive` chain and boxed a `Double` twice - and most allocated bytes in the `char[]` the Joni regexp backend copied from the subject string on every `exec`. Both are fixed: the operators and relationals take a number-box fast path, and a compiled regexp reuses one `char[]` per subject. With them: a lock-free regexp cache keyed by a structured key (the old weak-keyed one mostly missed), geometric spill growth for wide objects, `useDualFields` resolved once per class, string- and symbol-keyed `get` without a double `ToPrimitive`, no string key built for an array miss, one copy fewer per `sort`, a for-of loop that steps a built-in array iterator directly, `Promise.prototype.then` reading the intrinsic `%Promise%` rather than the global property, shared (copy-on-write) block symbol tables across the compilation phases, substring-and-intern identifiers in the lexer, and lock-free named-operation interning in the linker. Eight perf-gate scripts were added so the gate sees these paths at all. The measured gains, against the previous revision and against OpenJDK Nashorn 15.7, are in `doc/nashorn/internals/performance.md`.
+
 2026.0.0 (2026.09.08)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2026 (ECMA-262, 17th edition).** Everything the 2025 release implemented is unchanged; the seven finished ES2026 additions are layered on top, and the `tc39/test262` slice is retargeted to the 17th edition. `RegExp.escape`, which the finished-proposals list files under 2026, was already shipped in 2025.

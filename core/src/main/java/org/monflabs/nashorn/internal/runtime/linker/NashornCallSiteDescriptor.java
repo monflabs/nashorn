@@ -41,9 +41,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.util.Collections;
 import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import jdk.dynalink.CallSiteDescriptor;
@@ -173,10 +171,19 @@ public final class NashornCallSiteDescriptor extends CallSiteDescriptor {
         }
     };
 
+    /**
+     * Interned named operations, one map per base operation. Lock-free: every
+     * invokedynamic bootstrap comes through here, and these used to be
+     * synchronized WeakHashMaps - a JVM-wide monitor per link. The values are
+     * still weak so an operation dies with the last call site naming it; a
+     * sweep of cleared entries runs when a map grows past
+     * {@link #NAMED_OPERATIONS_SWEEP} so the keys cannot accumulate either.
+     */
     @SuppressWarnings("unchecked")
     private static final Map<String, Reference<NamedOperation>>[] NAMED_OPERATIONS =
-            Stream.generate(() -> Collections.synchronizedMap(new WeakHashMap<>()))
+            Stream.generate(() -> new ConcurrentHashMap<String, Reference<NamedOperation>>())
             .limit(OPERATIONS.length).toArray(Map[]::new);
+    private static final int NAMED_OPERATIONS_SWEEP = 4096;
 
     private final int flags;
 
@@ -260,6 +267,9 @@ public final class NashornCallSiteDescriptor extends CallSiteDescriptor {
             }
         }
         final NamedOperation newOp = baseOp.named(name);
+        if (namedOps.size() >= NAMED_OPERATIONS_SWEEP) {
+            namedOps.values().removeIf(r -> r.get() == null);
+        }
         namedOps.put(name, new WeakReference<>(newOp));
         return newOp;
     }

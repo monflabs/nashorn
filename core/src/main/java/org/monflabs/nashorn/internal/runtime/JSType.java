@@ -455,10 +455,13 @@ public enum JSType {
      * @return true if object is primitive (includes null and undefined)
      */
     public static boolean isPrimitive(final Object obj) {
-        return obj == null ||
-               obj == ScriptRuntime.UNDEFINED ||
+        // Ordered by how often each answers: a number box first (one class
+        // compare), then strings, then the rare ones. This sits under every
+        // ToPrimitive, so the order is measurable.
+        return isNumber(obj) ||
                isString(obj) ||
-               isNumber(obj) ||
+               obj == null ||
+               obj == ScriptRuntime.UNDEFINED ||
                obj instanceof Boolean ||
                obj instanceof Symbol ||
                obj instanceof BigInteger;

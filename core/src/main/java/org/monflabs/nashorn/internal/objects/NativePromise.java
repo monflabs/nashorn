@@ -132,7 +132,7 @@ public final class NativePromise extends ScriptObject {
             final java.util.function.Consumer<Object> onFulfilled,
             final java.util.function.Consumer<Object> onRejected) {
         if (value instanceof NativePromise already && already.global == global
-                && already.get("constructor") == global.get("Promise")) {
+                && already.get("constructor") == global.builtinPromise()) {
             already.onSettled(onFulfilled, onRejected);
             return;
         }
@@ -197,7 +197,7 @@ public final class NativePromise extends ScriptObject {
         // the constructor this promise says it has, so a subclass gets a promise
         // of its own kind back and a foreign one gets whatever it makes.
         final Capability capability = newPromiseCapability(
-                speciesConstructor(promise, promise.global.get("Promise")));
+                speciesConstructor(promise, promise.global.builtinPromise()));
         promise.performThen(onFulfilled, onRejected, capability);
         return capability.promise();
     }
@@ -690,7 +690,7 @@ public final class NativePromise extends ScriptObject {
             throw typeError("not.a.constructor", ScriptRuntime.safeToString(constructor));
         }
         final Global global = Global.instance();
-        if (constructor == global.get("Promise") && constructor instanceof ScriptFunction builtin
+        if (constructor == global.builtinPromise() && constructor instanceof ScriptFunction builtin
                 && ScriptFunction.getPrototype(builtin) == global.getPromisePrototype()) {
             return new Capability(allocate(global), null, null);
         }

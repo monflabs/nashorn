@@ -118,13 +118,34 @@ public class JoniRegExp extends RegExp {
 
     }
 
+    /**
+     * The last subject this regexp was matched against, with the char[] Joni
+     * works on. Joni needs a char[], and a matcher is made per exec/test, so
+     * without this an exec loop over one string copies the whole string on
+     * every match - quadratic in the subject length. A String is immutable, so
+     * identity is a sound key, and Joni only ever reads the array. One entry
+     * is enough: the hot pattern is one subject, many matches. Volatile because
+     * a compiled RegExp is shared between threads through RegExpFactory's cache.
+     */
+    private record Subject(String input, char[] chars) {}
+    private volatile Subject lastSubject;
+
+    private char[] charsOf(final String input) {
+        Subject subject = lastSubject;
+        if (subject == null || subject.input != input) {
+            subject = new Subject(input, input.toCharArray());
+            lastSubject = subject;
+        }
+        return subject.chars;
+    }
+
     class JoniMatcher implements RegExpMatcher {
         final String input;
         final Matcher joniMatcher;
 
         JoniMatcher(final String input) {
             this.input = input;
-            this.joniMatcher = regex.matcher(input.toCharArray());
+            this.joniMatcher = regex.matcher(charsOf(input));
         }
 
         @Override

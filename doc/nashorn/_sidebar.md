@@ -28,6 +28,7 @@
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)
   - [Optimistic typing](/internals/optimistic-typing.md)
+  - [Performance](/internals/performance.md)
   - [Objects and property maps](/internals/objects.md)
   - [Arrays](/internals/arrays.md)
   - [Call sites and linking](/internals/linking.md)

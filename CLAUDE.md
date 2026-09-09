@@ -388,6 +388,17 @@ that silently did not happen cannot pass.
 For a considered judgement on a small difference, re-run on an idle machine with
 an explicit band: `-Dperf.tolerance=0.02`.
 
+The seven original scripts each prove one ES2015 feature is free; the eight added
+with the 2026 performance work (`arith`, `strbuild`, `regexp`, `wideobject`,
+`megamorphic`, `forof`, `closures`, `sort`) each measure a hot path in its own
+right and run under the 20% default band. `doc/nashorn/internals/performance.md`
+records what the profile found, what was changed for it (number fast paths on the
+BigInt-aware generic operators, one `char[]` per subject in Joni, a regexp cache
+that caches, geometric spill growth, the for-of fast path, …) and the measured
+gain against the previous revision and against OpenJDK Nashorn 15.7. Before
+trusting a single perf-gate run, check nothing else is loading the machine: a
+Time Machine backup once turned every metric into a 2× "regression".
+
 ## Conventions
 
 - OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`.

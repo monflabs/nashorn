@@ -97,6 +97,21 @@ public class ArrayIterator extends AbstractIterator {
 
     @Override
     protected IteratorResult next(final Object arg) {
+        final Object value = stepValue();
+        return value == ITERATION_DONE
+                ? makeResult(Undefined.getUndefined(), Boolean.TRUE, global)
+                : makeResult(value, Boolean.FALSE, global);
+    }
+
+    /**
+     * One step of 22.1.5.2.1, answering the value itself - or
+     * {@link #ITERATION_DONE} - rather than a result object. This is what
+     * {@code next} does, minus the allocation; the for-of loop takes it when it
+     * has established that the iterator's {@code next} is the built-in one.
+     *
+     * @return the next value, or {@link #ITERATION_DONE}
+     */
+    public Object stepValue() {
         final long index = nextIndex;
 
         // 22.1.5.2.1 step 8.a: a typed array is validated on every step, so a
@@ -111,20 +126,18 @@ public class ArrayIterator extends AbstractIterator {
         if (iteratedObject == null || index >= JSType.toUint32(iteratedObject.getLength())) {
             // ES6 22.1.5.2.1 step 10
             iteratedObject = null;
-            return makeResult(Undefined.getUndefined(), Boolean.TRUE, global);
+            return ITERATION_DONE;
         }
 
         nextIndex++;
 
         if (iterationKind == IterationKind.KEY_VALUE) {
-            final NativeArray value = new NativeArray(
+            return new NativeArray(
                     new Object[] {JSType.toNarrowestNumber(index), iteratedObject.get((double) index)});
-            return makeResult(value, Boolean.FALSE, global);
         }
 
-        final Object value = iterationKind == IterationKind.KEY ?
+        return iterationKind == IterationKind.KEY ?
                 JSType.toNarrowestNumber(index) : iteratedObject.get((double) index);
-        return makeResult(value, Boolean.FALSE, global);
     }
 
 

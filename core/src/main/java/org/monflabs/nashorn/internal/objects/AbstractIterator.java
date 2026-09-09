@@ -62,6 +62,12 @@ public abstract class AbstractIterator extends ScriptObject {
     private final static Object ITERATOR_INVOKER_KEY = new Object();
     private final static Object NEXT_INVOKER_KEY     = new Object();
     private final static Object DONE_INVOKER_KEY     = new Object();
+
+    /**
+     * What a built-in iterator's allocation-free step answers when it is
+     * exhausted - see {@link ArrayIterator#stepValue()}. Never a JS value.
+     */
+    public static final Object ITERATION_DONE = new Object();
     private final static Object VALUE_INVOKER_KEY    = new Object();
 
     /** ECMA6 iteration kinds */
