@@ -154,7 +154,12 @@ public class FetchLibraryTest {
         assertTrue(String.valueOf(e.eval("err.message")).startsWith("fetch: "), String.valueOf(e.eval("err.message")));
         e.eval("var bad; fetch('not a url at all').catch(function (x) { bad = x; });");
         assertEquals(e.eval("bad instanceof TypeError"), true);
-        e.eval("var host; fetch('http://no.such.host.invalid/x').catch(function (x) { host = x; });");
+        // an unresolvable host: a DNS label longer than 63 octets is syntactically illegal, so the
+        // resolver rejects it locally and at once, without a query - the failure does not depend on
+        // the machine's DNS being quick to fail an ordinary unknown name (a slow resolver, e.g. over
+        // a VPN, can take a minute to give up on 'no.such.host.invalid', outlasting the test timeout)
+        final String badHost = "http://" + "a".repeat(70) + ".invalid/x";
+        e.eval("var host; fetch('" + badHost + "').catch(function (x) { host = x; });");
         assertEquals(e.eval("host instanceof TypeError"), true);
     }
 
