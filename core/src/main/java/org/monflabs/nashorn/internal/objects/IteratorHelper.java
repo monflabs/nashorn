@@ -49,7 +49,7 @@ public final class IteratorHelper extends AbstractIterator {
     private static PropertyMap $nasgenmap$;
 
     /** Which helper operation this object performs. */
-    enum Kind { MAP, FILTER, TAKE, DROP, FLATMAP }
+    enum Kind { MAP, FILTER, TAKE, DROP, FLATMAP, CONCAT }
 
     private final Kind kind;
     private final Global global;
@@ -71,6 +71,13 @@ public final class IteratorHelper extends AbstractIterator {
     private Object innerIterated;
     private Object innerNext;
 
+    /** For CONCAT: the pre-validated iterables and their captured @@iterator methods. */
+    private final Object[] concatItems;
+    private final Object[] concatMethods;
+    /** For CONCAT: index of the next iterable to open, and whether the whole sequence is exhausted. */
+    private int concatIndex;
+    private boolean concatDone;
+
     /**
      * ES2025 GeneratorValidate: an iterator helper is a generator that is
      * "executing" while its next/return runs, and resuming one that is already
@@ -87,6 +94,21 @@ public final class IteratorHelper extends AbstractIterator {
         this.callback = callback;
         this.limit = limit;
         this.global = global;
+        this.concatItems = null;
+        this.concatMethods = null;
+    }
+
+    /** Constructor for a CONCAT helper over a list of pre-validated iterables and their @@iterator methods. */
+    IteratorHelper(final Object[] items, final Object[] methods, final Global global) {
+        super(global.getIteratorHelperPrototype(), $nasgenmap$);
+        this.kind = Kind.CONCAT;
+        this.iterated = null;
+        this.nextMethod = null;
+        this.callback = null;
+        this.limit = 0;
+        this.global = global;
+        this.concatItems = items;
+        this.concatMethods = methods;
     }
 
     @Override
@@ -125,14 +147,22 @@ public final class IteratorHelper extends AbstractIterator {
             throw typeError("generator.already.running");
         }
         // an explicit return() is a normal completion: the underlying's return
-        // method's throw (if any) propagates
-        final Object inner = helper.innerIterated;
-        final Object it = helper.iterated;
-        helper.innerIterated = null;
-        helper.iterated = null;
-        AbstractIterator.closeIterator(inner);
-        AbstractIterator.closeIterator(it);
-        return helper.makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, helper.global);
+        // method's throw (if any) propagates. GeneratorValidate marks the helper
+        // executing while it runs, so an underlying return that re-enters this
+        // helper's next/return is a TypeError.
+        helper.running = true;
+        try {
+            final Object inner = helper.innerIterated;
+            final Object it = helper.iterated;
+            helper.innerIterated = null;
+            helper.iterated = null;
+            helper.concatDone = true;
+            AbstractIterator.closeIterator(inner);
+            AbstractIterator.closeIterator(it);
+            return helper.makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, helper.global);
+        } finally {
+            helper.running = false;
+        }
     }
 
     /** Close the underlying iterators for an abrupt completion, dropping their errors. */
@@ -141,6 +171,7 @@ public final class IteratorHelper extends AbstractIterator {
         innerIterated = null;
         AbstractIterator.closeIteratorOnError(iterated);
         iterated = null;
+        concatDone = true;
     }
 
     /** Pulls one result object from an (iterator, nextMethod) pair; null when done. */
@@ -207,7 +238,61 @@ public final class IteratorHelper extends AbstractIterator {
         }
     }
 
+    /**
+     * ES2026 Iterator.concat: yield every value of each iterable in turn, opening
+     * each iterator only when reached and closing it before advancing to the next.
+     */
+    private IteratorResult nextConcat() {
+        if (concatDone) {
+            return makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, global);
+        }
+        for (;;) {
+            if (innerIterated == null) {
+                if (concatIndex >= concatItems.length) {
+                    concatDone = true;
+                    return makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, global);
+                }
+                final Object item = concatItems[concatIndex];
+                final Object method = concatMethods[concatIndex];
+                concatIndex++;
+                final MethodHandle call = AbstractIterator.getIteratorInvoker(global);
+                final Object iter;
+                try {
+                    iter = call.invokeExact(method, item);
+                } catch (final RuntimeException | Error e) {
+                    concatDone = true;
+                    throw e;
+                } catch (final Throwable t) {
+                    concatDone = true;
+                    throw new RuntimeException(t);
+                }
+                if (!(iter instanceof ScriptObject sobj)) {
+                    concatDone = true;
+                    throw typeError("not.an.object", ScriptRuntime.safeToString(iter));
+                }
+                innerIterated = iter;
+                innerNext = sobj.get("next");
+            }
+            final ScriptObject r;
+            try {
+                r = step(innerIterated, innerNext);
+            } catch (final RuntimeException | Error e) {
+                innerIterated = null;
+                concatDone = true;
+                throw e;
+            }
+            if (r == null) {
+                innerIterated = null;
+                continue;
+            }
+            return makeResult(valueOf(r), Boolean.FALSE, global);
+        }
+    }
+
     private IteratorResult doNext(final Object arg) {
+        if (kind == Kind.CONCAT) {
+            return nextConcat();
+        }
         if (iterated == null) {
             return makeResult(ScriptRuntime.UNDEFINED, Boolean.TRUE, global);
         }

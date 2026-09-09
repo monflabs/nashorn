@@ -99,6 +99,40 @@ public final class NativeIterator extends ScriptObject {
         return new WrapForValidIterator(iterator, nextMethod, global);
     }
 
+    /**
+     * ES2026 Iterator.concat ( ...items ): a fresh iterator that yields, in
+     * order, every value of each argument's iterator. Each argument is validated
+     * up front - it must be an object with a callable {@code @@iterator} - but its
+     * iterator is opened only when the concatenation reaches it.
+     *
+     * @param self  the Iterator constructor
+     * @param items the iterables to concatenate
+     * @return an iterator over the concatenation
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 0)
+    public static Object concat(final Object self, final Object... items) {
+        final Global global = Global.instance();
+        final MethodHandle call = AbstractIterator.getIteratorInvoker(global);
+        final Object[] iterables = new Object[items.length];
+        final Object[] methods = new Object[items.length];
+        for (int i = 0; i < items.length; i++) {
+            final Object item = items[i];
+            if (JSType.isPrimitive(item)) {
+                throw typeError("not.an.object", ScriptRuntime.safeToString(item));
+            }
+            final Object method = getMethod((ScriptObject) Global.toObject(item), item, call);
+            if (method == ScriptRuntime.UNDEFINED || method == null) {
+                throw typeError("not.a.function", ScriptRuntime.safeToString(method));
+            }
+            if (!Bootstrap.isCallable(method)) {
+                throw typeError("not.a.function", ScriptRuntime.safeToString(method));
+            }
+            iterables[i] = item;
+            methods[i] = method;
+        }
+        return new IteratorHelper(iterables, methods, global);
+    }
+
     /** ES2025 GetIteratorFlattenable(obj, iterate-string-primitives). */
     private static Object getIteratorFlattenable(final Object obj, final Global global) {
         if (JSType.isPrimitive(obj) && !JSType.isString(obj)) {
