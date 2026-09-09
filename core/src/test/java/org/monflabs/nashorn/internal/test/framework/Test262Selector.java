@@ -133,6 +133,7 @@ public final class Test262Selector {
         "json-modules",
         // ES2026
         "Error.isError",
+        "Math.sumPrecise",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory

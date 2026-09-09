@@ -35,9 +35,12 @@ import org.monflabs.nashorn.internal.objects.annotations.Property;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.objects.annotations.SpecializedFunction;
 import org.monflabs.nashorn.internal.objects.annotations.Where;
+import java.math.BigDecimal;
+import org.monflabs.nashorn.internal.runtime.ECMAErrors;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
+import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
 
 /**
  * ECMA 15.8 The Math Object
@@ -1186,6 +1189,73 @@ public final class NativeMath extends ScriptObject {
             sum += scaled * scaled;
         }
         return max * Math.sqrt(sum);
+    }
+
+    // Math.sumPrecise running state: only -0 (or nothing) seen so far, a finite
+    // running total, a single infinity, or NaN (which any NaN, or both signs of
+    // infinity, forces).
+    private static final int SUM_MINUS_ZERO = 0, SUM_FINITE = 1, SUM_PLUS_INF = 2, SUM_MINUS_INF = 3, SUM_NAN = 4;
+
+    /**
+     * ES2026 21.3.2.20 Math.sumPrecise(items): the correctly-rounded sum of an
+     * iterable of Numbers. Each element must be a Number (no coercion) or it is
+     * a TypeError. NaN wins; both infinities together are NaN; a lone infinity is
+     * that infinity; an empty list or only -0 is -0. The finite sum is
+     * accumulated exactly in a {@link BigDecimal} and rounded once to the nearest
+     * double, so a magnitude mix like [1e20, 1, -1e20] gives exactly 1.
+     *
+     * @param self  the Math object
+     * @param items an iterable of Numbers
+     * @return the precise sum
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static double sumPrecise(final Object self, final Object items) {
+        final int[] state = { SUM_MINUS_ZERO };
+        final BigDecimal[] sum = { BigDecimal.ZERO };
+        AbstractIterator.iterate(items, Global.instance(), value -> {
+            if (!JSType.isNumber(value)) {
+                throw ECMAErrors.typeError("not.a.number", ScriptRuntime.safeToString(value));
+            }
+            final double d = ((Number) value).doubleValue();
+            switch (state[0]) {
+            case SUM_NAN:
+                return;
+            case SUM_PLUS_INF:
+                if (Double.isNaN(d) || d == Double.NEGATIVE_INFINITY) {
+                    state[0] = SUM_NAN;
+                }
+                return;
+            case SUM_MINUS_INF:
+                if (Double.isNaN(d) || d == Double.POSITIVE_INFINITY) {
+                    state[0] = SUM_NAN;
+                }
+                return;
+            default: // SUM_MINUS_ZERO or SUM_FINITE
+                if (Double.isNaN(d)) {
+                    state[0] = SUM_NAN;
+                } else if (d == Double.POSITIVE_INFINITY) {
+                    state[0] = SUM_PLUS_INF;
+                } else if (d == Double.NEGATIVE_INFINITY) {
+                    state[0] = SUM_MINUS_INF;
+                } else if (state[0] == SUM_MINUS_ZERO) {
+                    // -0 leaves the state as minus-zero; the first other finite
+                    // value starts the running total
+                    if (!(d == 0.0 && 1.0 / d == Double.NEGATIVE_INFINITY)) {
+                        state[0] = SUM_FINITE;
+                        sum[0] = new BigDecimal(d);
+                    }
+                } else {
+                    sum[0] = sum[0].add(new BigDecimal(d));
+                }
+            }
+        });
+        switch (state[0]) {
+        case SUM_NAN:       return Double.NaN;
+        case SUM_PLUS_INF:  return Double.POSITIVE_INFINITY;
+        case SUM_MINUS_INF: return Double.NEGATIVE_INFINITY;
+        case SUM_MINUS_ZERO: return -0.0;
+        default:            return sum[0].doubleValue();
+        }
     }
 
     /**
