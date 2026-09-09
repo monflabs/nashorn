@@ -170,6 +170,27 @@ public final class ECMAException extends NashornException {
     }
 
     /**
+     * ES2026 20.5.9.1 Error.isError: whether {@code obj} has the [[ErrorData]]
+     * internal slot - i.e. it is a genuine error object, made by one of the
+     * error constructors (which each call {@link org.monflabs.nashorn.internal.objects.NativeError#initException}).
+     * The mark is an own {@code nashornException} whose value is an
+     * {@link ECMAException}, read straight from the object's own property map:
+     * a prototype-chain walk would wrongly accept {@code Object.create(Error.prototype)},
+     * and a normal get would run a proxy's trap where the spec wants a proxy of
+     * an error to answer false.
+     *
+     * @param obj the value to test
+     * @return true if obj is an error object
+     */
+    public static boolean isError(final Object obj) {
+        if (!(obj instanceof ScriptObject sobj)) {
+            return false;
+        }
+        final Property property = sobj.getMap().findProperty(EXCEPTION_PROPERTY);
+        return property != null && property.getObjectValue(sobj, sobj) instanceof ECMAException;
+    }
+
+    /**
      * Print the stack trace for a {@code ScriptObject} representing an error
      *
      * @param errObj the error object

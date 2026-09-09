@@ -131,6 +131,8 @@ public final class Test262Selector {
         "regexp-duplicate-named-groups",
         "import-attributes",
         "json-modules",
+        // ES2026
+        "Error.isError",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory

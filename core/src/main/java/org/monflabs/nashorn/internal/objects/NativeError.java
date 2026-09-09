@@ -191,6 +191,21 @@ public final class NativeError extends ScriptObject {
     }
 
     /**
+     * ES2026 20.5.9.1 Error.isError(arg): whether the argument is a genuine
+     * error object (has the [[ErrorData]] internal slot), regardless of its
+     * prototype - so {@code Object.create(Error.prototype)} is false and a
+     * cross-realm error is true. A proxy of an error is not itself an error.
+     *
+     * @param self the Error constructor
+     * @param arg  the value to test
+     * @return true if arg is an error object
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static boolean isError(final Object self, final Object arg) {
+        return org.monflabs.nashorn.internal.runtime.ECMAException.isError(arg);
+    }
+
+    /**
      * Nashorn extension: Error.prototype.printStackTrace
      * prints stack trace associated with the exception (if available).
      * to the standard error stream.
