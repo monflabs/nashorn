@@ -46,7 +46,7 @@ public final class JSONFunctions {
 
     private static MethodHandle getREVIVER_INVOKER() {
         return Context.getGlobal().getDynamicInvoker(REVIVER_INVOKER, () -> Bootstrap.createDynamicCallInvoker(Object.class,
-            Object.class, Object.class, String.class, Object.class));
+            Object.class, Object.class, String.class, Object.class, Object.class));
     }
 
     /**
@@ -71,33 +71,37 @@ public final class JSONFunctions {
         final Global     global = Context.getGlobal();
         final boolean    dualFields = ((ScriptObject) global).useDualFields();
         final JSONParser parser = new JSONParser(str, global, dualFields);
-        final Object     value;
 
+        // ES2026: when a reviver is present it is handed a source context, so the parse
+        // records each value's raw source text; otherwise the plain value is enough.
+        if (Bootstrap.isCallable(reviver)) {
+            final Object unfiltered;
+            try {
+                unfiltered = parser.parseWithSource();
+            } catch (final ParserException e) {
+                throw ECMAErrors.syntaxError(e, "invalid.json", e.getMessage());
+            }
+            final ScriptObject holder = global.newObject();
+            holder.addOwnProperty("", Property.WRITABLE_ENUMERABLE_CONFIGURABLE, unfiltered);
+            return walk(holder, "", reviver, parser.getRootNode());
+        }
+
+        final Object value;
         try {
             value = parser.parse();
         } catch (final ParserException e) {
             throw ECMAErrors.syntaxError(e, "invalid.json", e.getMessage());
         }
-
-        return applyReviver(global, value, reviver);
+        return value;
     }
 
     // -- Internals only below this point
 
     // parse helpers
 
-    // apply 'reviver' function if available
-    private static Object applyReviver(final Global global, final Object unfiltered, final Object reviver) {
-        if (Bootstrap.isCallable(reviver)) {
-            final ScriptObject root = global.newObject();
-            root.addOwnProperty("", Property.WRITABLE_ENUMERABLE_CONFIGURABLE, unfiltered);
-            return walk(root, "", reviver);
-        }
-        return unfiltered;
-    }
-
-    // This is the abstract "Walk" operation from the spec.
-    private static Object walk(final ScriptObject holder, final Object name, final Object reviver) {
+    // This is the abstract "Walk"/InternalizeJSONProperty operation from the spec,
+    // threading the parse's source record so the reviver can be handed a {source} context.
+    private static Object walk(final ScriptObject holder, final Object name, final Object reviver, final JSONParser.SourceNode record) {
         final Object val = holder.get(name);
         if (val instanceof ScriptObject valueObj) {
             // 24.3.1.1 asks IsArray, which sees through however many proxies
@@ -106,7 +110,9 @@ public final class JSONFunctions {
                 final long length = JSType.toUint32(valueObj.get("length"));
                 for (long i = 0; i < length; i++) {
                     final String key = Long.toString(i);
-                    final Object newElement = walk(valueObj, key, reviver);
+                    final JSONParser.SourceNode child = record != null && record.elements != null && i < record.elements.size()
+                            ? record.elements.get((int) i) : null;
+                    final Object newElement = walk(valueObj, key, reviver, child);
 
                     if (newElement == ScriptRuntime.UNDEFINED) {
                         valueObj.delete(key, false);
@@ -117,7 +123,9 @@ public final class JSONFunctions {
             } else {
                 final String[] keys = valueObj.getOwnKeys(false);
                 for (final String key : keys) {
-                    final Object newElement = walk(valueObj, key, reviver);
+                    final JSONParser.SourceNode child = record != null && record.members != null
+                            ? record.members.get(key) : null;
+                    final Object newElement = walk(valueObj, key, reviver, child);
 
                     if (newElement == ScriptRuntime.UNDEFINED) {
                         valueObj.delete(key, false);
@@ -128,9 +136,14 @@ public final class JSONFunctions {
             }
         }
 
+        final ScriptObject context = Global.instance().newObject();
+        // a primitive still holding the value it was parsed from carries its exact
+        // source; an object, an array, or a value the reviver replaced or introduced does not
+        if (record != null && record.source != null && ScriptRuntime.sameValue(record.value, val)) {
+            context.put("source", record.source, false);
+        }
         try {
-             // Object.class, ScriptFunction.class, ScriptObject.class, String.class, Object.class);
-             return getREVIVER_INVOKER().invokeExact(reviver, (Object)holder, JSType.toString(name), val);
+             return getREVIVER_INVOKER().invokeExact(reviver, (Object)holder, JSType.toString(name), val, (Object) context);
         } catch(Error|RuntimeException t) {
             throw t;
         } catch(final Throwable t) {

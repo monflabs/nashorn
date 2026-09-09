@@ -30,7 +30,9 @@
 package org.monflabs.nashorn.internal.parser;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.monflabs.nashorn.internal.codegen.ObjectClassGenerator;
 import org.monflabs.nashorn.internal.objects.Global;
 import org.monflabs.nashorn.internal.runtime.ECMAErrors;
@@ -64,6 +66,13 @@ public class JSONParser {
     final private boolean dualFields;
     final int length;
     int pos = 0;
+
+    /** ES2026 json-parse-with-source: when set, parsing also records each value's raw source text. */
+    private boolean captureSource;
+    /** The source record most recently produced by {@link #parseLiteral()}. */
+    private SourceNode node;
+    /** The root source record after {@link #parseWithSource()}. */
+    private SourceNode rootNode;
 
     private static final int EOF = -1;
 
@@ -161,6 +170,56 @@ public class JSONParser {
     }
 
     /**
+     * ES2026 json-parse-with-source: a parse record mirroring one parsed JSON value -
+     * its ECMAScript value, and, for a primitive, the exact source text it came from
+     * (null for an object or array); an object carries its members by key (insertion
+     * order), an array its elements by index.
+     */
+    public static final class SourceNode {
+        /** The parsed value at this position (used to tell an untouched primitive from a reviver-replaced one). */
+        public final Object value;
+        /** The primitive's raw source text, or null for an object/array. */
+        public final String source;
+        /** For an object: member records by key; otherwise null. */
+        public final Map<String, SourceNode> members;
+        /** For an array: element records by index; otherwise null. */
+        public final List<SourceNode> elements;
+
+        SourceNode(final Object value, final String source, final Map<String, SourceNode> members, final List<SourceNode> elements) {
+            this.value = value;
+            this.source = source;
+            this.members = members;
+            this.elements = elements;
+        }
+    }
+
+    /**
+     * Parse a string into a JSON value, also recording the source text of every
+     * primitive so a reviver can be handed a {@code {source}} context.
+     *
+     * @return the parsed value (its source records are available via getRootNode)
+     */
+    public Object parseWithSource() {
+        captureSource = true;
+        final Object value = parseLiteral();
+        rootNode = node;
+        skipWhiteSpace();
+        if (pos < length) {
+            throw expectedError(pos, "eof", toString(peek()));
+        }
+        return value;
+    }
+
+    /**
+     * The root source record from the most recent {@link #parseWithSource()}.
+     *
+     * @return the root source record
+     */
+    public SourceNode getRootNode() {
+        return rootNode;
+    }
+
+    /**
      * Public parse method. Parse a string into a JSON object.
      *
      * @return the parsed JSON Object
@@ -177,38 +236,55 @@ public class JSONParser {
     private Object parseLiteral() {
         skipWhiteSpace();
 
+        final int start = pos;
         final int c = peek();
         if (c == EOF) {
             throw expectedError(pos, "json literal", "eof");
         }
+        final Object value;
+        boolean structured = false;
         switch (c) {
         case '{':
-            return parseObject();
+            structured = true;
+            value = parseObject();
+            break;
         case '[':
-            return parseArray();
+            structured = true;
+            value = parseArray();
+            break;
         case '"':
-            return parseString();
+            value = parseString();
+            break;
         case 'f':
-            return parseKeyword(FALSE, Boolean.FALSE);
+            value = parseKeyword(FALSE, Boolean.FALSE);
+            break;
         case 't':
-            return parseKeyword(TRUE, Boolean.TRUE);
+            value = parseKeyword(TRUE, Boolean.TRUE);
+            break;
         case 'n':
-            return parseKeyword(NULL, null);
+            value = parseKeyword(NULL, null);
+            break;
         default:
             if (isDigit(c) || c == '-') {
-                return parseNumber();
+                value = parseNumber();
             } else if (c == '.') {
                 throw numberError(pos);
             } else {
                 throw expectedError(pos, "json literal", toString(c));
             }
         }
+        // parseObject/parseArray set node themselves; a primitive's node is its source text
+        if (captureSource && !structured) {
+            node = new SourceNode(value, source.substring(start, pos), null, null);
+        }
+        return value;
     }
 
     private Object parseObject() {
         PropertyMap propertyMap = dualFields ? JD.getInitialMap() : JO.getInitialMap();
         ArrayData arrayData = ArrayData.EMPTY_ARRAY;
         final ArrayList<Object> values = new ArrayList<>();
+        final Map<String, SourceNode> members = captureSource ? new LinkedHashMap<>() : null;
         int state = STATE_EMPTY;
 
         assert peek() == '{';
@@ -226,6 +302,9 @@ public class JSONParser {
                 final String id = parseString();
                 expectColon();
                 final Object value = parseLiteral();
+                if (captureSource) {
+                    members.put(id, node);
+                }
                 final int index = ArrayIndex.getArrayIndex(id);
                 if (ArrayIndex.isValidArrayIndex(index)) {
                     arrayData = addArrayElement(arrayData, index, value);
@@ -246,7 +325,11 @@ public class JSONParser {
                     throw error(AbstractParser.message("trailing.comma.in.json"), pos);
                 }
                 pos++;
-                return createObject(propertyMap, values, arrayData);
+                final Object object = createObject(propertyMap, values, arrayData);
+                if (captureSource) {
+                    node = new SourceNode(object, null, members, null);
+                }
+                return object;
             default:
                 throw expectedError(pos, ", or }", toString(c));
             }
@@ -331,6 +414,7 @@ public class JSONParser {
 
     private Object parseArray() {
         ArrayData arrayData = ArrayData.EMPTY_ARRAY;
+        final List<SourceNode> elements = captureSource ? new ArrayList<>() : null;
         int state = STATE_EMPTY;
 
         assert peek() == '[';
@@ -353,13 +437,21 @@ public class JSONParser {
                     throw error(AbstractParser.message("trailing.comma.in.json"), pos);
                 }
                 pos++;
-                return global.wrapAsObject(arrayData);
+                final Object array = global.wrapAsObject(arrayData);
+                if (captureSource) {
+                    node = new SourceNode(array, null, null, elements);
+                }
+                return array;
             default:
                 if (state == STATE_ELEMENT_PARSED) {
                     throw expectedError(pos, ", or ]", toString(c));
                 }
                 final long index = arrayData.length();
-                arrayData = arrayData.ensure(index).set((int) index, parseLiteral(), true);
+                final Object element = parseLiteral();
+                if (captureSource) {
+                    elements.add(node);
+                }
+                arrayData = arrayData.ensure(index).set((int) index, element, true);
                 state = STATE_ELEMENT_PARSED;
                 break;
             }

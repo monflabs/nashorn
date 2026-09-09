@@ -48,8 +48,11 @@ import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.objects.annotations.Where;
 import org.monflabs.nashorn.internal.objects.annotations.Property;
 import org.monflabs.nashorn.internal.runtime.ConsString;
+import org.monflabs.nashorn.internal.runtime.ECMAErrors;
 import org.monflabs.nashorn.internal.runtime.JSONFunctions;
 import org.monflabs.nashorn.internal.runtime.JSType;
+import org.monflabs.nashorn.internal.parser.JSONParser;
+import org.monflabs.nashorn.internal.runtime.ParserException;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
@@ -109,6 +112,78 @@ public final class NativeJSON extends ScriptObject {
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static Object parse(final Object self, final Object text, final Object reviver) {
         return JSONFunctions.parse(text, reviver);
+    }
+
+    /**
+     * ES2026 25.5.1 JSON.rawJSON ( text ): a frozen, null-prototype object that
+     * {@code JSON.stringify} emits verbatim. {@code text} must be one JSON primitive
+     * with no surrounding whitespace.
+     *
+     * @param self the JSON object
+     * @param text the raw JSON primitive text
+     * @return a raw-JSON marker object
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static Object rawJSON(final Object self, final Object text) {
+        final String jsonString = JSType.toString(text);
+        if (jsonString.isEmpty()
+                || isJsonWhitespace(jsonString.charAt(0))
+                || isJsonWhitespace(jsonString.charAt(jsonString.length() - 1))) {
+            throw ECMAErrors.syntaxError("invalid.json", "rawJSON text must be a JSON primitive with no leading or trailing whitespace");
+        }
+        final Global global = Global.instance();
+        final boolean dualFields = global.useDualFields();
+        final Object parsed;
+        try {
+            parsed = new JSONParser(jsonString, global, dualFields).parse();
+        } catch (final ParserException e) {
+            throw ECMAErrors.syntaxError(e, "invalid.json", e.getMessage());
+        }
+        if (parsed instanceof ScriptObject) {
+            throw ECMAErrors.syntaxError("invalid.json", "rawJSON text must be a JSON primitive");
+        }
+        final RawJSON obj = new RawJSON(jsonString);
+        obj.addOwnProperty("rawJSON",
+                org.monflabs.nashorn.internal.runtime.Property.NOT_WRITABLE
+                | org.monflabs.nashorn.internal.runtime.Property.NOT_CONFIGURABLE,
+                jsonString);
+        obj.preventExtensions();
+        return obj;
+    }
+
+    /**
+     * ES2026 25.5.2 JSON.isRawJSON ( O ): whether {@code O} is a raw-JSON object.
+     *
+     * @param self  the JSON object
+     * @param value the value to test
+     * @return true iff it has an [[IsRawJSON]] slot
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static boolean isRawJSON(final Object self, final Object value) {
+        return value instanceof RawJSON;
+    }
+
+    private static boolean isJsonWhitespace(final char c) {
+        return c == 0x09 || c == 0x0A || c == 0x0D || c == 0x20;
+    }
+
+    /**
+     * ES2026 the object returned by {@code JSON.rawJSON}: a null-prototype ScriptObject
+     * whose Java type is the [[IsRawJSON]] internal slot, holding the raw text verbatim.
+     */
+    public static final class RawJSON extends ScriptObject {
+        /** the raw JSON text stringify emits verbatim */
+        final String rawText;
+
+        RawJSON(final String rawText) {
+            super(null, PropertyMap.newMap());
+            this.rawText = rawText;
+        }
+
+        @Override
+        public String getClassName() {
+            return "Object";
+        }
     }
 
     /**
@@ -326,6 +401,10 @@ public final class NativeJSON extends ScriptObject {
 
         if (value instanceof Number) {
             return JSType.isFinite(((Number)value).doubleValue()) ? JSType.toString(value) : "null";
+        }
+
+        if (value instanceof RawJSON rawJSON) {
+            return rawJSON.rawText;
         }
 
         final JSType type = JSType.of(value);

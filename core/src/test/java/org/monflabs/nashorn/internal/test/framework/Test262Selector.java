@@ -137,6 +137,7 @@ public final class Test262Selector {
         "upsert",
             "iterator-sequencing",
             "uint8array-base64",
+            "json-parse-with-source",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
