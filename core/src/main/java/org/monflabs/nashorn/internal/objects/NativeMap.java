@@ -188,6 +188,69 @@ public class NativeMap extends ScriptObject {
         return getNativeMap(self).map.get(convertKey(key));
     }
 
+    private static final Object GETORINSERT_INVOKER_KEY = new Object();
+
+    /**
+     * ES2026 24.1.3.5 Map.prototype.getOrInsert(key, value): the value already
+     * stored under {@code key}, or - if none - {@code value}, which is inserted.
+     *
+     * @param self  the self reference
+     * @param key   the key
+     * @param value the value to insert if the key is absent
+     * @return the existing or newly inserted value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object getOrInsert(final Object self, final Object key, final Object value) {
+        final LinkedMap map = getNativeMap(self).map;
+        final Object k = convertKey(key);
+        if (map.has(k)) {
+            return map.get(k);
+        }
+        map.set(k, value);
+        return value;
+    }
+
+    /**
+     * ES2026 24.1.3.6 Map.prototype.getOrInsertComputed(key, callbackfn): the
+     * value already stored under {@code key}, or - if none - the result of
+     * calling {@code callbackfn} with the key, which is then stored. The callback
+     * runs only on a miss; because it may itself mutate the map, its result is
+     * written under the key unconditionally afterwards (overwriting an entry the
+     * callback may have inserted), per the specification.
+     *
+     * @param self       the self reference
+     * @param key        the key
+     * @param callbackfn computes the value to insert when the key is absent
+     * @return the existing or computed value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object getOrInsertComputed(final Object self, final Object key, final Object callbackfn) {
+        final LinkedMap map = getNativeMap(self).map;
+        if (!Bootstrap.isCallable(callbackfn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(callbackfn));
+        }
+        final Object k = convertKey(key);
+        if (map.has(k)) {
+            return map.get(k);
+        }
+        final Object value = callWithKey(callbackfn, k);
+        map.set(k, value);
+        return value;
+    }
+
+    /** Calls {@code callbackfn(key)} with an undefined this, through a cached invoker. */
+    private static Object callWithKey(final Object callbackfn, final Object key) {
+        final MethodHandle invoker = Global.instance().getDynamicInvoker(GETORINSERT_INVOKER_KEY,
+                () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class, Object.class));
+        try {
+            return invoker.invokeExact(callbackfn, (Object) ScriptRuntime.UNDEFINED, key);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     /**
      * ECMA6 23.1.3.10 get Map.prototype.size
      *

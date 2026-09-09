@@ -30,6 +30,7 @@
 package org.monflabs.nashorn.internal.objects;
 
 import java.util.Map;
+import java.lang.invoke.MethodHandle;
 import java.util.WeakHashMap;
 import org.monflabs.nashorn.internal.objects.annotations.Attribute;
 import org.monflabs.nashorn.internal.objects.annotations.Constructor;
@@ -40,6 +41,7 @@ import org.monflabs.nashorn.internal.objects.annotations.Where;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
+import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
 import org.monflabs.nashorn.internal.runtime.Undefined;
 
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
@@ -112,6 +114,62 @@ public class NativeWeakMap extends ScriptObject {
         // 23.3.3.3 step 4: a key the map does not hold reads as undefined, which
         // the Java map answers for with a null it also uses for a stored one
         return map.jmap.getOrDefault(key, Undefined.getUndefined());
+    }
+
+    private static final Object GETORINSERT_INVOKER_KEY = new Object();
+
+    /**
+     * ES2026 24.3.3.5 WeakMap.prototype.getOrInsert(key, value): the value
+     * already stored under {@code key}, or - if none - {@code value}, inserted.
+     *
+     * @param self  the self reference
+     * @param key   the key (must be able to be held weakly)
+     * @param value the value to insert if the key is absent
+     * @return the existing or newly inserted value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object getOrInsert(final Object self, final Object key, final Object value) {
+        final NativeWeakMap map = getMap(self);
+        checkKey(key);
+        if (map.jmap.containsKey(key)) {
+            return map.jmap.get(key);
+        }
+        map.jmap.put(key, value);
+        return value;
+    }
+
+    /**
+     * ES2026 24.3.3.6 WeakMap.prototype.getOrInsertComputed(key, callbackfn):
+     * the value already stored under {@code key}, or - if none - the result of
+     * calling {@code callbackfn} with the key, which is then stored.
+     *
+     * @param self       the self reference
+     * @param key        the key (must be able to be held weakly)
+     * @param callbackfn computes the value to insert when the key is absent
+     * @return the existing or computed value
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, arity = 2)
+    public static Object getOrInsertComputed(final Object self, final Object key, final Object callbackfn) {
+        final NativeWeakMap map = getMap(self);
+        if (!Bootstrap.isCallable(callbackfn)) {
+            throw typeError("not.a.function", ScriptRuntime.safeToString(callbackfn));
+        }
+        checkKey(key);
+        if (map.jmap.containsKey(key)) {
+            return map.jmap.get(key);
+        }
+        final MethodHandle invoker = Global.instance().getDynamicInvoker(GETORINSERT_INVOKER_KEY,
+                () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class, Object.class));
+        final Object value;
+        try {
+            value = invoker.invokeExact(callbackfn, (Object) ScriptRuntime.UNDEFINED, key);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+        map.jmap.put(key, value);
+        return value;
     }
 
     /**
