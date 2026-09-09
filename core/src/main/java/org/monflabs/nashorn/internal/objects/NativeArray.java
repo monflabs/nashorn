@@ -66,6 +66,7 @@ import org.monflabs.nashorn.internal.runtime.OptimisticBuiltins;
 import org.monflabs.nashorn.internal.runtime.PropertyDescriptor;
 import org.monflabs.nashorn.internal.runtime.Property;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
+import org.monflabs.nashorn.internal.runtime.ECMAException;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.WellKnownSymbols;
@@ -2852,6 +2853,237 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         }
         target.set("length", (double)length, CALLSITE_STRICT);
         return target;
+    }
+
+    /**
+     * ES2026 23.1.2.1 Array.fromAsync ( asyncItems [ , mapfn [ , thisArg ] ] ): builds an
+     * array from an async- or sync-iterable, or an array-like, awaiting each value (and each
+     * mapfn result), and hands back a promise for it. Runs entirely as promise reactions on
+     * the realm's event loop, so it needs the loop enabled.
+     *
+     * @param self    the constructor it was called on
+     * @param items   the async iterable, sync iterable, or array-like source
+     * @param mapFn   an optional per-element mapping function
+     * @param thisArg the this value for mapFn
+     * @return a promise for the new array
+     */
+    @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR, arity = 1)
+    public static Object fromAsync(final Object self, final Object items, final Object mapFn, final Object thisArg) {
+        final Global global = Global.instance();
+        Global.requireEventLoop("Array.fromAsync");
+        final NativePromise result = NativePromise.newAsyncPromise(global);
+        try {
+            final ScriptFunction mapper;
+            if (mapFn == ScriptRuntime.UNDEFINED) {
+                mapper = null;
+            } else if (mapFn instanceof ScriptFunction fn) {
+                mapper = fn;
+            } else {
+                throw typeError("not.a.function", ScriptRuntime.safeToString(mapFn));
+            }
+
+            if (items == null || items == ScriptRuntime.UNDEFINED) {
+                throw typeError("not.an.object", ScriptRuntime.safeToString(items));
+            }
+
+            // GetIterator(items, async): its @@asyncIterator, or its @@iterator wrapped so
+            // each step answers with a promise. Each method is read exactly once, per spec.
+            Object iterator = null;
+            final Object o = Global.toObject(items);
+            if (o instanceof ScriptObject sobj) {
+                final Object asyncMethod = sobj.get(NativeSymbol.asyncIterator);
+                if (asyncMethod != ScriptRuntime.UNDEFINED && asyncMethod != null) {
+                    if (!Bootstrap.isCallable(asyncMethod)) {
+                        throw typeError("not.a.function", ScriptRuntime.safeToString(asyncMethod));
+                    }
+                    final Object iter = fromAsyncCall(asyncMethod, items);
+                    if (!(iter instanceof ScriptObject)) {
+                        throw typeError("not.an.object", ScriptRuntime.safeToString(iter));
+                    }
+                    iterator = iter;
+                } else {
+                    final Object syncMethod = sobj.get(NativeSymbol.iterator);
+                    if (syncMethod != ScriptRuntime.UNDEFINED && syncMethod != null) {
+                        if (!Bootstrap.isCallable(syncMethod)) {
+                            throw typeError("not.a.function", ScriptRuntime.safeToString(syncMethod));
+                        }
+                        final Object syncIter = fromAsyncCall(syncMethod, items);
+                        if (!(syncIter instanceof ScriptObject syncIterObj)) {
+                            throw typeError("not.an.object", ScriptRuntime.safeToString(syncIter));
+                        }
+                        final Object syncNext = syncIterObj.get("next");
+                        iterator = new NativeAsyncFromSyncIterator(syncIterObj, syncNext, global,
+                                global.getAsyncFromSyncIteratorPrototype());
+                    }
+                }
+            }
+
+            if (iterator != null) {
+                final Object nextMethod = ((ScriptObject) iterator).get("next");
+                final ScriptObject target = create(self, null);
+                fromAsyncStep(global, result, target, iterator, nextMethod, mapper, thisArg, 0L);
+            } else {
+                final Object source = JSType.toScriptObject(global, items);
+                final long length = source instanceof ScriptObject sobj ? toLength(sobj.getLength()) : 0;
+                // ArrayCreate(len) throws RangeError past 2^32-1, unless C is a constructor building its own
+                final boolean isConstructor = self instanceof ScriptFunction sf && sf.isConstructor()
+                        && self != global.get("Array");
+                if (!isConstructor && length > 0xFFFFFFFFL) {
+                    throw rangeError("inappropriate.array.length", JSType.toString(length));
+                }
+                final ScriptObject target = create(self, (double) length);
+                fromAsyncArrayLikeStep(global, result, target, source, length, mapper, thisArg, 0L);
+            }
+        } catch (final RuntimeException e) {
+            fromAsyncReject(result, e);
+        }
+        return result;
+    }
+
+    /** One step of the iterator branch: await the next result, then map, define, and recurse. */
+    private static void fromAsyncStep(final Global global, final NativePromise result, final ScriptObject target,
+            final Object iterator, final Object nextMethod, final ScriptFunction mapper, final Object thisArg, final long k) {
+        if (k >= MAX_SAFE_INTEGER) {
+            fromAsyncCloseThenReject(global, iterator, result, fromAsyncReason(typeError("array.length.exceeded", "fromAsync")));
+            return;
+        }
+        final Object nextResult;
+        try {
+            nextResult = fromAsyncCall(nextMethod, iterator);
+        } catch (final RuntimeException e) {
+            fromAsyncReject(result, e);
+            return;
+        }
+        NativePromise.await(global, nextResult,
+            res -> {
+                try {
+                    if (!(res instanceof ScriptObject resObj)) {
+                        throw typeError("not.an.object", ScriptRuntime.safeToString(res));
+                    }
+                    if (JSType.toBoolean(resObj.get("done"))) {
+                        target.set("length", (double) k, CALLSITE_STRICT);
+                        NativePromise.resolveAsyncPromise(result, target);
+                        return;
+                    }
+                    final Object value = resObj.get("value");
+                    if (mapper == null) {
+                        fromAsyncDefine(global, result, target, iterator, nextMethod, mapper, thisArg, k, value);
+                    } else {
+                        final Object mapped = ScriptRuntime.apply(mapper, thisArg, value, (double) k);
+                        NativePromise.await(global, mapped,
+                            mv -> fromAsyncDefine(global, result, target, iterator, nextMethod, mapper, thisArg, k, mv),
+                            err -> fromAsyncCloseThenReject(global, iterator, result, err));
+                    }
+                } catch (final RuntimeException e) {
+                    fromAsyncCloseThenReject(global, iterator, result, fromAsyncReason(e));
+                }
+            },
+            err -> NativePromise.rejectAsyncPromise(result, err));
+    }
+
+    /** Define target[k] then advance the iterator branch, closing the iterator on a define error. */
+    private static void fromAsyncDefine(final Global global, final NativePromise result, final ScriptObject target,
+            final Object iterator, final Object nextMethod, final ScriptFunction mapper, final Object thisArg,
+            final long k, final Object value) {
+        try {
+            define(target, k, value);
+        } catch (final RuntimeException e) {
+            fromAsyncCloseThenReject(global, iterator, result, fromAsyncReason(e));
+            return;
+        }
+        fromAsyncStep(global, result, target, iterator, nextMethod, mapper, thisArg, k + 1);
+    }
+
+    /** One step of the array-like branch: await the element (and mapfn result), define, and recurse. */
+    private static void fromAsyncArrayLikeStep(final Global global, final NativePromise result, final ScriptObject target,
+            final Object source, final long length, final ScriptFunction mapper, final Object thisArg, final long k) {
+        if (k >= length) {
+            target.set("length", (double) length, CALLSITE_STRICT);
+            NativePromise.resolveAsyncPromise(result, target);
+            return;
+        }
+        final Object kValue;
+        try {
+            kValue = source instanceof ScriptObject sobj ? sobj.get(k) : ScriptRuntime.UNDEFINED;
+        } catch (final RuntimeException e) {
+            fromAsyncReject(result, e);
+            return;
+        }
+        NativePromise.await(global, kValue,
+            v -> {
+                try {
+                    if (mapper == null) {
+                        define(target, k, v);
+                        fromAsyncArrayLikeStep(global, result, target, source, length, mapper, thisArg, k + 1);
+                    } else {
+                        final Object mapped = ScriptRuntime.apply(mapper, thisArg, v, (double) k);
+                        NativePromise.await(global, mapped,
+                            mv -> {
+                                try {
+                                    define(target, k, mv);
+                                    fromAsyncArrayLikeStep(global, result, target, source, length, mapper, thisArg, k + 1);
+                                } catch (final RuntimeException e) {
+                                    fromAsyncReject(result, e);
+                                }
+                            },
+                            err -> NativePromise.rejectAsyncPromise(result, err));
+                    }
+                } catch (final RuntimeException e) {
+                    fromAsyncReject(result, e);
+                }
+            },
+            err -> NativePromise.rejectAsyncPromise(result, err));
+    }
+
+    /** AsyncIteratorClose for an abrupt completion: call return, await it, then reject with the original reason. */
+    private static void fromAsyncCloseThenReject(final Global global, final Object iterator,
+            final NativePromise result, final Object reason) {
+        final Object ret;
+        try {
+            ret = ((ScriptObject) iterator).get("return");
+        } catch (final RuntimeException ignored) {
+            NativePromise.rejectAsyncPromise(result, reason);
+            return;
+        }
+        if (ret == ScriptRuntime.UNDEFINED || ret == null || !Bootstrap.isCallable(ret)) {
+            NativePromise.rejectAsyncPromise(result, reason);
+            return;
+        }
+        final Object retResult;
+        try {
+            retResult = fromAsyncCall(ret, iterator);
+        } catch (final RuntimeException ignored) {
+            NativePromise.rejectAsyncPromise(result, reason);
+            return;
+        }
+        NativePromise.await(global, retResult,
+            v -> NativePromise.rejectAsyncPromise(result, reason),
+            err -> NativePromise.rejectAsyncPromise(result, reason));
+    }
+
+    private static final Object FROMASYNC_INVOKER = new Object();
+
+    /** Call a zero-argument callable (an iterator's next/return, possibly a JSObject rather than a ScriptFunction). */
+    private static Object fromAsyncCall(final Object fn, final Object thisArg) {
+        final MethodHandle invoker = Global.instance().getDynamicInvoker(FROMASYNC_INVOKER,
+                () -> Bootstrap.createDynamicCallInvoker(Object.class, Object.class, Object.class));
+        try {
+            return invoker.invokeExact(fn, thisArg);
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    /** The value a script throw carries, or the exception itself for an engine error. */
+    private static Object fromAsyncReason(final RuntimeException e) {
+        return e instanceof ECMAException ex ? ex.getThrown() : e;
+    }
+
+    /** Reject the result promise with what a Java exception carries (a script throw's value, else the exception). */
+    private static void fromAsyncReject(final NativePromise result, final RuntimeException e) {
+        NativePromise.rejectAsyncPromise(result, e instanceof ECMAException ex ? ex.getThrown() : e);
     }
 
     /**
