@@ -90,7 +90,7 @@ public final class Test262Runner {
      * engine that is missing the feature they exercise, and an async test whose
      * promise never settles would otherwise hang the whole run.
      */
-    private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 40L);
+    private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 120L);
 
     /** The name the host object's bootstrap is compiled under. */
     private static final String HOST_OBJECT_NAME = "<$262>";

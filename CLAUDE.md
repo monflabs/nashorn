@@ -149,7 +149,7 @@ which this one can, so it is not selected either.
 - `negative: {phase, type}` is **verified**, both the phase and the error constructor. The old runner read
   an expected-error regex and never checked it, so negative tests passed on the wrong error.
 - `includes:` actually loads harness files. The old `test262.js` shim's `$INCLUDE` was dead code.
-- Each execution gets a **fresh Global** and a **40s timeout** on its own thread - three times that for a
+- Each execution gets a **fresh Global** and a **120s timeout** on its own thread - three times that for a
   test that starts agents, which waits on threads of its own. The timeout is not optional: some tests hand
   Map/Set an adversarial iterator that Nashorn never terminates, and without it a wedged worker hangs the
   whole run.

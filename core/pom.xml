@@ -90,6 +90,19 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
       keeps each process to a few thousand executions, which it can see through.
     -->
     <nashorn.test262.shards>12</nashorn.test262.shards>
+    <!--
+      Per-execution timeout, in seconds. The default is generous on purpose: a
+      handful of tests exercise the whole BMP one code point at a time (the
+      S7.4/S7.8.5 comment and regexp-literal torture tests, RegExp-leading-escape-BMP)
+      and take tens of seconds even when they pass. On a slower or contended CI
+      runner they would blow a tight budget, and a per-execution timeout that
+      trips mid-run is not just its own failure - interrupting the worker thread
+      can leave a shared structure inconsistent and take a concurrent, innocent
+      execution down with it. 120s clears the heavy-but-terminating tests with
+      room to spare while still catching a genuinely wedged adversarial iterator,
+      which never terminates at any budget. Override with -Dnashorn.test262.timeout=.
+    -->
+    <nashorn.test262.timeout>120</nashorn.test262.timeout>
     <!-- narrow the run while developing, e.g. -Dnashorn.test262.include=/built-ins/Math/ -->
     <nashorn.test262.include/>
     <!--
@@ -557,7 +570,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.default.shards=${nashorn.test262.shards} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.default.shards=${nashorn.test262.shards} -Dtest262.timeout.seconds=${nashorn.test262.timeout} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>
