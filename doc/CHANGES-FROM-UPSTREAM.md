@@ -12,11 +12,11 @@ release-by-release history see [../CHANGELOG.md](../CHANGELOG.md); for how to us
 any of it, the fork's own guide is in [nashorn/](nashorn/README.md).
 
 
-## Language: ES5.1 → ECMAScript 2025
+## Language: ES5.1 → ECMAScript 2026
 
 Upstream standalone Nashorn is essentially **ECMAScript 5.1**, with a handful of
 ES6 features hidden behind `--language=es6`. This fork implements
-**[ECMAScript 2025](https://262.ecma-international.org/16.0/) (ES16) as the only
+**[ECMAScript 2026](https://262.ecma-international.org/17.0/) (ES17) as the only
 language mode**, with **Annex B** behind a flag. There is no ES5 mode and no
 `isES6()` gating.
 
@@ -93,6 +93,18 @@ Added on top of the ES5.1 baseline:
   disjoint alternatives), and **import attributes** with **JSON modules**
   (`import x from "m" with { type: "json" }`, the `with` clause on static
   import/export and as the second argument of dynamic `import()`).
+- **ES2026:** **`Error.isError`**, **`Math.sumPrecise`** (exact summation over
+  `BigDecimal`), the **upsert** methods `Map`/`WeakMap`.prototype.`getOrInsert`/
+  `getOrInsertComputed`, **`Iterator.concat`**, **`Uint8Array`** to/from **base64
+  and hex** (`fromBase64`/`fromHex`/`toBase64`/`toHex`/`setFromBase64`/`setFromHex`,
+  over `java.util.Base64`/`HexFormat`), **JSON source access** (a third `source`
+  context argument to `JSON.parse`'s reviver) with **`JSON.rawJSON`**/
+  **`JSON.isRawJSON`** (a frozen marker `JSON.stringify` emits verbatim), and
+  **`Array.fromAsync`** (a promise for an array from an async/sync iterable or an
+  array-like, event-loop-gated). `RegExp.escape`, which the finished-proposals list
+  files under 2026, shipped in ES2025 above. Not implemented, being **ES2027**:
+  Temporal, explicit resource management (`using`/`await using`), `Atomics.pause`
+  and import defer.
 - **Annex B** (web-compatibility): block-level function-declaration hoisting,
   `<!--` line comments, `escape`/`unescape`, `String.prototype.anchor` and kin,
   `__proto__`, and the legacy `RegExp.$1…` properties. On by default; a single
@@ -246,7 +258,7 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 
 **Removed**
 
-- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2025
+- `--language` — it only ever accepted `es6` and did nothing (the engine is ES2026
   unconditionally). `--language=es5` (an ES5-only mode) no longer exists.
 - `--libraries` — libraries are no longer discovered or selected by option;
   hand each one to the builder's `library(...)` instead.

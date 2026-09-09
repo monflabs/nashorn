@@ -25,14 +25,14 @@ import java.nio.file.Path;
 import java.util.Set;
 
 /**
- * Decides which test262 tests are in scope for ECMAScript 2025 conformance.
+ * Decides which test262 tests are in scope for ECMAScript 2026 conformance.
  *
  * test262 has no branch or tag for any edition - only the frozen
  * {@code es5-tests} branch and {@code main}, which tracks the current draft
  * spec. The suite for an edition has to be selected out of {@code main}, and the
  * selection is a <em>deny</em> rule rather than an allow rule:
  *
- * <p><b>A test is in scope unless it needs a feature that postdates ES2025.</b>
+ * <p><b>A test is in scope unless it needs a feature that postdates ES2026.</b>
  *
  * <p>That is deliberate. An allow rule - take only tests tagged with a feature
  * of the edition - would quietly drop the thousands of untagged tests covering
@@ -49,7 +49,7 @@ import java.util.Set;
  */
 public final class Test262Selector {
     /**
-     * Every {@code features:} tag that ES2015 through ES2025 introduced. A
+     * Every {@code features:} tag that ES2015 through ES2026 introduced. A
      * test tagged only with these - or with none at all - is in scope.
      *
      * Deliberately and <b>permanently</b> absent: {@code tail-call-optimization}.
@@ -135,10 +135,10 @@ public final class Test262Selector {
         "Error.isError",
         "Math.sumPrecise",
         "upsert",
-            "iterator-sequencing",
-            "uint8array-base64",
-            "json-parse-with-source",
-            "Array.fromAsync",
+        "iterator-sequencing",
+        "uint8array-base64",
+        "json-parse-with-source",
+        "Array.fromAsync",
         // Annex B, which this engine implements behind --annexB. These three
         // tag tests that live in the main tree rather than under annexB/ -
         // B.2.2's accessors on Object.prototype - so without them the directory
@@ -202,12 +202,12 @@ public final class Test262Selector {
      * when Nashorn does.
      */
     /**
-     * Tests about a feature that postdates ES2025 and says so nowhere.
+     * Tests about a feature that postdates ES2026 and says so nowhere.
      *
      * The deny rule reads {@code features:}, and a test written before that
      * convention - or one whose author saw no feature worth naming - declares
      * nothing to deny, so it would be named here one by one for the same reason
-     * the async-generator directories are. At the ES2025 target the set is empty:
+     * the async-generator directories are. At the ES2026 target the set is empty:
      * the one former entry, a harness self-test written with {@code Object.hasOwn},
      * is in scope now that the method is implemented.
      */
@@ -327,7 +327,7 @@ public final class Test262Selector {
      * @param suiteRoot   the root of the test262 checkout
      * @param testFile    the test
      * @param frontmatter its parsed header, or null if it has none
-     * @return true if the test counts towards ES2025 conformance
+     * @return true if the test counts towards ES2026 conformance
      */
     private static final String GENERATED = "/property-escapes/generated/";
 

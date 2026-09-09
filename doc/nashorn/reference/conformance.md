@@ -1,14 +1,14 @@
 # Conformance
 
-This engine implements ECMAScript 2025 — ECMA-262, 16th edition — together with its Annex B, and is
+This engine implements ECMAScript 2026 — ECMA-262, 17th edition — together with its Annex B, and is
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: ~78,000 selected executions, 8 expected failures.** Everything else passes,
+**The headline numbers: ~79,000 selected executions, 8 expected failures.** Everything else passes,
 in both of the engine's typing modes. All 8 are one shape — an indirect `eval` whose block-level
 function declaration must update a `var` the global already had, rooted in how the engine merges eval
 scopes (the feature works in ordinary use; the failures need the runner's pre-populated global).
-No ES2022, ES2023, ES2024 or ES2025 feature corner remains — the eight ES2025 corners once briefly
+No ES2022, ES2023, ES2024, ES2025 or ES2026 feature corner remains — the eight ES2025 corners once briefly
 held out (`Object.prototype.toString` on a tag-less iterator, the `%Iterator.prototype%`
 `@@toStringTag`/`constructor` accessors, `Iterator.from`'s primitive `this`-binding and its
 return-method forwarding, and `Float16Array` bit-precision) are all fixed, detailed in
@@ -16,7 +16,11 @@ return-method forwarding, and `Float16Array` bit-precision) are all fixed, detai
 `Promise.try`, RegExp pattern modifiers, duplicate named capture groups and import attributes / JSON
 modules are all implemented and pass (the pattern-modifier and duplicate-name JDK-backend flavour
 limits are held out in the selector, as the ES2018 property escapes and the ES2024 `v`-flag string-sets
-are). The
+are). The seven finished **ES2026** additions — `Error.isError`, `Math.sumPrecise`, the `Map`/`WeakMap`
+upsert methods, `Iterator.concat`, `Uint8Array` to/from base64 and hex, JSON source access with
+`JSON.rawJSON`/`JSON.isRawJSON`, and `Array.fromAsync` — are all implemented and pass with nothing held
+out; Temporal, explicit resource management, `Atomics.pause` and import defer are ES2027 and out of
+scope (their `features:` tags are absent from the selector). The
 run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
 forwards: a fix must remove its expectation line, and a regression cannot hide.
 

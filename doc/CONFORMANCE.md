@@ -1,16 +1,16 @@
-ECMAScript 2025 conformance
+ECMAScript 2026 conformance
 ===========================
 
-This engine implements [ECMAScript 2025](https://262.ecma-international.org/16.0/)
-(ECMA-262, 16th edition) together with its **Annex B**, and is measured against a
+This engine implements [ECMAScript 2026](https://262.ecma-international.org/17.0/)
+(ECMA-262, 17th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its ~78,000 executions
+selected at runtime by `Test262Selector`, and of its ~79,000 executions
 **8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2024 additions - `Object.groupBy`/`Map.groupBy`,
 `Promise.withResolvers`, `String.prototype.isWellFormed`/`toWellFormed`, resizable
 `ArrayBuffer` and growable `SharedArrayBuffer` with `transfer`, `Atomics.waitAsync`
-and the RegExp `v` flag - are all in, and so now are the **ES2025** additions:
+and the RegExp `v` flag - are all in, so are the **ES2025** additions:
 **iterator helpers** (a new `Iterator` global, `Iterator.from`, and the
 `map`/`filter`/`take`/`drop`/`flatMap`/`reduce`/`toArray`/`forEach`/`some`/`every`/
 `find` methods), the **`Set` methods** (`union`, `intersection`, `difference`,
@@ -18,14 +18,25 @@ and the RegExp `v` flag - are all in, and so now are the **ES2025** additions:
 **`Float16Array`** (with `Math.f16round` and `DataView` `getFloat16`/`setFloat16`),
 **`RegExp.escape`**, **`Promise.try`**, the **RegExp pattern modifiers**
 `(?ims-ims:…)`, **duplicate named capture groups**, and **import attributes** with
-**JSON modules** (`with { type: "json" }`). The slice selects their feature tags.)
+**JSON modules** (`with { type: "json" }`); and so now are the **ES2026** additions:
+**`Error.isError`**, **`Math.sumPrecise`**, the **upsert** methods
+`Map`/`WeakMap`.prototype.`getOrInsert`/`getOrInsertComputed`, **`Iterator.concat`**,
+**`Uint8Array`** to/from **base64 and hex** (`fromBase64`/`fromHex`/`toBase64`/`toHex`/
+`setFromBase64`/`setFromHex`), **JSON source access** (a `source` context for
+`JSON.parse`'s reviver) with **`JSON.rawJSON`**/**`JSON.isRawJSON`**, and
+**`Array.fromAsync`**. The slice selects their feature tags. `RegExp.escape`, which
+the finished-proposals list also files under 2026, shipped in ES2025 above.
+Deliberately excluded, being **ES2027**: Temporal, explicit resource management
+(`using`/`await using`), `Atomics.pause` and import defer - their `features:` tags
+are absent from `Test262Selector.FEATURES`, so the deny rule drops those tests.)
 
 All **8** are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
 rooted in how the engine merges eval scopes (see below). No ES2022, ES2023,
-ES2024 or ES2025 feature corner remains - the eight ES2025 corners that were
-briefly held out are all fixed, detailed under
-[ES2025 corners](#es2025-corners-what-is-held-out) below.
+ES2024, ES2025 or ES2026 feature corner remains - the eight ES2025 corners that were
+briefly held out are all fixed (detailed under
+[ES2025 corners](#es2025-corners-what-is-held-out) below), and every ES2026 feature
+corner passes with nothing held out.
 
 The resizable typed-array corners once settled here are now **fixed**: a typed
 array's `[[Get]]`/`[[Set]]`/`[[HasProperty]]` for a canonical numeric index no

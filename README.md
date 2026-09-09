@@ -8,10 +8,10 @@ Nashorn Engine
 > Classpath Exception where indicated in individual source files.
 
 Nashorn engine is an open source implementation of the
-[ECMAScript 2025 Language Specification](https://262.ecma-international.org/16.0/)
-(the 16th edition). It is written in Java and runs on the Java Virtual Machine.
+[ECMAScript 2026 Language Specification](https://262.ecma-international.org/17.0/)
+(the 17th edition). It is written in Java and runs on the Java Virtual Machine.
 
-This fork implements ECMAScript 2025 together with its Annex B - the additional
+This fork implements ECMAScript 2026 together with its Annex B - the additional
 features for web browsers - and is measured against `tc39/test262`; see the
 [change log](CHANGELOG.md) for what that took. Annex B is on by default and
 `--annexB=false` removes all of it, for a host that wants the standard alone.
@@ -33,8 +33,15 @@ methods** (`union`, `intersection`, `difference`, `symmetricDifference`,
 `Math.f16round` and `DataView` `getFloat16`/`setFloat16`), **`RegExp.escape`**,
 **`Promise.try`**, the **RegExp pattern modifiers** `(?ims-ims:…)`, **duplicate
 named capture groups**, and **import attributes** with **JSON modules**
-(`import x from "m" with { type: "json" }`) - are simply the language. Proper tail
-calls are a documented exclusion, as is ECMA-402. Annex B is implemented, behind `--annexB`.
+(`import x from "m" with { type: "json" }`) - and the ES2026 additions -
+**`Error.isError`**, **`Math.sumPrecise`**, the **upsert** methods
+`Map`/`WeakMap`.prototype.`getOrInsert`/`getOrInsertComputed`, **`Iterator.concat`**,
+**`Uint8Array` to/from base64 and hex** (`fromBase64`/`fromHex`/`toBase64`/`toHex`/
+`setFromBase64`/`setFromHex`), **JSON source access** (a `source` context for
+`JSON.parse`'s reviver) with **`JSON.rawJSON`**/**`JSON.isRawJSON`**, and
+**`Array.fromAsync`** - are simply the language. Proper tail calls are a documented
+exclusion, as is ECMA-402; Temporal, explicit resource management, `Atomics.pause`
+and import defer are ES2027 and not yet implemented. Annex B is implemented, behind `--annexB`.
 
 Nashorn used to be part of the JDK until Java 14. This project provides
 a standalone version of Nashorn suitable for use with Java 25 and later.
@@ -53,7 +60,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2025.0.1-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2026.0.0-all.jar`.
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
@@ -62,14 +69,14 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2025.0.1, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2026.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 ### Versioning
 
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
-implements, rather than a sequential number. So `2025.0.1` targets
-[ECMAScript 2025](https://262.ecma-international.org/16.0/) (ES16), just as the earlier
+implements, rather than a sequential number. So `2026.0.0` targets
+[ECMAScript 2026](https://262.ecma-international.org/17.0/) (ES17), just as the earlier
 `2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
 a later edition of the language, the major number moves to that edition's year (for
@@ -110,13 +117,13 @@ mvn -Ptest262 -DskipTests verify
 ```
 
 test262 has no branch for any edition, so the suite is pinned by commit and the
-ES2025 slice is selected out of it: a test counts unless it needs a feature that
-postdates ES2025. The run is compared against a checked-in expectations file and
+ES2026 slice is selected out of it: a test counts unless it needs a feature that
+postdates ES2026. The run is compared against a checked-in expectations file and
 fails on an unexpected pass as well as an unexpected failure, so conformance only
-moves forwards. 8 of the ~78,000 selected executions fail — all the carried-over
-Annex B indirect-eval cases; everything else passes, through ES2025 (the eight
-ES2025 corners once briefly held out are all fixed — see doc/CONFORMANCE.md). Three things are excluded,
-all outside ECMA-262 16th edition proper: proper tail calls, ECMA-402
+moves forwards. 8 of the ~79,000 selected executions fail — all the carried-over
+Annex B indirect-eval cases; everything else passes, through ES2026 (every ES2026
+feature corner passes — see doc/CONFORMANCE.md). Three things are excluded,
+all outside ECMA-262 17th edition proper: proper tail calls, ECMA-402
 (`intl402`), and the non-normative `staging` directory.
 [doc/CONFORMANCE.md](doc/CONFORMANCE.md) measures each of them, and says what
 Annex B covers on either side of its flag.

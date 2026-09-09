@@ -1,6 +1,28 @@
 OpenJDK Nashorn Changelog
 =========================
 
+2026.0.0 (2026.09.08)
+---------------------
+`   ` `           ` **The language target moves to ECMAScript 2026 (ECMA-262, 17th edition).** Everything the 2025 release implemented is unchanged; the seven finished ES2026 additions are layered on top, and the `tc39/test262` slice is retargeted to the 17th edition. `RegExp.escape`, which the finished-proposals list files under 2026, was already shipped in 2025.
+
+`   ` `           ` **`Error.isError`.** `Error.isError(v)` is true exactly for an object with an `[[ErrorData]]` slot - matched here by a trap-free look for the own `nashornException` marker - so it sees a cross-realm error, and is not fooled by a `Proxy` for one, by `Error.prototype`, or by `Object.create(Error.prototype)`.
+
+`   ` `           ` **`Math.sumPrecise`.** `Math.sumPrecise(iterable)` returns the correctly-rounded sum of a sequence of Numbers (a `TypeError` for a non-Number element), computed exactly with `BigDecimal` so a magnitude mix like `[1e20, 1, -1e20]` sums to `1`; `-0`, `NaN` and `±Infinity` follow the spec's start value and short-circuits.
+
+`   ` `           ` **Upsert.** `Map.prototype.getOrInsert`/`getOrInsertComputed` and their `WeakMap` forms return the value already stored under the key, or - on a miss - insert and return `value` (or the callback's result, the callback run only on a miss).
+
+`   ` `           ` **`Iterator.concat`.** `Iterator.concat(...items)` validates each argument up front (an object with a callable `@@iterator`) then returns a lazy iterator helper that yields every value of each iterable in turn, opening each only when reached and closing the current one before advancing.
+
+`   ` `           ` **`Uint8Array` to/from base64 and hex.** `Uint8Array.fromBase64`/`fromHex` and the `toBase64`/`toHex`/`setFromBase64`/`setFromHex` prototype methods, over `java.util.Base64` and `java.util.HexFormat`, honouring the `{alphabet, lastChunkHandling}` and `{omitPadding}` options and returning `{read, written}` from the `set*` forms.
+
+`   ` `           ` **JSON source access and `JSON.rawJSON`.** `JSON.parse`'s reviver is handed a third `context` argument whose `source` property is the exact source text of a primitive still holding the value it was parsed from; `JSON.rawJSON(text)` returns a frozen, null-prototype marker that `JSON.stringify` emits verbatim, and `JSON.isRawJSON` tests it.
+
+`   ` `           ` **`Array.fromAsync`.** `Array.fromAsync(items, mapfn?, thisArg?)` returns a promise for an array built from an async-iterable, a sync-iterable (each value awaited) or an array-like, awaiting each element and each `mapfn` result and closing the async iterator on an abrupt completion. It is event-loop-gated, like the other asynchronous entry points.
+
+`   ` `           ` **Conformance.** `Test262Selector` moves the boundary from ES2025 to ES2026 by naming the seven new `features:` tags; Temporal, explicit resource management, `Atomics.pause` and import defer are ES2027 and stay out of scope. The settled failures return to the eight carried-over Annex B indirect-eval cases. A general fix along the way: a Symbol this-value is now boxed for a sloppy function, as `ToObject` requires. No performance regression. `doc/CONFORMANCE.md` records all of it.
+
+`   ` `           ` **Documentation and playground.** The guide, the conformance document and the change-from-upstream summary are updated for the 17th edition, and the playground gains an `ES2026` sample category - one runnable sample per feature - run headlessly by the build.
+
 15.0 (2020.11.07)
 -----------------
 [`#3`](https://github.com/openjdk/nashorn/pull/3) [`JDK-8256506`](https://bugs.openjdk.java.net/browse/JDK-8256506) Create a standalone version of Nashorn for Java 15+
