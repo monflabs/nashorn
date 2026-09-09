@@ -2,7 +2,7 @@
 
 Nashorn is a JavaScript engine for the JVM: it compiles JavaScript to JVM bytecode and links call
 sites with `invokedynamic`. This fork — published as **`org.monflabs.nashorn:nashorn-core`**,
-version 2025.0.0, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2024** (ECMA-262, 15th
+version 2025.0.1, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2024** (ECMA-262, 15th
 edition) together with its Annex B, measured continuously against the official `tc39/test262`
 conformance suite. It requires **JDK 25 or later** and has **no dependencies at all**. To avoid colliding with the
 official Nashorn library, everything about it carries the fork's own name: the Java package and
@@ -33,7 +33,7 @@ dependency, creating and configuring engines, calling script from Java and Java 
 building custom host objects, ES modules, scripting mode, the parser API. It ends with [debugging
 scripts](guide/debugging.md) from Chrome DevTools or VS Code, and with [the
 playground](guide/playground.md) — a runnable sample browser (`java -jar
-playground/target/nashorn-playground-2025.0.0-all.jar` after `mvn -pl playground -am package`) whose
+playground/target/nashorn-playground-2025.0.1-all.jar` after `mvn -pl playground -am package`) whose
 library walks the language and the extensions one sample at a time.
 
 **[Extending the engine](extending/apis.md)** — for giving scripts more than the language: the

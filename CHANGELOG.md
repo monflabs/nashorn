@@ -69,6 +69,12 @@ No code changes, but the artifacts published on Maven Central are now compiled w
 
 `   ` `           ` License in the POM has been updated to SPDX-compliant string `GNU General Public License v2.0 w/Classpath exception`.
 
+2025.0.1 (2026.09.08)
+---------------------
+`   ` `           ` **The eight ES2025 test262 corners that 2025.0.0 left settled are fixed**, so the slice returns to the eight carried-over Annex B indirect-eval cases with no ES2025 corner remaining. `Object.prototype.toString` on a built-in iterator whose `@@toStringTag` has been removed now reads `"[object Object]"` (an iterator instance is matched by type, where the `builtinTag` switch had only the space-less prototype class name); `%Iterator.prototype%`'s `@@toStringTag` and `constructor` are hand-installed accessors on the shared prototype, so a `SetterThatIgnoresPrototypeProperties` sees the assignment's receiver; `Iterator.from` on a primitive string runs the `@@iterator` getter with the primitive as `this` (GetV), while an object still uses an ordinary `[[Get]]` so a proxy's traps fire; `%WrapForValidIteratorPrototype%.return` returns the wrapped iterator's own `return` result; and a same-type `Float16Array` `set` copies the raw bytes, preserving a NaN's payload (`Float16Array` also now reports `isFloatArray`).
+
+`   ` `           ` **Four Chrome DevTools Protocol debugger fixes.** A client attaching after a thread already paused (say, after `pauseOnStart` froze the script) now learns it is paused: `Debugger.currentPause()` is the durable counterpart to the fire-once `paused` event, replayed through the session's own handler on `Debugger.enable`, and the client no longer clobbers the replayed pause back to "running". A `debugger` statement pauses with the CDP reason `"debuggerStatement"`. The Sources panel no longer drops the execution-line highlight when it arrives before the asynchronous `getScriptSource` resolves. And the client is told when the debugged run finishes - a new `DebugListener.executionFinished()`, fired once from the outermost script's `finally` when the run actually paused, closes the connection the way a real inspector does when the process exits.
+
 2025.0.0 (2026.09.08)
 ---------------------
 `   ` `           ` **The language target moves to ECMAScript 2025 (ECMA-262, 16th edition).** Everything the 2024 release implemented is unchanged; the ES2025 additions are layered on top, and the `tc39/test262` slice is retargeted to the 16th edition.

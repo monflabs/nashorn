@@ -53,7 +53,7 @@ This fork's own documentation site is in [`doc/nashorn`](doc/nashorn/README.md):
 the [standard libraries](doc/nashorn/libraries/overview.md) (timers, `fetch`, in the engine itself),
 a technical guide to the engine's internals, and the option and built-in reference. To try the
 engine interactively, build and run [the playground](doc/nashorn/guide/playground.md):
-`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2025.0.0-all.jar`.
+`mvn -pl playground -am package && java -jar playground/target/nashorn-playground-2025.0.1-all.jar`.
 
 For how this fork differs from upstream Nashorn - the language it adds, the new APIs, the flag
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
@@ -62,13 +62,13 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md).
 
 Getting Started
 ===============
-This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2025.0.0, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
+This fork is published as `org.monflabs.nashorn:nashorn-core`, currently at version 2025.0.1, and reports itself as `OpenJDK-Monflabs`. You can check the [change log](CHANGELOG.md) to see what's new. Releases up to 15.7 were published by the upstream project as [`org.openjdk.nashorn:nashorn-core`](https://search.maven.org/artifact/org.openjdk.nashorn/nashorn-core/15.7/jar).
 
 ### Versioning
 
 This fork uses [semantic versioning](https://semver.org/) - `MAJOR.MINOR.PATCH` -
 with one twist: the **major number is the ECMAScript specification year** the engine
-implements, rather than a sequential number. So `2025.0.0` targets
+implements, rather than a sequential number. So `2025.0.1` targets
 [ECMAScript 2025](https://262.ecma-international.org/16.0/) (ES16), just as the earlier
 `2018.0.0` targeted ECMAScript 2018; minor and patch increment as usual for
 backward-compatible features and fixes within that spec target. When the engine adopts
