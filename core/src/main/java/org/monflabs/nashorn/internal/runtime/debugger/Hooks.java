@@ -325,7 +325,7 @@ public final class Hooks {
         if (debugger == null || debugger.skipAllPauses || !debugger.hasListeners()) {
             return;
         }
-        pause(stack, debugger, PauseReason.OTHER, null, null);
+        pause(stack, debugger, PauseReason.DEBUGGER_STATEMENT, null, null);
     }
 
     /**
@@ -362,6 +362,9 @@ public final class Hooks {
         stack.clearStep();
         final PausedEventImpl event = new PausedEventImpl(debugger, stack, reason, hits, exception);
         stack.paused = event;
+        // this run engaged the debugger, so its completion is a concluded debug
+        // session the frontend should be told about (see DebuggerImpl.executionFinished)
+        DebuggerImpl.markPausedThisRun();
         debugger.pauseStarted(event);
         try {
             debugger.firePaused(event);

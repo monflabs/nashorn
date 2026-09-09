@@ -151,16 +151,61 @@ public class CdpProtocolTest {
         assertNotNull(failing.get("exceptionDetails"));
         assertEquals(map(map(failing.get("exceptionDetails")).get("exception")).get("subtype"), "error");
 
-        client.call("Debugger.resume");
+        // resuming past the last breakpoint runs the script to its end. That
+        // finishes the (debugged) execution, which now closes the connection the
+        // way a real inspector does when the process exits - so the resume's own
+        // response races that close; send it without waiting for one.
+        client.send("Debugger.resume");
         client.event("Debugger.resumed");
         assertEquals(((Number)result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS)).intValue(), 42);
+        assertEquals(client.awaitClose(), "1000:execution finished");
+    }
 
-        try {
-            client.call("Debugger.resume");
-            fail("expected an error while not paused");
-        } catch (final CdpClient.CdpFailure e) {
-            assertEquals(e.code, -32000);
+    @Test
+    public void lateAttachReplaysExistingPause() throws Exception {
+        // No client is attached when the script freezes (the server allows only
+        // one client at a time, so the setUp client goes away first).
+        client.close();
+        final Debugger dbg = Debugger.of(engine);
+        dbg.pauseOnStart();
+        final Future<Object> result = run("frozen.js",
+                "function f() { return 42; }",
+                "var r = f();",
+                "r;");
+        // wait for it to actually freeze at the first statement, with nobody watching
+        final long deadline = System.currentTimeMillis() + CdpClient.TIMEOUT * 1000;
+        while (dbg.currentPause() == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
         }
+        assertNotNull(dbg.currentPause(), "the script must freeze at start");
+
+        // A client attaches now, after the pause already happened. Its
+        // Debugger.enable must replay the pause - the fire-once event it missed -
+        // so it sees the call stack, not an empty "running" view.
+        final CdpClient late = new CdpClient(server.webSocketUrl());
+        late.call("Runtime.enable");
+        late.call("Debugger.enable");
+        final Map<String, Object> paused = late.event("Debugger.paused");
+        final List<Object> frames = list(paused.get("callFrames"));
+        assertTrue(frames.size() >= 1, "the late client must see the paused call stack: " + paused);
+        assertNotNull(map(frames.get(0)).get("location"));
+
+        // resume through the late client so the frozen script finishes
+        late.send("Debugger.resume");
+        assertEquals(((Number)result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS)).intValue(), 42);
+        assertEquals(late.awaitClose(), "1000:execution finished");
+    }
+
+    @Test
+    public void debuggerStatementReason() throws Exception {
+        final Future<Object> result = run("dbg.js",
+                "var a = 1;",
+                "debugger;",
+                "a + 1;");
+        final Map<String, Object> paused = client.event("Debugger.paused");
+        assertEquals(paused.get("reason"), "debuggerStatement");
+        client.send("Debugger.resume");
+        assertEquals(((Number)result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS)).intValue(), 2);
     }
 
     @Test
@@ -187,12 +232,14 @@ public class CdpProtocolTest {
         client.call("Debugger.stepOver");
         paused = client.event("Debugger.paused");
         assertEquals(line(topFrame(paused)), 6L);
-        client.call("Debugger.resume");
+        // the final resume runs the script to its end and closes the connection
+        client.send("Debugger.resume");
         assertEquals(((Number)result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS)).intValue(), 3);
+        assertEquals(client.awaitClose(), "1000:execution finished");
     }
 
     @Test
-    public void pauseOnExceptionsAndExceptionThrown() throws Exception {
+    public void pauseOnCaughtExceptionAndResume() throws Exception {
         client.call("Debugger.setPauseOnExceptions", "state", "all");
         final Future<Object> result = run("exc.js",
                 "function thrower() { throw new TypeError('boom'); }",
@@ -201,10 +248,18 @@ public class CdpProtocolTest {
         assertEquals(paused.get("reason"), "exception");
         assertEquals(map(paused.get("data")).get("subtype"), "error");
         assertTrue(String.valueOf(map(paused.get("data")).get("description")).startsWith("TypeError: boom"));
-        client.call("Debugger.resume");
+        // this run paused, so its completion closes the connection - see the
+        // breakpoint test; send the resume without waiting for a racing response
+        client.send("Debugger.resume");
         assertEquals(result.get(CdpClient.TIMEOUT, TimeUnit.SECONDS), "boom");
+        assertEquals(client.awaitClose(), "1000:execution finished");
+    }
 
+    @Test
+    public void uncaughtExceptionThrown() throws Exception {
         client.call("Debugger.setPauseOnExceptions", "state", "none");
+        // pauseOnExceptions is none, so this run never pauses; it is not a
+        // debug session that concluded, so the connection stays open
         final Future<Object> escaping = run("uncaught.js", "function bad() { throw new RangeError('out'); }", "bad();");
         final Map<String, Object> thrown = client.event("Runtime.exceptionThrown");
         final Map<String, Object> details = map(thrown.get("exceptionDetails"));

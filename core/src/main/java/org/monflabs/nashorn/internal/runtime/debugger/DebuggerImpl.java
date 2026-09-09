@@ -363,7 +363,12 @@ public final class DebuggerImpl implements Debugger {
     @Override
     public <T> T call(final ExecutionContext ctx, final java.util.concurrent.Callable<T> operation) throws Exception {
         final Global global = ((ExecutionContextImpl)ctx).globalObject();
-        return Context.<T, Exception>callWithGlobal(global, operation::call);
+        enterReentrant();
+        try {
+            return Context.<T, Exception>callWithGlobal(global, operation::call);
+        } finally {
+            exitReentrant();
+        }
     }
 
     @Override
@@ -401,6 +406,14 @@ public final class DebuggerImpl implements Debugger {
     void stepEnded() {
         stepping.updateAndGet(n -> n > 0 ? n - 1 : 0);
         recomputeInteresting();
+    }
+
+    @Override
+    public org.monflabs.nashorn.api.debugger.PausedEvent currentPause() {
+        // the durable record of what is paused: pauseStarted adds, pauseEnded and
+        // close() remove. A frontend attaching late replays the head of this.
+        final List<PausedEventImpl> active = pauses;
+        return active.isEmpty() ? null : active.get(active.size() - 1);
     }
 
     void pauseStarted(final PausedEventImpl event) {
@@ -444,6 +457,71 @@ public final class DebuggerImpl implements Debugger {
     void fireResumed(final PausedEventImpl event) {
         for (final DebugListener l : listeners) {
             l.resumed(event);
+        }
+    }
+
+    /**
+     * The outermost script execution on the calling thread has finished (and its
+     * event loop drained). Called from {@link org.monflabs.nashorn.internal.runtime.ScriptRuntime#apply}
+     * and module evaluation, at the point their own {@code finally} would return.
+     * Gated on {@link Hooks#attached} so a run with no debugger listener pays only
+     * one volatile read.
+     */
+    public static void executionFinished() {
+        if (!Hooks.attached || REENTRANT.get()[0] > 0) {
+            return;
+        }
+        // Fire only when this run actually engaged the debugger - it paused at
+        // least once (pauseOnStart, a breakpoint, a debugger statement, an
+        // exception, or an explicit pause). A Nashorn engine is long-lived and
+        // reused, unlike a one-shot process: a script that ran straight through
+        // without ever pausing is not a concluded debug session, and tearing
+        // the inspector down after it would stop the next script from being
+        // debugged on the same connection. This is the reported case - a
+        // debugged script reaching its end with no breakpoints left to hit.
+        final boolean[] paused = PAUSED_THIS_RUN.get();
+        if (!paused[0]) {
+            return;
+        }
+        paused[0] = false;
+        final DebuggerImpl debugger = current();
+        if (debugger != null) {
+            debugger.fireExecutionFinished();
+        }
+    }
+
+    /**
+     * Whether the current thread paused since its outermost execution began -
+     * set by {@link Hooks#pause}, read and reset by {@link #executionFinished()}.
+     */
+    private static final ThreadLocal<boolean[]> PAUSED_THIS_RUN = ThreadLocal.withInitial(() -> new boolean[1]);
+
+    static void markPausedThisRun() {
+        PAUSED_THIS_RUN.get()[0] = true;
+    }
+
+    /**
+     * Depth of debugger-initiated script execution on this thread: an
+     * {@code evaluate}, or a function called to inspect a value. Such an
+     * execution can be the outermost one on the debugger's own thread (a
+     * {@code Runtime.evaluate} while nothing is paused runs on the connection's
+     * reader thread), and its completion must not be mistaken for the debugged
+     * program finishing - {@link #executionFinished()} ignores it while this is
+     * above zero.
+     */
+    private static final ThreadLocal<int[]> REENTRANT = ThreadLocal.withInitial(() -> new int[1]);
+
+    static void enterReentrant() {
+        REENTRANT.get()[0]++;
+    }
+
+    static void exitReentrant() {
+        REENTRANT.get()[0]--;
+    }
+
+    private void fireExecutionFinished() {
+        for (final DebugListener l : listeners) {
+            l.executionFinished();
         }
     }
 
@@ -498,6 +576,7 @@ public final class DebuggerImpl implements Debugger {
      * have the global's realm bound.
      */
     static Object evalIn(final Global global, final ScriptObject scope, final String expression, final Object thisValue) throws DebugException {
+        enterReentrant();
         try {
             return Context.getContext().eval(scope, expression, thisValue == null ? global : thisValue, ScriptRuntime.UNDEFINED);
         } catch (final ECMAException e) {
@@ -506,6 +585,8 @@ public final class DebuggerImpl implements Debugger {
             throw new DebugException(e.getMessage(), null, e);
         } catch (final NashornException e) {
             throw new DebugException(e.getMessage(), e.getEcmaError(), e);
+        } finally {
+            exitReentrant();
         }
     }
 

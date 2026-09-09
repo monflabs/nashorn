@@ -81,4 +81,13 @@ public interface DebugListener {
      * @param event the call
      */
     default void consoleCalled(final ConsoleEvent event) {}
+
+    /**
+     * The outermost script execution on a thread finished - it ran to
+     * completion, an exception escaped it, or it was stopped - and the event
+     * loop it drove is idle. Called on that thread, from its own {@code finally},
+     * once per top-level evaluation. A frontend can use it to end the session
+     * the way a real inspector closes its connection when the process exits.
+     */
+    default void executionFinished() {}
 }

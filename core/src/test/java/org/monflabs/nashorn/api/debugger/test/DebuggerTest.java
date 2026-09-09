@@ -728,7 +728,7 @@ public class DebuggerTest {
                 "debugger;",
                 "a + 1;");
         final PausedEvent event = awaitPause();
-        assertEquals(event.reason(), PauseReason.OTHER);
+        assertEquals(event.reason(), PauseReason.DEBUGGER_STATEMENT);
         assertEquals(event.frames().get(0).location().line(), 1);
         event.resume();
         assertEquals(await(result), 2);

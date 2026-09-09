@@ -758,6 +758,10 @@ public final class ScriptRuntime {
                 if (global != null) {
                     global.getJobQueue().drain();
                 }
+                // the outermost script execution on this thread is over, its
+                // event loop idle - tell any debugger, so a frontend can end the
+                // session the way a real inspector closes when the process exits
+                org.monflabs.nashorn.internal.runtime.debugger.DebuggerImpl.executionFinished();
             }
         }
     }

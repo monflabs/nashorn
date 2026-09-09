@@ -26,6 +26,7 @@ import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ final class CdpClient implements AutoCloseable {
     private final BlockingQueue<Map<String, Object>> responses = new LinkedBlockingQueue<>();
     private final BlockingQueue<Map<String, Object>> events = new LinkedBlockingQueue<>();
     private final StringBuilder partial = new StringBuilder();
+    private final CompletableFuture<String> closed = new CompletableFuture<>();
     private long nextId = 1;
 
     CdpClient(final String url) throws Exception {
@@ -60,6 +62,12 @@ final class CdpClient implements AutoCloseable {
                     }
                 }
                 ws.request(1);
+                return null;
+            }
+
+            @Override
+            public CompletionStage<?> onClose(final WebSocket ws, final int statusCode, final String reason) {
+                closed.complete(statusCode + ":" + reason);
                 return null;
             }
         }).get(TIMEOUT, TimeUnit.SECONDS);
@@ -105,6 +113,19 @@ final class CdpClient implements AutoCloseable {
 
     boolean hasEvents() {
         return !events.isEmpty();
+    }
+
+    /** Sends a request without waiting for its response - for a command whose
+     *  own response may not arrive because it ends the run (a resume past the
+     *  last statement closes the connection). */
+    void send(final String method, final Object... params) throws Exception {
+        final long id = nextId++;
+        socket.sendText(Json.write(Json.object("id", id, "method", method, "params", Json.object(params))), true).get(TIMEOUT, TimeUnit.SECONDS);
+    }
+
+    /** Waits for the server to close the connection and returns "code:reason". */
+    String awaitClose() throws Exception {
+        return closed.get(TIMEOUT, TimeUnit.SECONDS);
     }
 
     void sendRaw(final String text) throws Exception {

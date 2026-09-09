@@ -37,6 +37,8 @@ public enum PauseReason {
     EXCEPTION,
     /** The first statement of a script, after {@link Debugger#pauseOnStart()}. */
     START,
+    /** A {@code debugger} statement was reached. */
+    DEBUGGER_STATEMENT,
     /** Something else. */
     OTHER
 }

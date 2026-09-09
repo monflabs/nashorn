@@ -310,6 +310,33 @@ public class DebugSessionTest {
     }
 
     @Test
+    public void attachingWhilePausedShowsThePauseNotRunning() throws Exception {
+        // the script freezes at its first statement before any session attaches
+        final Debugger dbg = Debugger.of(engine);
+        dbg.pauseOnStart();
+        final String url = "file:///work/frozen.js";
+        final CompletableFuture<Object> done = runScriptAtUrl(url, "var a = 1;\na = a + 1;\na;");
+        final long deadline = System.currentTimeMillis() + TIMEOUT * 1000;
+        while (dbg.currentPause() == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+        assertNotNull(dbg.currentPause(), "the script must freeze at start");
+
+        // attach now: the server replays Debugger.paused from inside its enable
+        // handler, so it arrives just before the enable response. The session
+        // must end up PAUSED - the enable-response callback must not clobber the
+        // state the just-arrived paused event set.
+        session.attach(server.webSocketUrl());
+        pumpUntil(() -> session.state() == DebugSession.State.PAUSED);
+        assertEquals(session.state(), DebugSession.State.PAUSED);
+        assertNotNull(recorder.lastPause, "the late client must receive the replayed pause");
+        assertTrue(recorder.lastPause.frames().size() >= 1, "with a call stack");
+
+        session.resume();
+        await(done);
+    }
+
+    @Test
     public void stalePropertyResultsAreDroppedAfterResume() {
         attach();
         final String url = "file:///work/stale.js";
@@ -321,7 +348,11 @@ public class DebugSessionTest {
         // resume first, then ask for properties captured against the old pause serial
         session.resume();
         await(done);
-        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        // resuming past the last statement finishes the script, which the server
+        // now signals by closing the connection - so the session leaves PAUSED
+        // (to RUNNING, then DETACHED on the close), never necessarily resting in
+        // RUNNING. What this asserts is that the resume was processed.
+        pumpUntil(() -> session.state() != DebugSession.State.PAUSED);
         final List<PropertyEntry> props = await(session.properties(scope.objectId()));
         assertTrue(props.isEmpty(), "expected the stale fetch to be dropped, got " + props);
     }
@@ -354,7 +385,10 @@ public class DebugSessionTest {
         pumpUntil(() -> recorder.lastPause != null);
         session.resume();
         await(done);
-        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        // the script finishes on resume, so the server closes the connection;
+        // the session leaves PAUSED rather than resting in RUNNING (see the
+        // stale-property test). detach() below is then a no-op, which is fine.
+        pumpUntil(() -> session.state() != DebugSession.State.PAUSED);
 
         session.detach();
         ui.pump();

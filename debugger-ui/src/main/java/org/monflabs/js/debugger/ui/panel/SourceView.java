@@ -136,6 +136,11 @@ final class SourceView extends JPanel {
      * Marks a line as the one about to run.
      * @param line the line, zero based
      */
+    /** The line the execution arrow is on, or -1 if none. */
+    int executionLine() {
+        return executionLine;
+    }
+
     void setExecutionLine(final int line) {
         executionLine = line;
         refresh();

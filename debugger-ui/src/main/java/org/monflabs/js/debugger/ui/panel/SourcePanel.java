@@ -23,6 +23,7 @@ package org.monflabs.js.debugger.ui.panel;
 
 import java.awt.BorderLayout;
 import java.awt.Font;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,7 @@ final class SourcePanel extends JPanel {
     private final transient SourceView.BreakpointToggle toggle;
     private final transient SourceSupplier sources;
     private final transient Map<String, SourceView> views = new HashMap<>();
+    private final transient Map<String, List<java.util.function.Consumer<SourceView>>> pending = new HashMap<>();
     private final transient Map<String, ScriptInfo> scriptsByUrl = new HashMap<>();
     private final JLabel placeholder = new JLabel("No script open", SwingConstants.CENTER);
     private String currentUrl;
@@ -78,20 +80,58 @@ final class SourcePanel extends JPanel {
         if (url.equals(currentUrl) && views.containsKey(url)) {
             return;
         }
+        withView(url, view -> swapTo(url, view));
+    }
+
+    /**
+     * Runs {@code action} on the {@link SourceView} for {@code url} - now if the
+     * view already exists, otherwise once its source fetch resolves and the view
+     * is created. An action requested while a fetch is in flight rides that same
+     * fetch. This is what stops a highlight (or a reveal) that arrives before the
+     * asynchronous getScriptSource has returned from being silently dropped: the
+     * first pause on a script genuinely races its scriptParsed-triggered fetch.
+     */
+    private void withView(final String url, final java.util.function.Consumer<SourceView> action) {
+        if (url == null) {
+            return;
+        }
         final SourceView existing = views.get(url);
         if (existing != null) {
-            swapTo(url, existing);
+            action.accept(existing);
             return;
         }
         final ScriptInfo script = scriptsByUrl.get(url);
         if (script == null) {
             return;
         }
+        final List<java.util.function.Consumer<SourceView>> inFlight = pending.get(url);
+        if (inFlight != null) {
+            // a fetch for this url is already running - queue onto it
+            inFlight.add(action);
+            return;
+        }
+        final List<java.util.function.Consumer<SourceView>> queued = new ArrayList<>();
+        queued.add(action);
+        pending.put(url, queued);
         sources.fetch(script.scriptId(), source -> {
-            final SourceView view = new SourceView(url, source, font, dark, toggle);
-            views.put(url, view);
-            swapTo(url, view);
+            SourceView view = views.get(url);
+            if (view == null) {
+                view = new SourceView(url, source, font, dark, toggle);
+                views.put(url, view);
+            }
+            final SourceView created = view;
+            final List<java.util.function.Consumer<SourceView>> actions = pending.remove(url);
+            if (actions != null) {
+                for (final java.util.function.Consumer<SourceView> a : actions) {
+                    a.accept(created);
+                }
+            }
         });
+    }
+
+    /** The view for a url, or null if none is loaded yet - for tests. */
+    SourceView viewForTest(final String url) {
+        return views.get(url);
     }
 
     private void swapTo(final String url, final SourceView view) {
@@ -104,11 +144,10 @@ final class SourcePanel extends JPanel {
 
     /** Shows the execution arrow on a url's line, opening the script if needed. */
     void showExecutionLine(final String url, final int line) {
-        show(url);
-        final SourceView view = views.get(url);
-        if (view != null) {
+        withView(url, view -> {
+            swapTo(url, view);
             view.setExecutionLine(line);
-        }
+        });
     }
 
     /** Clears the execution arrow from every open view. */
@@ -129,6 +168,7 @@ final class SourcePanel extends JPanel {
     /** Forgets all open views (a fresh attach). */
     void clear() {
         views.clear();
+        pending.clear();
         scriptsByUrl.clear();
         currentUrl = null;
         removeAll();

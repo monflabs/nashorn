@@ -144,6 +144,19 @@ public interface Debugger {
     void pauseOnStart();
 
     /**
+     * The pause a thread is currently blocked on, or {@code null} if nothing is
+     * paused. Unlike the fire-once {@link DebugListener#paused} event, this is
+     * durable state a frontend can consult when it attaches: a client that
+     * connects after a thread already paused (say, after {@link #pauseOnStart()}
+     * froze the script) can replay the pause from here instead of missing it.
+     * Set when a pause begins, cleared when it resumes and when the debugger is
+     * closed.
+     *
+     * @return the current pause, or null
+     */
+    PausedEvent currentPause();
+
+    /**
      * Evaluates an expression in a context while nothing is paused. The
      * expression runs on the calling thread with the context's realm bound;
      * running it while a script thread is executing in that realm is a race

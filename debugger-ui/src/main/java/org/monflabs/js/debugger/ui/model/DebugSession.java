@@ -175,7 +175,13 @@ public final class DebugSession {
             if (!breakpointsActive) {
                 connection.call("Debugger.setBreakpointsActive", Json.object("active", false));
             }
-            setState(State.RUNNING);
+            // The server replays a Debugger.paused for an already-frozen script
+            // from inside its enable handler, so that event reaches us just
+            // before this response. Do not clobber the PAUSED state it correctly
+            // set - only go RUNNING if we are not already showing a pause.
+            if (state != State.PAUSED) {
+                setState(State.RUNNING);
+            }
         }));
     }
 

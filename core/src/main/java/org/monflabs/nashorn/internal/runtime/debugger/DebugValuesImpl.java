@@ -550,10 +550,15 @@ final class DebugValuesImpl implements DebugValues {
         if (!(function instanceof ScriptFunction fn)) {
             throw new DebugException("not a function: " + description(function), null, null);
         }
+        // a debugger-initiated call (a getter run to inspect a value): its
+        // completion must not be taken for the debugged program finishing
+        DebuggerImpl.enterReentrant();
         try {
             return ScriptRuntime.apply(fn, thisValue == null ? ScriptRuntime.UNDEFINED : thisValue, arguments);
         } catch (final ECMAException e) {
             throw new DebugException(DebuggerImpl.messageOf(e), e.getThrown(), e);
+        } finally {
+            DebuggerImpl.exitReentrant();
         }
     }
 

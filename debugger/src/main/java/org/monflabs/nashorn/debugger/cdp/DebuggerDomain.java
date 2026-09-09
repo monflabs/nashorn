@@ -59,6 +59,16 @@ final class DebuggerDomain {
             for (final DebugScript script : debugger().scripts()) {
                 session.sendEvent("Debugger.scriptParsed", CdpSession.scriptParsedParams(script));
             }
+            // A client attaching after a thread already paused (e.g. after
+            // pauseOnStart froze the script) missed the fire-once paused event.
+            // Replay it from the debugger's durable pause state, through the
+            // session's own paused(), so it records the pause for resume and
+            // evaluateOnCallFrame exactly as a live pause would. This event goes
+            // on the wire before this enable response.
+            final PausedEvent current = debugger().currentPause();
+            if (current != null) {
+                session.paused(current);
+            }
             return Json.object("debuggerId", "nashorn-" + session.uniqueId());
         }
         case "disable":

@@ -353,6 +353,7 @@ public final class CdpSession implements DebugListener {
             case EXCEPTION -> "exception";
             case DEBUG_COMMAND -> "debugCommand";
             case STEP -> "step";
+            case DEBUGGER_STATEMENT -> "debuggerStatement";
             default -> "other";
         };
     }
@@ -366,6 +367,16 @@ public final class CdpSession implements DebugListener {
         if (debuggerEnabled) {
             sendEvent("Debugger.resumed", Json.object());
         }
+    }
+
+    @Override
+    public void executionFinished() {
+        // The debugged script ran to completion (or threw, or was stopped). A
+        // real Node/V8 inspector closes its connection when the process exits;
+        // do the same, so the client learns the run is over instead of showing
+        // "connected" forever. A normal close - the reader thread's run() loop
+        // then unwinds and detaches.
+        connection.close(1000, "execution finished");
     }
 
     @Override

@@ -346,6 +346,9 @@ public final class ModuleRecord {
         } finally {
             if (JobQueue.exitScriptShouldDrain()) {
                 global.getJobQueue().drain();
+                // outermost module evaluation done - tell any debugger (see
+                // ScriptRuntime.apply for the same call on the script path)
+                org.monflabs.nashorn.internal.runtime.debugger.DebuggerImpl.executionFinished();
             }
         }
         if (evaluationError != null) {
