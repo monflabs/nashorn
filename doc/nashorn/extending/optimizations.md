@@ -46,11 +46,16 @@ measured before the runtime fast paths landed and are a floor.
   is +17% (optimistic code carries its deoptimization handlers and continuation bookkeeping) and
   `startup.50globals` +5%. A script that runs once and exits may prefer
   `--optimistic-types=false` (`optimisticTypes(false)` on the builder).
-- **A longer JIT ramp.** The gate's `arraymap` metric (`map`/`filter`/`slice` over a
-  64-element array) reads +23% in the gate's window of 8 warmup and 15 measured runs, yet the
-  same loop run six million times is *faster* with optimistic types (2.12 s against 2.33 s); no
-  deoptimization is involved. The larger, handler-laden method takes HotSpot longer to compile
-  and inline. Open: the gate may need a longer warmup for that metric, or the band widened.
+- **Top-level loop variables.** The gate's `arraymap` metric (`map`/`filter`/`slice` over a
+  64-element array, with the loop's counters as program-level `var`s) reads +23% against the
+  commit before the flip and +37% against `perf-baseline`, and a longer warmup (40 runs instead
+  of 8) does not close it. Isolated, `map` and `filter` cost the same in both modes; what is
+  slower is the loop itself: a program-level `var` is a property of the global, and an `int`
+  optimistically stored in its dual-field slot costs about three times what the pessimistic
+  boxed store does once HotSpot has compiled the loop (27 ms against 9 ms for 400 000 turns of
+  `total += 1`), while the same loop with `-Dnashorn.fields.objects=true`, or inside a function
+  where the counters are bytecode locals, is as fast or faster with optimistic types. The
+  metric's band is 45% for now; the dual-field scope store is the open item.
 - **Eager compilation is incompatible.** A deoptimization recompiles one function from source,
   so `--lazy-compilation=false` alone now turns optimistic types off; naming both explicitly is
   an error, as before.

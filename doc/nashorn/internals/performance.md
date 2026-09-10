@@ -275,11 +275,16 @@ the same engine, the commit before against the working tree, three interleaved r
 
 Milliseconds. Compilation is dearer (optimistic code carries its deoptimisation handlers and
 continuation bookkeeping) and startup pays a little for it; everything that runs hot is faster,
-mostly by more than half. The one metric outside its band, `arraymap` - `map`/`filter`/`slice`
-over a 64-element array with a fresh callback each time, no deoptimisation involved - is the open
-item of the flip: measured on its own, the same loop run six million times is *faster* with
-optimistic types (2.12 s against 2.33 s), so what the gate's short window sees is the longer JIT
-warmup of the larger, handler-laden optimistic code, not a slower steady state. With the flip an
+mostly by more than half. The one metric outside its band, `arraymap`, is not what its name
+suggests: `map` and `filter` with a fresh callback per call cost the same in both modes when
+measured alone, and a longer warmup (40 runs instead of 8) changes nothing. What is slower is
+the benchmark's own loop - its counters are program-level `var`s, properties of the global, and
+an `int` optimistically stored in a dual-field slot of the global costs about three times what
+the pessimistic boxed store does once HotSpot has compiled the loop: 27 ms against 9 ms for
+400 000 turns of `total += 1`, while the same loop with `-Dnashorn.fields.objects=true`, or in a
+function where the counters are bytecode locals, is as fast or faster with optimistic types.
+The metric's band is 45% for now and the dual-field scope store is the open item of the flip.
+With the flip an
 embedder gets the three-to-five-times faster numeric code without asking, and a run-once script
 that never gets hot can pass `--optimistic-types=false` to skip the deoptimising recompiles. One
 thing the flip uncovered: the
