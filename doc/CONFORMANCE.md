@@ -5,7 +5,8 @@ This engine implements [ECMAScript 2026](https://262.ecma-international.org/17.0
 (ECMA-262, 17th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
 selected at runtime by `Test262Selector`, and of its ~79,000 executions
-**8 fail**, named in `core/src/test/resources/test262-expectations.txt`. The run
+**none fail** with the engine's defaults, and **8 fail** without optimistic types, named in
+`core/src/test/resources/test262-expectations-pessimistic.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
 only move forwards. (The ES2024 additions - `Object.groupBy`/`Map.groupBy`,
 `Promise.withResolvers`, `String.prototype.isWellFormed`/`toWellFormed`, resizable
@@ -252,9 +253,11 @@ to update a `var` of that name the global already had. They pass on their own an
 when a neighbouring file is added or removed; what decides it is whether the outer program's `var`
 reached the global object directly or through the merge of its scope, which leaves the eval's binding
 aliased to it or orphaned beside it. That is this engine's eval scope merging rather than anything
-Annex B asks for. With `--optimistic-types=true` every program is compiled on demand and its `var`
-reaches the global directly, so the eight pass there; that run is compared against its own
-`test262-expectations-optimistic.txt`, which lists nothing.
+Annex B asks for. With optimistic types - the engine's default since 2026.1.0 - every program is
+compiled on demand and its `var` reaches the global directly, so the eight pass there: the default
+run's `test262-expectations.txt` lists nothing, and the eight live in
+`test262-expectations-pessimistic.txt`, the file the `-Dnashorn.test262.optimistic=false` run is
+compared against.
 
 ### The two halves are tested
 

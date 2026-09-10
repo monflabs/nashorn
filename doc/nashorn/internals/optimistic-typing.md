@@ -44,13 +44,15 @@ The same bet applies to object storage. With optimistic types on, [structure cla
 are generated with *dual* fields — a `long` slot and an `Object` slot per property (`JD` classes;
 doubles travel as raw bits in the `long`). A property that has only ever held ints is read with a
 primitive load, no boxing, no cast; the first wide value demotes that property to its `Object` half.
-Without `-ot`, single `Object`-field classes (`JO`) are used.
+Without optimistic types (`--optimistic-types=false`), single `Object`-field classes (`JO`) are used.
 
 ## The trade
 
 Warmup pays for steady state: every deoptimisation is a full recompile plus a rest-of compile, and
-pathological code can deoptimise repeatedly before settling. Hence the flag rather than a default:
-long-running compute (servers, data crunching) wants `-ot`; run-once scripts often do not. The
+pathological code can deoptimise repeatedly before settling. The mode is the default since
+2026.1.0 - it runs Octane's numeric benchmarks three to five times faster - once the conformance
+suite passed in it; long-running compute (servers, data crunching) is what it is for, and a
+run-once script that never gets hot can turn it off with `--optimistic-types=false`. The
 `recompile` [logger](../reference/debugging.md) shows every deoptimisation with its reason —
 the first thing to read when warmup looks endless.
 

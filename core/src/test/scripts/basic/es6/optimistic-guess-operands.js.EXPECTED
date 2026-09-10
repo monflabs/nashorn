@@ -17,3 +17,7 @@ remainder sign: -Infinity -Infinity 0.5
 optional call this: 42 42 42
 missing key at a double site: undefined undefined undefined
 with scope untouched by the compiler: 7 wanted,seen,get,fallback
+const per iteration: 1,x,2.5
+tdz: ReferenceError
+tdz: TypeError
+hidden class at an optimistic site: v v function

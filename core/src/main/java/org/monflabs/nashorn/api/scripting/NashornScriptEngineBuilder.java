@@ -216,7 +216,8 @@ public final class NashornScriptEngineBuilder {
     /**
      * Whether code is compiled optimistically - narrow types assumed and
      * deoptimized when proven wrong - which runs hot code faster and warms up
-     * slower. Off by default.
+     * slower. On by default since 2026.1.0; a run-once script that never gets
+     * hot may prefer it off.
      *
      * @param enabled whether
      * @return this

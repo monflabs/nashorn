@@ -59,8 +59,13 @@ jobs:
     - name: Fetch the ECMA-262 suite
       run: mvn -B -Pfetch-externals -pl buildtools/nasgen,core generate-test-resources
 
+    # Both typing modes: optimistic types are the engine default and the mode
+    # test262-expectations.txt describes; the pessimistic run has its own file.
     - name: Run ECMA-262 tests
       run: mvn -B -Ptest262 -DskipTests verify
+
+    - name: Run ECMA-262 tests without optimistic types
+      run: mvn -B -Ptest262 -DskipTests verify -Dnashorn.test262.optimistic=false
 
   # Compares this revision against the perf-baseline tag - the last revision
   # measured before the ES2015 work began. Both sides are built and measured on

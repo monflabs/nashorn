@@ -29,8 +29,8 @@ Joni's `ByteCodeMachine` 10 GB, `ConsString` 9.8 GB, `FindProperty` 6.4 GB.
 
 Two things fall straight out of that. First, the generic arithmetic path had become expensive.
 ES2020 made every operator BigInt-aware, so an operator whose operands are both Object-typed -
-which, with optimistic types off (the default), is most arithmetic on a property value or an
-unproven local - is compiled as a call to `ScriptRuntime.SUB`/`MUL`/`LT`/`BIT_AND` and friends,
+which, with optimistic types off (the default until 2026.1.0), is most arithmetic on a property
+value or an unproven local - is compiled as a call to `ScriptRuntime.SUB`/`MUL`/`LT`/`BIT_AND` and friends,
 and those went through `ToNumeric` → `ToPrimitive` → an eight-way `isPrimitive` instanceof chain,
 boxing a `Double` on the way out and unboxing it again, for each operand of each operation.
 Second, the Joni regexp backend works on a `char[]`, and a matcher was made - and the whole
@@ -190,13 +190,14 @@ guarded by the existing builtin switch points; it is the next performance target
 
 ## Optimistic types
 
-The largest single lever was not taken, because it is a policy rather than a fix.
-`--optimistic-types` ships **off** (inherited from upstream 15.x); with it on, the same engine
+The largest single lever is a policy rather than a fix, and it was taken last, once the
+conformance suite passed in that mode: `--optimistic-types` shipped **off** through 2026.0.0
+(inherited from upstream 15.x) and is **on by default from 2026.1.0**. With it on, the same engine
 runs Octane's crypto and navier-stokes about five times faster and richards about three, at the
-cost of a longer warmup through deoptimising recompiles, and it is not the mode the conformance
-suite is run in. Measured on the ES2026 engine before this work, three iterations:
+cost of a longer warmup through deoptimising recompiles. Measured on the ES2026 engine before
+this work, three iterations ("off" was the default then):
 
-| Benchmark | default | `--optimistic-types=true` | `-Dnashorn.fields.dual=true` only |
+| Benchmark | `--optimistic-types=false` | `--optimistic-types=true` | `-Dnashorn.fields.dual=true` only |
 | --- | ---: | ---: | ---: |
 | crypto | 7 357 | 39 541 | 7 256 |
 | navier-stokes | 2 354 | 11 977 | 1 917 |
@@ -205,9 +206,9 @@ suite is run in. Measured on the ES2026 engine before this work, three iteration
 | raytrace | 22 368 | 21 673 | 18 450 |
 | regexp | 563 | 531 | 516 |
 
-Dual fields alone give nothing; it is the optimistic typing that pays. A long-running embedder
-should turn it on. Flipping the default is the open decision; the prerequisite is running test262
-in that mode too, which `-Dnashorn.test262.optimistic=true` now does. The first such run did not
+Dual fields alone give nothing; it is the optimistic typing that pays. The prerequisite for making
+it the default was running test262 in that mode too, which `Test262Runner` now does (the mode is
+its default as well; `-Dnashorn.test262.optimistic=false` is the other run). The first such run did not
 get past its first shard: a deoptimising recompilation that threw left every subsequent caller of
 the function waiting on `CompiledFunction`'s monitor forever, and what threw was the JVM rejecting
 a rest-of method whose local variable table named slots in code the classfile library had patched
@@ -248,8 +249,44 @@ Regression scripts pin each family in optimistic mode:
 | `(a?.b)()`, `x %= y` leaving `-0` | 4 | The member access inside a called optional chain was typed optimistically, which the call emitter asserts against; and an int remainder whose result is `0` from a negative dividend is `-0`, which an int cannot hold, so it deoptimises now. |
 
 `basic/es6/optimistic-guess-operands.js` pins all of it in optimistic mode. None of this is reachable
-with optimistic types off, which is why the pessimistic suite was green throughout; with the
-optimistic suite fully green, flipping the default is now only a warmup-cost decision.
+with optimistic types off, which is why the pessimistic suite was green throughout. With the
+optimistic suite fully green the default was flipped. The perf gate measured the flip itself -
+the same engine, the commit before against the working tree, three interleaved rounds, medians:
+
+| Metric | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| run.arith | 46.8 | 16.7 | -64% |
+| run.instanceof | 252.5 | 70.4 | -72% |
+| run.protochain | 229.7 | 49.0 | -79% |
+| run.properties | 61.7 | 24.8 | -60% |
+| run.megamorphic | 4.0 | 1.4 | -65% |
+| run.closures | 69.9 | 30.6 | -56% |
+| run.toprimitive | 103.6 | 47.1 | -55% |
+| run.typedarray | 80.6 | 46.1 | -43% |
+| run.sort | 28.3 | 19.4 | -32% |
+| run.concat | 72.9 | 59.2 | -19% |
+| run.forof | 22.1 | 20.1 | -9% |
+| run.regexp | 10.5 | 9.9 | -6% |
+| run.wideobject | 9.3 | 8.8 | -6% |
+| run.strbuild | 19.3 | 20.4 | +6% |
+| startup.50globals | 7.9 | 8.3 | +5% |
+| compile.pdfjs | 150.7 | 176.8 | +17% |
+| run.arraymap | 64.1 | 79.1 | +23% |
+
+Milliseconds. Compilation is dearer (optimistic code carries its deoptimisation handlers and
+continuation bookkeeping) and startup pays a little for it; everything that runs hot is faster,
+mostly by more than half. The one metric outside its band, `arraymap` - `map`/`filter`/`slice`
+over a 64-element array with a fresh callback each time, no deoptimisation involved - is the open
+item of the flip, and the reason it is measured next in isolation. an embedder gets the three-to-five-times
+faster numeric code without asking, and a run-once script that never gets hot can pass
+`--optimistic-types=false` to skip the deoptimising recompiles. One thing the flip uncovered: the
+core suite's `test-optimistic` execution had only ever run the engine default - `TestFinder` adds
+an explicit `--optimistic-types=false` for the pessimistic execution and nothing for the other -
+so with the default off it had been a second pessimistic run. It is a real optimistic run now, and its first
+real run found three more optimistic-only defects (a `const` re-declared in a per-iteration scope
+refused to widen its dual-field type; `++`/`--` on a `let` in its temporal dead zone was typed
+`undefined`; a Java lambda's hidden class answering an optimistic call site was made into a `Type`),
+pinned in the same regression script.
 
 ## Not done, and why
 

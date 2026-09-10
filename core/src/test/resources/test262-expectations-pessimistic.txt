@@ -1,0 +1,14 @@
+# test262 ES2026 slice with --optimistic-types=false (-Dnashorn.test262.optimistic=false): settled
+# failures. See doc/CONFORMANCE.md for each reason - all eight are the Annex B indirect-eval
+# "existing var update" shape, which passes with optimistic types on (the engine default), where
+# every program is compiled on demand and its var reaches the global directly.
+# Regenerate with -Dnashorn.test262.optimistic=false -Dnashorn.test262.write.expectations=true.
+# The build fails on any failure not listed here and on any listed test that starts passing.
+test/annexB/language/eval-code/indirect/global-block-decl-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-if-decl-else-decl-a-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-if-decl-else-decl-b-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-if-decl-else-stmt-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-if-decl-no-else-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-if-stmt-else-decl-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-switch-case-eval-global-existing-var-update.js (sloppy)
+test/annexB/language/eval-code/indirect/global-switch-dflt-eval-global-existing-var-update.js (sloppy)

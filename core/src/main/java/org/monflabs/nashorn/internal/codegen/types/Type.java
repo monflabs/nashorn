@@ -781,6 +781,13 @@ public abstract class Type implements Comparable<Type>, BytecodeOps, Serializabl
      * @return the Type representing this class
      */
     public static Type typeFor(final Class<?> clazz) {
+        if (clazz.isHidden()) {
+            // a lambda or a method-handle proxy: its name is not a descriptor
+            // the JVM accepts, and a value of such a class - reaching here from
+            // a deoptimisation that reports what a call actually returned - is
+            // an object like any other
+            return OBJECT;
+        }
         return cache.computeIfAbsent(clazz, (keyClass) -> {
             assert !keyClass.isPrimitive() || keyClass == void.class;
             return keyClass.isArray() ? new ArrayType(keyClass) : new ObjectType(keyClass);

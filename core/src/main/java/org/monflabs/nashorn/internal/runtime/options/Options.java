@@ -32,6 +32,7 @@ package org.monflabs.nashorn.internal.runtime.options;
 import java.io.PrintWriter;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -46,6 +47,7 @@ import java.util.PropertyPermission;
 import java.util.ResourceBundle;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.monflabs.nashorn.internal.runtime.QuotedStringTokenizer;
@@ -68,6 +70,8 @@ public final class Options {
 
     /** The options map of enabled options */
     private final TreeMap<String, Option<?>> options;
+    /** The keys set explicitly - by an argument or a system property - as opposed to defaulted. */
+    private final Set<String> explicit;
 
     /** System property that can be used to prepend options to the explicitly specified command line. */
     private static final String NASHORN_ARGS_PREPEND_PROPERTY = "nashorn.args.prepend";
@@ -98,6 +102,7 @@ public final class Options {
         this.files     = new ArrayList<>();
         this.arguments = new ArrayList<>();
         this.options   = new TreeMap<>();
+        this.explicit  = new HashSet<>();
 
         // set all default values
         for (final OptionTemplate t : Options.validOptions) {
@@ -106,6 +111,7 @@ public final class Options {
                 final String v = getStringProperty(t.getKey(), null);
                 if (v != null) {
                     set(t.getKey(), createOption(t, v));
+                    explicit.add(key(t.getKey()));
                 } else if (t.getDefaultValue() != null) {
                     set(t.getKey(), createOption(t, t.getDefaultValue()));
                  }
@@ -207,6 +213,19 @@ public final class Options {
      */
     public Option<?> get(final String key) {
         return options.get(key(key));
+    }
+
+    /**
+     * Whether an option was named - on the command line, or as a system
+     * property - rather than left at its default. Lets an option that only
+     * defaulted give way to one that was asked for (eager compilation over the
+     * default optimistic types, say) where the two cannot both hold.
+     *
+     * @param key key for option
+     * @return true if the option's value was set explicitly
+     */
+    public boolean isSet(final String key) {
+        return explicit.contains(key(key));
     }
 
     /**
@@ -478,6 +497,7 @@ public final class Options {
             } else {
                 set(parg.template.getKey(), createOption(parg.template, parg.value));
             }
+            explicit.add(key(parg.template.getKey()));
 
             // Arg may have a dependency to set other args, e.g.
             // scripting->anon.functions

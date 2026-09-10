@@ -88,7 +88,7 @@ javac writes to `target/classes-raw`; nasgen reads that and writes into `target/
 - **`internal/parser`** — hand-written lexer/parser producing the internal IR. `JSONParser` and the regexp parsers live nearby (`runtime/regexp`, with a bundled Joni backend selectable via `-Dnashorn.regexp.impl=joni`).
 - **`internal/ir`** — immutable AST nodes; transformations use visitors (`ir/visitor/`) and return new trees. `LexicalContext` tracks the enclosing block/function chain during traversal.
 - **`internal/codegen`** — an ordered list of `CompilationPhase` objects (constant folding → `Lower` → apply specialization → splitting → program points → symbol assignment → scope depths → optimistic type assignment → local variable type calculation → bytecode generation → install), driven by `Compiler`. `CodeGenerator`/`MethodEmitter`/`ClassEmitter` sit on `java.lang.classfile`. `Splitter`/`SplitIntoFunctions` exist because JVM methods have a 64KB limit.
-- **Optimistic typing** is the reason for much of the complexity: code is compiled assuming narrow (int/long/double) types, and an `UnwarrantedOptimismException` triggers deoptimization and recompilation via `RewriteException` and `RecompilableScriptFunctionData`. The suite therefore runs twice; a change can pass one mode and fail the other.
+- **Optimistic typing** is the reason for much of the complexity: code is compiled assuming narrow (int/long/double) types, and an `UnwarrantedOptimismException` triggers deoptimization and recompilation via `RewriteException` and `RecompilableScriptFunctionData`. It is **on by default** since 2026.1.0 (`--optimistic-types=false` turns it off; it was off in upstream 15.x). The suite therefore runs twice; a change can pass one mode and fail the other. Note the mechanics in `TestFinder`: the `test-pessimistic` surefire execution adds an explicit `--optimistic-types=false` to every test, and `test-optimistic` adds nothing, i.e. runs the engine default - before the flip both executions were effectively pessimistic.
 - **`internal/runtime`** — `Context` (per-engine compilation/loading state, class cache), `ScriptObject` (the JS object model, backed by `PropertyMap`/`Property`/`AccessorProperty` — an inline-cache-friendly hidden-class scheme), `ScriptFunction`, `JSType` (all ECMA type coercions), `ScriptRuntime`. `Global` (in `internal/objects`) is the per-context global object, distinct from `Context`.
 - **`internal/objects`** — the built-ins (`NativeArray`, `NativeString`, `NativeDate`, …) plus `Global`.
 - **`internal/runtime/linker`** — Dynalink integration: `Bootstrap` is the `invokedynamic` bootstrap; the `*Linker` classes decide how a call site links to script objects, Java beans, JSObjects, primitives. `JavaAdapterFactory`/`JavaAdapterBytecodeGenerator` generate adapter classes for `Java.extend` and SAM conversion.
@@ -189,16 +189,17 @@ which this one can, so it is not selected either.
   failure *not* in it fails the build, and a
   listed one that starts passing does too; a new entry is a regression rather than a note. Regenerate with
   `-Dnashorn.test262.write.expectations=true`; narrow a run with
-  `-Dnashorn.test262.include=/built-ins/Math/`. The runner's engine has optimistic types off, like the
-  engine's default and like the expectations file; `-Dnashorn.test262.optimistic=true` runs the same
-  slice with `--optimistic-types=true` (slower by an order of magnitude: every test compiles
-  optimistically and pays its deoptimisations in a one-shot realm) - a run that used to wedge in the
-  first shard on the `CompiledFunction` deopt hang, fixed in 2026.1.0, and that now passes every
-  execution - the 8 Annex B cases included, since a program compiled on demand declares its vars
-  on the global directly - so it is compared against its own, empty,
-  `test262-expectations-optimistic.txt` (the optimistic-only defects the run found are catalogued
-  in `doc/nashorn/internals/performance.md`; a change to the optimistic pipeline should be checked
-  in both modes). Regenerate through Maven, never by running
+  `-Dnashorn.test262.include=/built-ins/Math/`. The runner's engine runs with optimistic types, the
+  engine's default since 2026.1.0, and `test262-expectations.txt` describes that mode - it lists
+  nothing, every execution passes; `-Dnashorn.test262.optimistic=false` runs the same slice with
+  `--optimistic-types=false` against `test262-expectations-pessimistic.txt`, where the 8 Annex B
+  cases live (a program compiled eagerly reaches the global through the merge of its scope; compiled
+  on demand, as every program is under optimistic types, it declares its vars on the global
+  directly). CI runs both. The optimistic run is slower by an order of magnitude (every test compiles
+  optimistically and pays its deoptimisations in a one-shot realm) and used to wedge in the first
+  shard on the `CompiledFunction` deopt hang, fixed in 2026.1.0; the optimistic-only defects it found
+  are catalogued in `doc/nashorn/internals/performance.md`. A change to the optimistic pipeline
+  should be checked in both modes. Regenerate through Maven, never by running
   `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, to catch a case
   conversion in the engine that forgot to name one. The locale a *script* sees is a separate
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,

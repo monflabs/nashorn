@@ -277,18 +277,28 @@ public final class ScriptEnvironment {
         _fullversion          = options.getBoolean("fullversion");
         _fx                   = options.getBoolean("fx");
         _global_per_engine    = options.getBoolean("global.per.engine");
-        _optimistic_types     = options.getBoolean("optimistic.types");
+        final boolean optimistic_types = options.getBoolean("optimistic.types");
         final boolean lazy_compilation = options.getBoolean("lazy.compilation");
-        if (!lazy_compilation && _optimistic_types) {
-            if (!ALLOW_EAGER_COMPILATION_SILENT_OVERRIDE) {
+        if (!lazy_compilation && optimistic_types) {
+            // Optimistic types need lazy compilation (a deoptimisation recompiles
+            // one function from source). They are on by default; eager
+            // compilation is only ever asked for, so it wins over a default
+            // that was never named - and conflicts with one that was.
+            if (!options.isSet("optimistic.types")) {
+                _optimistic_types = false;
+                _lazy_compilation = false;
+            } else if (ALLOW_EAGER_COMPILATION_SILENT_OVERRIDE) {
+                _optimistic_types = true;
+                _lazy_compilation = true;
+            } else {
                 throw new IllegalStateException(
                         ECMAErrors.getMessage(
                                 "config.error.eagerCompilationConflictsWithOptimisticTypes",
                                 options.getOptionTemplateByKey("lazy.compilation").getName(),
                                 options.getOptionTemplateByKey("optimistic.types").getName()));
             }
-            _lazy_compilation = true;
         } else {
+            _optimistic_types = optimistic_types;
             _lazy_compilation = lazy_compilation;
         }
         _loader_per_compile   = options.getBoolean("loader.per.compile");

@@ -126,7 +126,7 @@ public final class UnaryNode extends Expression implements Assignment<Expression
     public Type getWidestOperationType() {
         switch (tokenType()) {
         case POS:
-            final Type operandType = getExpression().getType();
+            final Type operandType = undefinedToNumber(getExpression().getType());
             if(operandType == Type.BOOLEAN) {
                 return Type.INT;
             } else if(operandType.isObject()) {
@@ -136,7 +136,7 @@ public final class UnaryNode extends Expression implements Assignment<Expression
             return operandType;
         case NEG:
             // ES2020: negating a BigInt (an object operand) yields a BigInt.
-            if (getExpression().getType().isObject()) {
+            if (undefinedToNumber(getExpression().getType()).isObject()) {
                 return Type.OBJECT;
             }
             // This might seems overly conservative until you consider that -0 can only be represented as a double.
@@ -146,7 +146,7 @@ public final class UnaryNode extends Expression implements Assignment<Expression
             return Type.BOOLEAN;
         case BIT_NOT:
             // ES2020: ~BigInt (an object operand) yields a BigInt.
-            if (getExpression().getType().isObject()) {
+            if (undefinedToNumber(getExpression().getType()).isObject()) {
                 return Type.OBJECT;
             }
             return Type.INT;
@@ -157,7 +157,7 @@ public final class UnaryNode extends Expression implements Assignment<Expression
         case INCPOSTFIX:
         case DECPOSTFIX:
             // ES2020: ++/-- on a BigInt (an object operand) yields a BigInt.
-            if (getExpression().getType().isObject()) {
+            if (undefinedToNumber(getExpression().getType()).isObject()) {
                 return Type.OBJECT;
             }
             return Type.NUMBER;
@@ -327,7 +327,17 @@ public final class UnaryNode extends Expression implements Assignment<Expression
         if(type == null) {
             return widest;
         }
-        return Type.narrowest(widest, Type.widest(type, expression.getType()));
+        return Type.narrowest(widest, Type.widest(type, undefinedToNumber(expression.getType())));
+    }
+
+    /**
+     * An operand known to be undefined - a let read in its temporal dead zone,
+     * say - is a number to the numeric operators (ToNumber(undefined) is NaN),
+     * never an object; typed as undefined it would give the operation the
+     * undefined type, which no local variable can hold.
+     */
+    private static Type undefinedToNumber(final Type type) {
+        return type == Type.UNDEFINED ? Type.NUMBER : type;
     }
 
     @Override

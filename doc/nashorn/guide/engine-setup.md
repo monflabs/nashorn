@@ -114,8 +114,8 @@ tracing) that stay with `option(...)`.
 
 | Builder | Option | Default | What it decides |
 | --- | --- | --- | --- |
-| `optimisticTypes(boolean)` | `--optimistic-types` | off | Narrow types assumed and deoptimized when wrong: better steady state for long-running, compute-heavy scripts, slower warmup. |
-| `lazyCompilation(boolean)` | `--lazy-compilation` | on | Functions compile on first call rather than with the script. |
+| `optimisticTypes(boolean)` | `--optimistic-types` | on | Narrow types assumed and deoptimized when wrong: better steady state for long-running, compute-heavy scripts, slower warmup. Turn it off for a run-once script. |
+| `lazyCompilation(boolean)` | `--lazy-compilation` | on | Functions compile on first call rather than with the script. Optimistic types need it: turning it off also turns them off unless they were asked for explicitly, which is an error. |
 | `classCacheSize(int)` | `--class-cache-size` | 50 | How many compiled scripts the engine's class cache holds; 0 disables it. |
 | `persistentCodeCache(boolean)` | `--persistent-code-cache` | off | Compiled classes cached on disk across processes, keyed by source and configuration. |
 

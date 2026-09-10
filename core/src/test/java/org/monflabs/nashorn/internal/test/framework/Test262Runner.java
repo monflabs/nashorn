@@ -77,8 +77,8 @@ import org.monflabs.nashorn.internal.runtime.options.Options;
  *   <dt>test262.include</dt><dd>path substring, to run a slice while developing</dd>
  *   <dt>test262.threads</dt><dd>worker count, defaults to the CPU count</dd>
  *   <dt>test262.write.expectations</dt><dd>rewrite the expectations file from this run</dd>
- *   <dt>test262.optimistic</dt><dd>run with {@code --optimistic-types=true} (off by default, like the engine)</dd>
- *   <dt>test262.expectations.optimistic</dt><dd>known-failure file for the optimistic run (defaults to test262.expectations)</dd>
+ *   <dt>test262.optimistic</dt><dd>run with optimistic types (the engine's default, so true unless set to false)</dd>
+ *   <dt>test262.expectations.pessimistic</dt><dd>known-failure file for the pessimistic run (defaults to test262.expectations)</dd>
  * </dl>
  */
 public final class Test262Runner {
@@ -94,8 +94,8 @@ public final class Test262Runner {
      */
     private static final long TIMEOUT_SECONDS = Long.getLong("test262.timeout.seconds", 120L);
 
-    /** Run the engine with {@code --optimistic-types=true}; see {@code test262.optimistic}. */
-    private static final boolean OPTIMISTIC = Boolean.getBoolean("test262.optimistic");
+    /** Run the engine with optimistic types, the engine's default; see {@code test262.optimistic}. */
+    private static final boolean OPTIMISTIC = Boolean.parseBoolean(System.getProperty("test262.optimistic", "true"));
 
     /** The name the host object's bootstrap is compiled under. */
     private static final String HOST_OBJECT_NAME = "<$262>";
@@ -178,12 +178,12 @@ public final class Test262Runner {
      */
     public static void main(final String[] args) throws Exception {
         final Path suite = Path.of(required("test262.suite.dir"));
-        // the optimistic run has its own expectations: the two modes do not
+        // the pessimistic run has its own expectations: the two modes do not
         // fail the same tests, and a test listed for one mode passing in the
         // other must not count as an unexpected pass
-        final String optimisticExpectations = System.getProperty("test262.expectations.optimistic");
-        final Path expectationsFile = Path.of(OPTIMISTIC && optimisticExpectations != null && !optimisticExpectations.isEmpty()
-                ? optimisticExpectations : required("test262.expectations"));
+        final String pessimisticExpectations = System.getProperty("test262.expectations.pessimistic");
+        final Path expectationsFile = Path.of(!OPTIMISTIC && pessimisticExpectations != null && !pessimisticExpectations.isEmpty()
+                ? pessimisticExpectations : required("test262.expectations"));
         final String include = System.getProperty("test262.include", "");
         final int threads = Integer.getInteger("test262.threads", Runtime.getRuntime().availableProcessors());
 
@@ -487,14 +487,13 @@ public final class Test262Runner {
             // so the conformance globals stay pristine without an option.
             // The event loop is off by default; the conformance suite needs it
             // for Promise, async/await and the timers, so this runner turns it on.
-            // Optimistic types are off by default and the expectations file
-            // describes that mode; -Dtest262.optimistic=true runs the same
-            // slice with deoptimising recompilation, the mode the core suite's
-            // second execution covers and this suite otherwise never sees.
-            options.process(OPTIMISTIC
-                    ? new String[] { "--class-cache-size=50", "--locale=en-US", "--event-loop",
-                            "--optimistic-types=true" }
-                    : new String[] { "--class-cache-size=50", "--locale=en-US", "--event-loop" });
+            // Optimistic types are the engine's default and test262-expectations.txt
+            // describes that mode; -Dtest262.optimistic=false runs the same slice
+            // without deoptimising recompilation, against its own expectations,
+            // because the two modes execute genuinely different bytecode. Both
+            // are named explicitly so the run does not depend on the default.
+            options.process(new String[] { "--class-cache-size=50", "--locale=en-US", "--event-loop",
+                    "--optimistic-types=" + OPTIMISTIC });
             this.errors = new ErrorManager(errWriter);
             // negative tests are expected to produce parse errors by the thousand;
             // the default limit of 100 would abort the run
@@ -726,7 +725,7 @@ public final class Test262Runner {
             // whenever a message is reworded; keeping it here would churn the
             // diff of a file whose whole purpose is to show what changed.
             final List<String> lines = new ArrayList<>();
-            lines.add("# test262 ES2025 slice: settled failures. See doc/CONFORMANCE.md for each reason.");
+            lines.add("# test262 ES2026 slice" + (OPTIMISTIC ? "" : " with --optimistic-types=false") + ": settled failures. See doc/CONFORMANCE.md for each reason.");
             lines.add("# Regenerate with -Dnashorn.test262.write.expectations=true. The build fails on any");
             lines.add("# failure not listed here and on any listed test that starts passing, so conformance");
             lines.add("# only moves forwards. Reasons for the current run go to target/test262-failures.txt.");

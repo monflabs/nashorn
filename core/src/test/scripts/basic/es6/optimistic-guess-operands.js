@@ -37,6 +37,13 @@
  * optimistically; a double-typed read of a missing key deoptimizes instead
  * of answering NaN; and the compile-time type evaluator leaves a with
  * scope alone, since a Proxy's has trap would observe it.
+ * Three more surfaced when the mode became the default and the suite's
+ * optimistic execution ran for real: a const bound anew in each turn of a
+ * for-of's per-iteration scope must be allowed to widen its storage type
+ * (a closure over the second turn read 0 instead of "x"); a let read in its
+ * temporal dead zone by ++/-- is a number to the type pass, not undefined;
+ * and a value of a hidden class - a Java lambda - reaching an optimistic
+ * site is an Object, not a type whose name is no descriptor.
  * The private forms sit in eval strings for the public parser API's sake.
  *
  * @test
@@ -106,3 +113,14 @@ var wanted = { get p() { trapLog.push("get"); return undefined; } };
 var fallback = 7, seen;
 with (probe) { var { p: seen = fallback } = wanted; }
 print("with scope untouched by the compiler:", seen, trapLog.join(","));
+
+var turns = [];
+for (const v of [1, "x", 2.5]) { turns.push(function() { return v; }); }
+print("const per iteration:", turns.map(function(f) { return f(); }).join(","));
+try { eval("let t = 1; if (true) { t--; let t = 2; }"); print("tdz: no error"); } catch (e) { print("tdz:", e.name); }
+try { eval("if (true) { u++; const u = 2; }"); print("tdz: no error"); } catch (e) { print("tdz:", e.name); }
+var supplier = new java.util.function.Supplier(function() { return "from lambda"; });
+var Fn = Java.type("java.util.function.Function");
+var lambda = Fn.identity();
+function applyIt() { return lambda.apply("v"); }
+print("hidden class at an optimistic site:", applyIt(), applyIt(), typeof lambda.andThen(lambda));

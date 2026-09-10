@@ -681,7 +681,13 @@ public class AccessorProperty extends Property {
             return false;
         }
         // Return true for currently undefined even if non-writable/configurable to allow initialization of ES6 CONST.
-        return getLocalType() == null || (getLocalType() != Object.class && (isConfigurable() || isWritable()));
+        // A lexical binding may change type although a const is neither: a loop
+        // with a per-iteration scope copies the scope and declares the binding
+        // again in the copy, with that turn's value - an int one turn, a
+        // string the next - and a copy that could not widen would drop the
+        // store on the floor.
+        return getLocalType() == null
+                || (getLocalType() != Object.class && (isConfigurable() || isWritable() || isLexicalBinding()));
     }
 
     private boolean needsInvalidator(final int typeIndex, final int currentTypeIndex) {

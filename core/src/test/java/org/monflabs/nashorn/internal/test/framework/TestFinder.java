@@ -372,13 +372,17 @@ public final class TestFinder {
         }
     }
 
-    //the reverse of the default setting for optimistic types, if enabled, false, otherwise true
-    //thus, true for 8u40, false for 9
+    // The reverse of the engine's default for optimistic types: the suite's
+    // "test-pessimistic" execution sets optimistic.override to this value and
+    // every test then gets an explicit --optimistic-types=false; the
+    // "test-optimistic" execution sets it to the opposite, which adds nothing,
+    // so those tests run on the engine's default - optimistic since 2026.1.0.
+    // (Upstream had the same constant true for 8u40, whose default was off.)
     private static final boolean OPTIMISTIC_OVERRIDE = false;
 
     /**
-     * Check if there is an optimistic override, that disables the default false
-     * optimistic types and sets them to true, for testing purposes
+     * Check if there is an optimistic override, that turns the default (on)
+     * optimistic types off, for testing purposes
      *
      * @return true if optimistic type override has been set by test suite
      */
@@ -387,9 +391,8 @@ public final class TestFinder {
     }
 
     /**
-     * Add an optimistic-types=true option to an argument list if this is set to
-     * override the default false. Add an optimistic-types=true options to an
-     * argument list if this is set to override the default true
+     * Add an explicit --optimistic-types=false option to an argument list if the
+     * suite's override asks for the pessimistic mode
      *
      * @args new argument list array
      */
@@ -403,8 +406,8 @@ public final class TestFinder {
     }
 
     /**
-     * Add an optimistic-types=true option to an argument list if this is set to
-     * override the default false
+     * Add an explicit --optimistic-types=false option to an argument list if the
+     * suite's override asks for the pessimistic mode
      *
      * @args argument list
      */

@@ -61,7 +61,7 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
         .annexB(false)                       // --annexB=false — the ECMAScript standard alone
         .java(false)                         // --no-java — the bluntest sandbox
         .locale(Locale.US)
-        .optimisticTypes(true)               // better steady state for long-running scripts
+        .optimisticTypes(false)              // run-once script: faster warmup, no deoptimising recompiles
         .option("--class-cache-size=100")    // anything without a named method
         .build();
 ```
