@@ -35,6 +35,7 @@ import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.Deque;
 import org.monflabs.nashorn.internal.ir.AccessNode;
+import org.monflabs.nashorn.internal.ir.BaseNode;
 import org.monflabs.nashorn.internal.ir.BinaryNode;
 import org.monflabs.nashorn.internal.ir.CallNode;
 import org.monflabs.nashorn.internal.ir.CatchNode;
@@ -71,6 +72,9 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     final Compiler compiler;
 
     // Per-function bit set of program points that must never be optimistic.
+    /** The spelling the parser gives new.target, which is an identifier in the IR and not a binding. */
+    private static final String NEW_TARGET = "new.target";
+
     final Deque<BitSet> neverOptimistic = new ArrayDeque<>();
 
     OptimisticTypesCalculator(final Compiler compiler) {
@@ -80,6 +84,12 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterAccessNode(final AccessNode accessNode) {
         tagNeverOptimistic(accessNode.getBase());
+        if (accessNode.isSuper()) {
+            // a super property read is a static runtime call (loadSuperGet)
+            // that answers an Object and is not an optimistic operation; typed
+            // narrower, its result would be coerced, and a string comes out 0
+            tagNeverOptimistic(accessNode);
+        }
         return true;
     }
 
@@ -117,7 +127,28 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterCallNode(final CallNode callNode) {
         tagNeverOptimistic(callNode.getFunction());
+        final Expression function = callNode.getFunction();
+        if (function instanceof BaseNode base && base.isSuper()
+                || function instanceof IdentNode ident && ident.isDirectSuper()
+                || hasSpreadArgument(callNode)) {
+            // super(...), super.m(...) and a call with a spread argument are
+            // static runtime calls (SUPER_CALL, SPREAD_CALL and kin) answering
+            // an Object, not the optimistic dynamic call other calls compile
+            // to; typed narrower, the result would be coerced - a string to 0
+            tagNeverOptimistic(callNode);
+        }
         return true;
+    }
+
+    /** Whether any argument is {@code ...x}; such a call goes through SPREAD_CALL. */
+    private static boolean hasSpreadArgument(final CallNode callNode) {
+        for (final Expression arg : callNode.getArgs()) {
+            if (arg instanceof UnaryNode unary
+                    && (unary.isTokenType(TokenType.SPREAD_ARGUMENT) || unary.isTokenType(TokenType.SPREAD_ARRAY))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -169,6 +200,12 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     @Override
     public boolean enterIndexNode(final IndexNode indexNode) {
         tagNeverOptimistic(indexNode.getBase());
+        if (indexNode.isSuper() || indexNode.isPrivate()) {
+            // super[x] and the ES2022 private member read obj.#x are static
+            // runtime calls answering an Object, outside the optimistic
+            // operation the code generator wraps other reads in; see enterAccessNode
+            tagNeverOptimistic(indexNode);
+        }
         return true;
     }
 
@@ -235,6 +272,12 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
 
     @Override
     public Node leaveIdentNode(final IdentNode identNode) {
+        if (NEW_TARGET.equals(identNode.getName())) {
+            // not a variable: answered from the frame by a static runtime
+            // call (NEW_TARGET), outside the optimistic machinery, and an
+            // Object; typed narrower it would be coerced - a function to 0
+            return identNode;
+        }
         final Symbol symbol = identNode.getSymbol();
         if(symbol == null) {
             assert identNode.isPropertyName();

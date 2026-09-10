@@ -212,20 +212,38 @@ get past its first shard: a deoptimising recompilation that threw left every sub
 the function waiting on `CompiledFunction`'s monitor forever, and what threw was the JVM rejecting
 a rest-of method whose local variable table named slots in code the classfile library had patched
 out as unreachable. Both are fixed (see the changelog), and a rest-of method records no local
-variable table. With them the run completes, and it is what gates the default: **2 038 failing
-executions against the 8 settled ones**, in four families, all in features the six later editions
-added - the ES5 core is clean in this mode too.
+variable table. With them the run completed for the first time: **2 038 failing executions
+against the 8 settled ones**, in four families, all in features the six later editions added -
+the ES5 core was clean in this mode too. A second pass fixed the families themselves; what is
+left after it is 198 executions, listed below.
 
-| Family | Executions | What goes wrong |
+| Family | Was | What went wrong, and the fix |
 | --- | ---: | --- |
-| Modules, dynamic `import()`, top-level `await` | 815 | `RecompilableScriptFunctionData.reparse()` re-parses a function with `Parser.parse`, never `parseModule`, so the first deoptimisation of a module function is a `SyntaxError` at its `import` or `export` |
-| Class private members and fields | 447 | a reparsed class loses its private-name resolution: reads answer `0` where a string was stored, and `AssignSymbols.enterBlock` trips an assertion on a nested class |
-| BigInt-typed arrays, `Atomics`, `DataView`, `ArrayBuffer` | 529 | "Failed generating bytecode" assertions on BigInt element operations, receivers reported as "not a typed array", BigInt-to-number coercions the pessimistic path never attempts |
-| Compound and logical assignment, `super`, `new.target` | 150 | slot bookkeeping in the rest-of continuation ("Index 6 out of bounds for length 6"), `eval` and `super` in a recompiled function |
+| Modules, dynamic `import()`, top-level `await` | 815 | A deoptimising recompilation re-parsed every function with `Parser.parse`, so a module function's first deoptimisation was a `SyntaxError` at its `import` or `export`. `RecompilableScriptFunctionData` now remembers a module function and re-parses it through the module goal. |
+| Class private members, `super`, spread calls, `new.target` | 447 | A private read, a `super` property read, a `super(...)`/`super.m(...)` call, a call with a spread argument and `new.target` are all emitted as static runtime calls answering an Object, outside the optimistic operation the code generator wraps other reads and calls in - but the optimistic type calculator typed them narrower all the same, and the plain conversion that followed turned every string result into `0`. The calculator now tags each of them never-optimistic. |
+| BigInt-typed arrays, `Atomics`, `DataView` | 529 | Three separate defects. A `BigInt64Array` reported its element type, `BigInteger`, as its optimistic type, which no element getter exists for (an assertion in `dynamicGetIndex`); it is `Object` now. The type evaluator, asked for the type of `ta.buffer` while compiling, called the built-in accessor with the prototype as its receiver and threw; a built-in accessor is now as off-limits to it as a user getter. And a BigInt-capable operator chose the numeric path whenever one operand was an optimistic guess - `big[0] * 2n` converted the literal to a double before the guessed-int read of `big[0]` could be found out; a guess beside a known object now takes the object path, whose result is typed `Object` whatever the operands are (a string operand no longer makes a product a string). |
+| Compound assignment through an index | 30 | The self-modifying store kept its key on the stack in a shape that depended on whether the index was numeric - an optimistic guess a deoptimisation changes - so the rest-of continuation restored the stack one element off ("Index 6 out of bounds"). The base copy is now pushed unconditionally and dropped when the key turns out numeric. Pre-existing in the fork; 15.7 has no evaluate-the-key-once store. |
 
-Everything else - `Promise`, `Function.prototype`, `Proxy` - is under a hundred. None of this is
-reachable with optimistic types off, which is why the pessimistic suite is green and why the
-default stays where it is until these are fixed.
+Regression scripts pin each family in optimistic mode:
+`basic/es6/optimistic-static-runtime-calls.js`, `optimistic-compound-index-store.js`,
+`optimistic-builtin-accessor-types.js` and `restof-local-variable-table.js`.
+
+### Still failing with optimistic types
+
+| Family | Executions | Diagnosis |
+| --- | ---: | --- |
+| Private members on a nested class | 90 | `AssignSymbols.enterBlock` asserts a function body block has no symbols yet; on the re-parse of a class whose field initialiser holds another class with private members, the synthetic initialiser function arrives with some. Pre-existing (the previous revision fails identically). |
+| Direct `eval` inside a class method | 20 | `eval("…")` in a class method under optimistic types throws "eval is not a function": the `is_not_eval` branch is taken and its method-get of `eval` answers undefined, although the same lookup outside the call reaches the built-in. Scope depths, fast-scope flags and the runtime-scope local declarations were all ruled out; not yet found. |
+| Typed-array internal `[[Get]]` on a non-integer or out-of-range key | 20 | `ta[1.5]`, `ta["1.5"]`, `ta[5]` consult the prototype in optimistic mode: the overrides that stop a canonical numeric index from reaching the prototype cover the plain `get` overloads but not the optimistic `getInt`/`getDouble`/`getObject(key, programPoint)` ones on `ArrayBufferView`. A mechanical fix. |
+| `x op= a ?? b` and `base[key] op= call()` continuations | 22 | `??` as the right operand of a compound assignment trips an operand-type assertion in `loadBinaryOperands`; and `base[prop] *= expr()` with a `toString` key and a call on the right reaches a return in the rest-of continuation with a double local slot never stored ("Attempted load of uninitialized slot"). Both are continuation shape problems of the same kind as the one fixed above. |
+| Arrow `this`/`new.target` at program level | 12 | A top-level arrow reading `this` fails with `":arrowThis" is not defined`: the program's `var :arrowThis = this` store is never emitted in the optimistic compilation, though the symbol is scoped and the declaration is in the lowered tree. Inside a function it works. Not yet found. |
+| BigInt operators on a non-primitive operand | 12 | `{valueOf() { return 1n }} & 1n` and kin: the optimistic guess on the object operand still sends the operation down the numeric path before `valueOf` runs. |
+| `Array.prototype.concat`/`push` observables, `Proxy` apply, `Function.prototype.bind` with `new.target`, `super` from `eval`, private-name early errors from `eval` | 22 | Individually small; the `eval` ones share the class-method `eval` cause. |
+
+None of this is reachable with optimistic types off, which is why the pessimistic suite is green
+and why the default stays where it is until the list above is empty. The mode is close: every
+family that fell to a single cause is fixed, and what remains is a handful of narrow, diagnosed
+cases.
 
 ## Not done, and why
 

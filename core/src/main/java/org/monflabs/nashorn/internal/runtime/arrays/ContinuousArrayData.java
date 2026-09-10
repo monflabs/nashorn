@@ -122,7 +122,12 @@ public abstract class ContinuousArrayData extends ArrayData {
 
     @Override
     public Type getOptimisticType() {
-        return Type.typeFor(getElementType());
+        // An optimistic type is int, double or Object - the three the linked
+        // getters exist for. A BigInt64Array stores BigIntegers: as an
+        // optimistic type that is Object, not a BigInteger-typed read the code
+        // generator has no getter for (dynamicGetIndex asserts as much).
+        final Class<?> elementType = getElementType();
+        return elementType == int.class || elementType == double.class ? Type.typeFor(elementType) : Type.OBJECT;
     }
 
     /**

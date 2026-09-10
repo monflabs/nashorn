@@ -155,6 +155,46 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
      * @param tokenType the operator
      * @return true if the operator is BigInt-capable
      */
+    /**
+     * Whether this operation may have to be carried out on BigInts, so that it
+     * is compiled as a runtime call on objects rather than as unboxed
+     * arithmetic. That is when both operands are object-typed - a BigInt
+     * result needs two BigInt operands; a BigInt mixed with a Number is a
+     * TypeError, which the numeric path raises when its ToNumber meets the
+     * BigInt - and also when one operand is object-typed and the other is an
+     * optimistic guess. A guess is verified where the operand is read, and a
+     * wrong one deoptimises there; but the numeric path converts the object
+     * operand first, so with a BigInt literal beside a guessed-int read of a
+     * BigInt64Array element the literal was turned into a double (or the
+     * conversion threw) before the read could be found out. Two guesses are
+     * still numeric: whichever one is wrong deoptimises.
+     *
+     * @return true if the operation may be a BigInt operation
+     */
+    public boolean mayBeBigIntOperation() {
+        if (!isBigIntCapable(tokenType())) {
+            return false;
+        }
+        final boolean lhsObject = lhs.getType().isObject();
+        final boolean rhsObject = rhs.getType().isObject();
+        return (lhsObject && (rhsObject || isOptimisticGuess(rhs)))
+                || (rhsObject && (lhsObject || isOptimisticGuess(lhs)));
+    }
+
+    /**
+     * An expression whose current type is an optimistic assumption rather than
+     * a proven one: it has a program point, and its type is narrower than the
+     * type it would have without optimism. In a pessimistic compilation every
+     * expression sits at its pessimistic type, so nothing is a guess there.
+     */
+    private static boolean isOptimisticGuess(final Expression expr) {
+        if (!(expr instanceof Optimistic optimistic) || optimistic.getProgramPoint() == INVALID_PROGRAM_POINT) {
+            return false;
+        }
+        final Type type = expr.getType();
+        return !type.isObject() && type != optimistic.getMostPessimisticType();
+    }
+
     public static boolean isBigIntCapable(final TokenType tokenType) {
         switch (tokenType) {
         case SUB:
@@ -224,7 +264,7 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         // BOTH operands may be BigInt, i.e. both are object-typed - mixing a
         // BigInt with a Number is a TypeError, not a BigInt. A single object
         // operand keeps the numeric result type and its fast unboxed path.
-        if (isBigIntCapable(tokenType()) && lhs.getType().isObject() && rhs.getType().isObject()) {
+        if (mayBeBigIntOperation()) {
             return Type.OBJECT;
         }
         switch (tokenType()) {
@@ -595,6 +635,13 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
     private Type getTypeUncached() {
         if(type == OPTIMISTIC_UNDECIDED_TYPE) {
             return decideType(lhs.getType(), rhs.getType());
+        }
+        if (mayBeBigIntOperation()) {
+            // the object path answers whatever the runtime computes - a Number
+            // or a BigInt - and nothing about the operands narrows that: a
+            // string operand does not make a product a string, which the
+            // general rule below would say
+            return Type.OBJECT;
         }
         final Type widest = getWidestOperationType();
         if(type == null) {

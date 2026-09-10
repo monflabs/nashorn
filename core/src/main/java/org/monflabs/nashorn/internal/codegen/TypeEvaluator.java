@@ -133,8 +133,11 @@ final class TypeEvaluator {
         }
 
         final ScriptObject owner = find.getOwner();
-        if (property.hasGetterFunction(owner)) {
+        if (property.hasGetterFunction(owner) || property.isAccessorProperty()) {
             // Can have side effects, so we can't safely evaluate it; since !propertyClass.isPrimitive(), it's Object.
+            // A built-in accessor (a nasgen @Getter, such as a typed array's
+            // buffer) is a function of its receiver too: called here with the
+            // prototype that holds it as the receiver, it throws.
             return Type.OBJECT;
         }
 
@@ -195,8 +198,9 @@ final class TypeEvaluator {
         }
         final Property     property = find.getProperty();
         final ScriptObject owner    = find.getOwner();
-        if (property.hasGetterFunction(owner)) {
-            // Possible side effects; can't evaluate safely
+        if (property.hasGetterFunction(owner) || property.isAccessorProperty()) {
+            // Possible side effects; can't evaluate safely. A built-in accessor
+            // would run with the wrong receiver besides - see getPropertyType.
             return null;
         }
         try {

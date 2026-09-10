@@ -5065,12 +5065,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * to a number in bytecode.
      */
     private static boolean mightBeBigInt(final BinaryNode node) {
-        // A BigInt result needs both operands to be BigInt (mixing a BigInt with a
-        // Number is a TypeError, which the numeric path already produces when its
-        // ToNumber sees a BigInt). So only when BOTH operands are object-typed can
-        // the result be a BigInt and need the runtime dispatch; a single object
-        // operand keeps the fast unboxed numeric path.
-        return node.lhs().getType().isObject() && node.rhs().getType().isObject();
+        // see BinaryNode.mayBeBigIntOperation - the same rule decides the
+        // node's widest type, so the two cannot disagree
+        return node.mayBeBigIntOperation();
     }
 
     /**
@@ -5768,19 +5765,34 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     // for the read and once for the write. The base goes with it
                     // because it is checked first, and a third copy of it is
                     // pushed for that.
-                    final boolean keyOnce = isSelfModifying() && !index.getType().isNumeric();
-                    if (keyOnce) {
+                    //
+                    // The copy is pushed whether or not the key turns out to
+                    // need it, and dropped afterwards if it does not. Whether
+                    // the index is numeric is an optimistic guess that a
+                    // deoptimisation can change, and the stack at every program
+                    // point inside the index expression has to look the same in
+                    // the original method and in the rest-of continuation that
+                    // restores it - a shape that depended on the guess put the
+                    // continuation's restored stack one element off.
+                    final boolean numeric = index.getType().isNumeric();
+                    if (isSelfModifying()) {
                         method.dup();
                     }
-                    if (!index.getType().isNumeric()) {
+                    if (!numeric) {
                         // could be boolean here as well
                         loadExpressionAsObject(index);
                     } else {
                         loadExpressionUnbounded(index);
                     }
-                    if (keyOnce) {
-                        method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
-                                "TO_PROPERTY_KEY", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+                    if (isSelfModifying()) {
+                        if (numeric) {
+                            // a number is its own property key: drop the copy
+                            method.swap();
+                            method.pop();
+                        } else {
+                            method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
+                                    "TO_PROPERTY_KEY", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+                        }
                     }
                     depth += index.getType().getSlots();
 

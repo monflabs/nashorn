@@ -152,6 +152,16 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
     private static final long serialVersionUID = 4914839316174633726L;
 
     /**
+     * Whether this is a module's own function (kind MODULE). A deoptimising
+     * recompilation re-parses the function from source, and a module body is
+     * not a script: it must go through the module goal symbol or its first
+     * import or export is a syntax error. A function nested in a module is an
+     * ordinary function and re-parses as one; the parser already admits the
+     * module-only forms it may contain when it knows it is re-parsing.
+     */
+    private final boolean isModule;
+
+    /**
      * Constructor - public as scripts use it
      *
      * @param functionNode        functionNode that represents this function code
@@ -179,6 +189,7 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         this.lineNumber          = functionNode.getLineNumber();
         this.functionFlags       = functionNode.getFlags() | (functionNode.needsCallee() ? FunctionNode.NEEDS_CALLEE : 0);
         this.functionNodeId      = functionNode.getId();
+        this.isModule            = functionNode.isModule();
         this.source              = functionNode.getSource();
         this.endParserState      = functionNode.getEndParserState();
         this.token               = tokenFor(functionNode);
@@ -508,6 +519,8 @@ public final class RecompilableScriptFunctionData extends ScriptFunctionData imp
         } else if (lastSegment != null && lastSegment.startsWith(":staticInitializer")) {
             program = parser.reparseStaticBlock(CompilerConstants.PROGRAM.symbolName(), descPosition,
                     Token.descLength(token), functionFlags);
+        } else if (isModule) {
+            program = parser.parseModule(functionName, descPosition, Token.descLength(token));
         } else {
             program = parser.parse(CompilerConstants.PROGRAM.symbolName(), descPosition,
                     Token.descLength(token), flags);
