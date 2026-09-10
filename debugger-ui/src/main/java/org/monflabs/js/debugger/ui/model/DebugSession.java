@@ -164,9 +164,10 @@ public final class DebugSession {
                 return;
             }
             // re-arm what the server forgot on the last disconnect
+            final List<CompletableFuture<Void>> armed = new ArrayList<>();
             for (final Breakpoint bp : new ArrayList<>(breakpoints.values())) {
                 if (bp.enabled()) {
-                    armOnServer(bp);
+                    armed.add(armOnServer(bp));
                 }
             }
             if (!"none".equals(pauseOnExceptions)) {
@@ -175,13 +176,22 @@ public final class DebugSession {
             if (!breakpointsActive) {
                 connection.call("Debugger.setBreakpointsActive", Json.object("active", false));
             }
-            // The server replays a Debugger.paused for an already-frozen script
-            // from inside its enable handler, so that event reaches us just
-            // before this response. Do not clobber the PAUSED state it correctly
-            // set - only go RUNNING if we are not already showing a pause.
-            if (state != State.PAUSED) {
-                setState(State.RUNNING);
-            }
+            // Running only once those re-arms have been answered. A by-url
+            // breakpoint is applied to a script as it is parsed, so one whose
+            // script the engine already knows - the case on every reattach - is
+            // put back solely by this round trip: a client that starts a script
+            // as soon as it sees RUNNING would otherwise race the arming and run
+            // straight past the breakpoint.
+            CompletableFuture.allOf(armed.toArray(new CompletableFuture<?>[0]))
+                    .whenComplete((ignored, armError) -> run(() -> {
+                        // The server replays a Debugger.paused for an already-frozen
+                        // script from inside its enable handler, so that event reaches
+                        // us before this. Do not clobber the PAUSED state it correctly
+                        // set - only go RUNNING if we are not already showing a pause.
+                        if (state != State.PAUSED) {
+                            setState(State.RUNNING);
+                        }
+                    }));
         }));
     }
 
@@ -325,25 +335,39 @@ public final class DebugSession {
         send("Debugger.setPauseOnExceptions", Json.object("state", mode));
     }
 
-    private void armOnServer(final Breakpoint bp) {
+    /**
+     * Arms one breakpoint on the server.
+     *
+     * @param bp the breakpoint
+     * @return a future completing once the server has answered <em>and</em> this
+     *         session has recorded the answer, so that a caller which waits for
+     *         it knows the breakpoint is in place
+     */
+    private CompletableFuture<Void> armOnServer(final Breakpoint bp) {
         if (connection == null) {
-            return;
+            return CompletableFuture.completedFuture(null);
         }
         final Map<String, Object> params = Json.object("url", bp.url(), "lineNumber", bp.line());
         if (bp.condition() != null) {
             params.put("condition", bp.condition());
         }
+        final CompletableFuture<Void> armed = new CompletableFuture<>();
         connection.call("Debugger.setBreakpointByUrl", params).whenComplete((result, error) -> run(() -> {
-            if (error != null || result == null) {
-                return;
+            try {
+                if (error != null || result == null) {
+                    return;
+                }
+                final Breakpoint current = breakpoints.get(bp.key());
+                if (current == null) {
+                    return;
+                }
+                breakpoints.put(bp.key(), current.resolvedAs(str(result.get("breakpointId")), resolvedLines(result)));
+                fireBreakpoints();
+            } finally {
+                armed.complete(null);
             }
-            final Breakpoint current = breakpoints.get(bp.key());
-            if (current == null) {
-                return;
-            }
-            breakpoints.put(bp.key(), current.resolvedAs(str(result.get("breakpointId")), resolvedLines(result)));
-            fireBreakpoints();
         }));
+        return armed;
     }
 
     private void disarmOnServer(final Breakpoint bp) {
