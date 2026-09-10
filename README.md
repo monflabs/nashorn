@@ -68,7 +68,7 @@ picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md); for what the engine's perform
 and what it is worth against upstream 15.7,
 [doc/nashorn/internals/performance.md](doc/nashorn/internals/performance.md); the catalogue of every
 optimization over OpenJDK Nashorn 15.7, with its estimated gain and its limits, is
-[doc/nashorn/internals/optimizations.md](doc/nashorn/internals/optimizations.md).
+[doc/nashorn/extending/optimizations.md](doc/nashorn/extending/optimizations.md).
 
 
 Getting Started

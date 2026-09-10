@@ -14,11 +14,12 @@
   - [Debugging scripts](/guide/debugging.md)
   - [The playground](/guide/playground.md)
 
-- **Extending the engine**
+- **Extensions and Enhancements**
   - [Extension APIs](/extending/apis.md)
   - [Objects from Java: JSObject vs ScriptObject](/extending/java-objects.md)
   - [Script libraries](/extending/script-libraries.md)
   - [Module loaders](/extending/module-loaders.md)
+  - [Optimizations over 15.7](/extending/optimizations.md)
 
 - **Standard Libraries**
   - [Overview and the event loop](/libraries/overview.md)
@@ -29,7 +30,6 @@
   - [Architecture and the pipeline](/internals/architecture.md)
   - [Optimistic typing](/internals/optimistic-typing.md)
   - [Performance](/internals/performance.md)
-  - [Optimizations over 15.7](/internals/optimizations.md)
   - [Objects and property maps](/internals/objects.md)
   - [Arrays](/internals/arrays.md)
   - [Call sites and linking](/internals/linking.md)

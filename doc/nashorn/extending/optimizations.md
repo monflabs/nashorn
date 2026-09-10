@@ -3,8 +3,8 @@
 This page is the catalogue: every optimization this fork carries on top of the engine it started
 from, OpenJDK Nashorn **15.7** (the `openjdk-original` branch), what each is estimated to be worth,
 and what it does not do or costs. The narrative - the profile that pointed at each item and how
-the numbers were taken - is in [Performance](performance.md); the mechanism behind the largest
-item is in [Optimistic typing](optimistic-typing.md).
+the numbers were taken - is in [Performance](../internals/performance.md); the mechanism behind the largest
+item is in [Optimistic typing](../internals/optimistic-typing.md).
 
 A word on the estimates. Every figure comes from the perf gate
 ([`buildtools/perf-gate.sh`](../../../buildtools/perf-gate.sh), the two engines interleaved on
@@ -20,7 +20,7 @@ gain against 15.7 is derived by chaining the two it is marked *est.*; the perf g
 Upstream shipped `--optimistic-types` off: narrow (`int`/`double`) types are assumed for every
 unproven value and the function is recompiled on demand when a guess fails. The fork turns it on
 (2026.1.0), after bringing the ES2026 conformance suite from 2 038 failing executions in that mode
-to none - see [Performance](performance.md#optimistic-types) for the 20-odd defects that were in
+to none - see [Performance](../internals/performance.md#optimistic-types) for the 20-odd defects that were in
 the way, each pinned by a regression script.
 
 | What | Gain (the flip, same engine) | Gain vs 15.7 (est.) |
