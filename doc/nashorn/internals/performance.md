@@ -214,8 +214,11 @@ a rest-of method whose local variable table named slots in code the classfile li
 out as unreachable. Both are fixed (see the changelog), and a rest-of method records no local
 variable table. With them the run completed for the first time: **2 038 failing executions
 against the 8 settled ones**, in four families, all in features the six later editions added -
-the ES5 core was clean in this mode too. A second pass fixed the families themselves; what is
-left after it is 198 executions, listed below.
+the ES5 core was clean in this mode too. A second pass fixed the families themselves, leaving
+198 executions; a third pass fixed those, and the optimistic run now passes every execution - the
+8 Annex B indirect-eval cases the pessimistic run still lists included, because a program compiled on
+demand declares its vars on the global directly rather than through the merge of its scope. The run
+is compared against its own expectations file, `test262-expectations-optimistic.txt`, which is empty.
 
 | Family | Was | What went wrong, and the fix |
 | --- | ---: | --- |
@@ -228,22 +231,25 @@ Regression scripts pin each family in optimistic mode:
 `basic/es6/optimistic-static-runtime-calls.js`, `optimistic-compound-index-store.js`,
 `optimistic-builtin-accessor-types.js` and `restof-local-variable-table.js`.
 
-### Still failing with optimistic types
+### The last 198, and what they were
 
-| Family | Executions | Diagnosis |
+| Family | Was | What went wrong, and the fix |
 | --- | ---: | --- |
-| Private members on a nested class | 90 | `AssignSymbols.enterBlock` asserts a function body block has no symbols yet; on the re-parse of a class whose field initialiser holds another class with private members, the synthetic initialiser function arrives with some. Pre-existing (the previous revision fails identically). |
-| Direct `eval` inside a class method | 20 | `eval("…")` in a class method under optimistic types throws "eval is not a function": the `is_not_eval` branch is taken and its method-get of `eval` answers undefined, although the same lookup outside the call reaches the built-in. Scope depths, fast-scope flags and the runtime-scope local declarations were all ruled out; not yet found. |
-| Typed-array internal `[[Get]]` on a non-integer or out-of-range key | 20 | `ta[1.5]`, `ta["1.5"]`, `ta[5]` consult the prototype in optimistic mode: the overrides that stop a canonical numeric index from reaching the prototype cover the plain `get` overloads but not the optimistic `getInt`/`getDouble`/`getObject(key, programPoint)` ones on `ArrayBufferView`. A mechanical fix. |
-| `x op= a ?? b` and `base[key] op= call()` continuations | 22 | `??` as the right operand of a compound assignment trips an operand-type assertion in `loadBinaryOperands`; and `base[prop] *= expr()` with a `toString` key and a call on the right reaches a return in the rest-of continuation with a double local slot never stored ("Attempted load of uninitialized slot"). Both are continuation shape problems of the same kind as the one fixed above. |
-| Arrow `this`/`new.target` at program level | 12 | A top-level arrow reading `this` fails with `":arrowThis" is not defined`: the program's `var :arrowThis = this` store is never emitted in the optimistic compilation, though the symbol is scoped and the declaration is in the lowered tree. Inside a function it works. Not yet found. |
-| BigInt operators on a non-primitive operand | 12 | `{valueOf() { return 1n }} & 1n` and kin: the optimistic guess on the object operand still sends the operation down the numeric path before `valueOf` runs. |
-| `Array.prototype.concat`/`push` observables, `Proxy` apply, `Function.prototype.bind` with `new.target`, `super` from `eval`, private-name early errors from `eval` | 22 | Individually small; the `eval` ones share the class-method `eval` cause. |
+| Private members on a nested class | 90 | A class field initialiser is a synthetic function that is always parsed, even when the on-demand compilation of its enclosing function skips it; a class expression in it appended its private-name `const` bindings to the skipped initialiser's body, and `AssignSymbols` asserts a skipped function's body is empty. The initialiser now empties its body when it is being skipped, as `functionBody` does for an ordinary function. |
+| Direct `eval` in a class method, `super` from `eval`, private-name early errors from `eval` | 26 | A lazily compiled program is compiled by re-parsing it, and the re-parse skips its nested functions - so the `HAS_NESTED_EVAL` the eager parse had put on the program was lost, the class bindings a nested `eval` could reach sat in bytecode locals rather than in scope, and the method's scope walk (computed against the eager parse) stepped past the missing scope object to an undefined `eval`. The parser restores a re-parsed program's own eager flags, as it already did for a re-parsed nested function. Only a program is ever both lazily compiled and the root of a re-parse, which is why the pessimistic run - whose programs compile eagerly - never saw it. |
+| Typed-array `[[Get]]` on a non-element numeric key | 20 | The optimistic `getInt`/`getDouble(key, programPoint)` overloads of `ArrayBufferView` did not have the "never consult the prototype" rule of the plain `get` overloads; they do now, telling an optimistic site to relink where the answer is undefined. And the generic `getDouble` miss path answered `NaN` for a missing key (`ta[symbol]`), where the int one deoptimises - it now deoptimises too. |
+| BigInt through optimistic guesses | 16 | Three sub-cases. A bitwise operator on two int guesses loaded them under an int upper bound, which elides the guard (any Number coerces to int silently) - but a BigInt does not coerce, it makes the operation a BigInt one; the bound is now `number` for that case, so a BigInt deoptimises the guess and the object path takes over, and `~guess` does the same. The local-variable type pass typed a binary operator from stand-in operands that had lost the "this is a guess" bit, so `Object(5n) * Object(3n)` after its first deoptimisation was typed `double` by that pass and `Object` by the code generator; the stand-ins now carry it (`Expression.isOptimisticGuess()`, which a bytecode local never is). And `**` loaded its operands as doubles outright, which converted a guessed object operand - its `valueOf` - before the right operand was evaluated. |
+| `??` with an optimistic operand, and stored into a local | 12 | `undefined ?? undefined` came out `0`: the nullish node took its type from the guessed-int operands. Its type is now `Object` whenever an operand is a guess, the code generator lands on the node's own type after the join, and a bytecode local's identifier is never a guess (its type is proven), so `x = a ?? 5` into an int local no longer disagrees between the type pass and the code generator. |
+| Compound assignment `x op= a ?? b` | 10 | The same nullish typing; with it, the operand-type assertion in `loadBinaryOperands` holds. |
+| Arrow `this`/`new.target` at program level | 12 | Not a separate defect: the program-level `:arrowThis` store was a casualty of the lost program flags above. |
+| `Array.prototype.concat`/`push` observables | 6 | The specialised `push` wrote into the storage of a frozen array, and the specialised `concat` ignored `@@isConcatSpreadable`; each now declines to link when the generic path would behave differently. |
+| `Proxy` apply at an optimistic call site | 6 | The proxy's call invocation was cast to the site's guessed return type instead of going through the optimistic return filter; a non-int result was a `ClassCastException`. |
+| Destructuring under `with` over a `Proxy` | 4 | The compile-time type evaluator resolves names in the runtime scope to guess their types; through a `with` object that asks the expression object, and a Proxy's `has` trap observed it, out of program order. Under a `with` the evaluator now leaves every name alone. |
+| `(a?.b)()`, `x %= y` leaving `-0` | 4 | The member access inside a called optional chain was typed optimistically, which the call emitter asserts against; and an int remainder whose result is `0` from a negative dividend is `-0`, which an int cannot hold, so it deoptimises now. |
 
-None of this is reachable with optimistic types off, which is why the pessimistic suite is green
-and why the default stays where it is until the list above is empty. The mode is close: every
-family that fell to a single cause is fixed, and what remains is a handful of narrow, diagnosed
-cases.
+`basic/es6/optimistic-guess-operands.js` pins all of it in optimistic mode. None of this is reachable
+with optimistic types off, which is why the pessimistic suite was green throughout; with the
+optimistic suite fully green, flipping the default is now only a warmup-cost decision.
 
 ## Not done, and why
 

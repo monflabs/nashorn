@@ -1656,12 +1656,19 @@ public enum JSType {
      * @throws UnwarrantedOptimismException if the modulo can't be represented as int.
      */
     public static int remExact(final int x, final int y, final int programPoint) throws UnwarrantedOptimismException {
+        final int r;
         try {
-            return x % y;
+            r = x % y;
         } catch (final ArithmeticException e) {
             assert y == 0; // Only mod by zero anticipated
             throw new UnwarrantedOptimismException(Double.NaN, programPoint);
         }
+        if (r == 0 && x < 0) {
+            // ES 6.1.6.1.6: the remainder takes the sign of the dividend, so a
+            // negative dividend leaves -0, which an int cannot hold
+            throw new UnwarrantedOptimismException(-0.0, programPoint);
+        }
+        return r;
     }
 
     /**

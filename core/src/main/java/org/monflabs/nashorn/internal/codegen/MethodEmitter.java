@@ -115,6 +115,18 @@ public class MethodEmitter {
     /** FunctionNode representing this method, or null if none exists */
     protected FunctionNode functionNode;
 
+    /**
+     * True for a rest-of continuation method ({@link ClassEmitter#restOfMethod}). Its real JVM parameter
+     * is a single {@code RewriteException}, not the original function's :callee/:this/:varargs/params -
+     * those are instead restored, for whichever of them are actually live at the continuation point, by
+     * the continuation handler. The prologue that declares them the ordinary way still runs (as dead code,
+     * jumped over) for symbol/type bookkeeping the rest of code generation depends on, but must not record
+     * a debug local-variable-table entry for it: a slot never live at the continuation point is never
+     * touched by any real instruction in a rest-of method, and the JVM rejects such an entry at class load
+     * with {@code ClassFormatError} ("Invalid index in LocalVariableTable").
+     */
+    private final boolean isRestOf;
+
     /** Current type stack for current evaluation */
     private Label.Stack stack;
 
@@ -183,7 +195,7 @@ public class MethodEmitter {
      * @param method       a method visitor
      */
     MethodEmitter(final ClassEmitter classEmitter, final CodeBuffer method) {
-        this(classEmitter, method, null);
+        this(classEmitter, method, null, false);
     }
 
     /**
@@ -193,12 +205,14 @@ public class MethodEmitter {
      * @param classEmitter the class emitter weaving the class this method is in
      * @param method       a method visitor
      * @param functionNode a function node representing this method
+     * @param isRestOf     true if this method is a rest-of continuation method
      */
-    MethodEmitter(final ClassEmitter classEmitter, final CodeBuffer method, final FunctionNode functionNode) {
+    MethodEmitter(final ClassEmitter classEmitter, final CodeBuffer method, final FunctionNode functionNode, final boolean isRestOf) {
         this.context      = classEmitter.getContext();
         this.classEmitter = classEmitter;
         this.method       = method;
         this.functionNode = functionNode;
+        this.isRestOf     = isRestOf;
         this.stack        = null;
         this.log          = context.getLogger(CodeGenerator.class);
         this.debug        = log.isEnabled();
@@ -556,7 +570,9 @@ public class MethodEmitter {
      */
     void initializeMethodParameter(final Symbol symbol, final Type type, final Label start) {
         assert symbol.isBytecodeLocal();
-        localVariableDefs.put(symbol, new LocalVariableDef(start, type));
+        if (!isRestOf) {
+            localVariableDefs.put(symbol, new LocalVariableDef(start, type));
+        }
     }
 
     /**
@@ -1173,7 +1189,7 @@ public class MethodEmitter {
             final LocalVariableDef existingDef = localVariableDefs.get(symbol);
             if(existingDef == null || existingDef.type != type) {
                 final Label here = new Label("lvar_boundary");
-                if(isLiveType) {
+                if(isLiveType && !isRestOf) {
                     final LocalVariableDef newDef = new LocalVariableDef(here, type);
                     localVariableDefs.put(symbol, newDef);
                 }

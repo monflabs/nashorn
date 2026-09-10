@@ -252,7 +252,9 @@ to update a `var` of that name the global already had. They pass on their own an
 when a neighbouring file is added or removed; what decides it is whether the outer program's `var`
 reached the global object directly or through the merge of its scope, which leaves the eval's binding
 aliased to it or orphaned beside it. That is this engine's eval scope merging rather than anything
-Annex B asks for.
+Annex B asks for. With `--optimistic-types=true` every program is compiled on demand and its `var`
+reaches the global directly, so the eight pass there; that run is compared against its own
+`test262-expectations-optimistic.txt`, which lists nothing.
 
 ### The two halves are tested
 

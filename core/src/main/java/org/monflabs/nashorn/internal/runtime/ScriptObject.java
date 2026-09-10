@@ -3434,7 +3434,10 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             }
         }
 
-        return JSType.toNumber(invokeNoSuchProperty(key, false, INVALID_PROGRAM_POINT));
+        // a miss reads as undefined, which a double cannot hold: told the
+        // program point, the miss path deoptimizes the site as the int one
+        // does, instead of answering NaN
+        return JSType.toNumber(invokeNoSuchProperty(key, false, programPoint));
     }
 
     @Override

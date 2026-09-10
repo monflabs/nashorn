@@ -2515,6 +2515,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             if (args.length != 3) { //single argument check
                 return false;
             }
+            if (WellKnownSymbols.isConcatSpreadableInstalled()) {
+                // ES2015 22.1.3.1.1: once any object carries @@isConcatSpreadable
+                // the decision is the generic path's to make, per argument
+                return false;
+            }
 
             final ContinuousArrayData selfData = getContinuousArrayData(self);
             if (selfData == null) {
@@ -2541,7 +2546,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
 
         @Override
         public boolean canLink(final Object self, final CallSiteDescriptor desc, final LinkRequest request) {
-            return getContinuousArrayData(self) != null;
+            // the specialised push writes into the storage directly, which is
+            // only what the generic one would do when nothing on the
+            // prototype chain can intercept the element write and the length
+            // is writable - the same test the generic path makes (bulkable)
+            return getContinuousArrayData(self) != null && bulkable((ScriptObject) self);
         }
     }
 

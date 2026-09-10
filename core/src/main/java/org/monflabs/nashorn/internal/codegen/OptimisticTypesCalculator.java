@@ -52,6 +52,7 @@ import org.monflabs.nashorn.internal.ir.LoopNode;
 import org.monflabs.nashorn.internal.ir.Node;
 import org.monflabs.nashorn.internal.ir.ObjectNode;
 import org.monflabs.nashorn.internal.ir.Optimistic;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.PropertyNode;
 import org.monflabs.nashorn.internal.ir.Symbol;
 import org.monflabs.nashorn.internal.ir.TernaryNode;
@@ -128,6 +129,11 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     public boolean enterCallNode(final CallNode callNode) {
         tagNeverOptimistic(callNode.getFunction());
         final Expression function = callNode.getFunction();
+        if (function instanceof OptionalChainNode chain) {
+            // (a?.b)(): the call is emitted through the member access the
+            // chain wraps, which asserts it was never typed optimistically
+            tagNeverOptimistic(chain.getExpression());
+        }
         if (function instanceof BaseNode base && base.isSuper()
                 || function instanceof IdentNode ident && ident.isDirectSuper()
                 || hasSpreadArgument(callNode)) {

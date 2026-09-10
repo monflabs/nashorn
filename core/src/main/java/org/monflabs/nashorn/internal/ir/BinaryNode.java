@@ -177,22 +177,8 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         }
         final boolean lhsObject = lhs.getType().isObject();
         final boolean rhsObject = rhs.getType().isObject();
-        return (lhsObject && (rhsObject || isOptimisticGuess(rhs)))
-                || (rhsObject && (lhsObject || isOptimisticGuess(lhs)));
-    }
-
-    /**
-     * An expression whose current type is an optimistic assumption rather than
-     * a proven one: it has a program point, and its type is narrower than the
-     * type it would have without optimism. In a pessimistic compilation every
-     * expression sits at its pessimistic type, so nothing is a guess there.
-     */
-    private static boolean isOptimisticGuess(final Expression expr) {
-        if (!(expr instanceof Optimistic optimistic) || optimistic.getProgramPoint() == INVALID_PROGRAM_POINT) {
-            return false;
-        }
-        final Type type = expr.getType();
-        return !type.isObject() && type != optimistic.getMostPessimisticType();
+        return (lhsObject && (rhsObject || rhs.isOptimisticGuess()))
+                || (rhsObject && (lhsObject || lhs.isOptimisticGuess()));
     }
 
     public static boolean isBigIntCapable(final TokenType tokenType) {
@@ -344,9 +330,22 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
         case COMMARIGHT: {
             return rhs.getType();
         }
+        case NULLISH: {
+            // the code generator loads the left operand as an Object to ask
+            // IsNullish of it and hands back whichever operand applies, so an
+            // optimistic guess on either operand cannot narrow the result: it
+            // would be coerced, not verified, and undefined ?? undefined came
+            // out 0. Proven types (a pessimistic compilation, literals) still do.
+            final Type lhsType = lhs.getType();
+            final Type rhsType = rhs.getType();
+            if (lhs.isOptimisticGuess() || rhs.isOptimisticGuess()
+                    || !(lhsType.isNumeric() || lhsType.isBoolean()) || !(rhsType.isNumeric() || rhsType.isBoolean())) {
+                return Type.OBJECT;
+            }
+            return Type.widestReturnType(lhsType, rhsType);
+        }
         case AND:
-        case OR:
-        case NULLISH:{
+        case OR: {
             return Type.widestReturnType(lhs.getType(), rhs.getType());
         }
         default:

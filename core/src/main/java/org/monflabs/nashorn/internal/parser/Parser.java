@@ -1069,6 +1069,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         restoreBlock(body);
         body.setFlag(Block.NEEDS_SCOPE);
+        restoreReparsedProgramFlags(script);
         final Block programBody = new Block(functionToken, finish, body.getFlags() | Block.IS_SYNTHETIC | Block.IS_BODY, body.getStatements());
         lc.pop(script);
         script.setLastToken(token);
@@ -2150,6 +2151,13 @@ public class Parser extends AbstractParser implements Loggable {
                 }
             } finally {
                 restoreBlock(bodyBlock);
+            }
+            if (!parseBody && !bodyBlock.getStatements().isEmpty()) {
+                // A lazily skipped initializer keeps an empty body, as functionBody
+                // does for a skipped function: the initializer expression was still
+                // parsed (it does not end on a token the parser could skip to), and a
+                // class expression in it left its private-name bindings here.
+                bodyBlock.setStatements(Collections.emptyList());
             }
             body = new Block(initToken, finish, Block.IS_BODY | Block.IS_SYNTHETIC | bodyBlock.getFlags(),
                     bodyBlock.getStatements());
@@ -7207,6 +7215,7 @@ public class Parser extends AbstractParser implements Loggable {
 
             restoreBlock(body);
             body.setFlag(Block.NEEDS_SCOPE);
+            restoreReparsedProgramFlags(script);
             // the names the imports bind are declared first, so that the module's
             // own code reaches them through its environment rather than through
             // the global object; they store nothing, the values are installed
@@ -7762,6 +7771,28 @@ public class Parser extends AbstractParser implements Loggable {
     @Override
     public String toString() {
         return "'JavaScript Parsing'";
+    }
+
+    /**
+     * The program (or module) itself being reparsed for an on-demand compilation
+     * - which is how a lazily compiled program is compiled in the first place -
+     * gets back the flags its eager parse computed from the nested functions
+     * that are skipped now, as {@link #functionBody} does for a nested function.
+     * Without HAS_NESTED_EVAL the top-level symbols a nested function's eval can
+     * reach would sit in bytecode locals, and the nested function's scope depths,
+     * computed against the eager parse, would walk past the missing scope.
+     */
+    private void restoreReparsedProgramFlags(final ParserContextFunctionNode script) {
+        if (reparsedFunction == null) {
+            return;
+        }
+        // a program's id is -1, so this finds the data only when the program
+        // itself is what is being reparsed; for a nested function the program
+        // is just its carrier and there is nothing to restore
+        final RecompilableScriptFunctionData data = reparsedFunction.getScriptFunctionData(script.getId());
+        if (data != null) {
+            script.setFlag(data.getFunctionFlags());
+        }
     }
 
     private void markEval(final ParserContext lc) {

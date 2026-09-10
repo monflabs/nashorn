@@ -193,7 +193,12 @@ which this one can, so it is not selected either.
   engine's default and like the expectations file; `-Dnashorn.test262.optimistic=true` runs the same
   slice with `--optimistic-types=true` (slower by an order of magnitude: every test compiles
   optimistically and pays its deoptimisations in a one-shot realm) - a run that used to wedge in the
-  first shard on the `CompiledFunction` deopt hang, fixed in 2026.1.0. Regenerate through Maven, never by running
+  first shard on the `CompiledFunction` deopt hang, fixed in 2026.1.0, and that now passes every
+  execution - the 8 Annex B cases included, since a program compiled on demand declares its vars
+  on the global directly - so it is compared against its own, empty,
+  `test262-expectations-optimistic.txt` (the optimistic-only defects the run found are catalogued
+  in `doc/nashorn/internals/performance.md`; a change to the optimistic pipeline should be checked
+  in both modes). Regenerate through Maven, never by running
   `Test262Runner` directly: the Maven run sets the Turkish locale on purpose, to catch a case
   conversion in the engine that forgot to name one. The locale a *script* sees is a separate
   thing - `toLocaleUpperCase` answers for the host's - and the runner sets that to en-US,

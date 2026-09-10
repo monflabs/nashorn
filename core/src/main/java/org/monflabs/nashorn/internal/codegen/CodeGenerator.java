@@ -712,7 +712,23 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     MethodEmitter loadBinaryOperands(final BinaryNode binaryNode) {
-        return loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(), TypeBounds.UNBOUNDED.notWiderThan(binaryNode.getWidestOperandType()), false, false);
+        final Expression lhs = binaryNode.lhs();
+        final Expression rhs = binaryNode.rhs();
+        Type widestOperandType = binaryNode.getWidestOperandType();
+        if (widestOperandType == Type.INT && BinaryNode.isBigIntCapable(binaryNode.tokenType())
+                && isIntGuess(lhs) && isIntGuess(rhs)) {
+            // ES2020: a bitwise operator on two optimistic int guesses. Loaded with an int upper bound the guesses
+            // would go unguarded (any Number coerces to int silently, so there was nothing to guard) - but a BigInt
+            // does not coerce, it makes the operation a BigInt one. A number upper bound keeps the guards, so a
+            // BigInt deoptimizes the guess to an object and the operator's object path takes over. The operands
+            // still load as ints: the bound only stops the guard from being elided.
+            widestOperandType = Type.NUMBER;
+        }
+        return loadBinaryOperands(lhs, rhs, TypeBounds.UNBOUNDED.notWiderThan(widestOperandType), false, false);
+    }
+
+    private static boolean isIntGuess(final Expression expr) {
+        return expr.getType() == Type.INT && expr.isOptimisticGuess();
     }
 
     private MethodEmitter loadBinaryOperands(final Expression lhs, final Expression rhs, final TypeBounds explicitOperandBounds, final boolean baseAlreadyOnStack, final boolean forceConversionSeparation) {
@@ -4482,7 +4498,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadBIT_NOT(final UnaryNode unaryNode) {
-        loadExpression(unaryNode.getExpression(), TypeBounds.INT).load(-1).xor();
+        final Expression operand = unaryNode.getExpression();
+        if (isIntGuess(operand)) {
+            // ES2020: as for a bitwise operator on two guesses (see loadBinaryOperands) - an int upper bound would
+            // elide the guard, and ~BigInt is a BigInt operation, not a conversion; the operand still loads as int
+            loadExpression(operand, TypeBounds.UNBOUNDED.notWiderThan(Type.NUMBER));
+            method.convert(Type.INT);
+        } else {
+            loadExpression(operand, TypeBounds.INT);
+        }
+        method.load(-1).xor();
     }
 
     private void loadDECINC(final UnaryNode unaryNode) {
@@ -4951,6 +4976,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         loadMaybeDiscard(isCurrentDiscard, rhs, outBounds);
         method.beforeJoinPoint(rhs);
         method.label(skip);
+        if (!isCurrentDiscard) {
+            // both branches join as objects; the node's own type is what the
+            // consumer's bounds were computed from, so land on it (a proven
+            // int for "1 ?? 5", an object whenever an operand is only a guess)
+            method.convert(binaryNode.getType());
+        }
     }
 
     /**
@@ -5482,9 +5513,28 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         // both operands are evaluated before either is converted, unless the
         // conversion is provably harmless - loading and converting the left in
         // one go would run its valueOf before the right was even evaluated
-        loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(),
-                new TypeBounds(Type.NUMBER, Type.NUMBER), false, false);
+        loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(), EXP_OPERAND_BOUNDS, false, false);
+        convertExpOperands();
         method.invokestatic("java/lang/Math", "pow", "(DD)D");
+    }
+
+    /**
+     * The operands of {@code **} load under an int lower bound rather than as
+     * doubles outright: an optimistic int guess is only guarded when its bound
+     * is wider than its type, and unguarded it would be coerced at load time -
+     * an object's valueOf before the right operand is evaluated, a TypeError
+     * for a BigInt instead of a deoptimization to the BigInt path.
+     */
+    private static final TypeBounds EXP_OPERAND_BOUNDS = TypeBounds.UNBOUNDED.notWiderThan(Type.NUMBER);
+
+    /** Widens both loaded {@code **} operands to double for Math.pow. */
+    private void convertExpOperands() {
+        if (method.peekType() != Type.NUMBER) {
+            method.convert(Type.NUMBER);
+            method.swap();
+            method.convert(Type.NUMBER);
+            method.swap();
+        }
     }
 
     private void loadASSIGN_EXP(final BinaryNode binaryNode) {
@@ -5494,8 +5544,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             protected void evaluate() {
                 // the target's base is already on the stack, so the operands are
                 // loaded the way the other self-assigning operators load theirs
-                loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(),
-                        new TypeBounds(Type.NUMBER, Type.NUMBER), true, false);
+                loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(), EXP_OPERAND_BOUNDS, true, false);
+                convertExpOperands();
                 method.invokestatic("java/lang/Math", "pow", "(DD)D");
             }
         }.store();

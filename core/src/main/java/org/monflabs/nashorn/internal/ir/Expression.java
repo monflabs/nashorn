@@ -91,6 +91,25 @@ public abstract class Expression extends Node {
     }
 
     /**
+     * Is the current type of this expression an optimistic assumption rather
+     * than a proven one? True when the expression has a program point and its
+     * type is narrower than the type it would have without optimism. In a
+     * pessimistic compilation every expression sits at its pessimistic type,
+     * so nothing is a guess there. The distinction matters to the ES2020
+     * operators that can meet a BigInt: a guess may be deoptimized to an
+     * object, a proven number cannot.
+     *
+     * @return true if this expression's type is an optimistic guess
+     */
+    public boolean isOptimisticGuess() {
+        if (!(this instanceof Optimistic optimistic) || optimistic.getProgramPoint() == UnwarrantedOptimismException.INVALID_PROGRAM_POINT) {
+            return false;
+        }
+        final Type type = getType();
+        return !type.isObject() && type != optimistic.getMostPessimisticType();
+    }
+
+    /**
      * Returns true if the type of this expression is narrower than its widest operation type (thus, it is
      * optimistically typed).
      * @return true if this expression is optimistically typed.

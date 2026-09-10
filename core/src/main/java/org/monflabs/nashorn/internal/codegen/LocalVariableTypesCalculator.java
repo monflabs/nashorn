@@ -162,10 +162,28 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
         private static final long serialVersionUID = 1L;
 
         private final Type type;
+        private final boolean optimisticGuess;
 
         TypeHolderExpression(final Type type) {
+            this(type, false);
+        }
+
+        /**
+         * @param type the type to report
+         * @param optimisticGuess whether the expression this stands in for is
+         * optimistically typed - {@link BinaryNode} asks, because an operand
+         * that may still deoptimize to an object can make an ES2020 operator a
+         * BigInt operation, which changes the operator's own type
+         */
+        TypeHolderExpression(final Type type, final boolean optimisticGuess) {
             super(0L, 0, 0);
             this.type = type;
+            this.optimisticGuess = optimisticGuess;
+        }
+
+        @Override
+        public boolean isOptimisticGuess() {
+            return optimisticGuess;
         }
 
         @Override
@@ -471,7 +489,7 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
         }
         joinOnLabel(joinLabel);
 
-        final LvarType type = toLvarType(binaryNode.setOperands(lhsType.typeExpression, rhsType.typeExpression).getType());
+        final LvarType type = toLvarType(binaryNode.setOperands(typeHolder(lhs, lhsType), typeHolder(rhs, rhsType)).getType());
 
         if(binaryNode.isAssignment() && lhs instanceof IdentNode) {
             if(binaryNode.isSelfModifying()) {
@@ -482,6 +500,15 @@ final class LocalVariableTypesCalculator extends SimpleNodeVisitor {
         }
         typeStack.push(type);
         return false;
+    }
+
+    /**
+     * The stand-in operand for interrogating a {@link BinaryNode} about its type: the shared
+     * holder for the operand's type, unless the operand is an optimistic guess, which the
+     * operator's type rules need to know about (see {@link Expression#isOptimisticGuess()}).
+     */
+    private static Expression typeHolder(final Expression operand, final LvarType lvarType) {
+        return operand.isOptimisticGuess() ? new TypeHolderExpression(lvarType.type, true) : lvarType.typeExpression;
     }
 
     @Override

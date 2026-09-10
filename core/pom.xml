@@ -71,6 +71,8 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
     <nashorn.test262.commit>3655e7464de3d52643ecddd4b5f9f4f3e7f62398</nashorn.test262.commit>
     <nashorn.test262.suite>${nashorn.test.scripts}/external/test262-main</nashorn.test262.suite>
     <nashorn.test262.expectations>src/test/resources/test262-expectations.txt</nashorn.test262.expectations>
+    <!-- the optimistic run (-Dnashorn.test262.optimistic=true) is compared against its own file -->
+    <nashorn.test262.expectations.optimistic>src/test/resources/test262-expectations-optimistic.txt</nashorn.test262.expectations.optimistic>
     <nashorn.test262.threads>${nashorn.test262.default.threads}</nashorn.test262.threads>
     <!--
       Four, not eight. The count was chosen when generators and promises did not
@@ -572,7 +574,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
                 <goals><goal>exec</goal></goals>
                 <configuration>
                   <executable>${java.home}/bin/java</executable>
-                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.optimistic=${nashorn.test262.optimistic} -Dtest262.default.shards=${nashorn.test262.shards} -Dtest262.timeout.seconds=${nashorn.test262.timeout} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xmx4G -XX:-HeapDumpOnOutOfMemoryError -Dnashorn.typeInfo.disabled=true -Dtest262.suite.dir=${nashorn.test262.suite} -Dtest262.expectations=${nashorn.test262.expectations} -Dtest262.expectations.optimistic=${nashorn.test262.expectations.optimistic} -Dtest262.threads=${nashorn.test262.threads} -Dtest262.include=${nashorn.test262.include} -Dtest262.write.expectations=${nashorn.test262.write.expectations} -Dtest262.optimistic=${nashorn.test262.optimistic} -Dtest262.default.shards=${nashorn.test262.shards} -Dtest262.timeout.seconds=${nashorn.test262.timeout} -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.internal.test.framework.Test262Runner</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

@@ -53,6 +53,7 @@ import org.monflabs.nashorn.internal.runtime.RecompilableScriptFunctionData;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
+import org.monflabs.nashorn.internal.runtime.WithObject;
 
 /**
  * Functionality for using a runtime scope to look up value types.
@@ -68,10 +69,29 @@ final class TypeEvaluator {
 
     private final Compiler compiler;
     private final ScriptObject runtimeScope;
+    /**
+     * Whether a name may be looked up in the runtime scope at compile time. A
+     * {@code with} object on the scope chain answers a lookup by asking its
+     * expression object, and that is observable when the object is a Proxy
+     * (its {@code has} trap runs, out of the program's order); under a
+     * {@code with} nothing about a name is stable anyway, so no name is
+     * evaluated there.
+     */
+    private final boolean scopeIsEvaluable;
 
     TypeEvaluator(final Compiler compiler, final ScriptObject runtimeScope) {
         this.compiler = compiler;
         this.runtimeScope = runtimeScope;
+        this.scopeIsEvaluable = runtimeScope != null && hasNoWithObject(runtimeScope);
+    }
+
+    private static boolean hasNoWithObject(final ScriptObject scope) {
+        for (ScriptObject sobj = scope; sobj != null; sobj = sobj.getProto()) {
+            if (sobj instanceof WithObject) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -176,7 +196,7 @@ final class TypeEvaluator {
 
     private Object evaluateSafely(final Expression expr) {
         if (expr instanceof IdentNode) {
-            return runtimeScope == null ? null : evaluatePropertySafely(runtimeScope, ((IdentNode)expr).getName());
+            return scopeIsEvaluable ? evaluatePropertySafely(runtimeScope, ((IdentNode)expr).getName()) : null;
         }
 
         if (expr instanceof AccessNode) {
@@ -216,7 +236,7 @@ final class TypeEvaluator {
 
     private Type getEvaluatedType(final Optimistic expr) {
         if (expr instanceof IdentNode) {
-            if (runtimeScope == null) {
+            if (!scopeIsEvaluable) {
                 return null;
             }
             return getPropertyType(runtimeScope, ((IdentNode)expr).getName());

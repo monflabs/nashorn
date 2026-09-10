@@ -1,0 +1,7 @@
+# test262 ES2026 slice with --optimistic-types=true (-Dnashorn.test262.optimistic=true): settled
+# failures. None: the optimistic run passes every execution, including the 8 Annex B indirect-eval
+# cases test262-expectations.txt lists for the default (pessimistic) run - there the outer program
+# compiles eagerly and its var reaches the global through the merge of its scope; compiled on
+# demand, as every program is in this mode, it reaches the global directly (see doc/CONFORMANCE.md).
+# Regenerate with -Dnashorn.test262.optimistic=true -Dnashorn.test262.write.expectations=true. The
+# build fails on any failure not listed here and on any listed test that starts passing.

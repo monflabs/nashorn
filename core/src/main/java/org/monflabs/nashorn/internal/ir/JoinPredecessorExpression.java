@@ -79,6 +79,11 @@ public class JoinPredecessorExpression extends Expression implements JoinPredece
     }
 
     @Override
+    public boolean isOptimisticGuess() {
+        return expression.isOptimisticGuess();
+    }
+
+    @Override
     public boolean isAlwaysFalse() {
         return expression != null && expression.isAlwaysFalse();
     }

@@ -78,6 +78,7 @@ import org.monflabs.nashorn.internal.runtime.options.Options;
  *   <dt>test262.threads</dt><dd>worker count, defaults to the CPU count</dd>
  *   <dt>test262.write.expectations</dt><dd>rewrite the expectations file from this run</dd>
  *   <dt>test262.optimistic</dt><dd>run with {@code --optimistic-types=true} (off by default, like the engine)</dd>
+ *   <dt>test262.expectations.optimistic</dt><dd>known-failure file for the optimistic run (defaults to test262.expectations)</dd>
  * </dl>
  */
 public final class Test262Runner {
@@ -177,7 +178,12 @@ public final class Test262Runner {
      */
     public static void main(final String[] args) throws Exception {
         final Path suite = Path.of(required("test262.suite.dir"));
-        final Path expectationsFile = Path.of(required("test262.expectations"));
+        // the optimistic run has its own expectations: the two modes do not
+        // fail the same tests, and a test listed for one mode passing in the
+        // other must not count as an unexpected pass
+        final String optimisticExpectations = System.getProperty("test262.expectations.optimistic");
+        final Path expectationsFile = Path.of(OPTIMISTIC && optimisticExpectations != null && !optimisticExpectations.isEmpty()
+                ? optimisticExpectations : required("test262.expectations"));
         final String include = System.getProperty("test262.include", "");
         final int threads = Integer.getInteger("test262.threads", Runtime.getRuntime().availableProcessors());
 

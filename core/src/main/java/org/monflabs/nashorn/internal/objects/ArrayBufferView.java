@@ -32,6 +32,7 @@ package org.monflabs.nashorn.internal.objects;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.rangeError;
 import static org.monflabs.nashorn.internal.runtime.ECMAErrors.typeError;
 import static org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException.INVALID_PROGRAM_POINT;
+import static org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException.isValid;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ import org.monflabs.nashorn.internal.objects.annotations.Getter;
 import org.monflabs.nashorn.internal.objects.annotations.ScriptClass;
 import org.monflabs.nashorn.internal.lookup.Lookup;
 import org.monflabs.nashorn.internal.runtime.JSType;
+import org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException;
 import org.monflabs.nashorn.internal.runtime.PropertyDescriptor;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
@@ -946,6 +948,65 @@ public abstract class ArrayBufferView extends ScriptObject implements NativeArra
     @Override
     public Object get(final int key) {
         return getArray().has(key) ? super.get(key) : ScriptRuntime.UNDEFINED;
+    }
+
+    // The optimistic element reads - a call site that guessed int or double
+    // for the element - follow the same rule: a canonical numeric index that
+    // is not an element reads as undefined and never reaches the prototype.
+    // An optimistic site cannot take undefined, so it is told to relink,
+    // exactly as an ArrayData answers a value that does not fit.
+
+    /** A key that is a canonical numeric index but not an element of this view. */
+    private boolean isNonElementNumericKey(final Object key) {
+        if (key instanceof Number number) {
+            return !getArray().has(ArrayIndex.getArrayIndex(number.doubleValue()));
+        }
+        final Double index = canonicalNumericIndex(key);
+        return index != null && !isElementIndex(index);
+    }
+
+    private static int undefinedAsInt(final int programPoint) {
+        if (isValid(programPoint)) {
+            throw new UnwarrantedOptimismException(ScriptRuntime.UNDEFINED, programPoint);
+        }
+        return JSType.toInt32(ScriptRuntime.UNDEFINED);
+    }
+
+    private static double undefinedAsDouble(final int programPoint) {
+        if (isValid(programPoint)) {
+            throw new UnwarrantedOptimismException(ScriptRuntime.UNDEFINED, programPoint);
+        }
+        return JSType.toNumber(ScriptRuntime.UNDEFINED);
+    }
+
+    @Override
+    public int getInt(final Object key, final int programPoint) {
+        return isNonElementNumericKey(key) ? undefinedAsInt(programPoint) : super.getInt(key, programPoint);
+    }
+
+    @Override
+    public int getInt(final double key, final int programPoint) {
+        return getArray().has(ArrayIndex.getArrayIndex(key)) ? super.getInt(key, programPoint) : undefinedAsInt(programPoint);
+    }
+
+    @Override
+    public int getInt(final int key, final int programPoint) {
+        return getArray().has(key) ? super.getInt(key, programPoint) : undefinedAsInt(programPoint);
+    }
+
+    @Override
+    public double getDouble(final Object key, final int programPoint) {
+        return isNonElementNumericKey(key) ? undefinedAsDouble(programPoint) : super.getDouble(key, programPoint);
+    }
+
+    @Override
+    public double getDouble(final double key, final int programPoint) {
+        return getArray().has(ArrayIndex.getArrayIndex(key)) ? super.getDouble(key, programPoint) : undefinedAsDouble(programPoint);
+    }
+
+    @Override
+    public double getDouble(final int key, final int programPoint) {
+        return getArray().has(key) ? super.getDouble(key, programPoint) : undefinedAsDouble(programPoint);
     }
 
     @Override

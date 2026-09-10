@@ -1,0 +1,19 @@
+bigint bitwise on two guesses: 1 1
+bigint product of wrappers: 15 15
+bigint or: 7
+nullish of guesses: undefined undefined
+nullish with value: 42
+nullish into int local: 2 5
+nullish compound: 3 6
+exponent order: 9 lhs,rhs,lhsValue,rhsValue
+exponent ints: 8 8 2.25
+class method eval: 2 function
+block class method eval: 4
+nested private in field initializer: 2,3
+private class in arrow body: 4
+proxy apply result: true true
+bitwise not: bigint -2 -6
+remainder sign: -Infinity -Infinity 0.5
+optional call this: 42 42 42
+missing key at a double site: undefined undefined undefined
+with scope untouched by the compiler: 7 wanted,seen,get,fallback

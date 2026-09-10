@@ -412,6 +412,14 @@ public final class IdentNode extends Expression implements PropertyKey, Function
     }
 
     @Override
+    public boolean isOptimisticGuess() {
+        // a bytecode local's type is proven by the local variable type
+        // calculation, whatever its program point says; only a scope read
+        // typed narrower than Object is a guess
+        return !(symbol != null && symbol.isBytecodeLocal()) && super.isOptimisticGuess();
+    }
+
+    @Override
     public boolean canBeOptimistic() {
         return true;
     }

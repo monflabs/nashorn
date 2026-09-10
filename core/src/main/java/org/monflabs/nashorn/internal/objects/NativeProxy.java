@@ -38,6 +38,7 @@ import jdk.dynalink.linker.support.Guards;
 import org.monflabs.nashorn.internal.runtime.ConsString;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.Property;
+import org.monflabs.nashorn.internal.runtime.OptimisticReturnFilters;
 import org.monflabs.nashorn.internal.runtime.PropertyDescriptor;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
@@ -931,7 +932,10 @@ public final class NativeProxy extends ScriptObject {
     /** The call site, with everything past the fixed arguments gathered into an array. */
     private static GuardedInvocation invocation(final MethodHandle handle, final CallSiteDescriptor desc,
             final int fixed) {
-        final MethodType type = desc.getMethodType();
+        // The trap answers an Object; an optimistic call site that guessed a
+        // narrower return type gets the guess checked by the return filter, and
+        // the linker's type-safe return conversion does the rest.
+        final MethodType type = desc.getMethodType().changeReturnType(Object.class);
         final int count = type.parameterCount();
         // The apply-to-call machinery asks with the arguments already gathered
         // into an array, where an ordinary call site names them one by one.
@@ -939,7 +943,8 @@ public final class NativeProxy extends ScriptObject {
         final MethodHandle bound = gathered
                 ? handle.asType(type)
                 : handle.asCollector(Object[].class, Math.max(count - fixed, 0)).asType(type);
-        return new GuardedInvocation(bound, Guards.isInstance(NativeProxy.class, type));
+        return OptimisticReturnFilters.filterOptimisticReturnValue(
+                new GuardedInvocation(bound, Guards.isInstance(NativeProxy.class, type)), desc);
     }
 
     @SuppressWarnings("unused")
