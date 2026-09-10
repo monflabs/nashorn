@@ -1246,7 +1246,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterNEG(final UnaryNode unaryNode) {
-                if (unaryNode.getExpression().getType().isObject()) { loadObjectUnary(unaryNode, "NEG", resultBounds); return false; }
+                if (hasObjectOperand(unaryNode)) { loadObjectUnary(unaryNode, "NEG", resultBounds); return false; }
                 loadSUB(unaryNode, resultBounds);
                 return false;
             }
@@ -1345,7 +1345,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             @Override
             public boolean enterBIT_NOT(final UnaryNode unaryNode) {
-                if (unaryNode.getExpression().getType().isObject()) { loadObjectUnary(unaryNode, "BIT_NOT", resultBounds); return false; }
+                if (hasObjectOperand(unaryNode)) { loadObjectUnary(unaryNode, "BIT_NOT", resultBounds); return false; }
                 loadBIT_NOT(unaryNode);
                 return false;
             }
@@ -5137,6 +5137,19 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     /** As {@link #loadObjectBinary} but for the unary BigInt-capable operators (NEG, ~). */
+    /**
+     * Whether a numeric unary operator's operand is an object - possibly a
+     * BigInt - and the operation goes through the runtime. An operand known to
+     * be undefined is a number to these operators (ToNumber(undefined) is
+     * NaN), which is how {@link UnaryNode#getType()} types the operation; the
+     * two decisions must agree or the stack holds an Object where the
+     * operation's type says int.
+     */
+    private static boolean hasObjectOperand(final UnaryNode unaryNode) {
+        final Type operandType = unaryNode.getExpression().getType();
+        return operandType != Type.UNDEFINED && operandType.isObject();
+    }
+
     private void loadObjectUnary(final UnaryNode node, final String runtimeMethod, final TypeBounds resultBounds) {
         final boolean discard = lc.popDiscardIfCurrent(node);
         loadExpressionAsObject(node.getExpression());

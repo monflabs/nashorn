@@ -124,3 +124,5 @@ var Fn = Java.type("java.util.function.Function");
 var lambda = Fn.identity();
 function applyIt() { return lambda.apply("v"); }
 print("hidden class at an optimistic site:", applyIt(), applyIt(), typeof lambda.andThen(lambda));
+if (~void 0 !== -1 || -void 0 === -void 0 || +void 0 === +void 0) { throw new Error("unary on undefined"); }
+print("unary on undefined:", ~void 0, -void 0, +void 0);
