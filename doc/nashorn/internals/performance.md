@@ -277,9 +277,12 @@ Milliseconds. Compilation is dearer (optimistic code carries its deoptimisation 
 continuation bookkeeping) and startup pays a little for it; everything that runs hot is faster,
 mostly by more than half. The one metric outside its band, `arraymap` - `map`/`filter`/`slice`
 over a 64-element array with a fresh callback each time, no deoptimisation involved - is the open
-item of the flip, and the reason it is measured next in isolation. an embedder gets the three-to-five-times
-faster numeric code without asking, and a run-once script that never gets hot can pass
-`--optimistic-types=false` to skip the deoptimising recompiles. One thing the flip uncovered: the
+item of the flip: measured on its own, the same loop run six million times is *faster* with
+optimistic types (2.12 s against 2.33 s), so what the gate's short window sees is the longer JIT
+warmup of the larger, handler-laden optimistic code, not a slower steady state. With the flip an
+embedder gets the three-to-five-times faster numeric code without asking, and a run-once script
+that never gets hot can pass `--optimistic-types=false` to skip the deoptimising recompiles. One
+thing the flip uncovered: the
 core suite's `test-optimistic` execution had only ever run the engine default - `TestFinder` adds
 an explicit `--optimistic-types=false` for the pessimistic execution and nothing for the other -
 so with the default off it had been a second pessimistic run. It is a real optimistic run now, and its first

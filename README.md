@@ -66,7 +66,9 @@ For how this fork differs from upstream Nashorn - the language it adds, the new 
 changes - see [doc/CHANGES-FROM-UPSTREAM.md](doc/CHANGES-FROM-UPSTREAM.md); for the conformance
 picture, [doc/CONFORMANCE.md](doc/CONFORMANCE.md); for what the engine's performance work found
 and what it is worth against upstream 15.7,
-[doc/nashorn/internals/performance.md](doc/nashorn/internals/performance.md).
+[doc/nashorn/internals/performance.md](doc/nashorn/internals/performance.md); the catalogue of every
+optimization over OpenJDK Nashorn 15.7, with its estimated gain and its limits, is
+[doc/nashorn/internals/optimizations.md](doc/nashorn/internals/optimizations.md).
 
 
 Getting Started
