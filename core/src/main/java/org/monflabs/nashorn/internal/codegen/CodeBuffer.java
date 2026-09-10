@@ -109,8 +109,16 @@ public final class CodeBuffer {
         ops.add(cb -> cb.lineNumber(line));
     }
 
-    /** Writes everything recorded into a real builder. */
+    /**
+     * Writes everything recorded into a real builder.
+     * <p>
+     * {@code DirectCodeBuilder.build} retries with a second, distinct {@link CodeBuilder}
+     * when a short jump overflows ({@code LabelOverflowException}), rebuilding with wide
+     * jumps - a real label from the first attempt is not valid against the second builder,
+     * so the cache from a previous call must not survive into this one.
+     */
     public void writeTo(final CodeBuilder cb) {
+        labels = null;
         for (final Consumer<CodeBuilder> op : ops) {
             op.accept(cb);
         }

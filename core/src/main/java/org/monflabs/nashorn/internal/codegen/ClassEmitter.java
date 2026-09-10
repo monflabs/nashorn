@@ -525,7 +525,7 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter method(final EnumSet<Flag> methodFlags, final String methodName, final Class<?> rtype, final Class<?>... ptypes) {
-        return newMethod(Flag.getValue(methodFlags), methodName, Type.methodType(rtype, ptypes), null);
+        return newMethod(Flag.getValue(methodFlags), methodName, Type.methodType(rtype, ptypes), null, false);
     }
 
     /**
@@ -550,7 +550,7 @@ public class ClassEmitter {
      * @return method emitter to use for weaving this method
      */
     MethodEmitter method(final EnumSet<Flag> methodFlags, final String methodName, final String descriptor) {
-        return newMethod(Flag.getValue(methodFlags), methodName, CompilerConstants.methodType(descriptor), null);
+        return newMethod(Flag.getValue(methodFlags), methodName, CompilerConstants.methodType(descriptor), null, false);
     }
 
     /**
@@ -565,7 +565,8 @@ public class ClassEmitter {
             ACC_PUBLIC | ACC_STATIC | (functionNode.isVarArg() ? ACC_VARARGS : 0),
             functionNode.getName(),
             new FunctionSignature(functionNode).getMethodTypeDesc(),
-            functionNode);
+            functionNode,
+            false);
     }
 
     /**
@@ -581,19 +582,20 @@ public class ClassEmitter {
             ACC_PUBLIC | ACC_STATIC,
             functionNode.getName(),
             Type.methodType(functionNode.getReturnType().getTypeClass(), RewriteException.class),
-            functionNode);
+            functionNode,
+            true);
     }
 
     /**
      * Registers a method and returns the emitter that records its body.
      */
     private MethodEmitter newMethod(final int flags, final String methodName, final MethodTypeDesc type,
-            final FunctionNode functionNode) {
+            final FunctionNode functionNode, final boolean isRestOf) {
         methodCount++;
         methodNames.add(methodName);
         final CodeBuffer code = new CodeBuffer();
         methodDefs.add(new MethodDef(flags, methodName, type, code));
-        return new MethodEmitter(this, code, functionNode);
+        return new MethodEmitter(this, code, functionNode, isRestOf);
     }
 
     /**
