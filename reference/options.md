@@ -1,0 +1,76 @@
+# Command-line options
+
+Options can be handed to the engine in three ways, and the same strings work in all of them:
+
+- on the `jjs` or `Shell` command line — `jjs -scripting --annexB=false script.js`;
+- when creating an engine — `new NashornScriptEngineBuilder().annexB(false).build()`, or `.option("--annexB=false")` for any option in its command-line spelling;
+- through the system property `-Dnashorn.args="--annexB=false -strict"`, which reaches every engine
+  in the process even where the launch line is not yours to edit (`-Dnashorn.args.prepend` is the
+  same, but prepended, so explicit arguments win).
+
+Boolean options accept both forms: `--annexB` means true, `--annexB=false` means false.
+
+?> A `NashornScriptEngineBuilder` starts with **no** options; the factory's no-argument engine has
+`-doe` on. Call `dumpStackOnError(true)` on a builder if you want stack traces dumped on error.
+
+## Documented options
+
+| Option | Short | Default | What it does |
+| --- | --- | --- | --- |
+| `--annexB` | | `true` | Implement ECMA-262 Annex B, the additional features for web browsers. `--annexB=false` removes all of it — the built-ins (`escape`, `String.prototype.substr`, `__proto__`, …), the syntax (HTML-like comments, `for (var i = 0 in o)`), and the block-function hoisting. See [Conformance](conformance.md). |
+| `-classpath` | `-cp` | | Where to find user Java class files. |
+| `-D` | | | `-Dname=value` — set a system property; repeatable. |
+| `--debugger` | | `false` | Compile scripts with debugger hooks and keep every variable in a scope object, so that a debugger can set breakpoints, step and inspect variables. Implied by `--inspect`. See [Debugging scripts](../guide/debugging.md). |
+| `-dump-on-error` | `-doe` | `false` | Dump a full stack trace on errors, instead of the one-line message. |
+| `--event-loop` | | `false` | Enable the event loop. It backs every asynchronous capability — `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch` — so with it **off (the default)** each of those throws a `TypeError` when used. Leave it off for a purely synchronous embedder whose scripts never wait; turn it on to run asynchronous code. `jjs` turns it on with the standard libraries (see [jjs](jjs.md)). See [The event loop](../libraries/overview.md#the-event-loop). |
+| `-fullversion` | `-fv` | | Print the full version and exit. |
+| `-fx` | | `false` | Launch the script as a JavaFX application (requires a JavaFX-bearing JDK). |
+| `--help` | `-h` | | Print the help message. |
+| `--inspect` | | | `--inspect[=[host:]port]` — listen for a Chrome DevTools Protocol client, on `127.0.0.1:9229` by default, and run. Needs the `nashorn-debugger` artifact. |
+| `--inspect-brk` | | | Like `--inspect`, but wait for the client to attach and pause at the first statement. |
+| `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
+| `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |
+| `--optimistic-types` | `-ot` | `true` | Optimistic type assumptions with deoptimizing recompilation: better steady-state performance, longer warmup. On by default since 2026.1.0; `--optimistic-types=false` for a run-once script. See [Optimistic typing](../internals/optimistic-typing.md). |
+| `-scripting` | | `false` | Enable [scripting mode](../guide/scripting-mode.md): heredocs, `#` comments, string interpolation, `readLine`, `$ENV` and friends. |
+| `-strict` | | `false` | Run all scripts in ECMAScript strict mode. |
+| `-timezone` | `-t` | JVM default | Time zone for script execution (`Date` and friends). |
+| `-version` | `-v` | | Print the version and exit. |
+
+## Advanced and undocumented options
+
+These carry `is_undocumented` in the engine's own option table: they work, most have worked for a
+decade, but they are not part of the supported surface and can change without notice. Run
+`jjs -xhelp` for the complete, current list. The useful ones:
+
+| Option | What it does |
+| --- | --- |
+| `--no-java` (`-nj`) | Disable Java support: removes `Java`, `Packages`, `JavaImporter` and the package roots from the global. |
+| `--global-per-engine` | One shared global for all `ENGINE_SCOPE` bindings of an engine, instead of one global per bindings object. Changes the [scope model](../guide/using-the-engine.md#the-scope-model). |
+| `--locale` (`-l`) | Locale for script execution (`toLocaleString` and friends). The documented sibling of `-timezone`. |
+| `--log=<system>[:<level>]` | Enable an internal logger — see [Logging and debugging](debugging.md). |
+| `--debug-lines` (default on), `--debug-scopes`, `--debug-locals` | Aids for a *JVM* debugger, from before the engine had one of its own: emit the bytecode line-number table; keep every variable in a scope object (what `--debugger` does too); and a local-variable-table switch that nothing reads any more. |
+| `--no-syntax-extensions` (`-nse`) | Disallow non-standard syntax extensions. |
+| `--no-typed-arrays` (`-nta`) | Disable typed array support. |
+| `--parse-only` | Parse without compiling. |
+| `--print-ast`, `--print-lower-ast`, `--print-parse`, `--print-symbols` | Print compiler intermediate representations. |
+| `--print-code` | Print the generated bytecode listing (`--print-code=dir:<dir>` writes files). |
+| `--verify-code` | Verify generated bytecode with `ClassFile::verify` before installing it. |
+| `--lazy-compilation` | Compile functions on first call rather than eagerly (on by default). Optimistic types need it: `--lazy-compilation=false` alone also turns them off; together with an explicit `--optimistic-types=true` it is an error. |
+| `--persistent-code-cache` (`-pcc`) | Cache compiled scripts on disk across processes (`-Dnashorn.persistent.code.cache` names the directory). |
+| `--class-cache-size` (`-ccs`) | Size of the per-global compiled-class cache (default 50). |
+| `--unstable-relink-threshold` | Call-site misses tolerated before a site links to the slow path. |
+| `--stdout=<file>`, `--stderr=<file>` | Redirect the script's standard streams. |
+| `--anonymous-classes=[auto\|true\|false]` | Use VM anonymous classes for compiled scripts. |
+| `--empty-statements` | Preserve empty statements in the AST (parser API users). |
+| `--const-as-var` | Accept `const` and treat it as `var` (legacy compatibility). |
+| `--early-lvalue-error` | Report invalid assignment targets at parse time (default true; Annex B relaxes one case). |
+
+Options removed in this fork, kept here so old command lines can be diagnosed:
+the `--language` version switch (the engine is ES2018; there is no ES5 mode), `--function-statement-error` and `--function-statement-warning`
+(block-level function declarations are simply legal now).
+
+## Internal system properties
+
+A further set of `-Dnashorn.*` system properties tune internals — the regexp backend, the type-info
+cache, debug tracing. They are covered in [Logging and debugging](debugging.md) and, in full, in the
+historical [`DEVELOPER_README`](../../nashorn-original/DEVELOPER_README ':ignore').
