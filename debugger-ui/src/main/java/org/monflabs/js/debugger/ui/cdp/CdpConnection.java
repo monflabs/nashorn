@@ -21,28 +21,27 @@
 
 package org.monflabs.js.debugger.ui.cdp;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.monflabs.nashorn.debugger.CdpClientChannel;
 
 /**
- * A Chrome DevTools Protocol client over the JDK's {@link WebSocket}: it sends
+ * A Chrome DevTools Protocol client over a {@link CdpClientChannel}: it sends
  * requests and completes a future per id, and delivers events and the close to
  * a {@link Listener}. Everything is asynchronous - nothing here blocks - so it
  * can drive a UI without ever stalling the event thread.
  *
- * <p>The listener callbacks arrive on the WebSocket's own reader thread; a UI
+ * <p>The listener callbacks arrive on the channel's own thread (a WebSocket
+ * reader thread for {@link #connect(String, Listener)}; the in-process
+ * session's own thread for {@link #open(CdpClientChannel, Listener)}); a UI
  * built on this connection trampolines them onto its own thread. The
- * {@code call} futures likewise complete on a WebSocket thread. Sends are
- * serialised internally, since the JDK WebSocket forbids overlapping
- * {@code sendText} calls.
+ * {@code call} futures likewise complete on that thread. Sends are
+ * serialised internally, since the JDK WebSocket - one of this class's two
+ * possible channels - forbids overlapping {@code sendText} calls.
  */
 public final class CdpConnection implements AutoCloseable {
 
@@ -63,7 +62,7 @@ public final class CdpConnection implements AutoCloseable {
         void onClosed(String reason);
     }
 
-    private final WebSocket socket;
+    private final CdpClientChannel channel;
     private final Listener listener;
     private final AtomicLong nextId = new AtomicLong(1);
     private final ConcurrentHashMap<Long, CompletableFuture<Map<String, Object>>> pending = new ConcurrentHashMap<>();
@@ -72,13 +71,24 @@ public final class CdpConnection implements AutoCloseable {
     private CompletableFuture<?> sendChain = CompletableFuture.completedFuture(null);
     private volatile boolean closed;
 
-    private CdpConnection(final WebSocket socket, final Listener listener) {
-        this.socket = socket;
+    private CdpConnection(final CdpClientChannel channel, final Listener listener) {
+        this.channel = channel;
         this.listener = listener;
+        channel.listen(new CdpClientChannel.ChannelListener() {
+            @Override
+            public void onText(final CharSequence data, final boolean last) {
+                CdpConnection.this.onText(data, last);
+            }
+
+            @Override
+            public void onClosed(final String reason) {
+                CdpConnection.this.onClosed(reason);
+            }
+        });
     }
 
     /**
-     * Opens a connection.
+     * Opens a connection over a real WebSocket.
      * @param wsUrl the {@code ws://host:port/...} url the server published
      * @param listener where events and the close go
      * @return a future for the open connection; it fails with a {@link CdpException}
@@ -88,42 +98,27 @@ public final class CdpConnection implements AutoCloseable {
      */
     public static CompletableFuture<CdpConnection> connect(final String wsUrl, final Listener listener) {
         Objects.requireNonNull(listener, "listener");
-        final Holder holder = new Holder();
-        final WebSocket.Listener wsListener = new WebSocket.Listener() {
-            @Override
-            public CompletionStage<?> onText(final WebSocket ws, final CharSequence data, final boolean last) {
-                if (holder.connection != null) {
-                    holder.connection.onText(data, last);
-                }
-                ws.request(1);
-                return null;
-            }
-
-            @Override
-            public CompletionStage<?> onClose(final WebSocket ws, final int statusCode, final String reason) {
-                if (holder.connection != null) {
-                    holder.connection.onClosed(reason == null || reason.isEmpty() ? "connection closed" : reason);
-                }
-                return null;
-            }
-
-            @Override
-            public void onError(final WebSocket ws, final Throwable error) {
-                if (holder.connection != null) {
-                    holder.connection.onClosed(String.valueOf(error.getMessage()));
-                }
-            }
-        };
-        return HttpClient.newHttpClient()
-                .newWebSocketBuilder()
-                .buildAsync(URI.create(wsUrl), wsListener)
-                .handle((ws, error) -> {
+        return JdkWebSocketChannel.dial(wsUrl)
+                .handle((channel, error) -> {
                     if (error != null) {
                         throw translate(error);
                     }
-                    holder.connection = new CdpConnection(ws, listener);
-                    return holder.connection;
+                    return new CdpConnection(channel, listener);
                 });
+    }
+
+    /**
+     * Opens a connection over an already-open channel - no dial, no async
+     * wait, for a same-JVM transport such as the engine's in-process CDP
+     * server.
+     * @param channel the channel
+     * @param listener where events and the close go
+     * @return the open connection
+     */
+    public static CdpConnection open(final CdpClientChannel channel, final Listener listener) {
+        Objects.requireNonNull(channel, "channel");
+        Objects.requireNonNull(listener, "listener");
+        return new CdpConnection(channel, listener);
     }
 
     private static CdpException translate(final Throwable error) {
@@ -157,7 +152,7 @@ public final class CdpConnection implements AutoCloseable {
         pending.put(id, result);
         final String text = Json.write(Json.object("id", id, "method", method, "params", params == null ? Json.object() : params));
         synchronized (this) {
-            sendChain = sendChain.thenCompose(ignored -> socket.sendText(text, true));
+            sendChain = sendChain.thenCompose(ignored -> channel.sendText(text));
             sendChain.exceptionally(error -> {
                 final CompletableFuture<Map<String, Object>> waiting = pending.remove(id);
                 if (waiting != null) {
@@ -223,15 +218,10 @@ public final class CdpConnection implements AutoCloseable {
             return;
         }
         try {
-            socket.sendClose(WebSocket.NORMAL_CLOSURE, "done");
+            channel.requestClose();
         } catch (final RuntimeException alreadyGone) {
             // the server may already be gone
         }
         onClosed("connection closed");
-    }
-
-    /** Lets the WebSocket listener reach the connection built after buildAsync completes. */
-    private static final class Holder {
-        private volatile CdpConnection connection;
     }
 }

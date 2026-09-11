@@ -60,35 +60,44 @@ call is interrupted as well.
 
 ## Debugging in the playground
 
-**Debug here** opens the playground's own debugger — a window laid out like Chrome DevTools'
-Sources panel: the script with a breakpoint gutter and an execution pointer, a call stack, watches,
-scopes and a breakpoint list down the side, and a console beneath. It is a
-[Chrome DevTools Protocol](debugging.md) *client*, attaching to the same server the **Start the
-debugger server** checkbox serves — so pressing it starts that server if it is off, then runs the
-sample paused at its first statement. Set breakpoints by clicking the gutter, step with the toolbar,
-hover the scopes tree, evaluate in the console against the selected frame; right-click a breakpoint
-to give it a condition, and add watch expressions that re-evaluate at every pause.
+**Debug** opens the playground's own debugger — a window laid out like Chrome DevTools' Sources
+panel: the script with a breakpoint gutter and an execution pointer, a call stack, watches, scopes
+and a breakpoint list down the side, and a console beneath. It is a
+[Chrome DevTools Protocol](debugging.md) *client*, but there is no server, no port and no socket
+underneath it: the engine and the panel run in the same JVM, so they talk over an **in-process
+channel** — the protocol's own JSON messages handed straight from one to the other. Nothing can
+fail to bind, and nothing is reachable from outside the process. Pressing it cancels whatever debug
+session is already running, starts a fresh one, and runs the sample paused at its first statement,
+the moment the panel is actually connected.
+
+Set breakpoints by clicking the gutter, step with the toolbar, hover the scopes tree, evaluate in
+the console against the selected frame; right-click a breakpoint to give it a condition, and add
+watch expressions that re-evaluate at every pause.
 
 The breakpoints are keyed by the script's url, which the playground keeps stable across runs (it
-appends a `//# sourceURL` directive), so a breakpoint set once keeps hitting on every **Debug here**.
-Every run — and opening the debugger window — starts from a **clean debugging context**: the
-playground clears the debugger's script registry, so the Sources list shows only the current run's
-files rather than accumulating every run or sample you have tried. The clear is a
-`Runtime.executionContextsCleared` over the protocol, so a connected debugger resets without the
-connection dropping, and breakpoints survive (they re-resolve as the run parses). To make this work
-even for a re-run of the same sample, the playground's engine keeps **no class cache** — each run
-recompiles and re-announces its scripts, where a cache hit would otherwise leave the freshly cleared
-list empty. Closing the window detaches but leaves the server running. Because the protocol allows **one client
-at a time**, the built-in debugger and an attached Chrome are mutually exclusive: detach one before
-the other.
+appends a `//# sourceURL` directive), so a breakpoint set once keeps hitting on every **Debug**.
+Every session starts from a **clean debugging context**: the playground clears the debugger's script
+registry, so the Sources list shows only this run's files rather than accumulating every sample you
+have tried. The clear is a `Runtime.executionContextsCleared` over the protocol, so a connected
+debugger resets without the connection dropping, and breakpoints survive (they re-resolve as the run
+parses). To make this work even for a re-run of the same sample, the playground's engine keeps **no
+class cache** — each run recompiles and re-announces its scripts, where a cache hit would otherwise
+leave the freshly cleared list empty.
+
+Exactly **one debug session** is ever live. Closing the debugger window ends it; so does pressing
+either debugger button again, or selecting another sample. A script left paused at a breakpoint is
+terminated as the session goes away, so nothing is left frozen with no client to resume it.
 
 ## Debugging in Chrome
 
-**Start the debugger server** serves the [Chrome DevTools Protocol](debugging.md) on the
-playground's engine — the status line shows the `ws://…` URL with an **open chrome://inspect**
-link that launches Chrome on the inspect page (`chrome://` is no OS scheme, so the playground
-starts the browser itself); click **inspect** under *Remote Target* there. From there, **Run** behaves as always — a
-`debugger;` statement pauses in DevTools with scopes, call stack and console — and the **Debug**
-button (enabled while the server runs) runs the sample paused at its first statement, so a script
-with no `debugger;` in it can get breakpoints before anything happens. The pause applies to that
-run only.
+**External Debugger** serves the [Chrome DevTools Protocol](debugging.md) on the playground's engine,
+on port 9229 — Node's own `--inspect-brk` default — and runs the sample paused at its first
+statement, for an external client to attach to. The status line shows the `ws://…` URL with an
+**open chrome://inspect** link that launches Chrome on the inspect page (`chrome://` is no OS scheme,
+so the playground starts the browser itself); click **inspect** under *Remote Target* there, and the
+script is waiting at its first statement with scopes, call stack and console. A `debugger;` statement
+pauses in DevTools the same way.
+
+The session ends by itself when the script finishes, the way a real Node inspector's connection
+closes when the debugged process exits: the banner and the link go away, and the server is closed.
+Pressing either debugger button, or selecting another sample, ends it early.

@@ -48,19 +48,29 @@ import org.testng.annotations.Test;
  */
 @SuppressWarnings({"deprecation", "javadoc"})
 public class DebuggerPanelTest {
-    private static final long TIMEOUT = 20;
+    protected static final long TIMEOUT = 20;
 
-    private ScriptEngine engine;
-    private CdpServer.Handle server;
-    private ExecutorService worker;
-    private DebuggerPanel panel;
+    protected ScriptEngine engine;
+    protected AutoCloseable server;
+    protected ExecutorService worker;
+    protected DebuggerPanel panel;
 
     @BeforeMethod
     public void setUp() throws Exception {
         engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
-        server = CdpServer.open(Debugger.of(engine), InspectOptions.parse("127.0.0.1:0", false));
+        openServer();
         worker = Executors.newSingleThreadExecutor();
         onEdt(() -> panel = new DebuggerPanel(new Font(Font.MONOSPACED, Font.PLAIN, 12), false));
+    }
+
+    /** Starts the transport under test. Overridden for the in-process one. */
+    protected void openServer() throws Exception {
+        server = CdpServer.open(Debugger.of(engine), InspectOptions.parse("127.0.0.1:0", false));
+    }
+
+    /** Points the panel at the transport under test. */
+    protected void attachPanel() throws Exception {
+        onEdt(() -> panel.attach(((CdpServer.Handle)server).webSocketUrl()));
     }
 
     @AfterMethod
@@ -71,7 +81,7 @@ public class DebuggerPanelTest {
         Debugger.of(engine).close();
     }
 
-    private static void onEdt(final Runnable r) throws Exception {
+    protected static void onEdt(final Runnable r) throws Exception {
         if (SwingUtilities.isEventDispatchThread()) {
             r.run();
         } else {
@@ -80,7 +90,7 @@ public class DebuggerPanelTest {
     }
 
     /** A value read from the EDT. */
-    private static <T> T onEdtGet(final java.util.concurrent.Callable<T> c) throws Exception {
+    protected static <T> T onEdtGet(final java.util.concurrent.Callable<T> c) throws Exception {
         final AtomicReference<T> ref = new AtomicReference<>();
         final AtomicReference<Exception> err = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
@@ -96,7 +106,7 @@ public class DebuggerPanelTest {
         return ref.get();
     }
 
-    private void waitUntil(final EdtCondition condition) throws Exception {
+    protected void waitUntil(final EdtCondition condition) throws Exception {
         final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT);
         while (System.nanoTime() < deadline) {
             if (onEdtGet(condition::holds)) {
@@ -107,7 +117,7 @@ public class DebuggerPanelTest {
         throw new AssertionError("condition not met within " + TIMEOUT + "s");
     }
 
-    private interface EdtCondition {
+    protected interface EdtCondition {
         boolean holds();
     }
 
@@ -121,7 +131,7 @@ public class DebuggerPanelTest {
     public void attachRunAndPauseReflectsInTheStack() throws Exception {
         final AtomicReference<DebuggerPanel.ConnectionState> connState = new AtomicReference<>();
         onEdt(() -> panel.onConnectionChange((state, detail) -> connState.set(state)));
-        onEdt(() -> panel.attach(server.webSocketUrl()));
+        attachPanel();
         waitUntil(() -> connState.get() == DebuggerPanel.ConnectionState.CONNECTED);
 
         // set a breakpoint by url and run a script reporting that url
@@ -148,7 +158,7 @@ public class DebuggerPanelTest {
     public void detachWhilePausedReleasesTheScript() throws Exception {
         final AtomicReference<DebuggerPanel.ConnectionState> connState = new AtomicReference<>();
         onEdt(() -> panel.onConnectionChange((state, detail) -> connState.set(state)));
-        onEdt(() -> panel.attach(server.webSocketUrl()));
+        attachPanel();
         waitUntil(() -> connState.get() == DebuggerPanel.ConnectionState.CONNECTED);
 
         final String url = "file:///work/hang.js";

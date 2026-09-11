@@ -195,6 +195,20 @@ public final class ScriptRunner {
         return debugServer == null ? null : debugServer.webSocketUrl();
     }
 
+    /**
+     * The debugger of the engine a sample would run on, making that engine
+     * first if the options call for a new one. Lets a caller open a CDP
+     * session - in process or over a socket - on exactly the engine the next
+     * {@link #run} will use, so arming a pause-on-start run cannot race an
+     * engine swap.
+     *
+     * @param sample the sample about to run
+     * @return its engine's debugger
+     */
+    public synchronized Debugger debuggerFor(final Sample sample) {
+        return Debugger.of(engine(sample.options()));
+    }
+
     /** Makes the next run - and only it - pause at its first statement, for a client that is attached. */
     public void pauseOnNextRun(final boolean pause) {
         pauseOnNextRun = pause;

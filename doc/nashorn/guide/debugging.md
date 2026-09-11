@@ -104,8 +104,7 @@ is loaded are pending and resolve when the engine compiles it — exactly as wit
 The reactor also ships a debugger *client*: `org.monflabs.js.debugger.ui.DebuggerPanel`, an
 embeddable Swing component (the unpublished `nashorn-debugger-ui` module) laid out like Chrome
 DevTools' Sources panel. It speaks the Chrome DevTools Protocol over a WebSocket, so it attaches to
-any engine running with `--inspect` — the [playground](playground.md)'s **Debug here** button is
-this panel in a window, but a host application can put it anywhere:
+any engine running with `--inspect` — a host application can put it anywhere:
 
 ```java
 DebuggerPanel panel = new DebuggerPanel(monoFont, dark);
@@ -122,6 +121,30 @@ protocol calls are asynchronous and never block it.
 
 The module is unpublished for now (like the playground and shell), so use it from source rather than
 as a Maven artifact.
+
+### Without a socket
+
+When the engine and the panel run in the same JVM there is no reason to go through a port at all.
+`org.monflabs.nashorn.debugger.inprocess.InProcessCdpServer` runs the very same protocol session over
+an in-process channel: no socket, no port, no network stack, and no way to reach it from outside the
+process. The only client is whoever holds the handle it returns.
+
+```java
+Debugger debugger = Debugger.of(engine);
+InProcessCdpServer.Handle server = InProcessCdpServer.open(debugger, InspectOptions.parse("", false));
+panel.attach(server.clientChannel());   // no url, nothing to dial
+```
+
+The dispatch above it is unchanged — the same `CdpSession`, the same JSON messages, the same panel —
+only the transport underneath differs, which both sides reach through `CdpTransport` (the engine
+side) and `CdpClientChannel` (the client side). The [playground](playground.md)'s **Debug** button is
+this panel over this transport; its **External Debugger** button is the WebSocket server instead.
+
+`waitForDebugger` is rejected here rather than honoured: `CdpServer.open` can block until a third
+party discovers the port and connects, but an in-process pipe has no third party — the only possible
+client is whoever receives the handle, so blocking before returning it would deadlock forever.
+The channel is single-use: once it closes there is nothing to redial, so the panel hides its
+**Reattach** affordance for this kind of session.
 
 ## What the debugger shows
 

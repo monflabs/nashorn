@@ -48,25 +48,32 @@ import org.testng.annotations.Test;
  */
 @SuppressWarnings({"javadoc", "unchecked", "deprecation", "try"})
 public class CdpConnectionTest {
-    private static final long TIMEOUT = 20;
+    protected static final long TIMEOUT = 20;
 
-    private ScriptEngine engine;
-    private CdpServer.Handle server;
+    protected ScriptEngine engine;
+    protected AutoCloseable server;
 
     @BeforeMethod
     public void setUp() throws Exception {
         engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        openServer();
+    }
+
+    /** Starts the transport under test. Overridden for the in-process one. */
+    protected void openServer() throws Exception {
         server = CdpServer.open(Debugger.of(engine), InspectOptions.parse("127.0.0.1:0", false));
     }
 
     @AfterMethod
-    public void tearDown() {
-        server.close();
+    public void tearDown() throws Exception {
+        if (server != null) {
+            server.close();
+        }
         Debugger.of(engine).close();
     }
 
     /** A test listener that queues events and remembers the close reason. */
-    private static final class Events implements CdpConnection.Listener {
+    protected static final class Events implements CdpConnection.Listener {
         final LinkedBlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
         final AtomicReference<String> closed = new AtomicReference<>();
 
@@ -93,12 +100,13 @@ public class CdpConnectionTest {
         }
     }
 
-    private CdpConnection connect(final Events events) throws Exception {
-        return CdpConnection.connect(server.webSocketUrl(), events).get(TIMEOUT, TimeUnit.SECONDS);
+    /** Opens a client on the transport under test. Overridden for the in-process one. */
+    protected CdpConnection connect(final Events events) throws Exception {
+        return CdpConnection.connect(((CdpServer.Handle)server).webSocketUrl(), events).get(TIMEOUT, TimeUnit.SECONDS);
     }
 
     /** Runs a call expected to fail and returns the CdpException it carried. */
-    private static CdpException failureOf(final Callable call) {
+    protected static CdpException failureOf(final Callable call) {
         try {
             call.run();
         } catch (final ExecutionException e) {
@@ -109,7 +117,7 @@ public class CdpConnectionTest {
         throw new AssertionError("expected a failure");
     }
 
-    private interface Callable {
+    protected interface Callable {
         void run() throws Exception;
     }
 
@@ -157,7 +165,8 @@ public class CdpConnectionTest {
     public void aSecondClientIsRefusedAsBusy() throws Exception {
         final Events first = new Events();
         try (CdpConnection ignored = connect(first)) {
-            final CdpException cdp = failureOf(() -> CdpConnection.connect(server.webSocketUrl(), new Events()).get(TIMEOUT, TimeUnit.SECONDS));
+            final CdpException cdp = failureOf(() -> CdpConnection.connect(
+                    ((CdpServer.Handle)server).webSocketUrl(), new Events()).get(TIMEOUT, TimeUnit.SECONDS));
             assertEquals(cdp.code(), CdpException.TRANSPORT_BUSY, "message was: " + cdp.getMessage());
             assertTrue(cdp.isTransport());
         }

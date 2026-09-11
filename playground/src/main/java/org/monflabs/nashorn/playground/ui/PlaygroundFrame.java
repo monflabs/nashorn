@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -56,7 +57,10 @@ import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import org.monflabs.js.debugger.ui.DebuggerPanel;
+import org.monflabs.nashorn.api.debugger.Debugger;
 import org.monflabs.nashorn.api.debugger.InspectOptions;
+import org.monflabs.nashorn.debugger.inprocess.InProcessCdpServer;
 import org.monflabs.nashorn.playground.Sample;
 import org.monflabs.nashorn.playground.SampleLibrary;
 import org.monflabs.nashorn.playground.ScriptRunner;
@@ -85,17 +89,23 @@ public final class PlaygroundFrame extends JFrame {
     private final JCheckBox echo = new JCheckBox("Log expression values", true);
     private final JCheckBox wordWrap = new JCheckBox("Word wrap", true);
     private final JCheckBox preserve = new JCheckBox("Preserve console", false);
-    private final JCheckBox debug = new JCheckBox("Start the debugger server", false);
-    private final JButton debugRun = new JButton("Debug");
-    private final JButton debugHere = new JButton("Debug here");
+    private final JButton debugButton = new JButton("Debug");
+    private final JButton externalDebugButton = new JButton("External Debugger");
     private final JLabel debugInfo = new JLabel(" ");
     private final JButton inspectLink = new JButton("<html><u>open chrome://inspect</u></html>");
-    private final JLabel debugInfoTail = new JLabel(" ");
     private final Timer autoRunTimer = new Timer(500, e -> run());
     private final Timer scratchTimer = new Timer(1000, e -> saveScratch());
     private final transient Font mono;
     private final boolean dark;
-    private transient DebuggerFrame debuggerFrame;
+    // The one debugging session currently running, of either kind - pressing
+    // either button, closing the debugger window, or selecting another sample
+    // all funnel through cancelDebugSession(), so exactly one session is ever
+    // live. The token identifies it, so a teardown that has since been
+    // superseded by a newer session does nothing.
+    private transient Object debugSession;
+    private transient AutoCloseable debugServer;
+    private transient JFrame debugFrame;
+    private transient DebuggerPanel debugPanel;
     private transient Sample sample;
     private transient Sample scratch;
     private transient Future<?> queued;
@@ -123,9 +133,7 @@ public final class PlaygroundFrame extends JFrame {
             public void windowClosing(final WindowEvent e) {
                 saveScratch();
                 savePrefs();
-                if (debuggerFrame != null) {
-                    debuggerFrame.shutdown();
-                }
+                cancelDebugSession();
                 runner.close();
                 dispose();
                 System.exit(0);
@@ -197,15 +205,15 @@ public final class PlaygroundFrame extends JFrame {
         saveAs.addActionListener(e -> saveAs());
         echo.addActionListener(e -> run());
         wordWrap.addActionListener(e -> console.setWrap(wordWrap.isSelected()));
-        debug.addActionListener(e -> toggleDebug());
-        debugRun.addActionListener(e -> {
-            runner.pauseOnNextRun(true);   // this run only: it pauses at its first statement
-            run();
-        });
-        debugRun.setEnabled(false);
-        debugRun.setToolTipText("Run, paused at the first statement, for the attached DevTools");
-        debugHere.addActionListener(e -> debugHere());
-        debugHere.setToolTipText("Open the built-in debugger and run, paused at the first statement");
+        debugButton.addActionListener(e -> startDebugSession(true));
+        debugButton.setToolTipText("Debug the current sample in the built-in debugger panel, paused at its first "
+                + "statement. Cancels any running debug session and starts a fresh one, closing any open "
+                + "debugger window first.");
+        externalDebugButton.addActionListener(e -> startDebugSession(false));
+        externalDebugButton.setToolTipText("Start a Chrome DevTools Protocol server on port " + InspectOptions.DEFAULT_PORT
+                + " - Node's own --inspect-brk default - running the current sample paused at its first "
+                + "statement, for an external debugger (Chrome DevTools, VS Code, ...) to attach to. Cancels "
+                + "any running debug session and starts a fresh one.");
         debugInfo.setBorder(BorderFactory.createEmptyBorder(0, 8, 4, 0));
         inspectLink.setBorderPainted(false);
         inspectLink.setContentAreaFilled(false);
@@ -215,7 +223,6 @@ public final class PlaygroundFrame extends JFrame {
         inspectLink.setToolTipText("Launch Chrome on its inspect page; the playground appears under Remote Target");
         inspectLink.setVisible(false);
         inspectLink.addActionListener(e -> openChromeInspect());
-        debugInfoTail.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 8));
         bar.add(runButton);
         bar.add(stopButton);
         bar.addSeparator();
@@ -228,15 +235,13 @@ public final class PlaygroundFrame extends JFrame {
         bar.addSeparator();
         bar.add(saveAs);
         bar.add(Box.createHorizontalGlue());
-        bar.add(debug);
-        bar.add(debugRun);
-        bar.add(debugHere);
+        bar.add(debugButton);
+        bar.add(externalDebugButton);
         final JPanel north = new JPanel(new BorderLayout());
         north.add(bar, BorderLayout.CENTER);
         final JPanel info = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
         info.add(debugInfo);
         info.add(inspectLink);
-        info.add(debugInfoTail);
         north.add(info, BorderLayout.SOUTH);
         return north;
     }
@@ -275,6 +280,8 @@ public final class PlaygroundFrame extends JFrame {
         if (sample != null && sample == scratch) {
             saveScratch();
         }
+        // selecting another sample cancels any debug session on the old one
+        cancelDebugSession();
         sample = s;
         editor.show(s.source(), s.files(), true);
         readme.show(s.readme() != null ? s.readme() : "## " + s.title());
@@ -343,9 +350,9 @@ public final class PlaygroundFrame extends JFrame {
 
     // -- running ------------------------------------------------------------------
 
-    private void run() {
+    private Future<?> run() {
         if (sample == null) {
-            return;
+            return null;
         }
         autoRunTimer.stop();
         if (queued != null) {
@@ -379,65 +386,164 @@ public final class PlaygroundFrame extends JFrame {
                 });
             }
         });
+        return queued;
     }
 
     /**
-     * Opens the built-in debugger on the playground's own engine and runs the
-     * sample paused at its first statement. Starts the server if it is off
-     * (keeping the checkbox in step), reuses one debugger window, and arms the
-     * pause-on-start run only once the client has connected - a pause fired
-     * before then would have nothing to show.
+     * Starts a fresh debug session for the current sample, paused at its first
+     * statement - like a real {@code node --inspect-brk} launch. Cancels
+     * whatever session (of either kind) is already running first, so this is
+     * the only entry point either debugger button needs.
+     *
+     * @param internal true for the built-in Swing panel over the in-process,
+     *        socket-free CDP transport ("Debug"); false for a real Chrome
+     *        DevTools Protocol server on Nashorn's default debugger port, for
+     *        an external client (Chrome DevTools, VS Code, ...) to attach to
+     *        ("External Debugger")
      */
-    private void debugHere() {
-        if (!debug.isSelected()) {
-            debug.setSelected(true);
-            toggleDebug();
-        }
-        final String url = runner.debugUrl();
-        if (url == null) {
-            debug.setSelected(false);   // toggleDebug already reported the failure
+    private void startDebugSession(final boolean internal) {
+        cancelDebugSession();
+        if (sample == null) {
             return;
         }
-        if (debuggerFrame == null) {
-            debuggerFrame = new DebuggerFrame(mono, dark,
-                    () -> {
-                        final String live = runner.debugUrl();
-                        if (live != null) {
-                            return live;
-                        }
-                        try {
-                            return runner.debugInChrome(true, InspectOptions.DEFAULT_PORT);
-                        } catch (final IOException e) {
-                            return null;
-                        }
-                    });
+        final Debugger debugger;
+        try {
+            debugger = runner.debuggerFor(withSource(sample, editor.getSource()));
+        } catch (final RuntimeException e) {
+            JOptionPane.showMessageDialog(this, String.valueOf(e.getMessage()), "Start the debugger", JOptionPane.ERROR_MESSAGE);
+            return;
         }
-        // a brand new, cleared context when the window is displayed: the panel
-        // attaches to an empty registry, then the run below repopulates it
+        // a brand new, cleared registry: the client attaches to an empty
+        // Sources list, and the run below repopulates it
         runner.clearDebugScripts();
-        debuggerFrame.show(url, () -> {
+        final Object token = new Object();
+        if (internal) {
+            // no socket, no port: the engine and this panel run in the very
+            // same JVM, so there is nothing to dial and nothing that can fail
+            // binding
+            final InProcessCdpServer.Handle server = InProcessCdpServer.open(debugger, InspectOptions.parse("", false));
+            final DebuggerPanel panel = new DebuggerPanel(mono, dark);
+            final JFrame frame = new JFrame("Nashorn Debugger");
+            frame.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+            frame.setSize(1200, 850);
+            frame.getContentPane().add(panel, BorderLayout.CENTER);
+
+            debugSession = token;
+            debugServer = server;
+            debugFrame = frame;
+            debugPanel = panel;
+
+            final AtomicBoolean started = new AtomicBoolean();
+            // the script only starts once the panel is actually connected and
+            // has enabled the Debugger domain - Debugger.enable does not replay
+            // an already-in-progress pause, so starting any earlier could pause
+            // the script before a client exists to be told about it
+            panel.onConnectionChange((state, detail) -> {
+                if (state == DebuggerPanel.ConnectionState.CONNECTED && started.compareAndSet(false, true)) {
+                    SwingUtilities.invokeLater(() -> {
+                        runner.pauseOnNextRun(true);
+                        run();
+                    });
+                }
+            });
+            frame.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(final WindowEvent e) {
+                    // only if this window's own session is still the active one
+                    // - avoids re-entering cancelDebugSession() when it is what
+                    // disposed this window in the first place
+                    if (debugSession == token) {
+                        cancelDebugSession();
+                    }
+                }
+            });
+
+            frame.setVisible(true);
+            panel.attach(server.clientChannel());
+        } else {
+            final String url;
+            try {
+                url = runner.debugInChrome(true, InspectOptions.DEFAULT_PORT);
+            } catch (final IOException e) {
+                JOptionPane.showMessageDialog(this, "Cannot start the debugger server: " + e.getMessage(),
+                        "Start the debugger", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            debugSession = token;
+            debugServer = () -> runner.debugInChrome(false, 0);
+
             runner.pauseOnNextRun(true);
-            run();
-        });
+            final Future<?> running = run();
+            debugInfo.setText("Debugger listening on " + url + ", paused at the first statement \u2014 ");
+            inspectLink.setVisible(true);
+
+            // A real Node/V8 inspector closes the connection when the debugged
+            // process exits, which is how DevTools knows the run is over.
+            // Without an equivalent here, a script resumed to completion just
+            // leaves the server open with no signal at all - the banner never
+            // goes away even though the run has genuinely finished. Watching
+            // the run and cancelling the session on completion (only if this
+            // has not since been superseded by a newer session) fixes that.
+            final Thread watcher = new Thread(() -> {
+                try {
+                    if (running != null) {
+                        running.get();
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (final java.util.concurrent.ExecutionException | java.util.concurrent.CancellationException ended) {
+                    // over either way
+                }
+                SwingUtilities.invokeLater(() -> {
+                    if (debugSession == token) {
+                        cancelDebugSession();
+                    }
+                });
+            }, "playground-debug-session-watcher");
+            watcher.setDaemon(true);
+            watcher.start();
+        }
     }
 
-    private void toggleDebug() {
-        try {
-            final String url = runner.debugInChrome(debug.isSelected(), InspectOptions.DEFAULT_PORT);
-            debugRun.setEnabled(url != null);
-            inspectLink.setVisible(url != null);
-            if (url == null) {
-                runner.pauseOnNextRun(false);
-                debugInfo.setText(" ");
-                debugInfoTail.setText(" ");
-            } else {
-                debugInfo.setText("Debugger listening on " + url + "  \u2014 ");
-                debugInfoTail.setText(" and click \"inspect\" under Remote Target, then press Debug to run paused at the first statement.");
-            }
-        } catch (final IOException e) {
-            debug.setSelected(false);
-            JOptionPane.showMessageDialog(this, "Cannot start the debugger server: " + e.getMessage(), "Start the debugger server", JOptionPane.ERROR_MESSAGE);
+    /**
+     * Tears down whichever debug session (built-in panel or external CDP
+     * server) is currently running, if any - closing the debugger window first
+     * if one is open, and ending a script left paused in it. Called before
+     * starting a fresh session, when the debugger window is closed, when
+     * another sample is selected, and when the playground shuts down.
+     */
+    private void cancelDebugSession() {
+        final Object session = debugSession;
+        debugSession = null;
+        final AutoCloseable server = debugServer;
+        debugServer = null;
+        final JFrame frame = debugFrame;
+        debugFrame = null;
+        final DebuggerPanel panel = debugPanel;
+        debugPanel = null;
+
+        if (session != null) {
+            // a script frozen at a breakpoint would otherwise stay frozen with
+            // nothing left to resume it
+            runner.pauseOnNextRun(false);
+            runner.stop();
         }
+        if (frame != null) {
+            frame.dispose();
+        }
+        if (panel != null) {
+            panel.close();
+        }
+        if (server != null) {
+            try {
+                server.close();
+            } catch (final Exception ignored) {
+                // closing anyway
+            }
+        }
+        debugInfo.setText(" ");
+        inspectLink.setVisible(false);
     }
 
     /**

@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import org.monflabs.js.debugger.ui.cdp.CdpConnection;
 import org.monflabs.js.debugger.ui.cdp.CdpException;
 import org.monflabs.js.debugger.ui.cdp.Json;
+import org.monflabs.nashorn.debugger.CdpClientChannel;
 
 /**
  * The debugger's state and the protocol logic over a {@link CdpConnection}: it
@@ -154,6 +155,23 @@ public final class DebugSession {
                     connection = conn;
                     enableAndArm();
                 }));
+    }
+
+    /**
+     * Attaches over an already-open, same-JVM channel - no url, no dial. The
+     * channel is single-use, so unlike {@link #attach(String)} there is no
+     * same-channel idempotency check: a repeat call always detaches first.
+     *
+     * @param channel the channel
+     */
+    public void attach(final CdpClientChannel channel) {
+        if (state != State.DETACHED) {
+            detach();
+        }
+        attachedUrl = null;
+        setState(State.CONNECTING);
+        connection = CdpConnection.open(channel, new ConnectionListener());
+        enableAndArm();
     }
 
     private void enableAndArm() {

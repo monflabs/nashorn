@@ -58,17 +58,17 @@ import org.testng.annotations.Test;
  */
 @SuppressWarnings({"javadoc", "deprecation"})
 public class DebugSessionTest {
-    private static final long TIMEOUT = 20;
+    protected static final long TIMEOUT = 20;
 
-    private ScriptEngine engine;
-    private CdpServer.Handle server;
-    private ExecutorService worker;   // runs the script (a pause blocks it)
-    private PumpExecutor ui;          // the session's single thread, driven by the test
-    private DebugSession session;
-    private Recorder recorder;
+    protected ScriptEngine engine;
+    protected AutoCloseable server;
+    protected ExecutorService worker;   // runs the script (a pause blocks it)
+    protected PumpExecutor ui;          // the session's single thread, driven by the test
+    protected DebugSession session;
+    protected Recorder recorder;
 
     /** An executor that queues tasks for the test thread to pump - the "EDT" here. */
-    private static final class PumpExecutor implements Executor {
+    protected static final class PumpExecutor implements Executor {
         final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
         @Override
         public void execute(final Runnable task) {
@@ -83,7 +83,7 @@ public class DebugSessionTest {
     }
 
     /** Records what the session tells its listener. */
-    private static final class Recorder implements DebugSession.SessionListener {
+    protected static final class Recorder implements DebugSession.SessionListener {
         final List<ScriptInfo> scripts = new ArrayList<>();
         final List<ConsoleEntry> console = new ArrayList<>();
         volatile PauseState lastPause;
@@ -107,7 +107,7 @@ public class DebugSessionTest {
     @BeforeMethod
     public void setUp() throws Exception {
         engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
-        server = CdpServer.open(Debugger.of(engine), InspectOptions.parse("127.0.0.1:0", false));
+        openServer();
         worker = Executors.newSingleThreadExecutor();
         ui = new PumpExecutor();
         session = new DebugSession(ui);
@@ -115,11 +115,28 @@ public class DebugSessionTest {
         session.addListener(recorder);
     }
 
+    /**
+     * Starts the transport under test. Overridden for the in-process one,
+     * whose channel is one-shot and so is opened per attach instead.
+     *
+     * @throws Exception if the server cannot be started
+     */
+    protected void openServer() throws Exception {
+        server = CdpServer.open(Debugger.of(engine), InspectOptions.parse("127.0.0.1:0", false));
+    }
+
+    /** Points the session at the transport under test, without waiting. */
+    protected void attachSession() {
+        session.attach(((CdpServer.Handle)server).webSocketUrl());
+    }
+
     @AfterMethod
-    public void tearDown() {
+    public void tearDown() throws Exception {
         session.close();
         ui.pump();
-        server.close();
+        if (server != null) {
+            server.close();
+        }
         worker.shutdownNow();
         Debugger.of(engine).close();
     }
@@ -127,7 +144,7 @@ public class DebugSessionTest {
     // ---- driving helpers ----
 
     /** Pumps the ui queue until a condition holds or the timeout elapses. */
-    private void pumpUntil(final java.util.function.BooleanSupplier done) {
+    protected void pumpUntil(final java.util.function.BooleanSupplier done) {
         final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT);
         while (System.nanoTime() < deadline) {
             ui.pump();
@@ -147,12 +164,12 @@ public class DebugSessionTest {
         }
     }
 
-    private void attach() {
-        session.attach(server.webSocketUrl());
+    protected void attach() {
+        attachSession();
         pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
     }
 
-    private CompletableFuture<Object> runScript(final String fileName, final String source) {
+    protected CompletableFuture<Object> runScript(final String fileName, final String source) {
         engine.put(ScriptEngine.FILENAME, fileName);
         final CompletableFuture<Object> done = new CompletableFuture<>();
         worker.submit(() -> {
@@ -165,7 +182,7 @@ public class DebugSessionTest {
         return done;
     }
 
-    private <T> T await(final CompletableFuture<T> future) {
+    protected <T> T await(final CompletableFuture<T> future) {
         final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT);
         while (System.nanoTime() < deadline) {
             ui.pump();
@@ -226,8 +243,7 @@ public class DebugSessionTest {
         Debugger.of(engine).clearScripts();
 
         // reattaching replays nothing - the Sources do not show the previous snippet
-        session.attach(server.webSocketUrl());
-        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        attach();
         assertTrue(session.scripts().isEmpty(), "the previous snippet's script must not be replayed");
     }
 
@@ -241,8 +257,7 @@ public class DebugSessionTest {
         session.detach();
         pumpUntil(() -> session.state() == DebugSession.State.DETACHED);
 
-        session.attach(server.webSocketUrl());
-        pumpUntil(() -> session.state() == DebugSession.State.RUNNING);
+        attach();
         pumpUntil(() -> session.scripts().stream().anyMatch(s -> s.url().endsWith("/keep.js")));
         assertTrue(session.scripts().stream().anyMatch(s -> s.url().endsWith("/keep.js")),
                 "the script must be replayed on reattach");
@@ -272,7 +287,7 @@ public class DebugSessionTest {
      * engine otherwise mints a fresh {@code nashorn://script/<id>/...} per eval)
      * without shifting the real code's line numbers.
      */
-    private CompletableFuture<Object> runScriptAtUrl(final String url, final String source) {
+    protected CompletableFuture<Object> runScriptAtUrl(final String url, final String source) {
         engine.put(ScriptEngine.FILENAME, "script.js");
         final String withUrl = source + "\n//# sourceURL=" + url + "\n";
         final CompletableFuture<Object> done = new CompletableFuture<>();
@@ -326,7 +341,7 @@ public class DebugSessionTest {
         // handler, so it arrives just before the enable response. The session
         // must end up PAUSED - the enable-response callback must not clobber the
         // state the just-arrived paused event set.
-        session.attach(server.webSocketUrl());
+        attachSession();
         pumpUntil(() -> session.state() == DebugSession.State.PAUSED);
         assertEquals(session.state(), DebugSession.State.PAUSED);
         assertNotNull(recorder.lastPause, "the late client must receive the replayed pause");

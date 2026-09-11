@@ -38,8 +38,8 @@ import org.monflabs.nashorn.api.debugger.ExecutionContext;
 import org.monflabs.nashorn.api.debugger.Location;
 import org.monflabs.nashorn.api.debugger.PauseReason;
 import org.monflabs.nashorn.api.debugger.PausedEvent;
+import org.monflabs.nashorn.debugger.CdpTransport;
 import org.monflabs.nashorn.debugger.json.Json;
-import org.monflabs.nashorn.debugger.ws.WebSocketConnection;
 
 /**
  * One client's conversation: requests in, responses and events out. Requests
@@ -50,7 +50,7 @@ import org.monflabs.nashorn.debugger.ws.WebSocketConnection;
  */
 public final class CdpSession implements DebugListener {
     private final Debugger debugger;
-    private final WebSocketConnection connection;
+    private final CdpTransport connection;
     private final Runnable onRunIfWaiting;
     private final String uniqueId;
     final RemoteObjects objects;
@@ -65,11 +65,11 @@ public final class CdpSession implements DebugListener {
     /**
      * Creates a session.
      * @param debugger the debugger
-     * @param connection the connection
+     * @param connection the transport carrying the conversation
      * @param uniqueId the server's id, used in the ids handed to the client
      * @param onRunIfWaiting what to do when the client asks execution to proceed
      */
-    public CdpSession(final Debugger debugger, final WebSocketConnection connection, final String uniqueId, final Runnable onRunIfWaiting) {
+    public CdpSession(final Debugger debugger, final CdpTransport connection, final String uniqueId, final Runnable onRunIfWaiting) {
         this.debugger = debugger;
         this.connection = connection;
         this.uniqueId = uniqueId;

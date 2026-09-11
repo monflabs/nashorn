@@ -33,6 +33,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import javax.swing.SwingUtilities;
+import org.monflabs.nashorn.debugger.CdpClientChannel;
 import org.monflabs.js.debugger.ui.model.Breakpoint;
 import org.monflabs.js.debugger.ui.model.CallFrame;
 import org.monflabs.js.debugger.ui.model.ConsoleEntry;
@@ -131,6 +132,19 @@ public final class DebuggerPanel extends JPanel implements AutoCloseable {
         lastUrl = wsUrl;
         panels.reset();
         session.attach(wsUrl);
+    }
+
+    /**
+     * Attaches over an already-open, same-JVM channel - no url, no socket.
+     * The "Reattach" affordance stays hidden for this kind of session (there
+     * is nothing to redial once a one-shot in-process channel closes).
+     *
+     * @param channel the channel
+     */
+    public void attach(final CdpClientChannel channel) {
+        lastUrl = null;
+        panels.reset();
+        session.attach(channel);
     }
 
     /** Detaches: resumes a paused script first, then disconnects. */

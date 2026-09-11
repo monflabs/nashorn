@@ -29,6 +29,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
+import org.monflabs.nashorn.debugger.CdpTransport;
 
 /**
  * One WebSocket connection, RFC 6455 server side: masked frames in, unmasked
@@ -36,7 +37,7 @@ import java.util.function.Consumer;
  * thread that calls {@link #run}; writing is synchronized, so any thread may
  * {@link #send}.
  */
-public final class WebSocketConnection implements AutoCloseable {
+public final class WebSocketConnection implements CdpTransport, AutoCloseable {
     private static final int OP_CONTINUATION = 0;
     private static final int OP_TEXT = 1;
     private static final int OP_BINARY = 2;
@@ -62,6 +63,7 @@ public final class WebSocketConnection implements AutoCloseable {
      * @param onMessage what to do with a message
      * @throws IOException on a broken connection
      */
+    @Override
     public void run(final Consumer<String> onMessage) throws IOException {
         final ByteArrayOutputStream message = new ByteArrayOutputStream();
         int messageOpcode = -1;
@@ -172,6 +174,7 @@ public final class WebSocketConnection implements AutoCloseable {
      * @param text the message
      * @throws IOException on a broken connection
      */
+    @Override
     public void send(final String text) throws IOException {
         frame(OP_TEXT, text.getBytes(StandardCharsets.UTF_8));
     }
@@ -203,6 +206,7 @@ public final class WebSocketConnection implements AutoCloseable {
      * @param code the status code
      * @param reason the reason
      */
+    @Override
     public void close(final int code, final String reason) {
         if (closed) {
             return;

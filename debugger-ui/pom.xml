@@ -34,7 +34,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
   <name>OpenJDK-Monflabs debugger UI</name>
   <description>
     An embeddable Swing debugger that speaks the Chrome DevTools Protocol over
-    a WebSocket: a Sources-style panel - source with breakpoints, call stack,
+    a WebSocket or a same-JVM in-process channel: a Sources-style panel - source with breakpoints, call stack,
     scopes, watches, a console - that attaches to any engine running with
     --inspect. A component for host applications rather than a library of its
     own: not published.
@@ -58,7 +58,6 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
       <groupId>org.monflabs.nashorn</groupId>
       <artifactId>nashorn-debugger</artifactId>
       <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testng</groupId>

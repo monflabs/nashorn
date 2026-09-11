@@ -33,6 +33,7 @@ module org.monflabs.nashorn.debugger {
     requires transitive org.monflabs.nashorn;
 
     exports org.monflabs.nashorn.debugger;
+    exports org.monflabs.nashorn.debugger.inprocess;
 
     provides org.monflabs.nashorn.api.debugger.DebuggerFrontend with
         org.monflabs.nashorn.debugger.CdpServer;
