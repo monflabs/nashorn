@@ -231,6 +231,17 @@ defined in terms of them rather than carrying their own copies, which also settl
 copies had: the old direct path advanced an empty match by a code unit where the specification
 advances by a code point.
 
+Fixing the latch made the three regexp walks worth another look, and they were doing per match what
+could be done per walk: a matcher was made for every match, `lastIndex` was read and written for
+every match (a property read through ToLength, and an `Integer` box on the way back), and `replace`
+collected every match before building any output. The specification asks for that last one so that a
+replacement function cannot disturb the walk - but with the walk's matcher private to the method,
+`lastIndex` untouched throughout and the legacy statics set once at the end, the collected and the
+streamed forms cannot be told apart, so an ordinary global replace streams. A replacement string with
+no `$` in it is now appended as it stands rather than going through the substitution machinery to
+find that out. `match(/[a-z]+/g)` is 174ms against 15.7's 228ms, and `replace(/[aeiou]/g, fn)` 100ms
+against its 98ms.
+
 And realm creation, which is what a realm-per-request embedder pays on every request: `Global.init`
 resolved 56 built-in constructors reflectively per realm, and `getDeclaredConstructor` copies a fresh
 reflective object on every call. Resolved once per JVM instead, a fresh realm went from 61
