@@ -77,7 +77,7 @@ Measured with optimistic types off against 15.7 and the fork's previous revision
 | Optimization | Where | Gain | Limitations |
 | --- | --- | ---: | --- |
 | Number-box fast paths on every BigInt-aware operator and relational (`SUB`, `MUL`, `DIV`, `MOD`, `EXP`, bitwise, shifts, `NEG`, `BIT_NOT`, `INC`, `DEC`, `LT`/`GT`/`LE`/`GE`, `==`) | `ScriptRuntime`, `JSType` | `arith` -11%; a quarter of Octane's samples were here | Only helps the Object-typed path, which optimistic types mostly bypass now; the BigInt, string and object paths are untouched. |
-| One `char[]` per subject in the Joni regexp backend (the last subject string and its array are remembered) | `JoniRegExp` | `regexp` loop -88% (nine times faster); the `while ((m = re.exec(s)))` loop was quadratic | One entry: one subject, many matches. Octane's regexp benchmark - hundreds of patterns, each on a *different* subject through `replace`/`split`/`match` - does not benefit and is still 2-3× slower than 15.7, the cost of the ES2015 `@@replace`/`@@split`/`@@match` dispatch and per-call `flags`/`lastIndex` reads; a pristine-prototype fast path is the next target. |
+| One `char[]` per subject in the Joni regexp backend (the last subject string and its array are remembered) | `JoniRegExp` | `regexp` loop -88% (nine times faster); the `while ((m = re.exec(s)))` loop was quadratic | One entry: one subject, many matches. Octane's regexp benchmark - hundreds of patterns, each on a *different* subject - does not benefit from this row; what closed its gap is the direct split below. |
 | A regexp cache that caches: lock-free, keyed by a `(pattern, flags, annexB)` record, soft values, size cap (the old weak-keyed one mostly missed and took a JVM-wide lock) | `RegExpFactory` | a literal in a loop no longer recompiles; part of the `regexp` figure | Soft values: under memory pressure entries go and patterns recompile. |
 | Geometric spill growth, `useDualFields` as a `ClassValue`, no double `ToPrimitive` for string/symbol keys, no string key built on an array miss, megamorphic relink log guarded | `ScriptObject` | `wideobject` -67% (-44% vs 15.7); `megamorphic` -20% (-32% vs 15.7) | Wide objects still spill: a structure class carries at most the fields it was generated with. |
 | `sort` without the extra copy | `NativeArray` | `sort` -8% | The comparator call is still a full script call per comparison. |
@@ -85,6 +85,10 @@ Measured with optimistic types off against 15.7 and the fork's previous revision
 | `Promise.prototype.then`/`resolve` read the intrinsic `%Promise%` instead of the global property | `NativePromise`, `Global` | not measured separately | None; it is also what the specification says. |
 | Copy-on-write block symbol tables across compilation phases; substring-and-intern identifiers in the lexer | `ir.Block`, `parser.Lexer` | `compile.pdfjs` -4% | Interning is per source, not global. |
 | Lock-free named-operation interning in the linker (`ConcurrentHashMap`s with weak values instead of synchronized `WeakHashMap`s) | `NashornCallSiteDescriptor` | contention only; not measured by the gate | - |
+| The compiled class of a direct `eval` cached, keyed by (source, strict, `new.target`, `super`, no-`arguments`, private names) rather than not cached at all | `Context` | SunSpider `date-format-tofte` 12.1× slower than 15.7 → 1.4× | Eval code holding a backquote is still never cached: 13.2.8.3 wants one template object per parse node, and two evals are two nodes. The persistent code store still takes only default-context compiles. |
+| Annex B's same-function-object aliases (`trimLeft`/`trimRight`, `toGMTString`, `Number.parseInt`/`parseFloat`) installed before the built-ins are tagged | `Global` | a method call on a primitive string: `slice` 41ms → 1ms, `charAt` 53ms → 21ms per 5M | None. The write was invalidating the String, Number and Date switch points during startup, so no realm ever had them. |
+| An ordinary regexp split by searching forward instead of building a sticky splitter and calling `exec` through it at every position | `NativeRegExp`, `NativeString`, `Global` | 200k `split(/\s+/)` 1780ms → 219ms (15.7: 224ms); Octane `regexp` 1.53× slower than 15.7 → parity | Only while `RegExp` and its prototype's `exec`, `flags`, `constructor` and `@@species` are untouched and the instance carries no own property; anything else takes the spec algorithm. `@@replace` and `@@match` still take it always. |
+| `lastIndex` writability cached against the property map it was read for | `NativeRegExp` | 200k `match(/[a-z]+/g)` 340ms → 219ms (15.7: 264ms) | None; making `lastIndex` non-writable replaces the property and so the map, which is what invalidates the cache. |
 | Eight new perf-gate scripts (`arith`, `strbuild`, `regexp`, `wideobject`, `megamorphic`, `forof`, `closures`, `sort`) | `core/src/test/scripts/perf/` | none by themselves - they are what makes the rest measurable | Their bands are the default 20%, not measured per metric like the seven original scripts' are. |
 
 ## 3. Reliability under optimistic types
@@ -108,8 +112,8 @@ largest wins in the first table, so they are no longer a net cost; what remains 
 
 - **Startup**: +20% against 15.7 (+5% more from the flip). Every built-in the eleven later
   editions added is one more property to install on a new realm; Annex B alone is 6.6%.
-- **Octane regexp**: 2-3× slower than 15.7, as above; the one comparison against upstream that
-  is not in doubt.
+- **Octane regexp**: was 2-3× slower than 15.7; the direct split closed it and the two now
+  measure the same.
 - **Compilation**: +7% against 15.7 before the flip, +17% more with it.
 
 ## 5. Tried and reverted
@@ -131,7 +135,8 @@ Each was measured and taken out again; the measurement is the reason the benchma
 - `AccessorProperty.getOptimisticGetter` builds its method-handle chain on every link, unlike the
   non-optimistic getter; a cache keyed by program point costs memory per property. It matters
   more now that the mode is the default.
-- The pristine-`RegExp.prototype` fast path for `replace`/`split`/`match` (the Octane regexp gap).
+- The pristine-`RegExp.prototype` fast path now covers `split`; `@@replace` and `@@match` still
+  run the property-driven algorithm, which only a script calling them by symbol reaches.
 - The scalability and reliability items of the September 2026 audit - engine and context
   lifecycle (`close()`), per-Global creation cost, the JVM-wide monitors on `PropertyMap` and
   `Source`, interruptible engine loops - are recorded in the audit plan and not started.

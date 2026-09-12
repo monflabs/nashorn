@@ -174,17 +174,56 @@ sanity check.
 | splay | 92 110–145 922 | 141 298–159 165 | 156 494–157 952 |
 
 Two things survive the noise. The new engine is never below the previous one, and on box2d,
-deltablue, raytrace and regexp it is clearly above it. And on Octane's **regexp** benchmark 15.7 is
-still ahead by a factor of two to three, in every round of every sitting - the one comparison
-against upstream that is not in doubt. That benchmark runs hundreds of different patterns each
-against a *different* subject through `replace`, `split`, `match` and `exec`, so the per-subject
-cache above does not reach it; what it exercises is the ES2015 dispatch that the fork's `replace`,
-`split` and `match` now go through - `@@replace`/`@@split`/`@@match` looked up on the regexp, the
-`flags`, `global`, `unicode` and `lastIndex` reads the specification prescribes per call, and
-`RegExpExec`'s look at `exec` per match - each a generic property read that 15.7's ES5 built-ins
-never did. The fix other engines apply is a fast path for a regexp whose prototype is untouched,
-guarded by the existing builtin switch points; it is the next performance target, and
-`regexp.js` in the perf gate should grow a many-subjects `replace`/`split` loop with it.
+deltablue, raytrace and regexp it is clearly above it. And on Octane's **regexp** benchmark 15.7
+was still ahead by a factor of two to three, in every round of every sitting. That gap is closed;
+what it was, and what closed it, is the next section.
+
+## Measured against 15.7, side by side
+
+A run of the whole SunSpider, Octane, ubench and v8-v6 suites with both engines in one JVM, both
+with `--optimistic-types=true`, found three regressions against 15.7 that no perf-gate metric could
+see. Each was a change made for conformance whose cost had not been measured.
+
+**A direct `eval` never hit the class cache.** The cache was consulted only when `new.target` was
+*not* allowed, and `new.target` is allowed in the body of every non-arrow function - which is where
+evals are written. So the same eval recompiled on every call. SunSpider's `date-format-tofte` evals
+~5 500 times over 23 distinct strings: it was compiling 5 500 classes where 15.7 compiled 23, and
+ran **12× slower**. The context an eval is compiled in is now part of the cache key rather than a
+reason not to cache, and the benchmark went to 1.4×. The one thing no key can carry is a template
+literal - 13.2.8.3 hands out one template object per parse node, and two evals of the same text are
+two nodes - so eval code holding a backquote is still not cached.
+
+**Every realm started with its String, Number and Date switch points already invalidated.** Annex B
+requires `String.prototype.trimLeft` to be the very function object `trimStart` is, and the same for
+`trimRight`, `Date.prototype.toGMTString` and `Number.parseInt`/`parseFloat`. No annotation can say
+that, so `Global` assigned them - after `tagBuiltinProperties` had run. A write to a tagged built-in
+property invalidates the switch point every call site on that built-in links against, which is the
+point of the tag when a *script* does it and a disaster when the realm does it to itself at startup.
+`PrimitiveLookup` could no longer fold a method reached on a primitive string to a constant, so
+every `"s".charAt`/`slice`/`indexOf` went the long way round for the life of the realm: 5M calls of
+`slice` on a global string measured 41ms against 15.7's 1ms. The aliases are now installed before
+the tag exists.
+
+**`String.prototype.split(/re/)` built a regexp per call.** The ES2015 `@@split` algorithm resolves
+the species constructor, reads `flags` and constructs a sticky clone, then walks every position
+between two matches setting `lastIndex` on that clone and calling `RegExp.prototype.exec` through
+`ScriptRuntime.apply`. Upstream walked a matcher. Every step of the generic form is observable only
+because something can be replaced, so a regexp that is still ordinary - `RegExp`, `exec`, `flags`,
+`constructor` and `@@species` untouched, no own property on the instance - now searches forward from
+where the last piece ended, which also turns the quadratic anchored walk linear. 200k splits of a
+sentence on `/\s+/` went from 1780ms to 219ms, against 15.7's 224ms, and Octane's regexp benchmark
+from 1.53× slower to parity. Two orderings the direct route keeps: the pattern is fixed before the
+limit is coerced, because Annex B's `compile()` lets a `valueOf` change it underneath, and a unicode
+match found where the sticky walk could not have landed is stepped over.
+
+A fourth, smaller one rode along: a global or sticky match looked `lastIndex` up in the property map
+on every match to find out whether it was still writable. The answer is now cached against the map
+it was read for.
+
+After all four, 34 of the 45 comparable rows are at or below 15.7 and none of the remaining eleven
+is worse than 1.41×; measured standalone rather than through that harness, most of them are at
+parity. Three perf-gate scripts - `evalcache`, `split` and `stringmethods` - exist so that none of
+the three can come back unnoticed.
 
 
 
