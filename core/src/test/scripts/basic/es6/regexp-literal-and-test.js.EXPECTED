@@ -1,0 +1,22 @@
+statics after test: true foo bar foo=bar
+optional group: true a undefined
+negative lookahead: true undefined
+lastParen: true 1
+named groups keep the eager form: true a
+d flag keeps the eager form: true a
+global test walks lastIndex: true 1 true 2 false 0
+sticky test: true 2
+frozen lastIndex on test: true
+a plain test still reads lastIndex: true
+literal: "a!b.c"
+literal substitution: "a[b|a|c]c"
+literal escape: "a$c"
+literal no match: "abc"
+literal function: "a<b,1,abc>c"
+literal first only: "Xaa"
+literal empty: "Xabc"
+literal with regexp metacharacters: "aZ"
+replacement coerced once, even with no match: "ab" 1
+sloppy replacement this: global
+strict replacement this: undefined
+a literal replace leaves the statics alone: 7

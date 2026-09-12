@@ -1884,7 +1884,106 @@ public final class NativeRegExp extends ScriptObject {
      * @return True if a match is found.
      */
     public boolean test(final String string) {
-        return execInner(string) != null;
+        // A test never looks at the captures, so the match is recorded as a
+        // region and the substrings are cut only if the legacy statics are
+        // read afterwards. A pattern with named groups or the d flag keeps the
+        // eager form, where the group object and the indices need them anyway.
+        if (!regexp.getGroupNames().isEmpty() || regexp.isHasIndices()) {
+            return execInner(string) != null;
+        }
+
+        final boolean isSticky = regexp.isSticky();
+        final boolean tracksLastIndex = regexp.isGlobal() || isSticky;
+        // 21.2.5.2.2 step 4 reads lastIndex whatever the flags are, and only
+        // then decides to ignore it - so a lastIndex with a valueOf sees it
+        // called even for a plain regexp
+        final int lastIndex = getLastIndex();
+        final int start = tracksLastIndex ? lastIndex : 0;
+
+        if (start < 0 || start > string.length()) {
+            if (tracksLastIndex) {
+                writeLastIndex(0);
+            }
+            return false;
+        }
+
+        final RegExpMatcher matcher = regexp.match(string);
+        if (matcher == null || !matcher.search(start)) {
+            if (tracksLastIndex) {
+                writeLastIndex(0);
+            }
+            return false;
+        }
+        if (isSticky && matcher.start() != start) {
+            writeLastIndex(0);
+            return false;
+        }
+        if (tracksLastIndex) {
+            writeLastIndex(matcher.end());
+        }
+
+        globalObject.setLastRegExpResult(new RegExpResult(string, matcher.start(),
+                region(matcher), regexp.getGroupsInNegativeLookahead()));
+        return true;
+    }
+
+    private static final Object[] NO_CAPTURES = new Object[0];
+
+    /**
+     * ES2026 22.1.3.19 for a search string rather than a regular expression:
+     * the first occurrence, found with a string search.
+     *
+     * A search string used to be escaped into a pattern and run through the
+     * regexp engine, which is a compile, a cache lookup and a full match to
+     * find what {@code indexOf} finds. The legacy statics are left alone: they
+     * answer for the last RegExpBuiltinExec, and there is none here.
+     *
+     * @param str         the subject
+     * @param search      what to look for
+     * @param replacement the replacement text, or a function producing it
+     * @return the resulting string
+     * @throws Throwable whatever the replacement function throws
+     */
+    static String replaceLiteral(final String str, final String search, final Object replacement)
+            throws Throwable {
+        // 22.1.3.19 coerces the replacement before it searches, so a toString
+        // on it runs whether or not there is anything to replace
+        final boolean callable = Bootstrap.isCallable(replacement);
+        final String replaceText = callable ? null : JSType.toString(replacement);
+
+        final int position = str.indexOf(search);
+        if (position < 0) {
+            return str;
+        }
+        final int end = position + search.length();
+
+        final String replaced;
+        if (callable) {
+            final Object self = Bootstrap.isStrictCallable(replacement) ? UNDEFINED : Global.instance();
+            replaced = (String)getReplaceValueInvoker().invokeExact(replacement, self,
+                    new Object[] { search, (double)position, str });
+        } else if (replaceText.indexOf('$') < 0) {
+            replaced = replaceText;
+        } else {
+            replaced = getSubstitution(search, str, position, NO_CAPTURES, UNDEFINED, replaceText);
+        }
+
+        return new StringBuilder(str.length() + replaced.length())
+                .append(str, 0, position)
+                .append(replaced)
+                .append(str, end, str.length())
+                .toString();
+    }
+
+    /** The match's start/end pairs, two ints per group, without cutting any of them out. */
+    private static int[] region(final RegExpMatcher matcher) {
+        final int count = matcher.groupCount() + 1;
+        final int[] region = new int[count * 2];
+        for (int i = 0; i < count; i++) {
+            region[i * 2] = matcher.start(i);
+            region[i * 2 + 1] = matcher.end(i);
+        }
+        return region;
     }
 
     private static final Object REPLACE_VALUE = new Object();

@@ -859,21 +859,19 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
 
         final String str = checkObjectToString(self);
 
-        final NativeRegExp nativeRegExp;
-        if (string instanceof NativeRegExp) {
-            nativeRegExp = (NativeRegExp) string;
-        } else {
-            nativeRegExp = NativeRegExp.flatRegExp(JSType.toString(string));
+        if (string instanceof NativeRegExp nativeRegExp) {
+            final Object replaced = viaSymbol(nativeRegExp, NativeSymbol.replace, str, replacement);
+            if (replaced != NOT_DELEGATED) {
+                return replaced;
+            }
+            // as for match above: the built-in @@replace, which takes the
+            // direct route for an ordinary regexp
+            return NativeRegExp.replace(nativeRegExp, str, replacement);
         }
 
-        final Object replaced = viaSymbol(nativeRegExp, NativeSymbol.replace, str, replacement);
-        if (replaced != NOT_DELEGATED) {
-            return replaced;
-        }
-
-        // as for match above: the built-in @@replace, which takes the direct
-        // route for an ordinary regexp
-        return NativeRegExp.replace(nativeRegExp, str, replacement);
+        // a search string is a search string: 22.1.3.19 looks for the first
+        // occurrence, which needs no pattern compiled and no engine run
+        return NativeRegExp.replaceLiteral(str, JSType.toString(string), replacement);
     }
 
     /**

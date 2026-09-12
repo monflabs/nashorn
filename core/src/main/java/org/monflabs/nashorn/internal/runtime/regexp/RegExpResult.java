@@ -33,7 +33,21 @@ package org.monflabs.nashorn.internal.runtime.regexp;
  * Match tuple to keep track of ongoing regexp match.
  */
 public final class RegExpResult {
-    final Object[] groups;
+    /**
+     * The captures, or null while they are still only a region. A match that
+     * nothing reads the captures of - a {@code test}, or a {@code match} that
+     * wants the matched text alone - keeps the start/end pairs and builds no
+     * substrings at all; the legacy statics can still answer from them if
+     * something asks later.
+     */
+    private Object[] groups;
+
+    /** Start/end pairs, two ints per group, or null once {@link #groups} is built. */
+    private final int[] region;
+
+    /** Groups inside a negative lookahead, which never participate. */
+    private final org.monflabs.nashorn.internal.runtime.BitVector negativeLookahead;
+
     final int      index;
     final String   input;
     final Object   groupObject;
@@ -61,10 +75,52 @@ public final class RegExpResult {
      * @param groupObject the named-group object, or {@code undefined} if the pattern has no names
      */
     public RegExpResult(final String input, final int index, final Object[] groups, final Object groupObject) {
-        this.input       = input;
-        this.index       = index;
-        this.groups      = groups;
-        this.groupObject = groupObject;
+        this.input             = input;
+        this.index             = index;
+        this.groups            = groups;
+        this.groupObject       = groupObject;
+        this.region            = null;
+        this.negativeLookahead = null;
+    }
+
+    /**
+     * A match whose captures have not been cut out of the input yet.
+     *
+     * @param input             the subject
+     * @param index             where the match starts
+     * @param region            start/end pairs, two ints per group, a negative
+     *                          start meaning the group did not participate
+     * @param negativeLookahead groups inside a negative lookahead, or null
+     */
+    public RegExpResult(final String input, final int index, final int[] region,
+            final org.monflabs.nashorn.internal.runtime.BitVector negativeLookahead) {
+        this.input             = input;
+        this.index             = index;
+        this.groups            = null;
+        this.groupObject       = org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
+        this.region            = region;
+        this.negativeLookahead = negativeLookahead;
+    }
+
+    /** Cuts the captures out of the input, once something asks for them. */
+    private Object[] materialise() {
+        final int count = region.length / 2;
+        final Object[] built = new Object[count];
+        for (int i = 0, lastGroupStart = region[0]; i < count; i++) {
+            final int start = region[i * 2];
+            if (start < 0 || lastGroupStart > start
+                    || negativeLookahead != null && negativeLookahead.isSet(i)) {
+                // the same two rules the eager form applies: a repeated atom
+                // clears its captures, and a group inside a negative lookahead
+                // never participated
+                built[i] = org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
+                continue;
+            }
+            built[i] = input.substring(start, region[i * 2 + 1]);
+            lastGroupStart = start;
+        }
+        groups = built;
+        return built;
     }
 
     /**
@@ -104,7 +160,7 @@ public final class RegExpResult {
      * @return group vector
      */
     public Object[] getGroups() {
-        return groups;
+        return groups == null ? materialise() : groups;
     }
 
     /**
@@ -128,7 +184,7 @@ public final class RegExpResult {
      * @return length
      */
     public int length() {
-        return ((String)groups[0]).length();
+        return region != null ? region[1] - region[0] : ((String)groups[0]).length();
     }
 
     /**
@@ -137,7 +193,8 @@ public final class RegExpResult {
      * @return the group or ""
      */
     public Object getGroup(final int groupIndex) {
-        return groupIndex >= 0 && groupIndex < groups.length ? groups[groupIndex] : "";
+        final Object[] gs = getGroups();
+        return groupIndex >= 0 && groupIndex < gs.length ? gs[groupIndex] : "";
     }
 
     /**
@@ -145,7 +202,8 @@ public final class RegExpResult {
      * @return the last group or ""
      */
     public Object getLastParen() {
-        return groups.length > 1 ? groups[groups.length - 1] : "";
+        final Object[] gs = getGroups();
+        return gs.length > 1 ? gs[gs.length - 1] : "";
     }
 
 }
