@@ -4269,14 +4269,45 @@ public final class Global extends Scope {
         return UNDEFINED;
     }
 
+    /**
+     * Constructor handles for the nasgen-generated built-in classes, resolved
+     * once per JVM.
+     *
+     * A realm builds 56 of these while it starts, and {@code
+     * getDeclaredConstructor} copies a fresh reflective object on every call -
+     * about 40% of what it costs to make a realm went on looking the same
+     * constructors up again. The classes live in this package and last as long
+     * as the engine's own, so the handles can be held for good.
+     */
+    private static final java.util.Map<String, MethodHandle> BUILTIN_CONSTRUCTORS = new ConcurrentHashMap<>();
+
+    /** Makes one of the nasgen-generated built-ins, by class name. */
+    private static ScriptObject newBuiltin(final String className) {
+        final MethodHandle constructor = BUILTIN_CONSTRUCTORS.computeIfAbsent(className, name -> {
+            try {
+                return MethodHandles.lookup()
+                        .findConstructor(Class.forName(name), MethodType.methodType(void.class))
+                        .asType(MethodType.methodType(ScriptObject.class));
+            } catch (final ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            return (ScriptObject)constructor.invokeExact();
+        } catch (final RuntimeException | Error e) {
+            throw e;
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
     private <T extends ScriptObject> T initConstructor(final String name, final Class<T> clazz) {
         try {
             // Assuming class name pattern for built-in JS constructors.
 
             String sb = PACKAGE_PREFIX + "Native" + name + "$Constructor";
 
-            final Class<?> funcClass = Class.forName(sb);
-            final T res = clazz.cast(funcClass.getDeclaredConstructor().newInstance());
+            final T res = clazz.cast(newBuiltin(sb));
 
             if (res instanceof ScriptFunction) {
                 // All global constructor prototypes are not-writable,
@@ -4306,8 +4337,7 @@ public final class Global extends Scope {
             // Assuming class name pattern for JS prototypes
             final String className = PACKAGE_PREFIX + name + "$Prototype";
 
-            final Class<?> funcClass = Class.forName(className);
-            final ScriptObject res = (ScriptObject) funcClass.getDeclaredConstructor().newInstance();
+            final ScriptObject res = newBuiltin(className);
 
             res.setIsBuiltin();
             res.setInitialProto(prototype);

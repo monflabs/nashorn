@@ -548,7 +548,9 @@ public final class NativePromise extends ScriptObject {
         if (!(self instanceof ScriptObject promise)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(self));
         }
-        final Object constructor = speciesConstructor(promise, Global.instance().get("Promise"));
+        // 25.6.5.3 wants the intrinsic %Promise%, not whatever the global
+        // property holds - and reading the property is a lookup per call
+        final Object constructor = speciesConstructor(promise, Global.instance().builtinPromise());
 
         final Object thenFinally;
         final Object catchFinally;
