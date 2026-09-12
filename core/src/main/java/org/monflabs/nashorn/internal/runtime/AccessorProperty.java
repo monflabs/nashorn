@@ -122,6 +122,13 @@ public class AccessorProperty extends Property {
     private transient MethodHandle[] GETTER_CACHE = new MethodHandle[NOOF_TYPES];
 
     /**
+     * The same for the optimistic getters, which differ in that they carry a
+     * program point. Only the entries whose handle does not depend on that
+     * program point are kept - see {@link #getOptimisticGetter}.
+     */
+    private transient MethodHandle[] OPTIMISTIC_GETTER_CACHE;
+
+    /**
      * Create a new accessor property. Factory method used by nasgen generated code.
      *
      * @param key           {@link Property} key.
@@ -166,6 +173,7 @@ public class AccessorProperty extends Property {
         this.objectGetter    = bindTo(property.objectGetter, delegate);
         this.objectSetter    = bindTo(property.objectSetter, delegate);
         property.GETTER_CACHE = new MethodHandle[NOOF_TYPES];
+        property.OPTIMISTIC_GETTER_CACHE = null;
         // Properties created this way are bound to a delegate
         setType(property.getType());
     }
@@ -327,6 +335,8 @@ public class AccessorProperty extends Property {
         super(property, property.getFlags());
 
         this.GETTER_CACHE    = newType != property.getLocalType() ? new MethodHandle[NOOF_TYPES] : property.GETTER_CACHE;
+        this.OPTIMISTIC_GETTER_CACHE = newType != property.getLocalType()
+                ? null : property.OPTIMISTIC_GETTER_CACHE;
         this.primitiveGetter = property.primitiveGetter;
         this.primitiveSetter = property.primitiveSetter;
         this.objectGetter    = property.objectGetter;
@@ -371,6 +381,7 @@ public class AccessorProperty extends Property {
         s.defaultReadObject();
         // Restore getters array
         GETTER_CACHE = new MethodHandle[NOOF_TYPES];
+        OPTIMISTIC_GETTER_CACHE = null;
     }
 
     private static MethodHandle bindTo(final MethodHandle mh, final Object receiver) {
@@ -575,16 +586,42 @@ public class AccessorProperty extends Property {
 
         checkUndeclared();
 
-        return debug(
+        final Class<?> localType = getLocalType();
+        // The program point only reaches the handle where the read can
+        // deoptimise: undefined storage, or a type narrower than what is
+        // stored. Everywhere else - the exact type, or a wider one, which is
+        // the ordinary case - the handle is a function of the two types alone
+        // and is worth keeping, since with optimistic types on this is the
+        // path every property link takes.
+        final boolean independentOfProgramPoint =
+                localType != null && getAccessorTypeIndex(localType) <= getAccessorTypeIndex(type);
+        if (independentOfProgramPoint && OPTIMISTIC_GETTER_CACHE != null) {
+            final MethodHandle cached = OPTIMISTIC_GETTER_CACHE[getAccessorTypeIndex(type)];
+            if (cached != null) {
+                return cached;
+            }
+        }
+
+        final MethodHandle getter = debug(
             createGetter(
-                getLocalType(),
+                localType,
                 type,
                 primitiveGetter,
                 objectGetter,
                 programPoint),
-            getLocalType(),
+            localType,
             type,
             "get");
+
+        if (independentOfProgramPoint) {
+            // allocated only for a property something actually reads
+            // optimistically, which is not every property of every built-in
+            if (OPTIMISTIC_GETTER_CACHE == null) {
+                OPTIMISTIC_GETTER_CACHE = new MethodHandle[NOOF_TYPES];
+            }
+            OPTIMISTIC_GETTER_CACHE[getAccessorTypeIndex(type)] = getter;
+        }
+        return getter;
     }
 
     private MethodHandle getOptimisticPrimitiveGetter(final Class<?> type, final int programPoint) {
