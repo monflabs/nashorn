@@ -48,7 +48,7 @@ at compile time, and it alone can register a **module loader** — so use it for
 
 ## Configuring with the builder
 
-A builder starts with **no options** (what `jjs` runs with), adds what it is told in order — a later
+A builder starts with **no options** (what the shell runs with), adds what it is told in order — a later
 setting of the same option wins, as on a command line — and `build()` validates them, throwing
 `IllegalArgumentException` for one it does not know. A builder can be reused, and every `build()` is a
 new engine with its own compiled-code cache and globals. The three things only the builder reaches:

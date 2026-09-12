@@ -26,14 +26,12 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-switch (e) {
+var code = `switch (e) {
     case 1:
     case 2:
     case 3:
@@ -49,8 +47,7 @@ switch (a) {
     case 3:
         break
 }
-
-EOF
+`
 
 parse("breakStat.js", code, "-nse", new (Java.extend(visitor, {
     visitCase : function (node, obj) {

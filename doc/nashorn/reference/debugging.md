@@ -11,9 +11,9 @@ exhaustive treatment; this page is the distilled, fork-accurate version.
 ## The loggers
 
 ```bash
-jjs --log=codegen script.js               # one subsystem at level info
-jjs --log=codegen:finest script.js        # explicit level
-jjs --log=codegen,fields:finest script.js # several; each takes its own level
+nashorn --log=codegen script.js               # one subsystem at level info
+nashorn --log=codegen:finest script.js        # explicit level
+nashorn --log=codegen,fields:finest script.js # several; each takes its own level
 ```
 
 Levels are the `java.util.logging` names — `severe`, `warning`, `info`, `config`, `fine`, `finer`,

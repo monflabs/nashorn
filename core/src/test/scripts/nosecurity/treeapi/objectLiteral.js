@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 ({ foo: 343 })
 obj = {};
 p = { x: 10, y: 2 };
@@ -42,8 +40,7 @@ p = { 'x': 10, 'y': 2 };
 p = { get x() { return xValue }, get y() { return yValue } };
 p = { get foo() { return this._foo }, set foo(val) { this._foo = val } };
 
-
-EOF
+`
 
 parse("objectLiteral.js", code, "-nse", new (Java.extend(visitor, {
     visitObjectLiteral : function (node, obj) {

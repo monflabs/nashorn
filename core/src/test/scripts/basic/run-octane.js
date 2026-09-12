@@ -259,12 +259,11 @@ function is_this_nashorn() {
 }
 
 if (is_this_nashorn()) {
-    try {
-        read = readFully;
-    } catch (e) {
-        print("ABORTING: Cannot find 'readFully'. You must have scripting enabled to use this test harness. (-scripting)");
-        throw e;
-    }
+    var Files = Java.type("java.nio.file.Files");
+    var Paths = Java.type("java.nio.file.Paths");
+    read = function(path) {
+        return new java.lang.String(Files.readAllBytes(Paths.get(path)), "UTF-8");
+    };
 }
 
 // run tests in alphabetical order by name

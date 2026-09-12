@@ -38,10 +38,11 @@
 // This script assumes you've built jdk9 or using latest
 // jdk9 image and put the 'bin' directory in the PATH
 
-$EXEC.throwOnError=true
+load("../exec.js");
+exec.throwOnError = true;
 
 // compile MissingMethodLinkerExporter
-`javac MissingMethodLinkerExporter.java MissingMethodHandler.java MissingMethodExample.java`
+exec("javac MissingMethodLinkerExporter.java MissingMethodHandler.java MissingMethodExample.java");
 
 load("jarutil.js");
 
@@ -51,5 +52,5 @@ makeJar("missing_method_linker.jar");
 // run a sample script that uses pluggable linker
 // but make sure classpath points to the pluggable linker jar!
 
-`jjs -cp missing_method_linker.jar missing_method.js`
-print($OUT)
+exec("nashorn -cp missing_method_linker.jar missing_method.js");
+print(exec.out)

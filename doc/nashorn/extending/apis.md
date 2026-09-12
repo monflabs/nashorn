@@ -69,8 +69,8 @@ and the playground's *Nashorn extensions* category runs one sample per mechanism
 ## What is not an extension point
 
 `org.monflabs.nashorn.internal.*` - `Context`, `Global`, `JSType`, `ScriptObject`, `ScriptRuntime` -
-is reachable on the class path, and on a module path it is not exported at all (only the shell module
-sees it). None of it carries a compatibility promise; `ScriptObject` in particular is for extensions
+is reachable on the class path, and on a module path it is not exported at all (only the `node`
+module sees it, by name). None of it carries a compatibility promise; `ScriptObject` in particular is for extensions
 that ship inside the engine, as the standard libraries do ([why](java-objects.md#why-scriptobject-is-internal)).
 The things an extension is tempted to take from it have public homes:
 

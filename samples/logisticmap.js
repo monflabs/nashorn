@@ -1,4 +1,4 @@
-#// Usage: jjs -fx -scripting logisticmap.js -- <initial_x> <R>
+// Usage: nashorn -fx logisticmap.js -- <initial_x> <R>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -38,8 +38,8 @@
 // Logistic map viewer using Java8 Streams and JavaFX
 // See also http://en.wikipedia.org/wiki/Logistic_map
 
-if (!$OPTIONS._fx || arguments.length < 2) {
-    print("Usage: jjs -fx -scripting logisticmap.js -- <initial_x> <R>");
+if (typeof $STAGE == "undefined" || arguments.length < 2) {
+    print("Usage: nashorn -fx logisticmap.js -- <initial_x> <R>");
     exit(1);
 }
 

@@ -25,21 +25,18 @@
  * Tests to check representation of ES6 arrow params.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 var f1 = (x=2)=>x*3;
 var f2 = ({x, y})=>x*y;
 var f3 = ([x, y])=>x+y;
 var f4 = ({x, y}={y: 4, x: 5})=>x*y;
 var f5 = ([x, y]=[3, 6])=>x+y;
-
-EOF
+`
 
 parse("arrow_params.js", code, undefined, new (Java.extend(visitor_es6, {
     visitVariable : function (node, obj) {

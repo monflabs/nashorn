@@ -1,4 +1,4 @@
-#simple sample to use #javafx8 date picker with #nashorn
+// simple sample to use #javafx8 date picker with #nashorn
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx datepick.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx datepick.js");
     exit(1);
 }
 

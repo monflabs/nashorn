@@ -25,7 +25,6 @@
  * 8006983: Introduce a command line option to switch off syntactic extensions of nashorn
  *
  * @test
- * @option -scripting
  * @option --no-syntax-extensions
  * @run
  */

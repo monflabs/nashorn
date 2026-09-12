@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 with (scope) { x = y };
 with ({x:'test'}) print(x)
 with ({}) {
     z = this.x
 }
-
-EOF
+`
 
 parse("with.js", code, "-nse", new (Java.extend(visitor, {
     visitWith: function (node, obj) {

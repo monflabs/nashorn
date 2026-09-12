@@ -25,7 +25,6 @@
  * JDK-8157160: JSON.stringify does not work on ScriptObjectMirror objects
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -38,19 +37,15 @@ var engine = new SM().getEngineByName("nashorn-monflabs");
 // JSON stringify ScriptObjectMirror instances
 print(JSON.stringify(engine.eval("({ foo : 42 })")));
 print(JSON.stringify(engine.eval("([5, 6, 76, 7])")));
-print(JSON.stringify(engine.eval(<<EOF
- ({
+print(JSON.stringify(engine.eval(` ({
      toJSON: function() "hello"
- })
-EOF
+ })`
 )));
 
-print(JSON.stringify(engine.eval(<<EOF
-obj = {
+print(JSON.stringify(engine.eval(`obj = {
     name: 'nashorn',
     versions: [ 'es5.1', 'es6' ]
-}
-EOF
+}`
 )));
 
 var dm = engine.eval("new Date()");
@@ -103,11 +98,9 @@ print(JSON.stringify(jsObj3));
 // replacer function from another script world
 print(JSON.stringify({
    foo: "hello"
-}, engine.eval(<<EOF
-    function (key, value) {
+}, engine.eval(`    function (key, value) {
        if (key == "foo") {
            return value.toUpperCase()
        }
        return value;
-    }
-EOF)));
+    }`)));

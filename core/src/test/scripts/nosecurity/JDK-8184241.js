@@ -26,7 +26,6 @@
  *
  * @test
  * @run
- * @option -scripting
  */
 
 var type = Java.type("org.monflabs.nashorn.test.models.JDK_8184241Test");

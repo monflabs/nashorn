@@ -27,7 +27,6 @@
  *
  * @test
  * @option --const-as-var
- * @option -scripting
  * @run
  */
 

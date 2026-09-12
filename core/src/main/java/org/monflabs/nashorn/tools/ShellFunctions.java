@@ -35,8 +35,8 @@ import static org.monflabs.nashorn.internal.runtime.ScriptRuntime.UNDEFINED;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import org.monflabs.nashorn.internal.runtime.IOFunctions;
 import org.monflabs.nashorn.internal.runtime.JSType;
-import org.monflabs.nashorn.internal.runtime.ScriptingFunctions;
 import org.monflabs.nashorn.internal.objects.Global;
 
 /**
@@ -71,7 +71,7 @@ public final class ShellFunctions {
         final String promptStr = (prompt != UNDEFINED)? JSType.toString(prompt)  : ">> ";
         final StringBuilder buf = new StringBuilder();
         while (true) {
-            final String line = ScriptingFunctions.readLine(promptStr);
+            final String line = (String)IOFunctions.readLine(self, promptStr);
             if (line == null || line.equals(endMarkerStr)) {
                 break;
             }

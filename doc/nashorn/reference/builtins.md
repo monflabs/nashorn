@@ -41,43 +41,26 @@ Two names for the same function: exit the JVM via `System.exit`, default code 0.
 ### `__FILE__`, `__DIR__`, `__LINE__`
 
 The current script's file name, its directory, and the current line number. Not writable and not
-enumerable, and — unlike most of the extras on this page — available whether or not scripting mode
-is on.
+enumerable.
 
 ### `globalThis` and `arguments`
 
 `globalThis` is the standard self-reference. `arguments` appears as a global property only when the
-engine was given script arguments (`jjs script.js -- a b c`).
+engine was given script arguments (`Shell script.js -- a b c`).
 
-## Added by `-scripting`
+### `readLine` and `readFully`
 
-Scripting mode adds the following (and syntax besides — see
-[Scripting mode](../guide/scripting-mode.md)):
+Two host I/O extensions, on every realm:
 
 | Global | What it is |
 | --- | --- |
 | `readLine([prompt])` | Read one line from standard input, optionally printing a prompt first. |
-| `readFully(file)` | Read a whole file into a string. |
-| `echo(arg...)` | The same function object as `print`. |
-| `$OPTIONS` | An object mirroring the engine's option settings — `$OPTIONS._scripting`, `$OPTIONS._annexB`, `$OPTIONS._timezone`, … |
-| `$ENV` | The process environment as an object, plus `$ENV.PWD` from `user.dir`. |
-| `$ARG` | A synonym for `arguments`. |
-| `$EXEC(cmd[, input])` | Run a command in a separate process; returns its stdout. |
-| `$OUT`, `$ERR`, `$EXIT` | The stdout, stderr and exit code of the last `$EXEC`. |
+| `readFully(file)` | Read a whole file into a string. A non-file argument is a `TypeError`. |
 
-`$EXEC` takes either a command string (`$EXEC("ls -l")`) or an array of argument tokens, plus an
-optional stdin string, and returns the command's standard output; it also leaves `$OUT`, `$ERR` and
-`$EXIT` on the global. A non-zero exit throws a `RangeError`.
+## Present only at the shell prompt
 
-!> Only the **backquote-exec syntax** (`` `cmd` ``) was removed in this fork — ECMAScript claimed the
-backquote for template literals. The `$EXEC` function itself is present (in scripting mode), so call
-it explicitly rather than through backquotes.
-
-## Present only in the `jjs` REPL
-
-The interactive shell adds `input`/`evalinput` (multi-line input helpers) and the `history` and
-`edit` objects. They belong to the REPL, not the engine: scripts should not rely on them. See
-[jjs and the shell](jjs.md).
+The interactive shell adds `input`/`evalinput` (multi-line input helpers). They belong to the REPL,
+not the engine: scripts should not rely on them. See [The shell](shell.md).
 
 ## Annex B built-ins
 

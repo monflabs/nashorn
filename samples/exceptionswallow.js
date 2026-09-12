@@ -1,4 +1,4 @@
-#// Usage: jjs exceptionswallow.js -- <directory>
+// Usage: nashorn exceptionswallow.js -- <directory>
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -40,7 +40,7 @@
 // empty catch blocks ("exception swallow") and reports those.
 
 if (arguments.length == 0) {
-    print("Usage: jjs exceptionswallow.js -- <directory>");
+    print("Usage: nashorn exceptionswallow.js -- <directory>");
     exit(1);
 }
 

@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 function tryIt (code) {
@@ -38,8 +37,7 @@ function tryIt (code) {
     }
 }
 
-tryIt(<<CODE
-    let a = function () {  var a = "Hello World!"; return a; }
+tryIt(`    let a = function () {  var a = "Hello World!"; return a; }
     print(typeof a)
     {
         let a = 34;
@@ -55,11 +53,9 @@ tryIt(<<CODE
     print(typeof a())
     print(typeof c)
     print(typeof d)
-    print(d)
-CODE)
+    print(d)`)
 
-tryIt(<<CODE
-    let a = {}
+tryIt(`    let a = {}
     if (true) {
         function a () {
             print (typeof a)
@@ -68,6 +64,5 @@ tryIt(<<CODE
         print(typeof a)
         print(a())
     }
-    print(typeof a)
-CODE)
+    print(typeof a)`)
 

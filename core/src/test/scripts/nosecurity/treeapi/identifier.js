@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 undefined
 NaN
 a
@@ -42,8 +40,7 @@ a23
 var_name
 _underscore
 $dollar
-
-EOF
+`
 
 parse("identifier.js", code, "-nse", new (Java.extend(visitor, {
     visitIdentifier : function (node, obj) {

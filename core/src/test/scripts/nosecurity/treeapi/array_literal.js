@@ -26,20 +26,17 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 var x = [];
 var y = [1, 43, 5, 45,];
 var z = [34,,,4];
 var k = [ {}, { x: 3 }, "hello" ];
-
-EOF
+`
 
 
 parse("array_literal.js", code, "-nse", new (Java.extend(visitor, {

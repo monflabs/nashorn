@@ -33,7 +33,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs shell.js
+// Usage: nashorn shell.js
 
 /* This is a simple shell tool in JavaScript.
  *

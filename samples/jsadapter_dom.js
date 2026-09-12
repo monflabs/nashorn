@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting jsadapter_dom.js
+// Usage: nashorn jsadapter_dom.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -134,8 +134,7 @@ function getBooksHtml() {
     var rss = wrapElement(doc.documentElement);
     print("rss file version " + rss['@version']);
 
-    var str = <<HEAD
-
+    var str = `
 <html>
 <title>${rss.channel.title}</title>
 <body>
@@ -143,26 +142,21 @@ function getBooksHtml() {
 <p>
 Published on ${rss.channel.pubDate}
 </p>
-
-HEAD
+`
 
     var items = rss.channel.item;
     for each (var i in items) {
-        str += <<LIST
-
+        str += `
 <dl>
 <dt><a href="${i.link}">${i.title}</a></dt>
 <dd>${i.description}</dd>
 </dl>
-
-LIST
+`
     }
-    str += <<END
-
+    str += String.raw`
 </body>
 </html>
-
-END
+`
     return str;
 }
 

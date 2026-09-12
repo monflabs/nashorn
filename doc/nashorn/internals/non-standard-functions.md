@@ -10,7 +10,6 @@ Three things shape the list:
 
 - Most extras hang off the **global object** (`Global`, in `internal.objects`), installed when the
   global is initialised. They are all `NOT_ENUMERABLE`, so `for…in` over the global never sees them.
-- A second tier is added **only in scripting mode** (`-scripting`), by `initScripting`.
 - A few are **methods grafted onto standard built-ins** (`Object`, `Error`) rather than globals.
 
 What is deliberately *not* counted here as a "Nashorn function": **Annex B** built-ins
@@ -23,13 +22,13 @@ Installed on every global, in any mode:
 
 | Function | What it does |
 | --- | --- |
-| `print(…)` / `echo` | Write arguments to stdout, space-separated (newline unless `--print-no-newline`); `echo` is the same function object. |
+| `print(…)` | Write arguments to stdout, space-separated (newline unless `--print-no-newline`). |
 | `load(source)` | Evaluate another script in the current global — file path, URL, or `{name, script}` object. |
 | `loadWithNewGlobal(source, …)` | Like `load`, but in a fresh global (realm isolation). |
 | `exit([code])` / `quit([code])` | `System.exit` with the given code (default 0). |
 
-(`print`/`echo` and the `load` pair are the ones a plain, non-scripting engine exposes beyond the
-language; `exit`/`quit` too.) See [built-in globals](../reference/builtins.md#always-present) for the
+(`print` and the `load` pair are the ones a plain engine exposes beyond the language; `exit`/`quit`
+and the two host I/O functions too.) See [built-in globals](../reference/builtins.md#always-present) for the
 argument shapes.
 
 ## The `Java` interop object
@@ -76,23 +75,19 @@ Grafted onto objects the standard already defines:
 | `Error.prototype.printStackTrace()` | function | Print the Java-side stack of the error. |
 | `Error.prototype` `stack`, `lineNumber`, `columnNumber`, `fileName` | accessors | Where the error was thrown (not functions, but non-standard). |
 
-## Scripting-mode globals (`-scripting`)
+## Host I/O globals
 
-`initScripting` adds these only when the engine runs with `-scripting`:
+Two host I/O extensions, present on every realm:
 
 | Global | What it is |
 | --- | --- |
 | `readLine([prompt])` | Read a line from stdin. |
 | `readFully(file)` | Read a whole file into a string. |
-| `$OPTIONS` | An object mirroring the engine's option settings. |
-| `$ENV` | The process environment (plus `$ENV.PWD`). |
-| `$ARG` | A synonym for `arguments`. |
-| `$EXEC(cmd[, input])` | Run a command in a separate process; returns its stdout. |
-| `$OUT`, `$ERR`, `$EXIT` | The stdout, stderr and exit code of the last `$EXEC`. |
 
-> `$EXEC` is a **function**; the old backquote-exec *syntax* (`` `cmd` ``) is **not** reinstated —
-> the backquote is a template literal in this fork. Call `$EXEC("…")` explicitly. It is implemented
-> natively (`ScriptingFunctions.exec` over `CommandExecutor`); a non-zero exit throws a `RangeError`.
+They were installed only under the removed scripting mode before 2026.1.0; they are unconditional
+now (`Global.initIOFunctions` over `IOFunctions`). The scripting-mode globals that went with them —
+`echo`, `$OPTIONS`, `$ENV`, `$ARG`, `$EXEC` and the `$OUT`/`$ERR`/`$EXIT` result holders — are gone
+along with the mode itself; `samples/exec.js` shows how to run a process over `ProcessBuilder`.
 
 ## Property-lookup hooks
 
@@ -104,9 +99,8 @@ Not provided by the engine but *called* by it when a script defines them — the
 ## How many
 
 Counting only the genuinely Nashorn-specific **functions**: 4 always-present globals, 14 `Java.*`
-methods, 5 extension methods on `Object`/`Error`, and 7 scripting-mode globals (`readLine`,
-`readFully`, `$EXEC`, plus `$OPTIONS`/`$ENV`/`$ARG` and the `$OUT`/`$ERR`/`$EXIT` result holders) —
-roughly **30**, alongside the interop objects (`Java`, `JavaImporter`, `JSAdapter`, `Packages` and the
+methods, 5 extension methods on `Object`/`Error`, and 2 host I/O globals (`readLine`, `readFully`) —
+roughly **25**, alongside the interop objects (`Java`, `JavaImporter`, `JSAdapter`, `Packages` and the
 six package roots) and the two lookup hooks.
 
 ## Adjacent, but not counted

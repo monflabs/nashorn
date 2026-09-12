@@ -32,7 +32,6 @@ package org.monflabs.nashorn.tools;
 import org.monflabs.nashorn.api.scripting.NashornException;
 import org.monflabs.nashorn.internal.codegen.Compiler;
 import org.monflabs.nashorn.internal.codegen.Compiler.CompilationPhases;
-import org.monflabs.nashorn.internal.ir.Expression;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.debug.ASTWriter;
 import org.monflabs.nashorn.internal.ir.debug.PrintVisitor;
@@ -58,7 +57,6 @@ import org.monflabs.nashorn.internal.runtime.options.Options;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -82,7 +80,7 @@ import static org.monflabs.nashorn.internal.runtime.Source.sourceFor;
 /**
  * Command line Shell for processing JavaScript files.
  */
-public class Shell implements PartialParser {
+public class Shell {
 
     /**
      * Resource name for properties file
@@ -221,8 +219,8 @@ public class Shell implements PartialParser {
         final Options options = new Options("nashorn", werr);
 
         // The shell installs the standard libraries (host + fetch) into its
-        // engine by default, so setTimeout/fetch/atob work at the REPL and in a
-        // script jjs runs. It is a jjs-only switch, deliberately NOT an engine
+        // engine by default, so setTimeout/fetch/atob work at the REPL and in
+        // a script it runs. It is a shell switch, deliberately NOT an engine
         // option: the engine never installs libraries on its own, and a builder
         // must add them itself. --std-libraries=false (or --no-std-libraries)
         // gives a bare shell.
@@ -237,7 +235,7 @@ public class Shell implements PartialParser {
         if (args != null) {
             try {
                 final String[] prepArgs = preprocessArgs(args);
-                // Strip the jjs-only --std-libraries switch from the leading
+                // Strip the shell-only --std-libraries switch from the leading
                 // options (up to any bare "--"), then hand the rest to the
                 // engine's option parser, which would reject an unknown option.
                 final List<String> forEngine = new ArrayList<>();
@@ -271,25 +269,6 @@ public class Shell implements PartialParser {
             options.set("event.loop", stdLibraries);
         }
 
-        // detect scripting mode by any source's first character being '#'
-        if (!options.getBoolean("scripting")) {
-            for (final String fileName : options.getFiles()) {
-                final File firstFile = new File(fileName);
-                if (firstFile.isFile()) {
-                    try (final FileReader fr = new FileReader(firstFile)) {
-                        final int firstChar = fr.read();
-                        // starts with '#
-                        if (firstChar == '#') {
-                            options.set("scripting", true);
-                            break;
-                        }
-                    } catch (final IOException e) {
-                        // ignore this. File IO errors will be reported later anyway
-                    }
-                }
-            }
-        }
-
         final List<ScriptLibrary> libraries = stdLibraries
                 ? List.of(new HostLibrary(), new FetchLibrary())
                 : List.of();
@@ -314,16 +293,16 @@ public class Shell implements PartialParser {
      * will be broken down into single arguments; whitespace is used as separator.
      * <p>
      * Shebang mode is entered regardless of whether the script is actually run directly from the shell, or indirectly
-     * via the {@code jjs} executable. It is the user's / script author's responsibility to ensure that the arguments
+     * via a launcher. It is the user's / script author's responsibility to ensure that the arguments
      * given on the shebang line do not lead to a malformed argument sequence. In particular, the shebang arguments
      * should not contain any whitespace for purposes other than separating arguments, as the different platforms deal
      * with whitespace in different and incompatible ways.
      * <p>
      * @implNote Example:<ul>
-     * <li>Shebang line in {@code script.js}: {@code #!/path/to/jjs -scripting}</li>
+     * <li>Shebang line in {@code script.js}: {@code #!/path/to/nashorn --strict}</li>
      * <li>Command line: {@code ./script.js arg2}</li>
-     * <li>{@code args} array passed to Nashorn: {@code -scripting,./script.js,arg}</li>
-     * <li>Required canonicalized arguments array: {@code -scripting,./script.js,--,arg2}</li>
+     * <li>{@code args} array passed to Nashorn: {@code --strict,./script.js,arg}</li>
+     * <li>Required canonicalized arguments array: {@code --strict,./script.js,--,arg2}</li>
      * </ul>
      *
      * @param args the command line arguments as passed into Nashorn.
@@ -573,42 +552,6 @@ public class Shell implements PartialParser {
     protected Object apply(final ScriptFunction target, final Object self) {
         return ScriptRuntime.apply(target, self);
     }
-
-    /**
-     * Parse potentially partial code and keep track of the start of last expression.
-     * This 'partial' parsing support is meant to be used for code-completion.
-     *
-     * @param context the nashorn context
-     * @param code code that is to be parsed
-     * @return the start index of the last expression parsed in the (incomplete) code.
-     */
-    @Override
-    public final int getLastExpressionStart(final Context context, final String code) {
-        final int[] exprStart = { -1 };
-
-        final Parser p = new Parser(context.getEnv(), sourceFor("<partial_code>", code),new Context.ThrowErrorManager()) {
-            @Override
-            protected Expression expression() {
-                exprStart[0] = this.start;
-                return super.expression();
-            }
-
-            @Override
-            protected Expression assignmentExpression(final boolean noIn) {
-                exprStart[0] = this.start;
-                return super.assignmentExpression(noIn);
-            }
-        };
-
-        try {
-            p.parse();
-        } catch (final Exception ignored) {
-            // throw any parser exception, but we are partial parsing anyway
-        }
-
-        return exprStart[0];
-    }
-
 
     /**
      * read-eval-print loop for Nashorn shell.

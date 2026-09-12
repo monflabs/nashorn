@@ -1,4 +1,4 @@
-#simple color picker example
+// simple color picker example
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx colorpick.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx colorpick.js");
     exit(1);
 }
 

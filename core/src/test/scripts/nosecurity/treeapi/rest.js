@@ -25,22 +25,19 @@
  * Tests to check representation of ES6 rest arguments.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 function func(a, ...all) {}
 
 function bar(...allargs) {}
 
 var f = function(x, ...extra) {}
 var f2 = function(...rest) {}
-
-EOF
+`
 
 parse("rest.js", code, undefined, new (Java.extend(visitor_es6, {
     visitFunctionDeclaration: function (node, obj) {

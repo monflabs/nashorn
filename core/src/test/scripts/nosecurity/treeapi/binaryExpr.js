@@ -26,14 +26,12 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-a * b
+var code = `a * b
 a / b;
 a % b;
 a + b;
@@ -55,8 +53,7 @@ a ^ b;
 a | b;
 a && b;
 a || b;
-
-EOF
+`
 
 
 parse("binaryExpr.js", code, "-nse", new (Java.extend(visitor, {

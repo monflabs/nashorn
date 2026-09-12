@@ -53,7 +53,7 @@ var Files = Java.type("java.nio.file.Files");
 var Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
 var SimpleTreeVisitor = Java.type("org.monflabs.nashorn.api.tree.SimpleTreeVisitorES5_1");
 
-var parser = Parser.create("-scripting", "--const-as-var");
+var parser = Parser.create("--const-as-var");
 var protoFound = false;
 
 function checkFile(file) {

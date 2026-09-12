@@ -26,20 +26,17 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 ;
 var a = 1;;
 1;
-
-EOF
+`
 
 parse("empty.js", code, "--empty-statements", new (Java.extend(visitor, {
     visitEmptyStatement : function (node, obj) {

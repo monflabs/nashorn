@@ -25,14 +25,12 @@
  * Tests to check representation of ES6 generators.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 function* id(){
   var idx = 0;
   while(idx < 3)
@@ -53,8 +51,7 @@ var f = {
         }
     }
 };
-
-EOF
+`
 
 parse("generator.js", code, undefined, new (Java.extend(visitor_es6, {
     visitFunctionDeclaration : function (node, obj) {

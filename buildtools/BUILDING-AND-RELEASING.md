@@ -27,14 +27,13 @@ build locally only:
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol server |
 | `node` | `nashorn-node` | **yes** — experimental Node modules; version-locked to core |
 | `buildtools/nasgen` | `nashorn-nasgen` | no — build-time bytecode tool |
-| `shell` | `nashorn-shell` | no — the `jjs` REPL |
 | `debugger-ui` | `nashorn-debugger-ui` | no — embeddable Swing debugger |
 | `playground` | `nashorn-playground` | no — Swing sample browser (shaded `-all` jar) |
 
 Which modules publish is decided in the poms: the parent declares the
 `central-publishing-maven-plugin` as a build extension that **publishes by
 default**, so the **parent POM** and `core`/`debugger`/`node` go to Central; the
-four non-library modules (`nasgen`, `shell`, `debugger-ui`, `playground`) opt out
+three non-library modules (`nasgen`, `debugger-ui`, `playground`) opt out
 with `skipPublishing=true`. The parent POM must be published because the three
 library POMs declare it as their `<parent>` — leave it in the published set.
 

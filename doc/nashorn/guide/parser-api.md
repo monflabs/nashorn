@@ -15,7 +15,7 @@ CompilationUnitTree unit = parser.parse("hello.js",
         "function greet(name) { print('hello ' + name); }", null);
 ```
 
-`Parser.create(String... options)` accepts the same option strings as the engine — `"-scripting"`,
+`Parser.create(String... options)` accepts the same option strings as the engine — `"-strict"`,
 `"--annexB=false"`, `"-strict"`, `"--empty-statements"` (preserve empty statements in the tree),
 `"--es6-module"` (parse as a module) — so tooling can match exactly the dialect its target runs.
 There are six `parse` overloads: `File`, `Path`, `URL`, named `Reader`, named `String`, and a

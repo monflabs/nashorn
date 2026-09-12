@@ -25,7 +25,6 @@
  * NASHORN-768 :  Implement cross context property/function access and browser JSObject access by JSObject dynalink linker
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -36,8 +35,7 @@ var engine = m.getEngineByName("nashorn-monflabs");
 // our global var 'id'
 var id = "global-id";
 
-engine.eval(<<CODE
-
+engine.eval(`
 // code evaluated in engine
 
 // engine code's id
@@ -66,8 +64,7 @@ function func(callback) {
         fail("result of callback is wrong");
     }
 }
-
-CODE);
+`);
 
 var obj = engine.get("obj");
 if (obj.bar("hello") != "hello") {

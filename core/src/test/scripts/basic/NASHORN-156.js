@@ -22,10 +22,9 @@
  */
 
 /**
- * NASHORN-156 :  object literal getter function fails only with -scripting mode.
+ * NASHORN-156 :  object literal getter function fails.
  *
  * @test
- * @option -scripting
  * @run
  */
 

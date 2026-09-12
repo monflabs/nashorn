@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting -fx astviewer.js -- <scriptfile>
+// Usage: nashorn -fx astviewer.js -- <scriptfile>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -scripting -fx astviewer.js -- <.js file>");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx astviewer.js -- <.js file>");
     exit(1);
 }
 
@@ -47,7 +47,6 @@ if (!$OPTIONS._fx) {
 // tree view in a window. If no file is specified, AST of
 // this script file is shown. This script demonstrates
 // 'load' function, JavaFX support by -fx, readFully function
-// in scripting mode.
 
 // JavaFX classes used
 var StackPane = Java.type("javafx.scene.layout.StackPane");

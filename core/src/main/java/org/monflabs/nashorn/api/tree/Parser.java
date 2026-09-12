@@ -133,7 +133,6 @@ public interface Parser {
      * <dt>"-dump-on-error" or "-doe"</dt><dd>dump stack trace on error</dd>
      * <dt>"--empty-statements"</dt><dd>include empty statement nodes</dd>
      * <dt>"--no-syntax-extensions" or "-nse"</dt><dd>disable ECMAScript syntax extensions</dd>
-     * <dt>"-scripting"</dt><dd>enable scripting mode extensions</dd>
      * <dt>"-strict"</dt><dd>enable ECMAScript strict mode</dd>
      * <dt>"--es6-module"</dt><dd>enable ECMAScript module parsing mode</dd>
      * </dl>
@@ -155,7 +154,6 @@ public interface Parser {
                 case "--empty-statements":
                 case "--no-syntax-extensions":
                 case "-nse":
-                case "-scripting":
                 case "-strict":
                 case "--es6-module":
                     break;

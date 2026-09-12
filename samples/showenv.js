@@ -1,4 +1,4 @@
-#// Usage: jjs -fx showenv.js
+// Usage: nashorn -fx showenv.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,39 +35,37 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -fx showenv.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx showenv.js");
     exit(1);
 }
 
 // This script displays environment entries as a HTML table.
-// Demonstrates heredoc to generate HTML content and display
-// using JavaFX WebView.
+// Demonstrates template literals to generate HTML content and
+// display it using JavaFX WebView.
 
 // JavaFX classes used
 var Scene     = Java.type("javafx.scene.Scene");
 var WebView   = Java.type("javafx.scene.web.WebView");
+var env       = java.lang.System.getenv();
 
 // JavaFX start method
 function start(stage) {
     stage.title = "Your Environment";
     var wv = new WebView();
     var envrows = "";
-    for (var i in $ENV) {
-        envrows += <<TBL
-<tr>
+    for (var i in env) {
+        envrows += `<tr>
 <td>
 ${i}
 </td>
 <td>
-${$ENV[i]}
+${env[i]}
 </td>
-</tr>
-TBL
+</tr>`
     }
 
-    wv.engine.loadContent(<<EOF
-<html>
+    wv.engine.loadContent(`<html>
 <head>
 <title>
 Your Environment
@@ -79,8 +77,7 @@ Your Environment
 ${envrows}
 </table>
 </body>
-</html>
-EOF, "text/html");
+</html>`, "text/html");
     stage.scene = new Scene(wv, 750, 500);
     stage.show();
 }

@@ -1,4 +1,4 @@
-#// Usage: jjs -cp <asmtools.jar> jd.js -- <classname> [jdis|jdec]
+// Usage: nashorn -cp <asmtools.jar> jd.js -- <classname> [jdis|jdec]
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -43,7 +43,7 @@
 // See also https://wiki.openjdk.java.net/display/CodeTools/AsmTools
 
 function usage() {
-    print("Usage: jjs -cp <asmtools.jar> jd.js -- <classname> [jdis|jdec]");
+    print("Usage: nashorn -cp <asmtools.jar> jd.js -- <classname> [jdis|jdec]");
     exit(1);
 }
 

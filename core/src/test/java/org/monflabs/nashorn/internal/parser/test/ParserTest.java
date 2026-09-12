@@ -68,7 +68,6 @@ public class ParserTest {
     public void setupTest() {
         final Options options = new Options("nashorn");
         options.set("parse.only", true);
-        options.set("scripting", true);
         options.set("const.as.var", true);
 
         final ErrorManager errors = new ErrorManager();

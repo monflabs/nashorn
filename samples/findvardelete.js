@@ -55,7 +55,7 @@ var Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
 var SimpleTreeVisitor = Java.type("org.monflabs.nashorn.api.tree.SimpleTreeVisitorES5_1");
 var Tree = Java.type("org.monflabs.nashorn.api.tree.Tree");
 
-var parser = Parser.create("-scripting", "--const-as-var");
+var parser = Parser.create("--const-as-var");
 
 function checkFile(file) {
     // print("checking " + file);

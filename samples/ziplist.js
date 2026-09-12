@@ -34,7 +34,7 @@
  */
 
 if (arguments.length == 0) {
-    print("Usage: jjs ziplist -- <zip-file>");
+    print("Usage: nashorn ziplist -- <zip-file>");
     exit(1);
 }
 

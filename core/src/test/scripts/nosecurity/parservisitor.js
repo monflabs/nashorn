@@ -25,7 +25,6 @@
  * Nashorn parser API - Basic TreeVisitor tests.
  *
  * @test
- * @option -scripting
  * @run
  */
 

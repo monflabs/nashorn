@@ -62,10 +62,6 @@ public class SampleLibraryTest {
     @Test
     public void readmeTitleDirectivesAndSiblingFiles() throws IOException {
         final SampleLibrary library = SampleLibrary.load();
-        final Sample scripting = library.byId("05 - Nashorn extensions/14 - Scripting mode");
-        assertNotNull(scripting);
-        assertEquals(scripting.options(), List.of("-scripting"));
-        assertEquals(scripting.title(), "Scripting mode");
         final Sample load = library.byId("05 - Nashorn extensions/12 - load, __FILE__, __LINE__");
         assertNotNull(load);
         assertEquals(load.files().keySet(), java.util.Set.of("helper.js"));
@@ -75,8 +71,8 @@ public class SampleLibraryTest {
 
     @Test
     public void optionsStopAtTheFirstCodeLine() {
-        assertEquals(SampleLibrary.options("// @option -scripting\n// @option --annexB=false\nprint(1);\n// @option -strict\n"),
-                List.of("-scripting", "--annexB=false"));
+        assertEquals(SampleLibrary.options("// @option -strict\n// @option --annexB=false\nprint(1);\n// @option -doe\n"),
+                List.of("-strict", "--annexB=false"));
         assertEquals(SampleLibrary.options("print(1);\n// @option -strict\n"), List.of());
         assertEquals(SampleLibrary.options("\n  // a comment\n//@option   -strict  \nvar x;"), List.of("-strict"));
     }

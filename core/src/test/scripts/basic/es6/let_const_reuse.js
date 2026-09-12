@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 function tryIt (code) {
@@ -38,34 +37,26 @@ function tryIt (code) {
      }
 }
 
-tryIt(<<CODE
-    let a = 23
+tryIt(`    let a = 23
     if (true) {
         a--
         let a = 43;
-    }
-CODE)
+    }`)
 
-tryIt(<<CODE
-    const a = 23
+tryIt(`    const a = 23
     if (true) {
         a--
         const a = 43;
-    }
-CODE)
+    }`)
 
-tryIt(<<CODE
-    let a = 23
+tryIt(`    let a = 23
     if (true) {
         a--
         const a = 43;
-    }
-CODE)
+    }`)
 
-tryIt(<<CODE
-    const a = 23
+tryIt(`    const a = 23
     if (true) {
         a--
         let a = 43;
-    }
-CODE)
+    }`)

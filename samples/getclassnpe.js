@@ -1,4 +1,4 @@
-#// Usage: jjs getclassnpe.js -- <directory>
+// Usage: nashorn getclassnpe.js -- <directory>
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -45,7 +45,7 @@
  */
 
 if (arguments.length == 0) {
-    print("Usage: jjs getclassnpe.js -- <directory>");
+    print("Usage: nashorn getclassnpe.js -- <directory>");
     exit(1);
 }
 

@@ -500,7 +500,7 @@ public final class Options {
             explicit.add(key(parg.template.getKey()));
 
             // Arg may have a dependency to set other args, e.g.
-            // scripting->anon.functions
+            // --optimistic-types->anon.functions
             if (parg.template.getDependency() != null) {
                 argList.addFirst(parg.template.getDependency());
             }

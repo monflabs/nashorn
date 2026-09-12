@@ -30,16 +30,20 @@
  * @bug 8036977
  * @run/ignore-std-error
  * @fork
- * @option -scripting
  */
 
 // To test, start another engine (testEngine) with a time logger and ensure the
 // logger exists.
 
-var NashornFactory = new (Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory'))(),
-    testEngine     = NashornFactory.getScriptEngine("-scripting", "--log=time")
+function logger(name) {
+    return "Java.type('org.monflabs.nashorn.internal.runtime.Context')"
+         + ".getContext().getEnv()._loggers." + name
+}
 
-if (!testEngine.eval('$OPTIONS._loggers.time')) {
+var NashornFactory = new (Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory'))(),
+    testEngine     = NashornFactory.getScriptEngine("--log=time")
+
+if (!testEngine.eval(logger('time'))) {
     throw 'fresh testEngine does not have time logger'
 }
 
@@ -47,22 +51,25 @@ if (!testEngine.eval('$OPTIONS._loggers.time')) {
 // time logging, but with compiler logging. Check the logging is as configured,
 // and verify the testEngine still has time logging, but no compiler logging.
 
-var script = <<EOS
+var script = `
+    function logger(name) {
+        return "Java.type('org.monflabs.nashorn.internal.runtime.Context')"
+             + ".getContext().getEnv()._loggers." + name
+    }
     var F = new (Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory'))(),
-        e = F.getScriptEngine('-scripting', '--log=compiler')
-    if (!e.eval('$OPTIONS._loggers.compiler')) {
+        e = F.getScriptEngine('--log=compiler')
+    if (!e.eval(logger('compiler'))) {
         throw 'e does not have compiler logger'
     }
-    if (e.eval('$OPTIONS._loggers.time')) {
+    if (e.eval(logger('time'))) {
         throw 'e has time logger'
-    }
-EOS
+    }`
 
 testEngine.eval(script)
 
-if (!testEngine.eval('$OPTIONS._loggers.time')) {
+if (!testEngine.eval(logger('time'))) {
     throw 'after-test testEngine does not have time logger'
 }
-if (testEngine.eval('$OPTIONS._loggers.compiler')) {
+if (testEngine.eval(logger('compiler'))) {
     throw 'after-test testEngine has compiler logger'
 }

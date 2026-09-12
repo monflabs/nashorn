@@ -30,7 +30,7 @@ web-compatibility extensions of Annex B are on by default and removable with `--
 
 **[User's Guide](guide/getting-started.md)** — for embedding and using the engine: adding the
 dependency, creating and configuring engines, calling script from Java and Java from script,
-building custom host objects, ES modules, scripting mode, the parser API. It ends with [debugging
+building custom host objects, ES modules, the parser API. It ends with [debugging
 scripts](guide/debugging.md) from Chrome DevTools or VS Code, and with [the
 playground](guide/playground.md) — a runnable sample browser (`java -jar
 playground/target/nashorn-playground-2026.0.0-all.jar` after `mvn -pl playground -am package`) whose
@@ -54,7 +54,7 @@ pipeline, optimistic typing, how objects, arrays, strings and call sites really 
 virtual threads, the module system, Annex B's implementation, nasgen.
 
 **[Reference](reference/options.md)** — lookup material: every command-line option, the built-in
-globals beyond ECMAScript, `jjs`, logging and debugging switches, and the conformance numbers.
+globals beyond ECMAScript, the shell, logging and debugging switches, and the conformance numbers.
 
 ## Viewing these docs
 

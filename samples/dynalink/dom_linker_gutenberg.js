@@ -1,4 +1,4 @@
-#// Usage: jjs -cp dom_linker.jar -scripting dom_linker_gutenberg.js
+// Usage: nashorn -cp dom_linker.jar dom_linker_gutenberg.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -62,8 +62,7 @@ function getBooksHtml() {
     // wrap document root Element as script convenient object
     var rss = doc.documentElement;
 
-    var str = <<HEAD
-
+    var str = `
 <html>
 <title>${rss._channel._title._}</title>
 <body>
@@ -71,26 +70,21 @@ function getBooksHtml() {
 <p>
 Published on ${rss._channel._pubDate._}
 </p>
-
-HEAD
+`
 
     var items = rss._channel._item;
     for each (var i in items) {
-        str += <<LIST
-
+        str += `
 <dl>
 <dt><a href="${i._link._}">${i._title._}</a></dt>
 <dd>${i._description._}</dd>
 </dl>
-
-LIST
+`
     }
-    str += <<END
-
+    str += String.raw`
 </body>
 </html>
-
-END
+`
     return str;
 }
 

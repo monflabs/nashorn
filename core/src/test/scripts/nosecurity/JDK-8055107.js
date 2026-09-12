@@ -26,7 +26,6 @@
  *
  * @test
  * @option -Dnashorn.debug=true
- * @option -scripting
  * @run
  * @fork
  */
@@ -56,8 +55,7 @@ function runScriptEngine(code) {
 }
 
 // nashorn callsite trace enterexit
-var str = runScriptEngine(<<CODE
-function func() {
+var str = runScriptEngine(`function func() {
    "nashorn callsite trace enterexit";
    k();
 }
@@ -66,8 +64,7 @@ function k() {
     var x = "hello";
 }
 
-func();
-CODE);
+func();`);
 
 if (!str.contains(" ENTER ")) {
     fail("expected 'ENTER' in trace mode output");
@@ -78,13 +75,11 @@ if (!str.contains(" EXIT ")) {
 }
 
 // nashorn callsite trace objects
-var str = runScriptEngine(<<CODE
-"nashorn callsite trace objects";
+var str = runScriptEngine(`"nashorn callsite trace objects";
 function func(x) {
 }
 
-func("hello");
-CODE);
+func("hello");`);
 
 if (!str.contains(" ENTER ")) {
     fail("expected 'ENTER' in trace mode output");
@@ -99,28 +94,24 @@ if (!str.contains("hello")) {
 }
 
 // nashorn callsite trace misses
-str = runScriptEngine(<<CODE
-function f() {
+str = runScriptEngine(`function f() {
    "nashorn callsite trace misses";
    k();
 }
 
 function k() {}
-f();
-CODE);
+f();`);
 
 if (!str.contains(" MISS ")) {
     fail("expected callsite MISS trace messages");
 }
 
 // nashorn print lower ast
-str = runScriptEngine(<<CODE
-function foo() {
+str = runScriptEngine(`function foo() {
     "nashorn print lower ast";
     var x = 'hello';
 }
-foo();
-CODE);
+foo();`);
 
 if (!str.contains("Lower AST for: 'foo'") ||
     !str.contains("nashorn print lower ast")) {
@@ -128,36 +119,30 @@ if (!str.contains("Lower AST for: 'foo'") ||
 }
 
 // nashorn print ast
-str = runScriptEngine(<<CODE
-function foo() {
+str = runScriptEngine(`function foo() {
   "nashorn print ast";
-}
-CODE);
+}`);
 if (!str.contains("[function ") ||
     !str.contains("nashorn print ast")) {
     fail("expected AST to be printed");
 }
 
 // nashorn print symbols
-str = runScriptEngine(<<CODE
-function bar(a) {
+str = runScriptEngine(`function bar(a) {
     "nashorn print symbols";
     if (a) print(a);
 }
 
-bar();
-CODE)
+bar();`)
 
 if (!str.contains("[BLOCK in 'Function bar']")) {
     fail("expected symbols to be printed for 'bar'");
 }
 
 // nashorn print parse
-str = runScriptEngine(<<CODE
-"nashorn print parse";
+str = runScriptEngine(`"nashorn print parse";
 
-function func() {}
-CODE);
+function func() {}`);
 
 if (!str.contains("function func") ||
     !str.contains("nashorn print parse")) {
@@ -165,13 +150,11 @@ if (!str.contains("function func") ||
 }
 
 // nashorn print lower parse
-str = runScriptEngine(<<CODE
-"nashorn print lower parse";
+str = runScriptEngine(`"nashorn print lower parse";
 
 function func() {}
 
-func()
-CODE);
+func()`);
 
 if (!str.contains("function {U%}func") ||
     !str.contains("nashorn print lower parse")) {

@@ -26,20 +26,17 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 for (i in obj) {}
 for (var i in obj) {}
 [].forEach(function(i, v){})
-
-EOF
+`
 
 parse("forinloop.js", code, "-nse", new (Java.extend(visitor, {
     visitForInLoop : function (node, obj) {

@@ -25,7 +25,6 @@
  * Nashorn parser API -strict option test.
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -33,27 +32,21 @@ var Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
 var strictParser = Parser.create("-strict");
 var parser = Parser.create();
 
-var withStat = <<EOF
-
-with({}) {}
-EOF;
+var withStat = `
+with({}) {}`;
 
 strictParser.parse("with_stat.js", withStat, print);
 parser.parse("with_stat1.js", withStat, print);
 
-var repeatParam = <<EOF
-
-function func(x, x) {}
-EOF;
+var repeatParam = `
+function func(x, x) {}`;
 
 strictParser.parse("repeat_param.js", repeatParam, print);
 parser.parse("repeat_param1.js", repeatParam, print);
 
-var repeatProp = <<EOF
-
+var repeatProp = `
 var obj = { foo: 34, foo: 'hello' };
-
-EOF
+`
 
 strictParser.parse("repeat_prop.js", repeatProp, print);
 parser.parse("repeat_prop1.js", repeatProp, print);

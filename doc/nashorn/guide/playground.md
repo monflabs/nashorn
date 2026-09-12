@@ -26,13 +26,13 @@ The tree on the left holds five categories, read straight out of the jar's resou
   `fs`, `os` and `path`.
 * **Nashorn extensions** — `Java.type`, collections, `Java.extend` and `Java.super`,
   `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
-  scripting mode, the JSR-223 engine driven from script, script libraries, module loaders, and a
+  the JSR-223 engine driven from script, script libraries, module loaders, and a
   debugging sample.
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
 editor and console, sibling files appear as read-only editor tabs — and double as **modules**: the
 playground registers a module loader over them, so a `main.js` written as a module imports its
-siblings with `./name`, and a leading `// @option -scripting`
+siblings with `./name`, and a leading `// @option --annexB=false`
 line asks for engine options. The **Scratchpad** at the top of the tree is yours: it is kept in
 `~/.nashorn-playground/scratch.js` between sessions.
 

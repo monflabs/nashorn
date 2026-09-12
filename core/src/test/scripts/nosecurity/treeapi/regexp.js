@@ -26,20 +26,17 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = String.raw`
 /[abc]/i;
 /([^abc])*([a-z])+([^0-9])?(x|y)/ig.test();
 /^\w\W\n\f\0$/igm;
-
-EOF
+`
 
 parse("regexp.js", code, "-nse", new (Java.extend(visitor, {
     visitRegExpLiteral : function (node, obj) {

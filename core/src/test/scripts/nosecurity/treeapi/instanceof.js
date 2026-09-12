@@ -26,23 +26,20 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 a instanceof Array
 a() instanceof Object
 1 instanceof a
 2 instanceof a()
 C.prototype instanceof Object
 "str" instanceof obj.member
-
-EOF
+`
 
 parse("instanceof.js", code, "-nse", new (Java.extend(visitor, {
     visitInstanceOf : function (node, obj) {

@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting -cp . jsobject_mapreduce.js
+// Usage: nashorn -cp . jsobject_mapreduce.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -41,7 +41,8 @@
 // many array-like objects including JSObjects.
 // See also http://en.wikipedia.org/wiki/MapReduce
 
-`javac BufferArray.java`;
+load(__DIR__ + "exec.js");
+exec("javac BufferArray.java");
 
 var BufferArray = Java.type("BufferArray");
 var buf = new BufferArray(10);

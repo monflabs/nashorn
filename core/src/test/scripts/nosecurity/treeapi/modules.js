@@ -25,19 +25,16 @@
  * Tests to check representation of ES6 modules.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 import myDef, * as myMod from "my-mod";
 
 export function func() {}
-
-EOF
+`
 
 var mod = parseModule("foo", code);
 print(JSON.stringify(convert(mod), null, 2))

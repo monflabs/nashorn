@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 function a () {
     return 1;
 }
@@ -55,8 +53,7 @@ function d () {
         return
     }
 }
-
-EOF
+`
 
 parse("return.js", code, "-nse", new (Java.extend(visitor, {
     visitReturn : function (node, obj) {

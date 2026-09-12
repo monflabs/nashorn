@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 x++;
 x--;
 delete x;
@@ -46,8 +44,7 @@ typeof x;
 -x;
 ~x;
 !x;
-
-EOF
+`
 
 parse("unary.js", code, "-nse", new (Java.extend(visitor, {
     visitUnary: function (node, obj) {

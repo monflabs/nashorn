@@ -50,12 +50,7 @@
  *   * non-quoted property names and values
  *   * regexp literal values
  *   * omitting trailing comma
- *
- * When nashorn -scripting mode is enabled, FlexiJSON supports these
- * as well:
- *
- *   * shell style # comments
- *   * multiple line (Unix heredoc style) string values
+ *   * multiple line (template literal) string values
  */
 
 "use strict";
@@ -79,9 +74,7 @@ FlexiJSON.SimpleTreeVisitor = FlexiJSON.treeType("SimpleTreeVisitorES5_1");
 // FlexiJSON.parse API
 
 FlexiJSON.parse = function(str) {
-    var parser = (typeof $OPTIONS == "undefined")?
-        FlexiJSON.Parser.create() :
-        FlexiJSON.Parser.create("-scripting");
+    var parser = FlexiJSON.Parser.create();
 
     // force the string to be an expression by putting it inside (, )
     str = "(" + str + ")";

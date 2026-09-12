@@ -1,4 +1,4 @@
-#Usage: jjs -fx fxmlrunner.js -- <.fxml file>
+// Usage: nashorn -fx fxmlrunner.js -- <.fxml file>
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -44,8 +44,8 @@
 
 var file = arguments[0];
 var File = Java.type("java.io.File");
-if (!$OPTIONS._fx || !file || !new File(file).isFile()) {
-    print("Usage: jjs -fx fxmlrunner.js -- <.fxml file> [width] [height]");
+if (typeof $STAGE == "undefined" || !file || !new File(file).isFile()) {
+    print("Usage: nashorn -fx fxmlrunner.js -- <.fxml file> [width] [height]");
     exit(1);
 }
 

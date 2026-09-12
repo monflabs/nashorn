@@ -2,7 +2,7 @@
 
 Options can be handed to the engine in three ways, and the same strings work in all of them:
 
-- on the `jjs` or `Shell` command line — `jjs -scripting --annexB=false script.js`;
+- on the [shell](shell.md) command line — `Shell --annexB=false script.js`;
 - when creating an engine — `new NashornScriptEngineBuilder().annexB(false).build()`, or `.option("--annexB=false")` for any option in its command-line spelling;
 - through the system property `-Dnashorn.args="--annexB=false -strict"`, which reaches every engine
   in the process even where the launch line is not yours to edit (`-Dnashorn.args.prepend` is the
@@ -22,7 +22,7 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 | `-D` | | | `-Dname=value` — set a system property; repeatable. |
 | `--debugger` | | `false` | Compile scripts with debugger hooks and keep every variable in a scope object, so that a debugger can set breakpoints, step and inspect variables. Implied by `--inspect`. See [Debugging scripts](../guide/debugging.md). |
 | `-dump-on-error` | `-doe` | `false` | Dump a full stack trace on errors, instead of the one-line message. |
-| `--event-loop` | | `false` | Enable the event loop. It backs every asynchronous capability — `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch` — so with it **off (the default)** each of those throws a `TypeError` when used. Leave it off for a purely synchronous embedder whose scripts never wait; turn it on to run asynchronous code. `jjs` turns it on with the standard libraries (see [jjs](jjs.md)). See [The event loop](../libraries/overview.md#the-event-loop). |
+| `--event-loop` | | `false` | Enable the event loop. It backs every asynchronous capability — `Promise`, `async`/`await`, async generators, `setTimeout` and its kin, `queueMicrotask`, `fetch` — so with it **off (the default)** each of those throws a `TypeError` when used. Leave it off for a purely synchronous embedder whose scripts never wait; turn it on to run asynchronous code. The shell turns it on with the standard libraries (see [The shell](shell.md)). See [The event loop](../libraries/overview.md#the-event-loop). |
 | `-fullversion` | `-fv` | | Print the full version and exit. |
 | `-fx` | | `false` | Launch the script as a JavaFX application (requires a JavaFX-bearing JDK). |
 | `--help` | `-h` | | Print the help message. |
@@ -31,7 +31,6 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 | `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
 | `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |
 | `--optimistic-types` | `-ot` | `true` | Optimistic type assumptions with deoptimizing recompilation: better steady-state performance, longer warmup. On by default since 2026.1.0; `--optimistic-types=false` for a run-once script. See [Optimistic typing](../internals/optimistic-typing.md). |
-| `-scripting` | | `false` | Enable [scripting mode](../guide/scripting-mode.md): heredocs, `#` comments, string interpolation, `readLine`, `$ENV` and friends. |
 | `-strict` | | `false` | Run all scripts in ECMAScript strict mode. |
 | `-timezone` | `-t` | JVM default | Time zone for script execution (`Date` and friends). |
 | `-version` | `-v` | | Print the version and exit. |
@@ -40,7 +39,7 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 
 These carry `is_undocumented` in the engine's own option table: they work, most have worked for a
 decade, but they are not part of the supported surface and can change without notice. Run
-`jjs -xhelp` for the complete, current list. The useful ones:
+`nashorn -xhelp` for the complete, current list. The useful ones:
 
 | Option | What it does |
 | --- | --- |

@@ -25,17 +25,14 @@
  * Tests to check representation of ES6 consts.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 const PI = 3.14;
-
-EOF
+`
 
 parse("generator.js", code, undefined, new (Java.extend(visitor_es6, {
     visitVariable : function (node, obj) {

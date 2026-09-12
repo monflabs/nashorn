@@ -38,10 +38,11 @@
 // This script assumes you've built jdk9 or using latest
 // jdk9 image and put the 'bin' directory in the PATH
 
-$EXEC.throwOnError=true
+load("../exec.js");
+exec.throwOnError = true;
 
 // compile ArrayStreamLinkerExporter
-`javac ArrayStreamLinkerExporter.java`
+exec("javac ArrayStreamLinkerExporter.java");
 
 load("jarutil.js");
 
@@ -51,5 +52,5 @@ makeJar("array_stream_linker.jar");
 // run a sample script that uses pluggable linker
 // but make sure classpath points to the pluggable linker jar!
 
-`jjs -cp array_stream_linker.jar array_stream.js`
-print($OUT)
+exec("nashorn -cp array_stream_linker.jar array_stream.js");
+print(exec.out)

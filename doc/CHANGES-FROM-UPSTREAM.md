@@ -240,7 +240,6 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
 | `debugger` | `nashorn-debugger` | yes | the Chrome DevTools Protocol server (`--inspect`) |
 | `debugger-ui` | `nashorn-debugger-ui` | no | an embeddable Swing debugger (a CDP client) |
 | `node` | `nashorn-node` | yes | experimental Node-compat module resolver (`fs`, `buffer`, `os`, `path`); version-locked to core |
-| `shell` | — | no | the `jjs` REPL |
 | `playground` | — | no | a Swing sample browser / editor / console |
 | `buildtools/nasgen` | — | no | the build-time bytecode tool |
 
@@ -264,8 +263,10 @@ gives path-string manipulation (`join`, `resolve`, `normalize`, `parse`, ..., wi
   hand each one to the builder's `library(...)` instead.
 - `--function-statement-error` / `--function-statement-warning` — block-level
   function declarations are simply legal now.
-- The `-scripting` **backquote process extension** — the backquote belongs to
-  template literals since ES2015. (The `$EXEC` function itself is retained.)
+- **Scripting mode** in its entirety — the `-scripting` option, heredocs, `#` comments,
+  `${expr}` interpolation in double-quoted strings, `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG`/`echo`
+  and the backquote process extension (the backquote belongs to template literals since
+  ES2015). `readLine` and `readFully` survive as unconditional globals.
 
 **Changed**
 

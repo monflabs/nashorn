@@ -26,7 +26,6 @@
  *
  * @test
  * @run
- * @option -scripting
  */
 
 load("nashorn:mozilla_compat.js");
@@ -55,13 +54,11 @@ if (! engine.eval("this.non_existent_foo === undefined")) {
     fail("this.non_existent_foo is not undefined");
 }
 
-engine.eval(<<EOF
-    try {
+engine.eval(`    try {
         non_existent_foo;
         throw new Error("should have thrown ReferenceError");
     } catch (e) {
         if (! (e instanceof ReferenceError)) {
             throw new Error("ReferenceError expected, got " + e);
         }
-    }
-EOF);
+    }`);

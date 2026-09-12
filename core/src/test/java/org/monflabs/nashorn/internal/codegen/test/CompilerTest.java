@@ -72,7 +72,6 @@ public class CompilerTest {
         options.set("compile.only", true);
         options.set("print.ast", true);
         options.set("print.parse", true);
-        options.set("scripting", true);
         options.set("const.as.var", true);
         options.set("verify.code", true);
 

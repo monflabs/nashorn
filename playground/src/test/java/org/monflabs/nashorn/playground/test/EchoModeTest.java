@@ -123,13 +123,13 @@ public class EchoModeTest {
     }
 
     @Test
-    public void scriptingModeHeredocsEchoTheirValues() throws InterruptedException {
+    public void sampleOptionsSelectTheEngine() throws InterruptedException {
         final Recorder recorder = new Recorder();
-        final Sample s = sample("// @option -scripting\nvar t = <<EOF\nheredoc\nEOF\nt.trim();\n", "-scripting");
+        final Sample s = sample("// @option --annexB=false\ntypeof escape;\n", "--annexB=false");
         runner.run(s, s.source(), true, recorder, recorder);
         final ScriptRunner.Result result = recorder.await(30);
         assertTrue(result.ok(), String.valueOf(result.failure()));
-        assertEquals(recorder.values, List.of("4:\"heredoc\""));
+        assertEquals(recorder.values, List.of("1:\"undefined\""));
     }
 
     @Test

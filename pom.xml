@@ -60,7 +60,6 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
   <modules>
     <module>buildtools/nasgen</module>
     <module>core</module>
-    <module>shell</module>
     <module>debugger</module>
     <module>debugger-ui</module>
     <module>node</module>
@@ -75,9 +74,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
       Version of Java we're targeting. Was nashorn.target.java.version.
 
       Deliberately not spelled maven.compiler.release: every module already
-      configures the compiler plugin itself (core and nasgen with "release",
-      shell with source/target, since it compiles against JDK-internal
-      packages that release mode hides), and that property is also read by
+      configures the compiler plugin itself, and that property is also read by
       maven-javadoc-plugin, which a module cannot then opt out of.
     -->
     <nashorn.target.java.version>25</nashorn.target.java.version>
@@ -258,7 +255,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
             Publish by default: the parent POM itself must go to Central, or the
             published core/debugger/node POMs reference a parent that isn't there
             and no consumer can resolve them. The non-library modules (nasgen,
-            shell, debugger-ui, playground) opt out with skipPublishing=true.
+            debugger-ui, playground) opt out with skipPublishing=true.
           -->
         </configuration>
       </plugin>

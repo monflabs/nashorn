@@ -26,17 +26,14 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-debugger;
-
-EOF
+var code = `debugger;
+`
 
 parse("debugger.js", code, "-nse", new (Java.extend(visitor, {
     visitDebugger : function (node, obj) {

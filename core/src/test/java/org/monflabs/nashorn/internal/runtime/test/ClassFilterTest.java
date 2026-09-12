@@ -63,7 +63,7 @@ public class ClassFilterTest {
         };
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
         for (final String path : paths) {
-            final ScriptEngine engine = factory.getScriptEngine(new String[]{"-scripting"}, getClass().getClassLoader(), getClassFilter());
+            final ScriptEngine engine = factory.getScriptEngine(new String[]{}, getClass().getClassLoader(), getClassFilter());
             try {
                 engine.eval(new URLReader(new File(path).toURI().toURL()));
             } catch (final Exception e) {

@@ -26,14 +26,12 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-while (true) { break; };
+var code = `while (true) { break; };
 loop: { while (true) { break loop } };
 loop: { for (;;) { break loop } };
 do break; while(true)
@@ -45,8 +43,7 @@ switch(a) {
         break;
 }
 
-
-EOF
+`
 
 
 parse("breakStat.js", code, "-nse", new (Java.extend(visitor, {

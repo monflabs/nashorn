@@ -1,4 +1,4 @@
-#jjs -fx xmlviewer.js [-- <url-of-xml-doc>]
+// nashorn -fx xmlviewer.js [-- <url-of-xml-doc>]
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx xmlviewer.js [-- <url-of-xml-doc>]");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx xmlviewer.js [-- <url-of-xml-doc>]");
     exit(1);
 }
 

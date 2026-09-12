@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting -cp . jsobject.js
+// Usage: nashorn -cp . jsobject.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -40,12 +40,13 @@
 // by implementing org.monflabs.nashorn.api.scripting.JSObject
 
 // compile the java program
-`javac BufferArray.java`;
+load(__DIR__ + "exec.js");
+exec("javac BufferArray.java");
 
 // print error, if any and exit
-if ($ERR != '') {
-    print($ERR);
-    exit($EXIT);
+if (exec.err != '') {
+    print(exec.err);
+    exit(exec.exitCode);
 }
 
 // create BufferArray

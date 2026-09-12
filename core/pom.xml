@@ -352,12 +352,10 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
             <test262.suite.dir>${nashorn.test262.suite}</test262.suite.dir>
 
             <parsertest.verbose>false</parsertest.verbose>
-            <parsertest.scripting>true</parsertest.scripting>
             <parsertest.test262>false</parsertest.test262>
             <parserapitest.verbose>false</parserapitest.verbose>
             <parserapitest.test262>false</parserapitest.test262>
             <compilertest.verbose>false</compilertest.verbose>
-            <compilertest.scripting>true</compilertest.scripting>
             <compilertest.test262>false</compilertest.test262>
 
             <!-- script tests carrying @fork spawn their own JVM with these -->
@@ -641,7 +639,7 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
                   <executable>${java.home}/bin/java</executable>
                   <!-- TypeProfileLevel=222 was run.test.jvmargs.octane.main:
                        better type profiling produces much better JIT code for JS -->
-                  <commandlineArgs>${nashorn.test.jvmargs} -Xms2G -XX:TypeProfileLevel=222 -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.tools.Shell ${nashorn.test.scripts}/basic/run-octane.js -scripting -- ${octane.benchmarks} --runtime nashorn --verbose --iterations ${octane.iterations}</commandlineArgs>
+                  <commandlineArgs>${nashorn.test.jvmargs} -Xms2G -XX:TypeProfileLevel=222 -cp ${project.build.testOutputDirectory}${path.separator}${nashorn.test.libs}/* org.monflabs.nashorn.tools.Shell ${nashorn.test.scripts}/basic/run-octane.js -- ${octane.benchmarks} --runtime nashorn --verbose --iterations ${octane.iterations}</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

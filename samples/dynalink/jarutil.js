@@ -44,6 +44,7 @@ function classFiles() {
 }
 
 function makeJar(name) {
-    $EXEC("jar cvf " + name + " META-INF/ " + classFiles());
-    print($ERR);
+    load(__DIR__ + "../exec.js");
+    exec("jar cvf " + name + " META-INF/ " + classFiles());
+    print(exec.err);
 }

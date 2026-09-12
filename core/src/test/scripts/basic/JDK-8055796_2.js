@@ -25,7 +25,6 @@
  * JDK-8055796: JSObject and browser JSObject linkers should provide fallback to call underlying Java methods directly
  *
  * @test
- * @option -scripting
  * @run
  */
 

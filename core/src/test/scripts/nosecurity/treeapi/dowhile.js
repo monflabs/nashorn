@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 do {} while(false)
 do {break;} while(true)
 label:
@@ -42,8 +40,7 @@ do {break label;} while(a == 2)
 do{do{}while(func1())}while(a + b > 20)
 
 do call();while(NaN)
-
-EOF
+`
 
 parse("dowhile.js", code, "-nse", new (Java.extend(visitor, {
     visitDoWhileLoop : function (node, obj) {

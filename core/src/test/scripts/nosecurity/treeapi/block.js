@@ -26,19 +26,16 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-{}
+var code = `{}
 { print("hello"); }
 function a () {
     return 2 + 1;
-}
-EOF
+}`
 
 
 parse("block.js", code, "-nse", new (Java.extend(visitor, {

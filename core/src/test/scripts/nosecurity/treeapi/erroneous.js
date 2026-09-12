@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 (1 + 2;
 x *;
 while;
 break;
 continue;
-
-EOF
+`
 
 
 

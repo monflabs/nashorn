@@ -1,4 +1,4 @@
-#// usage: jjs -scripting weather.js
+// usage: nashorn weather.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -41,12 +41,13 @@
 var Arrays = Java.type("java.util.Arrays");
 
 // use curl to download JSON weather data from the net
-// use backquote -scripting mode syntax to exec a process
+// use the exec.js helper to run a process
 
-`curl http://api.openweathermap.org/data/2.5/forecast/daily?q=Chennai&amp;mode=json&amp;units=metric&amp;cnt=7`;
+load(__DIR__ + "exec.js");
+var json = exec("curl http://api.openweathermap.org/data/2.5/forecast/daily?q=Chennai&amp;mode=json&amp;units=metric&amp;cnt=7");
 
 // parse JSON
-var weather = JSON.parse($OUT);
+var weather = JSON.parse(json);
 
 // pull out humidity as array
 var humidity = weather.list.map(function(curVal) {

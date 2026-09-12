@@ -25,22 +25,19 @@
  * Tests to check representation of ES6 spread arguments.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 foo(a, ...b);
 
 bar(3, ...[3, 5, 546]);
 
 var arr = [3, ...a, 5];
 var arr2 = [4, ...[5, 6], 78];
-
-EOF
+`
 
 parse("spread.js", code, undefined, new (Java.extend(visitor_es6, {
     visitFunctionCall: function (node, obj) {

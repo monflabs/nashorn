@@ -26,23 +26,20 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 while(true);
 while(false) {}
 while(2 > 1) {}
 label:while(fun()) { break label}
 label:while(!fun()) continue label;
 while(true) continue
-
-EOF
+`
 
 parse("while.js", code, "-nse", new (Java.extend(visitor, {
     visitWhileLoop: function (node, obj) {

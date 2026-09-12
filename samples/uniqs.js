@@ -33,12 +33,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs uniqs.js -- <file>
+// Usage: nashorn uniqs.js -- <file>
 // omit repeated lines and print unique lines
 // But this version uses Stream API
 
 if (arguments.length < 1) {
-    print("Usage: jjs uniqs.js -- <file>");
+    print("Usage: nashorn uniqs.js -- <file>");
     exit(1);
 }
 

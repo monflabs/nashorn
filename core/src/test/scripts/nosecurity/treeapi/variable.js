@@ -26,20 +26,17 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 var a
 var x = 1
 var x23, $y = 1, _z
-
-EOF
+`
 
 parse("variable.js", code, "-nse", new (Java.extend(visitor, {
     visitVariable: function (node, obj) {

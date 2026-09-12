@@ -33,10 +33,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs find_underscores.js -- <directory>
+// Usage: nashorn find_underscores.js -- <directory>
 
 if (arguments.length == 0) {
-    print("Usage: jjs find_underscores.js -- <directory>");
+    print("Usage: nashorn find_underscores.js -- <directory>");
     exit(1);
 }
 

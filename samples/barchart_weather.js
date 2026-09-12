@@ -1,4 +1,4 @@
-#// Usage: jjs -fx barchart_weather.js
+// Usage: nashorn -fx barchart_weather.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -39,8 +39,8 @@
 // format and draws bar chart using JavaFX
 
 // -fx check
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx barchart_weather.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx barchart_weather.js");
     exit(1);
 }
 

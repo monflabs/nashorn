@@ -33,7 +33,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs javacastcounter.js -- <.java files>
+// Usage: nashorn javacastcounter.js -- <.java files>
 
 // This example demonstrates Nashorn Java.extend API
 // to subclass a Java class from script.
@@ -42,7 +42,7 @@
 // to list type casts used in java source files.
 
 if (arguments.length == 0) {
-    print("Usage: jjs javacastcounter.js -- <.java files>");
+    print("Usage: nashorn javacastcounter.js -- <.java files>");
     exit(1);
 }
 

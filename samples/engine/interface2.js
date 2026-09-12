@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting interface2.js
+// Usage: nashorn interface2.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -46,13 +46,11 @@ var engine = manager.getEngineByName("js");
 
 // eval code - too many script escapes?
 // use heredoc !
-engine.eval(<<CODE
-  var obj = {
+engine.eval(String.raw`  var obj = {
     run: function() {
         print("I am run method of 'obj'");
     }
-  };
-CODE);
+  };`);
 
 // create Java interface object whose methods are
 // implemented by script methods of a script object

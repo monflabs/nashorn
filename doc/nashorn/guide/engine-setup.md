@@ -31,11 +31,11 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
         .build();
 ```
 
-A builder starts with **no options** (what `jjs` runs with), adds what it is told in order — a
+A builder starts with **no options** (what the shell runs with), adds what it is told in order — a
 later setting of the same option wins, as on a command line — and `build()` validates the options
 the way the command line would, throwing `IllegalArgumentException` for one it does not know. The
 named methods cover the engine's configuration: the language and its extras (`annexB`, `strict`,
-`scripting`, `syntaxExtensions`, `typedArrays`), the Java side (`java(false)` for the bluntest
+`syntaxExtensions`, `typedArrays`), the Java side (`java(false)` for the bluntest
 sandbox, `classPath`, `modulePath(path, modules...)`), compilation (`optimisticTypes`,
 `lazyCompilation`, `classCacheSize`, `persistentCodeCache`), the environment scripts see
 (`timeZone`, `locale`, `globalPerEngine`), debugging (`dumpStackOnError`, `debugger`,
@@ -96,7 +96,6 @@ tracing) that stay with `option(...)`.
 | --- | --- | --- | --- |
 | `annexB(boolean)` | `--annexB` | on | Annex B, the web's legacy: `escape`, `__proto__`, block-level function hoisting, `<!--` comments. Off for the ECMAScript standard alone. |
 | `strict(boolean)` | `-strict` | off | Every script runs as strict-mode code. |
-| `scripting(boolean)` | `-scripting` | off | Shell conveniences: `#` comments, `${expr}` in double-quoted strings, heredocs, `$ENV`. |
 | `syntaxExtensions(boolean)` | `--no-syntax-extensions` | on | Nashorn's own syntax: `for each`, conditional catch, expression closures. Off refuses them. |
 | `typedArrays(boolean)` | `--no-typed-arrays` | on | Whether `ArrayBuffer`, the typed arrays, `DataView`, `SharedArrayBuffer` and `Atomics` exist. |
 

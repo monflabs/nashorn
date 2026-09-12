@@ -41,7 +41,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.SwitchPoint;
-import java.lang.reflect.Field;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.ArrayList;
@@ -70,6 +69,7 @@ import org.monflabs.nashorn.internal.runtime.FindProperty;
 import org.monflabs.nashorn.internal.runtime.GlobalConstants;
 import org.monflabs.nashorn.internal.runtime.GlobalFunctions;
 import org.monflabs.nashorn.internal.runtime.GeneratorSupport;
+import org.monflabs.nashorn.internal.runtime.IOFunctions;
 import org.monflabs.nashorn.internal.runtime.JobQueue;
 import org.monflabs.nashorn.internal.runtime.JSType;
 import org.monflabs.nashorn.internal.runtime.NativeJavaPackage;
@@ -82,7 +82,6 @@ import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
-import org.monflabs.nashorn.internal.runtime.ScriptingFunctions;
 import org.monflabs.nashorn.internal.runtime.Specialization;
 import org.monflabs.nashorn.internal.runtime.Symbol;
 import org.monflabs.nashorn.internal.runtime.arrays.ArrayData;
@@ -3758,7 +3757,7 @@ public final class Global extends Scope {
     }
 
     /**
-     * Adds jjs shell interactive mode builtin functions to global scope.
+     * Adds the shell's interactive-mode builtin functions to global scope.
      */
     public void addShellBuiltins() {
         Object value = ScriptFunction.createBuiltin("input", ShellFunctions.INPUT);
@@ -3986,9 +3985,7 @@ public final class Global extends Scope {
             this.delete("BigUint64Array", false);
         }
 
-        if (env._scripting) {
-            initScripting(env);
-        }
+        initIOFunctions();
 
         if (Context.DEBUG) {
             initDebug();
@@ -4010,10 +4007,6 @@ public final class Global extends Scope {
         arguments = wrapAsObject(env.getArguments().toArray());
         if (!env.getArguments().isEmpty()) {
             addOwnProperty("arguments", Attribute.NOT_ENUMERABLE | Attribute.NOT_CONFIGURABLE, arguments);
-        }
-        if (env._scripting) {
-            // synonym for "arguments" in scripting mode, which is there either way
-            addOwnProperty("$ARG", Attribute.NOT_ENUMERABLE, arguments);
         }
 
         if (eng != null) {
@@ -4132,53 +4125,15 @@ public final class Global extends Scope {
         }
     }
 
-    private void initScripting(final ScriptEnvironment scriptEnv) {
-        ScriptObject value;
-        value = ScriptFunction.createBuiltin("readLine", ScriptingFunctions.READLINE);
+    /**
+     * Installs the two host I/O extensions, {@code readLine} and {@code readFully}.
+     */
+    private void initIOFunctions() {
+        ScriptObject value = ScriptFunction.createBuiltin("readLine", IOFunctions.READLINE);
         addOwnProperty("readLine", Attribute.NOT_ENUMERABLE, value);
 
-        value = ScriptFunction.createBuiltin("readFully", ScriptingFunctions.READFULLY);
+        value = ScriptFunction.createBuiltin("readFully", IOFunctions.READFULLY);
         addOwnProperty("readFully", Attribute.NOT_ENUMERABLE, value);
-
-        // Nashorn extension: global.$EXEC (scripting-mode-only)
-        final String execName = ScriptingFunctions.EXEC_NAME;
-        value = ScriptFunction.createBuiltin(execName, ScriptingFunctions.EXEC);
-        addOwnProperty(execName, Attribute.NOT_ENUMERABLE, value);
-
-        // Nashorn extension: global.echo (scripting-mode-only)
-        // alias for "print"
-        value = (ScriptObject)get("print");
-        addOwnProperty("echo", Attribute.NOT_ENUMERABLE, value);
-
-        // Nashorn extension: global.$OPTIONS (scripting-mode-only)
-        final ScriptObject options = newObject();
-        copyOptions(options, scriptEnv);
-        addOwnProperty("$OPTIONS", Attribute.NOT_ENUMERABLE, options);
-
-        // Nashorn extension: global.$ENV (scripting-mode-only)
-        final ScriptObject env = newObject();
-        // Retrieve current state of ENV variables.
-        env.putAll(System.getenv(), scriptEnv._strict);
-
-        // Set the PWD variable to a value that is guaranteed to be understood
-        // by the underlying platform.
-        env.put(ScriptingFunctions.PWD_NAME, System.getProperty("user.dir"), scriptEnv._strict);
-        addOwnProperty(ScriptingFunctions.ENV_NAME, Attribute.NOT_ENUMERABLE, env);
-
-        // Nashorn extension: $OUT, $ERR, $EXIT - secondary results of $EXEC
-        addOwnProperty(ScriptingFunctions.OUT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
-        addOwnProperty(ScriptingFunctions.ERR_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
-        addOwnProperty(ScriptingFunctions.EXIT_NAME, Attribute.NOT_ENUMERABLE, UNDEFINED);
-    }
-
-    private static void copyOptions(final ScriptObject options, final ScriptEnvironment scriptEnv) {
-        for (final Field f : scriptEnv.getClass().getFields()) {
-            try {
-                options.set(f.getName(), f.get(scriptEnv), 0);
-            } catch (final IllegalArgumentException | IllegalAccessException exp) {
-                throw new RuntimeException(exp);
-            }
-        }
     }
 
     private void copyBuiltins() {

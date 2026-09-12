@@ -1,4 +1,4 @@
-# underscore name translator dynalink linker example
+// underscore name translator dynalink linker example
 
 /*
  * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
@@ -38,10 +38,11 @@
 // This script assumes you've built jdk9 or using latest
 // jdk9 image and put the 'bin' directory in the PATH
 
-$EXEC.throwOnError=true
+load("../exec.js");
+exec.throwOnError = true;
 
 // compile UnderscoreNameLinkerExporter
-`javac UnderscoreNameLinkerExporter.java`
+exec("javac UnderscoreNameLinkerExporter.java");
 
 load('jarutil.js');
 
@@ -51,7 +52,7 @@ makeJar("underscore_linker.jar");
 // run a sample script that uses pluggable linker
 // but make sure classpath points to the pluggable linker jar!
 
-`jjs -cp underscore_linker.jar underscore.js`
-print($ERR)
-print($OUT)
+exec("nashorn -cp underscore_linker.jar underscore.js");
+print(exec.err)
+print(exec.out)
 

@@ -83,7 +83,7 @@ public class ParseAPITest {
     }
 
     private static final String[] options = new String[] {
-        "-scripting", "--const-as-var"
+        "--const-as-var"
     };
 
     @Test

@@ -31,7 +31,6 @@
  * @test
  * @runif external.octane
  * @fork
- * @option -scripting
  * @option -Dnashorn.compiler.splitter.threshold=1000
  * @option -Dnashorn.typeInfo.disabled=true
  * @option --class-cache-size=0

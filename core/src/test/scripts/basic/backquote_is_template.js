@@ -18,17 +18,16 @@
  */
 
 /**
- * Backquote string should result in error with -nse even with -scripting
+ * Backquote is a template literal, and -nse does not disable it
  *
  * @option -nse
- * @option -scripting
  * @test
  * @run
  */
 
-// Backquote used to introduce a shell command under -scripting, and -nse turned
-// that extension off. It is a template literal now - standard syntax, so -nse
-// does not disable it.
+// Backquote used to introduce a shell command in the removed scripting mode,
+// and -nse turned that extension off. It is a template literal now - standard
+// syntax, so -nse does not disable it.
 if (`ls -l` !== "ls -l") {
     throw new Error("backquote should produce a template literal");
 }

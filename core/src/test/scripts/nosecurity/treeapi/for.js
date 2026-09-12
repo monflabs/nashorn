@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 for (i=0; someExpr;) {}
 for(;;){}
 for(var i=0; i < 4; i+=5) {}
 for(var i=0; i < 4; i++) {}
 for(i=0, j=2, x=4; x < 6; j++, x+=2, i*=x) {}
-
-EOF
+`
 
 parse("forloop.js", code, "-nse", new (Java.extend(visitor, {
     visitForLoop : function (node, obj) {

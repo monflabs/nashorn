@@ -1,4 +1,4 @@
-#// Usage: jjs -fx filebrowser.js -- <start_dir>
+// Usage: nashorn -fx filebrowser.js -- <start_dir>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -36,8 +36,8 @@
  */
 
 // Uses -fx and javafx TreeView to visualize directories
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -fx filebrowser.js -- <start_dir>");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx filebrowser.js -- <start_dir>");
     exit(1);
 }
 

@@ -26,15 +26,13 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-    array[1]
+var code = `    array[1]
 
     { array[test()] }
 
@@ -45,8 +43,7 @@ var code = <<EOF
     var x = {
         test1 : array[-1],
         test2 : [array[array[NaN]]]
-    }
-EOF
+    }`
 
 parse("array_access.js", code, "-nse", new (Java.extend(visitor, {
     visitArrayAccess : function (node, obj) {

@@ -33,9 +33,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs -scripting flexijson.js fjson.js
+// Usage: nashorn flexijson.js fjson.js
 
-var obj = FlexiJSON.parse(<<EOF
+var obj = FlexiJSON.parse(`
 // this is a comment
 {
     foo: 23,
@@ -45,16 +45,12 @@ var obj = FlexiJSON.parse(<<EOF
     /** multi line
         comments are fine too! */
 
-    # shell style line comment is fine!
-
     regex: /gdfg/i, // regexp literal
 
-    str: <<END
-Multiple line strings via nashorn
--scripting mode extension as well
-END
+    str: \`Multiple line strings
+via template literals as well\`
 }
-EOF)
+`)
 
 print(obj.foo);
 print(obj.bar);

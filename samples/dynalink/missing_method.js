@@ -1,4 +1,4 @@
-# Usage: jjs -cp missing_method_linker.js missing_method.js
+// Usage: nashorn -cp missing_method_linker.js missing_method.js
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2026, Philippe Riand.

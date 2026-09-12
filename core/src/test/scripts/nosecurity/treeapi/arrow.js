@@ -25,18 +25,15 @@
  * Tests to check representation of ES6 arrows.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 var f = x=>x*2;
 [].map(v => v + 1);
-
-EOF
+`
 
 parse("arrow.js", code, undefined, new (Java.extend(visitor_es6, {
     visitVariable : function (node, obj) {

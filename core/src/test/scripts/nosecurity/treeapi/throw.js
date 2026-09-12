@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 throw err;
 throw 'wrong';
 throw new TypeError;
 throw new TypeError('not an array');
 throw { msg: 'wrong!' };
-
-EOF
+`
 
 parse("throw.js", code, "-nse", new (Java.extend(visitor, {
     visitThrow: function (node, obj) {

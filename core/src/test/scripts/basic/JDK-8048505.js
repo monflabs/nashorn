@@ -25,7 +25,6 @@
  * Read fully parameter test
  *
  * @test
- * @option -scripting
  * @run
  */
 

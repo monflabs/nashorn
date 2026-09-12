@@ -26,7 +26,6 @@
  *
  * @test
  * @bug 8185252
- * @option -scripting
  * @run
  */
 
@@ -100,12 +99,10 @@ function parse(name, code, args, visitor, listener) {
 }
 
 
-var code = <<EOF
-
+var code = `
 +1;
 -1;
-
-EOF
+`
 
 parse("JDK-8185252.js", code, "-nse", new (Java.extend(visitor, {
     visitUnary: function (node, obj) {

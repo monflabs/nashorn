@@ -25,19 +25,16 @@
  * Tests to check representation of ES6 destructuring assignments.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 var a, b;
 [a, b] = [1, 2];
 ({a, b} = {a:11, b:12});
-
-EOF
+`
 
 parse("destructuring_assign.js", code, undefined, new (Java.extend(visitor_es6, {
     visitAssignment : function (node, obj) {

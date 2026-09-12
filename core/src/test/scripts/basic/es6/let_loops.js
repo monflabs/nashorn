@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 
@@ -39,42 +38,34 @@ function tryIt (code) {
     }
 }
 
-tryIt(<<CODE
-      let a = 2;
+tryIt(`      let a = 2;
       do {
         a--;
         let b = a;
       } while (a > 0);
       print(a)
-      print(b)
-CODE)
+      print(b)`)
 
-tryIt(<<CODE
-       let a = 2
+tryIt(`       let a = 2
        while(a > 0) {
             a--
             let b = a
        }
        print(a)
-       print(b)
-CODE)
+       print(b)`)
 
-tryIt(<<CODE
-       let a = 2
+tryIt(`       let a = 2
        while(a > 0) {
             a--
             const b = a
        }
        print(a)
-       print(b)
-CODE)
+       print(b)`)
 
-tryIt(<<CODE
-       let a = 2;
+tryIt(`       let a = 2;
        do {
          a--;
          const b = a;
        } while (a > 0);
        print(a)
-       print(b)
-CODE)
+       print(b)`)

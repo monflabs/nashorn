@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting javashell.js
+// Usage: nashorn javashell.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -93,8 +93,7 @@ function generate(className) {
         return false;
     }
 
-    var fullcode = <<EOF
-// userful imports, add more here if you want
+    var fullcode = `// userful imports, add more here if you want
 // more imports.
 import static java.lang.System.*;
 import java.io.*;
@@ -115,8 +114,7 @@ public class ${className} {
    public static void main(String[] args) throws Exception {
        ${usercode}
    }
-}
-EOF
+}`
 
     writeTo("${className}.java", fullcode);
     return true;

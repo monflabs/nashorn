@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 try { } catch (e) { }
 try { } catch (e) { } finally {}
 try { } finally {}
 try { } catch (e) { handle() }
 try { that() } catch (e) { handle() } finally { clean() }
-
-EOF
+`
 
 parse("throw.js", code, "-nse", new (Java.extend(visitor, {
     visitTry: function (node, obj) {

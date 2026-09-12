@@ -25,7 +25,6 @@
  * Nashorn parser API usage.
  *
  * @test
- * @option -scripting
  * @run
  */
 

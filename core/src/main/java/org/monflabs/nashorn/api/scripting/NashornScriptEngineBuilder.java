@@ -44,7 +44,7 @@ import javax.script.ScriptEngine;
  *         .build();
  * }</pre>
  *
- * <p>A builder starts with no options at all - what {@code jjs} runs with -
+ * <p>A builder starts with no options at all - what the shell runs with -
  * and adds what it is told, in order; a later setting of the same option wins,
  * as on a command line. The named methods cover the engine's configuration;
  * {@link #option(String...)} takes anything else - the diagnostic switches,
@@ -124,17 +124,6 @@ public final class NashornScriptEngineBuilder {
      */
     public NashornScriptEngineBuilder strict(final boolean enabled) {
         return option("-strict=" + enabled);
-    }
-
-    /**
-     * Whether scripting mode - {@code #} comments, {@code ${expression}} in
-     * double-quoted strings, heredocs, {@code $ENV} - is on. Off by default.
-     *
-     * @param enabled whether
-     * @return this
-     */
-    public NashornScriptEngineBuilder scripting(final boolean enabled) {
-        return option("-scripting=" + enabled);
     }
 
     /**

@@ -24,55 +24,40 @@
 /**
  * @test
  * @bug 8068304
- * @option -scripting
  * @run
  */
 
 load(__DIR__  + "utils.js")
 
-var code = <<EOF
-    var a = { k:1, k:2 }
-EOF
+var code = `    var a = { k:1, k:2 }`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    var x = {}
-    with(x) {}
-EOF
+var code = `    var x = {}
+    with(x) {}`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    var eval = "test value";
-EOF
+var code = `    var eval = "test value";`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    var arguments = "test value";
-EOF
+var code = `    var arguments = "test value";`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    	if (true) {
+var code = `    	if (true) {
     		function a () {}
-    	}
-EOF
+    	}`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    var a = { get x() {}, get x() {}};
-    var a = { set x() {}, set x() {}};
-EOF
+var code = `    var a = { get x() {}, get x() {}};
+    var a = { set x() {}, set x() {}};`
 
 parseDiagnostic(code, "-strict")
 
-var code = <<EOF
-    /([a-z])+(/;
-    /([a-z])+/h;
-EOF
+var code = `    /([a-z])+(/;
+    /([a-z])+/h;`
 
 parseDiagnostic(code, "-strict")

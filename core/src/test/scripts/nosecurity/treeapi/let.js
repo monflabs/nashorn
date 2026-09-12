@@ -25,17 +25,14 @@
  * Tests to check representation of ES6 lets.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 let x = 3;
-
-EOF
+`
 
 parse("let.js", code, undefined, new (Java.extend(visitor_es6, {
     visitVariable : function (node, obj) {

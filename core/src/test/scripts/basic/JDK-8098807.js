@@ -26,7 +26,6 @@
  *
  * @test
  * @run
- * @option -scripting
  */
 
 "use strict";

@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 function tryIt (code) {
@@ -38,33 +37,23 @@ function tryIt (code) {
     }
 }
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     let x = 2;
-    const x = function (a,b,c) {};
-CODE)
+    const x = function (a,b,c) {};`)
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     let x = {};
-    var x = 2;
-CODE)
+    var x = 2;`)
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     var x = 2;
-    let x = undefined;
-CODE)
+    let x = undefined;`)
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     const x = function (){};
-    let x = {};
-CODE)
+    let x = {};`)
 
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     let a = 2;
-    function a () {};
-CODE)
+    function a () {};`)

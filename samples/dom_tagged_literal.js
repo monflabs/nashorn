@@ -39,7 +39,7 @@
  * String using es6 tagged template literal.
  *
  * Usage:
- *    jjs dom_tagged_literal.js
+ *    nashorn dom_tagged_literal.js
  */
 
 // Java types used

@@ -26,14 +26,12 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-xyz += 314;
+var code = `xyz += 314;
 xyz -= 314;
 xyz *= 314;
 xyz /= 314;
@@ -44,8 +42,7 @@ xyz >>>= 314;
 xyz &= 314;
 xyz ^= 314;
 xyz |= 314;
-
-EOF
+`
 
 
 parse("assignmentExpr.js", code, "-nse", new (Java.extend(visitor, {

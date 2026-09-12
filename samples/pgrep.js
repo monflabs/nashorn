@@ -1,4 +1,4 @@
-#!/usr/bin/jjs
+#!/usr/bin/nashorn
 
 /*
  * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.

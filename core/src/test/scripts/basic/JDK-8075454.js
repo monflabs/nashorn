@@ -25,19 +25,16 @@
  * JDK-8075454: Anonymous functions have internal names exposed via parser API
  *
  * @test
- * @option -scripting
  * @run
  */
 
 var Parser = Java.type("org.monflabs.nashorn.api.tree.Parser");
 var parser = Parser.create();
 
-var ast = parser.parse("test.js", <<EOF
-
+var ast = parser.parse("test.js", `
 function(x) {
   return x*x
 }
-
-EOF, print);
+`, print);
 
 Assert.assertNull(ast.sourceElements[0].expression.name);

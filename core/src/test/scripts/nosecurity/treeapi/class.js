@@ -25,14 +25,12 @@
  * Tests to check representation of ES6 class.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 class Shape {
     constructor() {
         Shape.numShapes++;
@@ -80,8 +78,7 @@ class Circle extends Shape {
         this.radius_ = radius
     }
 }
-
-EOF
+`
 
 parse("class.js", code, undefined, new (Java.extend(visitor_es6, {
     visitClassDeclaration : function (node, obj) {

@@ -139,8 +139,8 @@ no ES5 mode and no version switch — the `--language` option has been removed. 
 entirely by the `--annexB=false` [option](../reference/options.md).
 
 Two things older Nashorn documentation promises are gone from this fork: the **backquote-exec
-syntax** (the backquote now belongs to template literals — the `$EXEC` function itself is still there
-in scripting mode; see [Scripting mode](scripting-mode.md)), and everything to do with the Security
+syntax** (the backquote now belongs to template literals) along with the rest of scripting mode, and
+everything to do with the Security
 Manager, which the JDK itself removed.
 
 ## Where next
@@ -149,7 +149,7 @@ Manager, which the JDK itself removed.
 - [Using the engine](using-the-engine.md) — getting an engine, configuring it with the builder,
   evaluating, invoking, bindings and scopes.
 - [Connecting with Java](connecting-with-java.md) — the `Java` object and everything interop.
-- Running scripts from the command line — [jjs and the shell](../reference/jjs.md).
+- Running scripts from the command line — [The shell](../reference/shell.md).
 - Trying things out interactively — [the playground](playground.md), a sample browser built by the
   reactor with the whole language and every extension as runnable, editable samples.
 - Pausing and stepping through scripts — [debugging](debugging.md) with Chrome DevTools or VS Code.

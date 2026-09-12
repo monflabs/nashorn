@@ -46,7 +46,7 @@ real, readable file, extension included. Bare specifiers (`import "lodash"`) do 
 
 ## Running modules
 
-A source handed to `eval` (or a file handed to `jjs`) that parses as a **module** runs as one:
+A source handed to `eval` (or a file handed to the shell) that parses as a **module** runs as one:
 `import` and `export` are reserved words, so a module is never a valid script, and the engine
 re-parses on that failure. The completion value is the module's namespace object, so exports are
 one `getMember` away:

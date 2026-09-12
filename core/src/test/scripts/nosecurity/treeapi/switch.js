@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 switch (key) {};
 switch (key) {
     case 2: hello();
@@ -45,8 +43,7 @@ switch (key) {
     case 2: world(); break;
     default: break
 };
-
-EOF
+`
 
 parse("switch.js", code, "-nse", new (Java.extend(visitor, {
     visitSwitch: function (node, obj) {

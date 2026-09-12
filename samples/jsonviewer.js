@@ -1,6 +1,6 @@
-#// Usage: jjs -fx jsonviewer.js
+// Usage: nashorn -fx jsonviewer.js
 // or
-//        jjs -fx jsonviewer.js -- <url-of-json-doc>
+//        nashorn -fx jsonviewer.js -- <url-of-json-doc>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -37,8 +37,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx jsonviewer.js -- <url-of-json-doc>");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx jsonviewer.js -- <url-of-json-doc>");
     exit(1);
 }
 

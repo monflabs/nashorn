@@ -37,7 +37,7 @@
  * This is a test script file for staticchecker.js.
  *
  * Usage:
- *    jjs staticcheker.js -- bad_patterns.js
+ *    nashorn staticcheker.js -- bad_patterns.js
  */
 var obj = {}
 obj.__proto__ = null;

@@ -25,13 +25,11 @@
  * JDK-8015945: loadWithNewGlobal return value has to be properly wrapped
  *
  * @test
- * @option -scripting
  * @run
  */
 
 var global = loadWithNewGlobal({ name: "<code>",
-    script: <<EOF
-
+    script: `
 function squares() {
     var res = new Array(arguments.length);
     for (var i in arguments) {
@@ -41,8 +39,7 @@ function squares() {
 }
 
 this;
-
-EOF
+`
 })
 
 print("global an Object? " + (global instanceof Object));

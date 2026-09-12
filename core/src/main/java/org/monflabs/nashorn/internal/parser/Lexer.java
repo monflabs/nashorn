@@ -29,7 +29,6 @@
 
 package org.monflabs.nashorn.internal.parser;
 
-import static org.monflabs.nashorn.internal.parser.TokenType.ADD;
 import static org.monflabs.nashorn.internal.parser.TokenType.BINARY_NUMBER;
 import static org.monflabs.nashorn.internal.parser.TokenType.COMMENT;
 import static org.monflabs.nashorn.internal.parser.TokenType.DECIMAL;
@@ -43,7 +42,6 @@ import static org.monflabs.nashorn.internal.parser.TokenType.FLOATING;
 import static org.monflabs.nashorn.internal.parser.TokenType.FUNCTION;
 import static org.monflabs.nashorn.internal.parser.TokenType.HEXADECIMAL;
 import static org.monflabs.nashorn.internal.parser.TokenType.LBRACE;
-import static org.monflabs.nashorn.internal.parser.TokenType.LPAREN;
 import static org.monflabs.nashorn.internal.parser.TokenType.OCTAL;
 import static org.monflabs.nashorn.internal.parser.TokenType.NON_OCTAL_DECIMAL;
 import static org.monflabs.nashorn.internal.parser.TokenType.OCTAL_LEGACY;
@@ -87,9 +85,6 @@ public class Lexer extends Scanner {
 
     /** Buffered stream for tokens. */
     private final TokenStream stream;
-
-    /** True if here and edit strings are supported. */
-    private final boolean scripting;
 
     /** True if ECMA-262 Annex B's HTML-like comments are recognised. */
     private final boolean annexB;
@@ -194,18 +189,7 @@ public class Lexer extends Scanner {
      * @param stream    the token stream to lex
      */
     public Lexer(final Source source, final TokenStream stream) {
-        this(source, stream, false);
-    }
-
-    /**
-     * Constructor
-     *
-     * @param source    the source
-     * @param stream    the token stream to lex
-     * @param scripting are we in scripting mode
-     */
-    public Lexer(final Source source, final TokenStream stream, final boolean scripting) {
-        this(source, 0, source.getLength(), stream, scripting, true, false);
+        this(source, 0, source.getLength(), stream, true, false);
     }
 
     /**
@@ -215,17 +199,15 @@ public class Lexer extends Scanner {
      * @param start     start position in source from which to start lexing
      * @param len       length of source segment to lex
      * @param stream    token stream to lex
-     * @param scripting are we in scripting mode
      * @param annexB    are ECMA-262 Annex B's HTML-like comments recognised
      * @param pauseOnFunctionBody if true, lexer will return from {@link #lexify()} when it encounters a
      * function body. This is used with the feature where the parser is skipping nested function bodies to
      * avoid reading ahead unnecessarily when we skip the function bodies.
      */
-    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean scripting, final boolean annexB, final boolean pauseOnFunctionBody) {
+    public Lexer(final Source source, final int start, final int len, final TokenStream stream, final boolean annexB, final boolean pauseOnFunctionBody) {
         super(source.getContent(), 1, start, len);
         this.source      = source;
         this.stream      = stream;
-        this.scripting   = scripting;
         this.annexB      = annexB;
         this.nested      = false;
         this.pendingLine = 1;
@@ -239,7 +221,6 @@ public class Lexer extends Scanner {
 
         source = lexer.source;
         stream = lexer.stream;
-        scripting = lexer.scripting;
         annexB = lexer.annexB;
         nested = true;
 
@@ -570,18 +551,6 @@ public class Lexer extends Scanner {
                 add(COMMENT, start);
                 return true;
             }
-        } else if (ch0 == '#') {
-            assert scripting;
-            // shell style comment
-            // Skip over #.
-            skip(1);
-            // Scan for EOL.
-            while (!atEOF() && !isEOL(ch0)) {
-                skip(1);
-            }
-            // Did detect a comment.
-            add(COMMENT, start);
-            return true;
         }
 
         // Not a comment.
@@ -651,19 +620,7 @@ public class Lexer extends Scanner {
      * @return true if token can start a literal.
      */
     public boolean canStartLiteral(final TokenType token) {
-        return token.startsWith('/') || ((scripting || XML_LITERALS) && token.startsWith('<'));
-    }
-
-    /**
-     * interface to receive line information for multi-line literals.
-     */
-    protected interface LineInfoReceiver {
-        /**
-         * Receives line information
-         * @param line last line number
-         * @param linePosition position of last line
-         */
-        public void lineInfo(int line, int linePosition);
+        return token.startsWith('/') || (XML_LITERALS && token.startsWith('<'));
     }
 
     /**
@@ -672,10 +629,9 @@ public class Lexer extends Scanner {
      *
      * @param token the token.
      * @param startTokenType the token type.
-     * @param lir LineInfoReceiver that receives line info for multi-line string literals.
      * @return True if a literal beginning with startToken was found and scanned.
      */
-    protected boolean scanLiteral(final long token, final TokenType startTokenType, final LineInfoReceiver lir) {
+    protected boolean scanLiteral(final long token, final TokenType startTokenType) {
         // Check if it can be a literal.
         if (!canStartLiteral(startTokenType)) {
             return false;
@@ -685,19 +641,13 @@ public class Lexer extends Scanner {
             return false;
         }
 
-        // Record current position in case multiple heredocs start on this line - see JDK-8073653
-        final State state = saveState();
         // Rewind to token start position
         reset(Token.descPosition(token));
 
         if (ch0 == '/') {
             return scanRegEx();
-        } else if (ch0 == '<') {
-            if (ch1 == '<') {
-                return scanHereString(lir, state);
-            } else if (Character.isJavaIdentifierStart(ch1)) {
-                return scanXMLLiteral();
-            }
+        } else if (ch0 == '<' && Character.isJavaIdentifierStart(ch1)) {
+            return scanXMLLiteral();
         }
 
         return false;
@@ -1249,23 +1199,8 @@ public class Lexer extends Scanner {
             // Record end of string.
             stringState.setLimit(position - 1);
 
-            if (scripting && !stringState.isEmpty()) {
-                switch (quote) {
-                case '"':
-                    // Only edit double quoted strings.
-                    editString(type, stringState);
-                    break;
-                case '\'':
-                    // Add string token without editing.
-                    add(type, stringState.position, stringState.limit);
-                    break;
-                default:
-                    break;
-                }
-            } else {
-                /// Add string token without editing.
-                add(type, stringState.position, stringState.limit);
-            }
+            // Add string token.
+            add(type, stringState.position, stringState.limit);
         }
     }
 
@@ -1688,283 +1623,6 @@ public class Lexer extends Scanner {
     }
 
     /**
-     * Detect if a line starts with a marker identifier.
-     *
-     * @param identStart  Start of identifier.
-     * @param identLength Length of identifier.
-     * @return True if detected.
-     */
-    private boolean hasHereMarker(final int identStart, final int identLength) {
-        // Skip any whitespace.
-        skipWhitespace(false);
-
-        return identifierEqual(identStart, identLength, position, scanIdentifier());
-    }
-
-    /**
-     * Lexer to service edit strings.
-     */
-    private static class EditStringLexer extends Lexer {
-        /** Type of string literals to emit. */
-        final TokenType stringType;
-
-        /*
-         * Constructor.
-         */
-
-        EditStringLexer(final Lexer lexer, final TokenType stringType, final State stringState) {
-            super(lexer, stringState);
-
-            this.stringType = stringType;
-        }
-
-        /**
-         * Lexify the contents of the string.
-         */
-        @Override
-        public void lexify() {
-            // Record start of string position.
-            int stringStart = position;
-            // Indicate that the priming first string has not been emitted.
-            boolean primed = false;
-
-            while (!atEOF()) {
-                // Honour escapes (should be well formed.)
-                if (ch0 == '\\' && stringType == ESCSTRING) {
-                    skip(2);
-
-                    continue;
-                }
-
-                // If start of expression.
-                if (ch0 == '$' && ch1 == '{') {
-                    if (!primed || stringStart != position) {
-                        if (primed) {
-                            add(ADD, stringStart, stringStart + 1);
-                        }
-
-                        add(stringType, stringStart, position);
-                        primed = true;
-                    }
-
-                    // Skip ${
-                    skip(2);
-
-                    // Save expression state.
-                    final State expressionState = saveState();
-
-                    // Start with one open brace.
-                    int braceCount = 1;
-
-                    // Scan for the rest of the string.
-                    while (!atEOF()) {
-                        // If closing brace.
-                        if (ch0 == '}') {
-                            // Break only only if matching brace.
-                            if (--braceCount == 0) {
-                                break;
-                            }
-                        } else if (ch0 == '{') {
-                            // Bump up the brace count.
-                            braceCount++;
-                        }
-
-                        // Skip to next character.
-                        skip(1);
-                    }
-
-                    // If braces don't match then report an error.
-                    if (braceCount != 0) {
-                        error(Lexer.message("edit.string.missing.brace"), LBRACE, expressionState.position - 1, 1);
-                    }
-
-                    // Mark end of expression.
-                    expressionState.setLimit(position);
-                    // Skip closing brace.
-                    skip(1);
-
-                    // Start next string.
-                    stringStart = position;
-
-                    // Concatenate expression.
-                    add(ADD, expressionState.position, expressionState.position + 1);
-                    add(LPAREN, expressionState.position, expressionState.position + 1);
-
-                    // Scan expression.
-                    final Lexer lexer = new Lexer(this, expressionState);
-                    lexer.lexify();
-
-                    // Close out expression parenthesis.
-                    add(RPAREN, position - 1, position);
-
-                    continue;
-                }
-
-                // Next character in string.
-                skip(1);
-            }
-
-            // If there is any unemitted string portion.
-            if (stringStart != limit) {
-                // Concatenate remaining string.
-                if (primed) {
-                    add(ADD, stringStart, 1);
-                }
-
-                add(stringType, stringStart, limit);
-            }
-        }
-
-    }
-
-    /**
-     * Edit string for nested expressions.
-     *
-     * @param stringType  Type of string literals to emit.
-     * @param stringState State of lexer at start of string.
-     */
-    private void editString(final TokenType stringType, final State stringState) {
-        // Use special lexer to scan string.
-        final EditStringLexer lexer = new EditStringLexer(this, stringType, stringState);
-        lexer.lexify();
-
-        // Need to keep lexer informed.
-        last = stringType;
-    }
-
-    /**
-     * Scan over a here string.
-     *
-     * @return TRUE if is a here string.
-     */
-    private boolean scanHereString(final LineInfoReceiver lir, final State oldState) {
-        assert ch0 == '<' && ch1 == '<';
-        if (scripting) {
-            // Record beginning of here string.
-            final State saved = saveState();
-
-            // << or <<<
-            final boolean excludeLastEOL = ch2 != '<';
-
-            if (excludeLastEOL) {
-                skip(2);
-            } else {
-                skip(3);
-            }
-
-            // Scan identifier. It might be quoted, indicating that no string editing should take place.
-            final char quoteChar = ch0;
-            final boolean noStringEditing = quoteChar == '"' || quoteChar == '\'';
-            if (noStringEditing) {
-                skip(1);
-            }
-            final int identStart = position;
-            final int identLength = scanIdentifier();
-            if (noStringEditing) {
-                if (ch0 != quoteChar) {
-                    error(Lexer.message("here.non.matching.delimiter"), last, position, position);
-                    restoreState(saved);
-                    return false;
-                }
-                skip(1);
-            }
-
-            // Check for identifier.
-            if (identLength == 0) {
-                // Treat as shift.
-                restoreState(saved);
-
-                return false;
-            }
-
-            // Record rest of line.
-            final State restState = saveState();
-            // keep line number updated
-            int lastLine = line;
-
-            skipLine(false);
-            lastLine++;
-            int lastLinePosition = position;
-            restState.setLimit(position);
-
-            if (oldState.position > position) {
-                restoreState(oldState);
-                skipLine(false);
-            }
-
-            // Record beginning of string.
-            final State stringState = saveState();
-            int stringEnd = position;
-
-            // Hunt down marker.
-            while (!atEOF()) {
-                // Skip any whitespace.
-                skipWhitespace(false);
-
-                //handle trailing blank lines
-                lastLinePosition = position;
-                stringEnd = position;
-
-                if (hasHereMarker(identStart, identLength)) {
-                    break;
-                }
-
-                skipLine(false);
-                lastLine++;
-                lastLinePosition = position;
-                stringEnd = position;
-            }
-
-            // notify last line information
-            lir.lineInfo(lastLine, lastLinePosition);
-
-            // Record end of string.
-            stringState.setLimit(stringEnd);
-
-            // If marker is missing.
-            if (stringState.isEmpty() || atEOF()) {
-                error(Lexer.message("here.missing.end.marker", source.getString(identStart, identLength)), last, position, position);
-                restoreState(saved);
-
-                return false;
-            }
-
-            // Remove last end of line if specified.
-            if (excludeLastEOL) {
-                // Handles \n.
-                if (content[stringEnd - 1] == '\n') {
-                    stringEnd--;
-                }
-
-                // Handles \r and \r\n.
-                if (content[stringEnd - 1] == '\r') {
-                    stringEnd--;
-                }
-
-                // Update end of string.
-                stringState.setLimit(stringEnd);
-            }
-
-            // Edit string if appropriate.
-            if (!noStringEditing && !stringState.isEmpty()) {
-                editString(STRING, stringState);
-            } else {
-                // Add here string.
-                add(STRING, stringState.position, stringState.limit);
-            }
-
-            // Scan rest of original line.
-            final Lexer restLexer = new Lexer(this, restState);
-
-            restLexer.lexify();
-
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * Breaks source content down into lex units, adding tokens to the token
      * stream. The routine scans until the stream buffer is full. Can be called
      * repeatedly until EOF is detected.
@@ -1992,17 +1650,12 @@ public class Lexer extends Scanner {
             }
 
             // ES2023 HashbangComment: "#!" at the very start of the source is a
-            // single-line comment, in both the Script and Module goals and
-            // whether or not -scripting is on (where a bare # is already one).
+            // single-line comment, in both the Script and Module goals.
             if (position == 0 && ch0 == '#' && ch1 == '!') {
                 skip(2);
                 while (!atEOF() && !isEOL(ch0)) {
                     skip(1);
                 }
-                continue;
-            }
-
-            if (scripting && ch0 == '#' && skipComments()) {
                 continue;
             }
 
@@ -2043,7 +1696,7 @@ public class Lexer extends Scanner {
                 skip(typeLength);
                 // Add operator token.
                 add(type, position - typeLength);
-                // Some operator tokens also mark the beginning of regexp, XML, or here string literals.
+                // Some operator tokens also mark the beginning of regexp or XML literals.
                 // We break to let the parser decide what it is.
                 if (canStartLiteral(type)) {
                     break;
@@ -2061,14 +1714,10 @@ public class Lexer extends Scanner {
                 // Scan and add a number.
                 scanNumber();
             } else if (isTemplateDelimiter(ch0)) {
-                // Backquote is a template literal. It used to mean "run this as a
-                // shell command" under -scripting; ECMAScript 2015 gives the
-                // character to template literals, and that wins.
+                // Backquote is a template literal.
                 scanTemplate();
             } else if (ch0 == '#' && (isIdentifierStart(codePointAfterHash()) || ch1 == '\\')) {
-                // ES2022 private name: #name. In -scripting a bare # is a shell
-                // comment (handled above), so this only reaches a # that a
-                // comment scan did not claim. The name may begin with a character
+                // ES2022 private name: #name. The name may begin with a character
                 // outside the basic plane, written as a surrogate pair.
                 scanPrivateIdentifier();
             } else {

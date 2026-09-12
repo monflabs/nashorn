@@ -24,7 +24,6 @@
  /**
   * @bug 8068303
   * @test
-  * @option -scripting
   * @run
   */
 
@@ -33,9 +32,7 @@ load(__DIR__ + "/../assert.js")
 var Parser = Java.type('org.monflabs.nashorn.api.tree.Parser')
 
 
-var code = <<EOF
-    const a= 1;
-EOF
+var code = `    const a= 1;`
 
 try {
     Parser.create().parse("const.js", code, null)
@@ -48,15 +45,13 @@ try {
     fail("Parser failed with exception :" + e)
 }
 
-var code = <<EOF
-    try {
+var code = `    try {
         that()
     } catch (e if e instanceof TypeError) {
         handle()
     } catch (e) {
         rest()
-    }
-EOF
+    }`
 
 try {
     Parser.create("-nse").parse("const.js", code, null)

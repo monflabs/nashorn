@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 function tryIt(code) {
@@ -39,8 +38,7 @@ function tryIt(code) {
 }
 
 
-tryIt(<<CODE
-    function a () {
+tryIt(`    function a () {
         this.val = 41
         let self = this
         this.b = function () {
@@ -48,12 +46,10 @@ tryIt(<<CODE
         }
     }
     c = new a()
-    print(c.b.call(null))
-CODE)
+    print(c.b.call(null))`)
 
 
-tryIt(<<CODE
-        function a () {
+tryIt(`        function a () {
             this.val = 42
             let self = this
             this.b = function () {
@@ -61,11 +57,9 @@ tryIt(<<CODE
             }.bind(self)
         }
         c = new a()
-        print(c.b.call(null))
-CODE)
+        print(c.b.call(null))`)
 
-tryIt(<<CODE
-    function a () {
+tryIt(`    function a () {
         this.val = 43
         const self = this
         this.b = function () {
@@ -73,11 +67,9 @@ tryIt(<<CODE
         }
     }
     c = new a()
-    print(c.b.call(null))
-CODE)
+    print(c.b.call(null))`)
 
-tryIt(<<CODE
-        function a () {
+tryIt(`        function a () {
             this.val = 44
             const self = this
             this.b = function () {
@@ -85,11 +77,9 @@ tryIt(<<CODE
             }.bind(self)
         }
         c = new a()
-        print(c.b.call(null))
-CODE)
+        print(c.b.call(null))`)
 
-tryIt(<<CODE
-       let a = {name : 'test'}
+tryIt(`       let a = {name : 'test'}
        let f = function () {
             print(this.name)
        }
@@ -99,12 +89,10 @@ tryIt(<<CODE
             let a = null
             nf()
        }
-       nf()
-CODE)
+       nf()`)
 
 
-tryIt(<<CODE
-       let arr = []
+tryIt(`       let arr = []
        for (let i = 0; i < 3; i++) {
            arr[i] = function(){return i;}
        }
@@ -119,5 +107,4 @@ tryIt(<<CODE
        }
        for (let i in arr) {
            print(arr[i]())
-       }
-CODE)
+       }`)

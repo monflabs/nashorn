@@ -1,4 +1,4 @@
-#// Usage: jjs resourcetrysuggester.js -- <directory>
+// Usage: nashorn resourcetrysuggester.js -- <directory>
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -40,7 +40,7 @@
 // finally clauses with "close" call and suggests "resource try"!
 
 if (arguments.length == 0) {
-    print("Usage: jjs resourcetrysuggester.js -- <directory>");
+    print("Usage: nashorn resourcetrysuggester.js -- <directory>");
     exit(1);
 }
 

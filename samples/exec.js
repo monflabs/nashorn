@@ -1,5 +1,3 @@
-# exec script requires -scripting mode
-
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2026, Philippe Riand.
@@ -35,18 +33,38 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// The $EXEC builtin function can be used to run external commands:
-$EXEC("ls")
-$EXEC("ls -la")
+/*
+ * A small replacement for the $EXEC function the removed scripting mode used
+ * to install: runs an external command and returns its standard output.
+ *
+ * The exit status is left in exec.exitCode and the standard error in exec.err.
+ * Set exec.throwOnError to throw on a non-zero exit status instead.
+ *
+ * Usage: load("exec.js") from a script that needs it.
+ */
 
-// It can also be given a string to use as stdin:
-$EXEC("cat", "Hello, world!")
+function exec(command, input) {
+    var ProcessBuilder = Java.type("java.lang.ProcessBuilder");
+    var StandardCharsets = Java.type("java.nio.charset.StandardCharsets");
 
-// Arguments can be passed as an array of strings
-$EXEC(["ls","-l","-a"]);
+    var args = Array.isArray(command) ? command : String(command).split(/\s+/);
+    var process = new ProcessBuilder(Java.to(args, "java.lang.String[]")).start();
 
-// Output of running external commands is returned from $EXEC:
-print($EXEC("ls"))
+    if (input !== undefined) {
+        process.outputStream.write(String(input).getBytes(StandardCharsets.UTF_8));
+    }
+    process.outputStream.close();
 
-// apply on $EXEC
-print($EXEC.apply(this, ["ls"]));
+    var out = new java.lang.String(process.inputStream.readAllBytes(), StandardCharsets.UTF_8);
+    var err = new java.lang.String(process.errorStream.readAllBytes(), StandardCharsets.UTF_8);
+    var code = process.waitFor();
+
+    exec.out = String(out);
+    exec.err = String(err);
+    exec.exitCode = code;
+
+    if (exec.throwOnError && code != 0) {
+        throw new Error("command failed (" + code + "): " + command + "\n" + exec.err);
+    }
+    return exec.out;
+}

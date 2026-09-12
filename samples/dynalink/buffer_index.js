@@ -1,4 +1,4 @@
-# Usage: jjs -cp buffer_indexing_linker.jar buffer_index.js
+// Usage: nashorn -cp buffer_indexing_linker.jar buffer_index.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.

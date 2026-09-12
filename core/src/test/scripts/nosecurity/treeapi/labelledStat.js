@@ -26,23 +26,20 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 begin: { for (;;) break begin };
 begin: { while (true) break begin };
 begin: while (false) continue begin;
 begin: for (;;) continue begin;
 begin: do continue begin; while(false);
 begin: { do break begin; while(true);};
-
-EOF
+`
 
 parse("labeledStat.js", code, "-nse", new (Java.extend(visitor, {
     visitLabeledStatement : function (node, obj) {

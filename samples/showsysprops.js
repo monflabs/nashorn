@@ -1,4 +1,4 @@
-#// Usage: jjs -fx showsysprops.js
+// Usage: nashorn -fx showsysprops.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -fx showsysprops.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx showsysprops.js");
     exit(1);
 }
 
@@ -56,20 +56,17 @@ function start(stage) {
     var sysproprows = "";
     var sysprops = System.properties;
     for (var i in sysprops) {
-        sysproprows += <<TBL
-<tr>
+        sysproprows += `<tr>
 <td>
 ${i}
 </td>
 <td>
 ${sysprops[i]}
 </td>
-</tr>
-TBL
+</tr>`
     }
 
-    wv.engine.loadContent(<<EOF
-<html>
+    wv.engine.loadContent(`<html>
 <head>
 <title>
 Your System Properties
@@ -81,8 +78,7 @@ Your System Properties
 ${sysproprows}
 </table>
 </body>
-</html>
-EOF, "text/html");
+</html>`, "text/html");
     stage.scene = new Scene(wv, 750, 500);
     stage.show();
 }

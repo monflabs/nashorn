@@ -34,7 +34,7 @@
  */
 
 if (arguments.length == 0) {
-   print("Usage: jjs zipfs.js -- <.zip/.jar file>")
+   print("Usage: nashorn zipfs.js -- <.zip/.jar file>")
    exit(1)
 }
 

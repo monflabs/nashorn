@@ -20,7 +20,7 @@ That is the reason it cannot be a public extension point:
 
 - **It is the engine's contract with itself.** The layout of a `ScriptObject`, the meaning of a map,
   the ordering rules between handlers — all of it changes when the engine changes, with no
-  compatibility promise. It is exported only to the shell module.
+  compatibility promise. It is exported only to the `node` module, by name.
 - **It needs the build.** A `ScriptObject` class is finished by nasgen at `process-classes`, from
   annotations that are themselves internal, and instantiated by `Global` per realm by naming
   convention. None of that exists outside the engine's own build.
@@ -38,7 +38,7 @@ platform with `JSObject`.
 
 | | `JSObject` (public) | `ScriptObject` (internal) |
 | --- | --- | --- |
-| Where | `org.monflabs.nashorn.api.scripting`; implement it, or extend `AbstractJSObject` | `internal.runtime`, exported to the shell only; a `@ScriptClass` finished by nasgen |
+| Where | `org.monflabs.nashorn.api.scripting`; implement it, or extend `AbstractJSObject` | `internal.runtime`, exported to the `node` module only; a `@ScriptClass` finished by nasgen |
 | Who | any Java code: embedders, libraries, `ScriptLibrary` providers | the engine and its standard libraries |
 | Property access | your `getMember`/`setMember`/`hasMember`/`removeMember`, called on every access | a slot in a hidden-class shape, linked once per call site |
 | Prototype chain | **none** — nothing is inherited, `Object.getPrototypeOf` is `null` | a real `[[Prototype]]`; methods on the prototype, `instanceof` through the chain |

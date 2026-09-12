@@ -1,4 +1,4 @@
-#// Usage: jjs -fx time_color.js [-- true/false]
+// Usage: nashorn -fx time_color.js [-- true/false]
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -39,9 +39,9 @@
 // of scene based on current time value (once per sec).
 // inspired by http://whatcolourisit.scn9a.org/
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -fx time_color.js");
-    print("       jjs -fx time_color.js -- true");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx time_color.js");
+    print("       nashorn -fx time_color.js -- true");
     exit(1);
 }
 

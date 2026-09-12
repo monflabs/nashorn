@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting greeting.js
+// Usage: nashorn greeting.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.

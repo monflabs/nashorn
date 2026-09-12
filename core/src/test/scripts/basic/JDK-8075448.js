@@ -26,7 +26,6 @@
  * loop after for loop statement tree object
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -35,10 +34,8 @@ var ForLoopTree = Java.type("org.monflabs.nashorn.api.tree.ForLoopTree");
 var VariableTree = Java.type("org.monflabs.nashorn.api.tree.VariableTree");
 var parser = Parser.create();
 
-var code = <<EOF
-for (var i = 0; i < 10; i++)
-    print("hello");
-EOF;
+var code = `for (var i = 0; i < 10; i++)
+    print("hello");`;
 
 var ast = parser.parse("test.js", code, print);
 var stats = ast.sourceElements;

@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 var a = function () {}
 var b = function (x, y) {}
 var c = function (x, y) {"use strict"}
 var e = function () { return function (){"use strict"}}
 
-
-EOF
+`
 
 parse("functionExpr.js", code, "-nse", new (Java.extend(visitor, {
     visitFunctionExpression : function (node, obj) {

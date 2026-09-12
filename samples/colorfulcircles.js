@@ -69,7 +69,7 @@
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-// Usage: jjs -fx colorfulcircles.fx
+// Usage: nashorn -fx colorfulcircles.fx
 
 // Porting note: No imports - just load these fx scripts!
 load("fx:controls.js");

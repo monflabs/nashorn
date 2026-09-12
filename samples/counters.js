@@ -37,11 +37,11 @@
  * This file can be run along with any script you want to run
  * to print aggregate stat counters from nashorn.
  *
- * Usage:  jjs -J-Dnashorn.debug <your-file.js> counters.js
+ * Usage:  nashorn -J-Dnashorn.debug <your-file.js> counters.js
  */
 
 if (java.lang.System.getProperty("nashorn.debug") == null) {
-    print("Usage: jjs -J-Dnashorn.debug <your-file.js> counters.js");
+    print("Usage: nashorn -J-Dnashorn.debug <your-file.js> counters.js");
 } else {
     Debug.dumpCounters();
 }

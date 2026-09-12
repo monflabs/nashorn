@@ -25,7 +25,6 @@
  * JDK-8019947: inherited property invalidation does not work with two globals in same context
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -43,8 +42,7 @@ func(arr);
 
 var global = loadWithNewGlobal({
    name: "t",
-   script: <<EOF
-
+   script: `
 
 function func(arr) {
    try {
@@ -63,6 +61,5 @@ delete Array.prototype.toString;
 // Object.prototype.toString should be visible
 // after Array.prototype.toString is deleted.
 func(arr);
-this;
-EOF
+this;`
 });

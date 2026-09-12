@@ -25,14 +25,12 @@
  * Tests to check representation of ES6 catch parameter as binding pattern.
  *
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 try { throw null;} catch({}) { }
 try { throw {} } catch ({}) { }
 try { throw [] } catch ([,]) { }
@@ -40,8 +38,7 @@ try { throw { w: [7, undefined, ] }} catch ({ w: [x, y, z] = [4, 5, 6] }) { }
 try { throw { a: 2, b: 3} } catch ({a, b}) { }
 try { throw [null] } catch ([[x]]) { }
 try { throw { w: undefined } } catch ({ w: { x, y, z } = { x: 4, y: 5, z: 6 } }) { }
-
-EOF
+`
 
 parse("destructuring_catch.js", code, undefined, new (Java.extend(visitor_es6, {
     visitCatch : function (node, obj) {

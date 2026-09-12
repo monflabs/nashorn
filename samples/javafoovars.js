@@ -1,4 +1,4 @@
-#// Usage: jjs javafoovars.js -- <directory>
+// Usage: nashorn javafoovars.js -- <directory>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -39,7 +39,7 @@
 // and javac Compiler and Tree API. This example counts number
 // of variables called "foo" in the given java source files!
 if (arguments.length == 0) {
-    print("Usage: jjs javafoovars.js -- <directory>");
+    print("Usage: nashorn javafoovars.js -- <directory>");
     exit(1);
 }
 

@@ -33,7 +33,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs array_mapreduce.js
+// Usage: nashorn array_mapreduce.js
 
 // Many Array.prototype functions such as map,
 // filter, reduce, reduceRight, every, some are generic.

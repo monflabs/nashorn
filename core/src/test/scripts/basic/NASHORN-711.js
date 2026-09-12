@@ -25,7 +25,6 @@
  * NASHORN-711 - Strings broken to multiple lines throw out the line numbering.
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -40,11 +39,9 @@ try {
     print("thrown in line:", error.lineNumber);
 }
 
-<<END
-aaaaaaaaa
+`aaaaaaaaa
 bbbbbbbbb
-ccccccccc
-END
+ccccccccc`
 
 print("current line:", new java.lang.Throwable().getStackTrace()[0].getLineNumber());
 try {

@@ -26,22 +26,19 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 new Object()
 new Array()
 new function (a,b,c) {}
 new func
 new obj.init
-
-EOF
+`
 
 parse("new.js", code, "-nse", new (Java.extend(visitor, {
     visitNew : function (node, obj) {

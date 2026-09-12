@@ -25,7 +25,6 @@
  * JDK-8055762: Nashorn misses linker for netscape.javascript.JSObject instances
  *
  * @test
- * @option -scripting
  * @run
  */
 

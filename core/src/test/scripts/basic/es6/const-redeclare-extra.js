@@ -27,7 +27,6 @@
  * @test
  * @run
  *
- * @option -scripting
  */
 
 
@@ -39,21 +38,15 @@ function tryIt (code) {
     }
 }
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     const x = 2;
-    var x = {};
-CODE)
+    var x = {};`)
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     var x = 2;
-    const x = {};
-CODE)
+    const x = {};`)
 
-tryIt(<<CODE
-    "use strict";
+tryIt(`    "use strict";
     function x () {}
-    const x = 5;
-CODE)
+    const x = 5;`)
 

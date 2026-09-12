@@ -60,7 +60,7 @@ var SimpleTreeVisitor = Java.type("org.monflabs.nashorn.api.tree.SimpleTreeVisit
 var System = Java.type("java.lang.System");
 
 // make a nashorn parser
-var parser = Parser.create("-scripting", "--const-as-var");
+var parser = Parser.create("--const-as-var");
 
 // symbols for nashorn operators
 var operatorSymbols = {

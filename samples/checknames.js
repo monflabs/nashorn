@@ -39,10 +39,10 @@
 // 'too short' names. You can customize checkXYZName functions to
 // have arbitrary name pattern checks.
 
-// Usage: jjs checknames.js -- <directory>
+// Usage: nashorn checknames.js -- <directory>
 
 if (arguments.length == 0) {
-    print("Usage: jjs checknames.js -- <directory>");
+    print("Usage: nashorn checknames.js -- <directory>");
     exit(1);
 }
 

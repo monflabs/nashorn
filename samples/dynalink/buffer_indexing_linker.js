@@ -1,4 +1,4 @@
-# buffer indexing linker example
+// buffer indexing linker example
 
 /*
  * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
@@ -38,10 +38,11 @@
 // This script assumes you've built jdk9 or using latest
 // jdk9 image and put the 'bin' directory in the PATH
 
-$EXEC.throwOnError=true
+load("../exec.js");
+exec.throwOnError = true;
 
 // compile BufferIndexingLinkerExporter
-`javac BufferIndexingLinkerExporter.java`
+exec("javac BufferIndexingLinkerExporter.java");
 
 load("jarutil.js");
 
@@ -51,5 +52,5 @@ makeJar("buffer_indexing_linker.jar");
 // run a sample script that uses pluggable linker
 // but make sure classpath points to the pluggable linker jar!
 
-`jjs -cp buffer_indexing_linker.jar buffer_index.js`
-print($OUT)
+exec("nashorn -cp buffer_indexing_linker.jar buffer_index.js");
+print(exec.out)

@@ -26,23 +26,20 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 function a () {}
 function d(){
     function e () {print(a)}
 }
 function f(a, b){print(a)}
 function j(a, b){"use strict";}
-
-EOF
+`
 
 parse("functionDeclaration.js", code, "-nse", new (Java.extend(visitor, {
     visitFunctionDeclaration : function (node, obj) {

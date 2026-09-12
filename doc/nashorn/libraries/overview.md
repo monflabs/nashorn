@@ -32,8 +32,8 @@ ScriptEngine engine = new NashornScriptEngineBuilder().library(new HostLibrary()
 ScriptEngine restricted = new NashornScriptEngineBuilder().library(new HostLibrary()).build();
 ```
 
-The `jjs` shell is the exception among the tools in this repo: it installs both by default, since it
-is a REPL you invoked yourself (`--std-libraries=false` for a bare shell). See [jjs](../reference/jjs.md).
+The shell is the exception among the tools in this repo: it installs both by default, since it
+is a REPL you invoked yourself (`--std-libraries=false` for a bare shell). See [The shell](../reference/shell.md).
 
 ## The event loop
 
@@ -50,7 +50,7 @@ microtasks it produced.
 `Promise`, `async`/`await`, async generators, the timers, `queueMicrotask` and `fetch` — throws a
 `TypeError` the moment it is used, rather than quietly scheduling work that would never run. A
 purely synchronous embedder, whose scripts never wait, keeps the loop off and pays nothing for it;
-anything asynchronous turns it on. `jjs` turns it on for you alongside the standard libraries (and
+anything asynchronous turns it on. The shell turns it on for you alongside the standard libraries (and
 `--no-std-libraries` turns both back off).
 
 The consequence for an embedder is the one rule worth remembering: **`eval` returns when the script

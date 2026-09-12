@@ -164,13 +164,9 @@ module org.monflabs.nashorn {
     uses org.monflabs.nashorn.api.debugger.DebuggerFrontend;
 
     exports org.monflabs.nashorn.internal.runtime to
-        org.monflabs.nashorn.shell,
         org.monflabs.nashorn.modules.node;
     exports org.monflabs.nashorn.internal.objects to
-        org.monflabs.nashorn.shell,
         org.monflabs.nashorn.modules.node;
-    exports org.monflabs.nashorn.tools to
-        org.monflabs.nashorn.shell;
 
     provides javax.script.ScriptEngineFactory with
         org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;

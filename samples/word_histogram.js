@@ -1,4 +1,4 @@
-#nashorn word histogram of a file
+// nashorn word histogram of a file
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -42,7 +42,7 @@
  */
 
 if (arguments.length < 1) {
-    print("Usage: jjs -scripting word_histogram.js -- <file>");
+    print("Usage: nashorn word_histogram.js -- <file>");
     exit(1);
 }
 

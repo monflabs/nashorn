@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting -fx nashornastviewer.js -- <scriptfile>
+// Usage: nashorn -fx nashornastviewer.js -- <scriptfile>
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -35,10 +35,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-# NOTE: This script requires JDK 9 build to run
+// NOTE: This script requires JDK 9 build to run
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -scripting -fx nashornastviewer.js -- <.js file>");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx nashornastviewer.js -- <.js file>");
     exit(1);
 }
 
@@ -101,7 +101,7 @@ function treeItemForASTNode(ast, name) {
 // do we have a script file passed? if not, use current script
 var sourceName = arguments.length == 0? __FILE__ : arguments[0];
 
-var parser = Parser.create("-scripting");
+var parser = Parser.create();
 // parse script to get CompilationUnitTree of it
 var ast = parser.parse(new File(sourceName), null);
 

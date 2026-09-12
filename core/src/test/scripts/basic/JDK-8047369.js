@@ -26,7 +26,6 @@
  *
  * @test
  * @run
- * @option -scripting
  */
 
 function makeFuncAndCall(code) {
@@ -74,8 +73,7 @@ makeFuncAndCall("/*infloop*/L:while(x+=null) { this;var x = /x/g ; }");
 makeFuncAndCall("while((x1|=0.1) && 0) { var x1 = -0, functional; }");
 makeFuncAndCall("with({}) return (eval(\"arguments\"));");
 
-evalExpectValue(<<CODE
-    var s = "(function() { return y })()";
+evalExpectValue(`    var s = "(function() { return y })()";
     (function() {
         with({ y:1 })
             eval(s)
@@ -85,25 +83,21 @@ evalExpectValue(<<CODE
             get y() { return "get"; }
         })
         return eval(s)
-    })();
-CODE, "get");
+    })();`, "get");
 
 // bug JDK-8047359
 // evalExpectValue("s = ' '; for (var i=0;i<31;++i) s+=s; s.length", RangeError);
 
-evalExpectValue(<<CODE
-    function f(o) {
+evalExpectValue(`    function f(o) {
         var eval=0;
         with({
             get eval() { return o.eval }
         })
         return eval("1+2");
     }
-    f(this);
-CODE, 3)
+    f(this);`, 3)
 
-evalExpectValue(<<CODE
-    function f() {
+evalExpectValue(`    function f() {
         var a=1,e=2;
         try {
             throw 3
@@ -111,8 +105,7 @@ evalExpectValue(<<CODE
             return + function g(){return eval('a+e')}()
         }
     }
-    f();
-CODE, 4);
+    f();`, 4);
 
 //evalExpectValue(
 // "function f(){var a=1; with({get a(){return false}}) return a}; f()", false);
@@ -124,47 +117,39 @@ evalExpectError("function f() { switch(x) {} } f()", ReferenceError);
 // bug JDK-8047364
 // makeFuncAndCall("L1:try { return } finally { break L1 }");
 
-evalExpectValue(<<CODE
-    function f() {
+evalExpectValue(`    function f() {
         function g() { return 0 }
         function g() { return 1 }
         function g$1() { return 2 }
         return g$1()
     }
 
-    f();
-CODE, 2);
+    f();`, 2);
 
-evalExpectValue(<<CODE
-    function f() {
+evalExpectValue(`    function f() {
         function g() {return 0 }
         var h = function g() { return 1 };
         function g$1() { return 2 };
         return h()
     }
 
-    f()
-CODE, 1);
+    f()`, 1);
 
-evalExpectValue(<<CODE
-    function f() {
+evalExpectValue(`    function f() {
         var obj = { get ":"() {} }
         var desc = Object.getOwnPropertyDescriptor(obj, ":")
         return desc.get.name
     }
 
-    f()
-CODE, "get :");
+    f()`, "get :");
 
-evalExpectValue(<<CODE
-    function f() {
+evalExpectValue(`    function f() {
         var obj = { set ":"(a) {} };
         var desc = Object.getOwnPropertyDescriptor(obj, ":");
         return desc.set;
     }
 
-    f()
-CODE, "set \":\"(a) {}");
+    f()`, "set \":\"(a) {}");
 
 // bug JDK-8047366
 evalExpectValue("(1000000000000000128).toString()", "1000000000000000100");

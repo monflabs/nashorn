@@ -1,4 +1,4 @@
-#// Usage: jjs -fx javaastviewer.js -- <.java files>
+// Usage: nashorn -fx javaastviewer.js -- <.java files>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -39,8 +39,8 @@
 // and javac Compiler and Tree API. This example also uses
 // -fx and javafx TreeView to visualize Java AST as TreeView
 
-if (!$OPTIONS._fx || arguments.length == 0) {
-    print("Usage: jjs -fx javaastviewer.js -- <.java files>");
+if (typeof $STAGE == "undefined" || arguments.length == 0) {
+    print("Usage: nashorn -fx javaastviewer.js -- <.java files>");
     exit(1);
 }
 

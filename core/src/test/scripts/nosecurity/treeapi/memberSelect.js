@@ -26,21 +26,18 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 object.field
 object.method()
 this.null
 Array.prototype
-
-EOF
+`
 
 parse("memberSelect.js", code, "-nse", new (Java.extend(visitor, {
     visitMemberSelect : function (node, obj) {

@@ -38,10 +38,11 @@
 // This script assumes you've built jdk9 or using latest
 // jdk9 image and put the 'bin' directory in the PATH
 
-$EXEC.throwOnError=true
+load("../exec.js");
+exec.throwOnError = true;
 
 // compile DOMLinkerExporter
-`javac DOMLinkerExporter.java`
+exec("javac DOMLinkerExporter.java");
 
 load("jarutil.js");
 
@@ -51,4 +52,4 @@ makeJar("dom_linker.jar");
 // run a sample script that uses pluggable linker
 // but make sure classpath points to the pluggable linker jar!
 
-`jjs -cp dom_linker.jar dom_linker_gutenberg.js`
+exec("nashorn -cp dom_linker.jar dom_linker_gutenberg.js");

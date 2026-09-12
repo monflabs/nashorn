@@ -36,7 +36,7 @@
 // print default methods of a Java class
 
 if (arguments.length == 0) {
-   print("Usage: jjs defaults.js -- <java class name>");
+   print("Usage: nashorn defaults.js -- <java class name>");
    exit(1);
 }
 

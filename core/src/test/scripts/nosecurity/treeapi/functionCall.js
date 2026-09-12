@@ -26,15 +26,13 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 func1()
 func2(a, b, c)
 func3(4, n * m);
@@ -44,8 +42,7 @@ obj.call(x, b());
 (function(){"use strict";})();
 (function(){})(2);
 (function(a, b){})(2);
-
-EOF
+`
 
 parse("functionCall.js", code, "-nse", new (Java.extend(visitor, {
     visitFunctionCall : function (node, obj) {

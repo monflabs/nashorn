@@ -8,7 +8,6 @@
   - [Custom objects and extensions](/guide/custom-objects.md)
   - [Dynalink custom linkers](/guide/dynalink-linkers.md)
   - [ES modules](/guide/modules.md)
-  - [Scripting mode](/guide/scripting-mode.md)
   - [The parser API](/guide/parser-api.md)
   - [Threads and concurrency](/guide/concurrency.md)
   - [Debugging scripts](/guide/debugging.md)
@@ -47,6 +46,6 @@
 - **Reference**
   - [Command-line options](/reference/options.md)
   - [Built-in globals](/reference/builtins.md)
-  - [jjs and the shell](/reference/jjs.md)
+  - [The shell](/reference/shell.md)
   - [Logging and debugging](/reference/debugging.md)
   - [Conformance](/reference/conformance.md)

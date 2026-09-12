@@ -25,7 +25,6 @@
  * JDK-8015969: Needs to enforce and document that global "context" and "engine" can't be modified when running via jsr223
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -33,8 +32,7 @@ var m = new javax.script.ScriptEngineManager();
 var e = m.getEngineByName("nashorn-monflabs");
 
 e.put("fail", fail);
-e.eval(<<EOF
-
+e.eval(`
 'use strict';
 
 try {
@@ -56,5 +54,4 @@ try {
         fail("SyntaxError expected but got " + e);
     }
 }
-
-EOF);
+`);

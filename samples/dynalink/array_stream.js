@@ -1,4 +1,4 @@
-# Usage: jjs -cp array_stream_linker.jar array_stream.js
+// Usage: nashorn -cp array_stream_linker.jar array_stream.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -36,7 +36,7 @@
  */
 
 // This script depends on array stream dynalink linker
-// to work as expected. Without that linker in jjs classpath,
+// to work as expected. Without that linker in nashorn classpath,
 // this script will fail to run.
 
 // Object[] and then Stream

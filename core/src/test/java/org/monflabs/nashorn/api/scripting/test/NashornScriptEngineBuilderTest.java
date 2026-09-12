@@ -60,7 +60,6 @@ public class NashornScriptEngineBuilderTest {
     public void theNamedOptions() throws ScriptException {
         assertEquals(new NashornScriptEngineBuilder().annexB(false).build().eval("typeof escape"), "undefined");
         assertEquals(new NashornScriptEngineBuilder().strict(true).build().eval("try { undeclared = 1; 'assigned' } catch (e) { e.name }"), "ReferenceError");
-        assertEquals(new NashornScriptEngineBuilder().scripting(true).build().eval("var x = <<EOS\nheredoc\nEOS\nx.trim()"), "heredoc");
         assertEquals(new NashornScriptEngineBuilder().eventLoop(true).build().eval("typeof Promise.resolve(1).then"), "function");
         assertEquals(new NashornScriptEngineBuilder().build().eval("typeof setTimeout + typeof fetch"), "undefinedundefined");
         assertEquals(new NashornScriptEngineBuilder().library(new HostLibrary()).build().eval("typeof setTimeout + ' ' + typeof fetch"), "function undefined");

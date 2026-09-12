@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting callmethod.js
+// Usage: nashorn callmethod.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -46,8 +46,7 @@ var engine = manager.getEngineByName("js");
 
 // eval code - too many script escapes?
 // use heredoc !
-engine.eval(<<CODE
-    var obj = {
+engine.eval(String.raw`    var obj = {
         func: function() {
             print("I am func of " + this);
         },
@@ -55,8 +54,7 @@ engine.eval(<<CODE
         toString: function() {
             return "Object 'obj'";
         }
-   };
-CODE);
+   };`);
 
 // invoke methods of an object in script world
 // from javax.script.Invocable interface. But, hey,

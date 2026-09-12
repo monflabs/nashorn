@@ -1,4 +1,4 @@
-#// Usage: jjs -cp underscore_linker.jar -scripting underscore.js
+// Usage: nashorn -cp underscore_linker.jar underscore.js
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.

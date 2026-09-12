@@ -1,4 +1,4 @@
-#// Usage: jjs find_nonfinals2.js -- <directory>
+// Usage: nashorn find_nonfinals2.js -- <directory>
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -40,7 +40,7 @@
 // parameters without "final" keyword and prints info on those.
 
 if (arguments.length == 0) {
-    print("Usage: jjs find_nonfinals2.js -- <directory>");
+    print("Usage: nashorn find_nonfinals2.js -- <directory>");
     exit(1);
 }
 

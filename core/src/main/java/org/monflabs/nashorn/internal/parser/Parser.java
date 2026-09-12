@@ -236,9 +236,6 @@ public class Parser extends AbstractParser implements Loggable {
     /** Current env. */
     private final ScriptEnvironment env;
 
-    /** Is scripting mode. */
-    private final boolean scripting;
-
     private List<Statement> functionDeclarations;
 
     private final ParserContext lc;
@@ -258,9 +255,6 @@ public class Parser extends AbstractParser implements Loggable {
     private final Namespace namespace;
 
     private final DebugLogger log;
-
-    /** to receive line information from Lexer when scanning multine literals. */
-    protected final Lexer.LineInfoReceiver lineInfoReceiver;
 
     private RecompilableScriptFunctionData reparsedFunction;
 
@@ -357,17 +351,6 @@ public class Parser extends AbstractParser implements Loggable {
         this.defaultNames = new ArrayDeque<>();
         this.env = env;
         this.namespace = new Namespace(env.getNamespace());
-        this.scripting = env._scripting;
-        if (this.scripting) {
-            this.lineInfoReceiver = (receiverLine, receiverLinePosition) -> {
-                // update the parser maintained line information
-                Parser.this.line = receiverLine;
-                Parser.this.linePosition = receiverLinePosition;
-            };
-        } else {
-            // non-scripting mode script can't have multi-line literals
-            this.lineInfoReceiver = null;
-        }
 
         this.log = log == null ? DebugLogger.DISABLED_LOGGER : log;
     }
@@ -446,7 +429,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
+            lexer  = new Lexer(source, startPos, len, stream, env._annexB, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -493,7 +476,7 @@ public class Parser extends AbstractParser implements Loggable {
             stream = new TokenStream();
             // B.1.1's HTML-like comments are for scripts: 11.4 has them in
             // InputElementHashbangOrRegExp and not in a module's goal symbol
-            lexer  = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, false, reparsedFunction != null);
+            lexer  = new Lexer(source, startPos, len, stream, false, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
 
@@ -527,7 +510,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFormalParameterList() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, 0, source.getLength(), stream, scripting && !env._no_syntax_extensions, env._annexB, false);
+            lexer  = new Lexer(source, 0, source.getLength(), stream, env._annexB, false);
 
             scanFirstToken();
 
@@ -547,7 +530,7 @@ public class Parser extends AbstractParser implements Loggable {
     public void parseFunctionBody() {
         try {
             stream = new TokenStream();
-            lexer  = new Lexer(source, 0, source.getLength(), stream, scripting && !env._no_syntax_extensions, env._annexB, false);
+            lexer  = new Lexer(source, 0, source.getLength(), stream, env._annexB, false);
             final int functionLine = line;
 
             scanFirstToken();
@@ -2193,7 +2176,7 @@ public class Parser extends AbstractParser implements Loggable {
     public FunctionNode reparseFieldInitializer(final String scriptName, final int startPos, final int len, final int reparseFlags) {
         try {
             stream = new TokenStream();
-            lexer = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
+            lexer = new Lexer(source, startPos, len, stream, env._annexB, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
             scanFirstToken();
@@ -2302,7 +2285,7 @@ public class Parser extends AbstractParser implements Loggable {
     public FunctionNode reparseStaticBlock(final String scriptName, final int startPos, final int len, final int reparseFlags) {
         try {
             stream = new TokenStream();
-            lexer = new Lexer(source, startPos, len, stream, scripting && !env._no_syntax_extensions, env._annexB, reparsedFunction != null);
+            lexer = new Lexer(source, startPos, len, stream, env._annexB, reparsedFunction != null);
             lexer.line = lexer.pendingLine = lineOffset + 1;
             line = lineOffset;
             scanFirstToken();
@@ -4133,7 +4116,7 @@ public class Parser extends AbstractParser implements Loggable {
 
         default:
             // In this context some operator tokens mark the start of a literal.
-            if (lexer.scanLiteral(primaryToken, type, lineInfoReceiver)) {
+            if (lexer.scanLiteral(primaryToken, type)) {
                 next();
                 return getLiteral();
             }
@@ -6033,7 +6016,7 @@ public class Parser extends AbstractParser implements Loggable {
         }
 
         stream.reset();
-        lexer = parserState.createLexer(source, lexer, stream, scripting && !env._no_syntax_extensions, env._annexB);
+        lexer = parserState.createLexer(source, lexer, stream, env._annexB);
         line = parserState.line;
         linePosition = parserState.linePosition;
         // Doesn't really matter, but it's safe to treat it as if there were a semicolon before
@@ -6061,9 +6044,9 @@ public class Parser extends AbstractParser implements Loggable {
             this.linePosition = linePosition;
         }
 
-        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream, final boolean scripting,
+        Lexer createLexer(final Source source, final Lexer lexer, final TokenStream stream,
                 final boolean annexB) {
-            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, scripting, annexB, true);
+            final Lexer newLexer = new Lexer(source, position, lexer.limit - position, stream, annexB, true);
             newLexer.restoreState(new Lexer.State(position, Integer.MAX_VALUE, line, -1, linePosition, SEMICOLON));
             return newLexer;
         }

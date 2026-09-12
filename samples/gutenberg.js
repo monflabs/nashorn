@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting gutenberg.js
+// Usage: nashorn gutenberg.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -109,11 +109,9 @@ function getBooksHtml() {
     // that is filled with elements from runtime objects.
     // We insert title and link in <li> elements here.
     for each (i in items) {
-        str += <<EOF
-<li>
+        str += `<li>
     <a href="${i.link}">${i.title}</a>
-</li>
-EOF
+</li>`
     }
     str += "</ul>";
     return str;

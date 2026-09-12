@@ -13,7 +13,7 @@ Globals; compiled code belongs to the Context and runs against whichever Global 
 | Class loaders and the compiled-class cache (per-`Source`, LRU, `--class-cache-size`) | The global lexical scope (`let`/`const` at top level) and its invalidation switch point |
 | The persistent code store (`--persistent-code-cache`) | The [job queue](generators-async.md#the-job-queue) — microtasks are per realm |
 | The Dynalink [`DynamicLinker`](linking.md) and discovered custom linkers | The [module registry](modules.md) — one record per specifier per realm |
-| The `ClassFilter` and application class loader | The live generator set, `$OPTIONS`/`$ENV` when scripting |
+| The `ClassFilter` and application class loader | The live generator set |
 | Builtin switch points (invalidated when a builtin is redefined) | |
 | `GlobalConstants` (see below) | |
 

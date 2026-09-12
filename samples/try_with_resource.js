@@ -36,7 +36,7 @@
 /* This sample implements Java-like try..with..resource construct for nashorn */
 
 if (arguments.length == 0) {
-    print("Usage: jjs try_with_resource.js -- <file name>");
+    print("Usage: nashorn try_with_resource.js -- <file name>");
     exit(1);
 }
 

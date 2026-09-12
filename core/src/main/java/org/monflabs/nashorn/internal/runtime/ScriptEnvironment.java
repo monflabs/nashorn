@@ -204,9 +204,6 @@ public final class ScriptEnvironment {
     /** print symbols and their contents for the script */
     public final boolean _print_symbols;
 
-    /** is this environment in scripting mode? */
-    public final boolean _scripting;
-
     /** is this environment in strict mode? */
     public final boolean _strict;
 
@@ -316,7 +313,6 @@ public final class ScriptEnvironment {
         _print_parse          = options.getBoolean("print.parse");
         _print_lower_parse    = options.getBoolean("print.lower.parse");
         _print_symbols        = options.getBoolean("print.symbols");
-        _scripting            = options.getBoolean("scripting");
         _strict               = options.getBoolean("strict");
         _version              = options.getBoolean("version");
         _verify_code          = options.getBoolean("verify.code");

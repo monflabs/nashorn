@@ -1,4 +1,4 @@
-#// Usage: jjs -fx browser_dom.js
+// Usage: nashorn -fx browser_dom.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -35,8 +35,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-if (!$OPTIONS._fx) {
-    print("Usage: jjs -fx browser_dom.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx browser_dom.js");
     exit(1);
 }
 
@@ -49,8 +49,7 @@ var WebView   = Java.type("javafx.scene.web.WebView");
 function start(stage) {
     stage.title = "Web View";
     var wv = new WebView();
-    wv.engine.loadContent(<<EOF
-<html>
+    wv.engine.loadContent(String.raw`<html>
 <head>
 <title>
 This is the title
@@ -64,8 +63,7 @@ var okCount = 0;
 Button from the input html<br>
 <button type="button" onclick="okCount++">OK</button><br>
 </body>
-</html>
-EOF, "text/html");
+</html>`, "text/html");
 
     // attach onload handler
     wv.engine.loadWorker.stateProperty().addListener(

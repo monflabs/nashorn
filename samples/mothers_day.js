@@ -1,4 +1,4 @@
-# compute Mothers day of the given the year
+// compute Mothers day of the given the year
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -38,7 +38,7 @@
 // print "Mother's day" of the given year using Java Time API
 
 if (arguments.length == 0) {
-    print("Usage: jjs mothers_day.js -- year");
+    print("Usage: nashorn mothers_day.js -- year");
     exit(1);
 }
 

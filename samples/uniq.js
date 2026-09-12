@@ -33,8 +33,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Usage: jjs uniq.js
-// or: jjs uniq.js -- <file>
+// Usage: nashorn uniq.js
+// or: nashorn uniq.js -- <file>
 
 // omit repeated lines and print unique lines
 

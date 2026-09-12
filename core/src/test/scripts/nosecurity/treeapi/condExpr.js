@@ -26,17 +26,14 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-
+var code = `
 a? b : c;
-
-EOF
+`
 
 parse("condExpr.js", code, "-nse", new (Java.extend(visitor, {
     visitConditionalExpression : function (node, obj) {

@@ -24,7 +24,6 @@
 /**
  * JDK-8157680: Callback parameter of any JS builtin implementation should accept any Callable
  *
- * @option -scripting
  * @test
  * @run
  */
@@ -33,13 +32,11 @@ var SM = Java.type("javax.script.ScriptEngineManager")
 var engine = new SM().getEngineByName("nashorn-monflabs")
 
 engine.put("output", print);
-var reviver = engine.eval(<<EOF
-function(name, value) {
+var reviver = engine.eval(`function(name, value) {
    if (name == "") return value
    output(name + " = " + value)
    return value
-}
-EOF)
+}`)
 
 // reviver function from mirror world!
 JSON.parse('{ "foo" : 44, "bar" : "hello" }', reviver)
@@ -57,9 +54,7 @@ JSON.parse('{ "nashorn" : "hello" }', new AJO() {
 })
 
 // compare function from the mirror world
-var arr = [34,567,-3, 53].sort(engine.eval(<<EOF
-    function(x, y) x < y? -1 : ((x > y)? 1 : 0)
-EOF))
+var arr = [34,567,-3, 53].sort(engine.eval(`    function(x, y) x < y? -1 : ((x > y)? 1 : 0)`))
 print(arr)
 
 // compare function as a JSObject function
@@ -73,9 +68,7 @@ arr = [34,57,-3, 53, 670, 33].sort(new AJO() {
 print(arr)
 
 // replacer function from mirror world
-var str = "hello".replace(/l/g, engine.eval(<<EOF
-    function() "_"
-EOF))
+var str = "hello".replace(/l/g, engine.eval(`    function() "_"`))
 print(str)
 
 // replacer function as a JSObject function

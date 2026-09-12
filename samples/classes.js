@@ -1,4 +1,4 @@
-// Usage: jjs classes.js [ -- <java_package_name > ]
+// Usage: nashorn classes.js [ -- <java_package_name > ]
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.

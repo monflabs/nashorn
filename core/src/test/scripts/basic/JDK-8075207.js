@@ -25,7 +25,6 @@
  * JDK-8075207: Nashorn parser API returns StatementTree objects in out of order
  *
  * @test
- * @option -scripting
  * @run
  */
 
@@ -36,8 +35,7 @@ var VariableTree = Java.type("org.monflabs.nashorn.api.tree.VariableTree");
 
 var parser = Parser.create();
 
-var ast = parser.parse("hello.js", <<CODE
-
+var ast = parser.parse("hello.js", `
 var hello = 'hello';
 
 function print_hello() {
@@ -52,8 +50,7 @@ function print_hello() {
 }
 
 var hello = "hello 2";
-
-CODE, print);
+`, print);
 
 var stats = ast.sourceElements;
 Assert.assertTrue(stats.get(0) instanceof VariableTree);

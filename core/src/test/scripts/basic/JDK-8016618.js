@@ -25,15 +25,13 @@
  * JDK-8016618: script mirror object access should be improved
  *
  * @test
- * @option -scripting
  * @option -strict
  * @run
  */
 
 var global = loadWithNewGlobal({
     name: "code",
-    script: <<EOF
-var x = 33;
+    script: `var x = 33;
 
 function func(x, y) {
     print('func.x = ' + x);
@@ -49,8 +47,7 @@ Object.defineProperty(obj, "bar",
     { enumerable: false, writable: false });
 
 // return global
-this;
-EOF
+this;`
 });
 
 // load on mirror with local object as argument

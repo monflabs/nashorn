@@ -27,7 +27,6 @@
  * @test
  * @run
  * @option -Dnashorn.debug=true
- * @option -scripting
  * @fork
  */
 
@@ -57,7 +56,9 @@ var findPropertyMethod = propertyMapCls.getMethod("findProperty", objectCls);
 var context = getContextMethod.invoke(null);
 var useDualFieldsMethod = contextCls.getMethod("useDualFields");
 var dualFields = useDualFieldsMethod.invoke(context);
-var optimisticTypes = $OPTIONS._optimistic_types;
+var getEnvMethod = contextCls.getMethod("getEnv");
+var scriptEnv = getEnvMethod.invoke(context);
+var optimisticTypes = scriptEnv.getClass().getField("_optimistic_types").get(scriptEnv);
 
 if (dualFields != optimisticTypes) {
     throw new Error("Wrong dual fields setting");

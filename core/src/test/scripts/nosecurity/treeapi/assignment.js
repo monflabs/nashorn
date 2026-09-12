@@ -26,22 +26,19 @@
  *
  * @bug 8068306
  * @test
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
-var code = <<EOF
-a = 1
+var code = `a = 1
 b = 2;
 c = {}
 d = undefined
 e = NaN
 f = function () {}
 g = function () {"use strict";}
-
-EOF
+`
 
 parse("assignment.js", code, "-nse", new (Java.extend(visitor, {
     visitAssignment : function (node, obj) {

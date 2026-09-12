@@ -1,5 +1,5 @@
-#Usage: jjs -fx fxml_example.js
-#nashorn simple example using FXML with #javafx
+// Usage: nashorn -fx fxml_example.js
+// nashorn simple example using FXML with #javafx
 
 /*
  * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
@@ -38,14 +38,13 @@
 
 // See also https://docs.oracle.com/javase/8/javafx/api/javafx/fxml/doc-files/introduction_to_fxml.html
 
-if (! $OPTIONS._fx) {
-    print("Usage: jjs -fx fxml_example.js");
+if (typeof $STAGE == "undefined") {
+    print("Usage: nashorn -fx fxml_example.js");
     exit(1);
 }
 
 // inline FXML document here
-var fxml = <<EOF
-
+var fxml = String.raw`
 <?import javafx.scene.*?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
@@ -60,8 +59,7 @@ var fxml = <<EOF
     <Button fx:id="clickButton" text="Click!"/>
     </children>
 </VBox>
-
-EOF
+`
 
 // Java and FX classes used
 var ByteArrayInputStream = Java.type("java.io.ByteArrayInputStream");

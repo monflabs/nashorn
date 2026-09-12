@@ -26,23 +26,20 @@
  *
  * @test
  * @bug 8068306
- * @option -scripting
  * @run
  */
 
 load(__DIR__ + "utils.js")
 
 
-var code = <<EOF
-
+var code = `
 if (true) {}
 if (false) {}
 if (a) print(a)
 if ("STR") {}
 if ( a > 10) {} else {}
 if (a) {} else if (b) {} else {}
-
-EOF
+`
 
 parse("if.js", code, "-nse", new (Java.extend(visitor, {
     visitIf : function (node, obj) {

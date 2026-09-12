@@ -24,7 +24,6 @@
 /**
  * JDK-8158467: AccessControlException is thrown on public Java class access if "script app loader" is set to null
  *
- * @option -scripting
  * @test
  * @run
  */
@@ -40,22 +39,18 @@ print(e.eval("({ foo: 42})").foo);
 print((e.eval("function(x) x*x"))(31));
 
 e.put("output", print);
-var runnable = e.eval(<<EOF
-    new java.lang.Runnable() {
+var runnable = e.eval(`    new java.lang.Runnable() {
         run: function() {
             output("hello Runnable");
         }
-    }
-EOF);
+    }`);
 
 runnable.run();
 
-var obj = e.eval(<<EOF
-new (Java.extend(Java.type("java.lang.Object"))) {
+var obj = e.eval(`new (Java.extend(Java.type("java.lang.Object"))) {
     hashCode: function() 33,
     toString: function() "I'm object"
-}
-EOF);
+}`);
 
 print(obj.hashCode());
 print(obj.toString());
@@ -69,10 +64,8 @@ try {
 
 // should throw ClassNotFoundException as null is script
 // "app loader" [and not platform loader which loads nashorn]
-e.eval(<<EOF
-try {
+e.eval(`try {
     Java.type('org.monflabs.nashorn.api.scripting.JSObject');
 } catch (ex) {
     output(ex);
-}
-EOF);
+}`);

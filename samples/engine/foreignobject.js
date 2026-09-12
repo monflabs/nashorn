@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting foreignobject.js
+// Usage: nashorn foreignobject.js
 
 /*
  * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
@@ -45,14 +45,12 @@ var manager = new ScriptEngineManager();
 var engine = manager.getEngineByName("js");
 
 // eval code!
-engine.eval(<<CODE
-    var obj = {
+engine.eval(String.raw`    var obj = {
         foo: 42,
         func: function() {
             print("func: " + this.foo);
         }
-    };
-CODE);
+    };`);
 
 // Nashorn engine returns script objects as instance of
 // the class org.monflabs.nashorn.api.scripting.ScriptObjectMirror

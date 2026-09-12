@@ -39,7 +39,7 @@
  * miss final modifier.
  */
 
-// Usage: jjs -J-Djava.ext.dirs=<your_nashorn_jar_dir> find_nonfinals.js
+// Usage: nashorn -J-Djava.ext.dirs=<your_nashorn_jar_dir> find_nonfinals.js
 
 var Class = Java.type("java.lang.Class");
 var System = Java.type("java.lang.System");

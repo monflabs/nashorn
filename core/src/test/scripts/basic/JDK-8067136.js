@@ -25,7 +25,6 @@
  * JDK-8067136: BrowserJSObjectLinker does not handle call on JSObjects
  *
  * @test
- * @option -scripting
  * @run
  */
 

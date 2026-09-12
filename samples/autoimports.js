@@ -1,4 +1,3 @@
-# autoimports script requires -scripting mode
 
 /*
  * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
@@ -38,7 +37,7 @@
 /*
  * It is tedious to import Java classes used in a script. Sometimes it is easier
  * use simple names of java classes and have a script auto import Java classes.
- * You can load this script at the start of an interactive jjs session or at the
+ * You can load this script at the start of an interactive nashorn session or at the
  * start of your script. This script defines a __noSuchProperty__ hook to auto
  * import Java classes as needed and when they are referred to for the first time
  * in your script. You can also call the "autoimports" function to print script
@@ -50,9 +49,9 @@
  *
  * Example usage of autoimports.js in interactive mode:
  *
- *     jjs -scripting autoimports.js -
- *     jjs> Vector
- *     jjs> [JavaClass java.util.Vector]
+ *     nashorn autoimports.js -
+ *     nashorn> Vector
+ *     nashorn> [JavaClass java.util.Vector]
  */
 
 (function() {

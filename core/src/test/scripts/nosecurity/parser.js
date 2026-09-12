@@ -24,7 +24,6 @@
  /**
   * @test
   * @bug 8068303
-  * @option -scripting
   * @run
   */
 
@@ -41,7 +40,7 @@ var files = new File(test_dir).listFiles()
 
 // File source
 for (var i in files) {
-    var parser = Parser.create("-scripting", "--const-as-var", "-doe")
+    var parser = Parser.create("--const-as-var", "-doe")
     try {
         var tree = parser.parse(files[i], null);
         Assert.assertNotNull(tree);
@@ -53,7 +52,7 @@ for (var i in files) {
 
 // Reader source
 for (var i in files) {
-    var parser =  Parser.create("-scripting", "--const-as-var", "-doe")
+    var parser =  Parser.create("--const-as-var", "-doe")
     try {
         var tree = parser.parse(files[i].getName(), new Reader(files[i]), null)
         Assert.assertNotNull(tree);
@@ -65,7 +64,7 @@ for (var i in files) {
 
 // URL source
 for (var i in files) {
-    var parser =  Parser.create("-scripting", "--const-as-var", "-doe")
+    var parser =  Parser.create("--const-as-var", "-doe")
     try {
         var tree = parser.parse(files[i].toURI().toURL(), null)
         Assert.assertNotNull(tree);
@@ -77,8 +76,8 @@ for (var i in files) {
 // ScriptObjectMirror
 
 for (var i in files) {
-    var parser =  Parser.create("-scripting", "--const-as-var", "-doe")
-    var engine = new Nashorn().getScriptEngine("-scripting", "--const-as-var", "-doe")
+    var parser =  Parser.create("--const-as-var", "-doe")
+    var engine = new Nashorn().getScriptEngine("--const-as-var", "-doe")
     try {
         engine.compile(new Reader(files[i]))
         var mirror = engine.createBindings()

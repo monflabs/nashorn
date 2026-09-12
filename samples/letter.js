@@ -1,4 +1,4 @@
-#// Usage: jjs -scripting letter.js -- <sender> <recipient>
+// Usage: nashorn letter.js -- <sender> <recipient>
 
 /*
  * Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
@@ -36,20 +36,16 @@
  */
 
 /**
- * Demonstrates "heredoc" feature with "scripting" mode.
+ * Demonstrates multi-line template literals.
  *
- * Usage: jjs -scripting letter.js -- <sender> <recipient>
+ * Usage: nashorn letter.js -- <sender> <recipient>
  */
 
-# This is shell-style line comment
-var obj = { sender: $ARG[0], recipient: $ARG[1] };
+var obj = { sender: arguments[0], recipient: arguments[1] };
 
-// JavaScript style line comment is ok too.
-print(<<EOF);
-Dear ${obj.recipient},
+print(`Dear ${obj.recipient},
 
 I wish you all the best.
 
 Regards,
-${obj.sender}
-EOF
+${obj.sender}`);
