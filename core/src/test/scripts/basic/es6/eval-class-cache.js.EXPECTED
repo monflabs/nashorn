@@ -1,0 +1,12 @@
+octal sloppy then strict: 8 SyntaxError
+octal strict then sloppy: SyntaxError 8
+new.target in a function then at top level: undefined SyntaxError
+new.target at top level then in a function: SyntaxError undefined
+super in a method then outside: base SyntaxError
+super outside then in a method: SyntaxError base
+arguments in a function then a field initializer: 2 SyntaxError
+arguments in a field initializer then a function: SyntaxError 2
+#x in scope then out of scope: true SyntaxError
+#x out of scope then in scope: SyntaxError true
+two evals of the same tagged template share an object: false
+a repeated eval of the same text: 100

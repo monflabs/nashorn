@@ -243,7 +243,11 @@ public abstract class CodeStore implements Loggable {
                         + (env._annexB ? "" : "_noannexb")
                         // a class compiled with debugger hooks is not one an
                         // engine without them wants, nor the other way round
-                        + (env._debugger ? "_dbg" : "");
+                        + (env._debugger ? "_dbg" : "")
+                        // -strict changes what the same text parses to, down to
+                        // whether it parses at all ("var x = 010" is an error),
+                        // and the store is keyed by the source digest alone
+                        + (env._strict ? "_strict" : "");
             } catch (final Exception e) {
                 throw new IOException(e);
             }

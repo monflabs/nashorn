@@ -1856,14 +1856,17 @@ public final class Context {
         // start with no errors, no warnings.
         errMan.reset();
 
-        // what the same text parses to depends on the eval it was written in,
-        // so a class compiled for one is not the class another one wants - the
-        // ES2022 private-environment and no-arguments contexts are part of that,
-        // so an eval carrying either is not cached
-        final boolean cacheable = !newTargetAllowed && !superAllowed && !mayTagATemplate(source)
-                && !argumentsForbidden && validPrivateNames == null;
+        // What the same text parses to depends on the eval it was written in, so
+        // a class compiled for one is not the class another one wants - and the
+        // ES2022 private-environment and no-arguments contexts are part of that.
+        // All of it goes into the key rather than turning caching off: these are
+        // the only five inputs besides the source that change what compile()
+        // emits, so a hit on the tuple is a hit on the same bytes. A template
+        // literal is the one thing no key can capture - see mayTagATemplate.
+        final CacheKey key = mayTagATemplate(source) ? null
+                : new CacheKey(source, strict, newTargetAllowed, superAllowed, argumentsForbidden, validPrivateNames);
 
-        Class<?> script = cacheable ? findCachedClass(source) : null;
+        Class<?> script = key == null ? null : findCachedClass(key);
         if (script != null) {
             final DebugLogger log = getLogger(Compiler.class);
             if (log.isEnabled()) {
@@ -1880,7 +1883,13 @@ public final class Context {
         // Don't use code store if optimistic types is enabled but lazy compilation is not.
         // This would store a full script compilation with many wrong optimistic assumptions that would
         // do more harm than good on later runs with both optimistic types and lazy compilation enabled.
-        final boolean useCodeStore = cacheable && codeStore != null && !env._parse_only && (!env._optimistic_types || env._lazy_compilation);
+        // The persistent store names its files after the source digest alone, so
+        // only a compile whose eval context is the default one may go in it; the
+        // in-memory cache above carries the context in its key and has no such
+        // restriction.
+        final boolean storable = key != null && !newTargetAllowed && !superAllowed
+                && !argumentsForbidden && validPrivateNames == null;
+        final boolean useCodeStore = storable && codeStore != null && !env._parse_only && (!env._optimistic_types || env._lazy_compilation);
         final String cacheKey = useCodeStore ? CodeStore.getCacheKey("script", null) : null;
 
         if (useCodeStore) {
@@ -1929,7 +1938,7 @@ public final class Context {
             installer = new NamedContextCodeInstaller(this, loader);
         } else {
             installer = new AnonymousContextCodeInstaller(this,
-                    anonymousHostClasses.getOrCreate(source.getURL(), key ->
+                    anonymousHostClasses.getOrCreate(source.getURL(), url ->
                             createNewLoader().installClass(
                                     // NOTE: we're defining these constants in AnonymousContextCodeInstaller so they are not
                                     // initialized if we don't use AnonymousContextCodeInstaller. As this method is only ever
@@ -1958,8 +1967,8 @@ public final class Context {
             script = storedScript.installScript(source, installer);
         }
 
-        if (cacheable) {
-            cacheClass(source, script);
+        if (key != null) {
+            cacheClass(key, script);
         }
         if (debugger != null) {
             debugger.scriptCompiled(source, false);
@@ -2000,11 +2009,31 @@ public final class Context {
     }
 
     /**
+     * What a compiled script class is a function of: the source, and the five
+     * flags that change what the same text compiles to. Two evals of the same
+     * text in the same kind of context want the same class; in different kinds
+     * they must not share one.
+     *
+     * @param source the source text
+     * @param strict whether the caller asked for strict mode - the source may
+     *        still opt in on its own, which is read off the compiled class
+     * @param newTargetAllowed whether {@code new.target} is legal
+     * @param superAllowed whether {@code super} is legal
+     * @param argumentsForbidden whether {@code arguments} is an early error
+     * @param validPrivateNames the private names in scope, or null when none
+     *        were collected - distinct from an empty set, which means the
+     *        source names one and none is in scope
+     */
+    private record CacheKey(Source source, boolean strict, boolean newTargetAllowed, boolean superAllowed,
+            boolean argumentsForbidden, Set<String> validPrivateNames) {
+    }
+
+    /**
      * Cache for compiled script classes.
      */
     @SuppressWarnings("serial")
     @Logger(name="classcache")
-    private static class ClassCache extends LinkedHashMap<Source, ClassReference> implements Loggable {
+    private static class ClassCache extends LinkedHashMap<CacheKey, ClassReference> implements Loggable {
         private final int size;
         private final ReferenceQueue<Class<?>> queue;
         private final DebugLogger log;
@@ -2016,31 +2045,31 @@ public final class Context {
             this.log   = initLogger(context);
         }
 
-        void cache(final Source source, final Class<?> clazz) {
+        void cache(final CacheKey cacheKey, final Class<?> clazz) {
             if (log.isEnabled()) {
-                log.info("Caching ", source, " in class cache");
+                log.info("Caching ", cacheKey.source(), " in class cache");
             }
-            put(source, new ClassReference(clazz, queue, source));
+            put(cacheKey, new ClassReference(clazz, queue, cacheKey));
         }
 
         @Override
-        protected boolean removeEldestEntry(final Map.Entry<Source, ClassReference> eldest) {
+        protected boolean removeEldestEntry(final Map.Entry<CacheKey, ClassReference> eldest) {
             return size() > size;
         }
 
         @Override
         public ClassReference get(final Object key) {
             for (ClassReference ref; (ref = (ClassReference)queue.poll()) != null; ) {
-                final Source source = ref.source;
+                final CacheKey evicted = ref.key;
                 if (log.isEnabled()) {
-                    log.info("Evicting ", source, " from class cache.");
+                    log.info("Evicting ", evicted.source(), " from class cache.");
                 }
-                remove(source);
+                remove(evicted);
             }
 
             final ClassReference ref = super.get(key);
             if (ref != null && log.isEnabled()) {
-                log.info("Retrieved class reference for ", ref.source, " from class cache");
+                log.info("Retrieved class reference for ", ref.key.source(), " from class cache");
             }
             return ref;
         }
@@ -2058,23 +2087,23 @@ public final class Context {
     }
 
     private static class ClassReference extends SoftReference<Class<?>> {
-        private final Source source;
+        private final CacheKey key;
 
-        ClassReference(final Class<?> clazz, final ReferenceQueue<Class<?>> queue, final Source source) {
+        ClassReference(final Class<?> clazz, final ReferenceQueue<Class<?>> queue, final CacheKey key) {
             super(clazz, queue);
-            this.source = source;
+            this.key = key;
         }
     }
 
     // Class cache management
-    private Class<?> findCachedClass(final Source source) {
-        final ClassReference ref = classCache == null ? null : classCache.get(source);
+    private Class<?> findCachedClass(final CacheKey key) {
+        final ClassReference ref = classCache == null ? null : classCache.get(key);
         return ref != null ? ref.get() : null;
     }
 
-    private void cacheClass(final Source source, final Class<?> clazz) {
+    private void cacheClass(final CacheKey key, final Class<?> clazz) {
         if (classCache != null) {
-            classCache.cache(source, clazz);
+            classCache.cache(key, clazz);
         }
     }
 
