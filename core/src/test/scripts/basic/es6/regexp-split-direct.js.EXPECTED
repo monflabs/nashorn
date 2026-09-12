@@ -1,0 +1,19 @@
+captures: ["a","1",null,"b","2","2","c"]
+no match: ["abc"]
+empty subject: [""] []
+empty match: ["a","b","c"]
+limit 0: []
+limit cuts a capture: ["a","1"]
+leading and trailing: ["","a",""]
+code points: ["a","😀","b"]
+limit coerced once: ["a","b","c"] 1
+receiver lastIndex untouched: 7
+replaced species: ["a","b"] species read true
+replaced exec: ["a","b"] exec called true
+own exec: ["a","b"] own exec called false
+replaced flags: ["a","b"] flags read true
+subclass: ["a","b","c"]
+frozen lastIndex: true
+legacy statics: 3 1
+recompiled mid-split: ["","bb",""]
+recompiled mid-split via String: ["","bb",""]

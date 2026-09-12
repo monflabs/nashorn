@@ -71,6 +71,17 @@ public final class NativeRegExp extends ScriptObject {
     /** Compiled regexp */
     private RegExp regexp;
 
+    /**
+     * The map {@link #lastIndexWritable} was read for. Making lastIndex
+     * non-writable builds a new Property and replaces the map - nothing
+     * mutates a Property's flags in place - so map identity is a sound
+     * validity token, and the steady state is one reference compare.
+     */
+    private PropertyMap lastIndexWritabilityMap;
+
+    /** Whether lastIndex was writable in {@link #lastIndexWritabilityMap}. */
+    private boolean lastIndexWritable;
+
     // Reference to global object needed to support static RegExp properties
     private final Global globalObject;
 
@@ -684,6 +695,115 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
+     * Whether this is an ordinary regular expression on an untouched
+     * {@code RegExp.prototype}: no own property of its own beyond the ones
+     * nasgen gave it, not an instance of a subclass, and nothing replaced on
+     * the constructor or the prototype. While that holds, the property-driven
+     * spec algorithms cannot observe anything a direct match does not do.
+     */
+    private boolean isOrdinary() {
+        return getMap() == $nasgenmap$
+                && getProto() == globalObject.getRegExpPrototype()
+                && globalObject.isBuiltinRegExpPristine();
+    }
+
+    /**
+     * One match at or after {@code start}, for {@link #splitDirect}: the sticky
+     * clone 22.2.6.14 builds makes this regexp's own g and y flags irrelevant
+     * and never lets the match reach script, so there is no lastIndex to write
+     * and no result object to build - only the groups, which the pieces are cut
+     * from. The matcher is the caller's, reused across the whole split.
+     */
+    private RegExpResult execSplit(final RegExp compiled, final RegExpMatcher matcher,
+            final String string, final int start) {
+        if (start < 0 || start > string.length() || !matcher.search(start)) {
+            return null;
+        }
+        final Object[] gs = groups(matcher, compiled);
+        final RegExpResult match = new RegExpResult(string, matcher.start(), gs, buildGroupObject(gs, compiled));
+        globalObject.setLastRegExpResult(match);
+        return match;
+    }
+
+    /**
+     * ES2026 22.2.6.14 for an ordinary regexp - see {@link #isOrdinary}.
+     *
+     * The algorithm walks a sticky clone over every position between two
+     * matches, and an anchored attempt at a position the pattern does not
+     * start at can only fail; so one search from {@code q} stands for that
+     * whole run of failures, which is what makes this linear where the generic
+     * form is quadratic. In unicode mode the walk only ever lands on code
+     * point boundaries, so a match found on a trailing surrogate is one the
+     * generic form would have stepped over: {@link #alignsWithCodePoints}
+     * says whether the position is one it could have reached, and the search
+     * resumes past it when it is not.
+     *
+     * @param string what to split
+     * @param limit  how many pieces at most, already ToUint32
+     * @return the pieces
+     */
+    private NativeArray splitDirect(final RegExp compiled, final String string, final long limit) {
+        if (limit == 0) {
+            return new NativeArray();
+        }
+        final int size = string.length();
+        final RegExpMatcher matcher = compiled.match(string);
+        if (matcher == null) {
+            return new NativeArray(new Object[] { string });
+        }
+        if (size == 0) {
+            return execSplit(compiled, matcher, string, 0) != null
+                    ? new NativeArray() : new NativeArray(new Object[] { string });
+        }
+
+        final boolean unicode = compiled.isUnicodeMode();
+        final List<Object> pieces = new ArrayList<>();
+        int p = 0;
+        int q = 0;
+        while (q < size) {
+            final RegExpResult match = execSplit(compiled, matcher, string, q);
+            if (match == null) {
+                break;   // no match anywhere at or after q
+            }
+            final int at = match.getIndex();
+            if (unicode && !alignsWithCodePoints(string, q, at)) {
+                // the sticky walk would have stepped over this position
+                q = (int)advanceStringIndex(string, at, true);
+                continue;
+            }
+            final int e = Math.min(at + match.length(), size);
+            if (e == p) {
+                q = (int)advanceStringIndex(string, at, unicode);
+                continue;
+            }
+            pieces.add(string.substring(p, at));
+            if (pieces.size() == limit) {
+                return new NativeArray(pieces.toArray());
+            }
+            p = e;
+            final Object[] gs = match.getGroups();
+            for (int i = 1; i < gs.length; i++) {
+                pieces.add(gs[i]);
+                if (pieces.size() == limit) {
+                    return new NativeArray(pieces.toArray());
+                }
+            }
+            q = p;
+        }
+        pieces.add(string.substring(p, size));
+        return new NativeArray(pieces.toArray());
+    }
+
+    /** Whether stepping code points from {@code from} lands exactly on {@code at}. */
+    private static boolean alignsWithCodePoints(final String string, final int from, final int at) {
+        int k = from;
+        while (k < at) {
+            k = (int)advanceStringIndex(string, k, true);
+        }
+        return k == at;
+    }
+
+    /**
      * ES2015 21.2.5.11 RegExp.prototype [ @@split ] ( string, limit ).
      *
      * The splitting is done by a second regular expression built from this one
@@ -698,8 +818,18 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@split", arity = 2)
     public static Object split(final Object self, final Object string, final Object limit) {
-        final ScriptObject rx = matcherObject(self);
         final String str = JSType.toString(string);
+        if (self instanceof NativeRegExp ordinary && ordinary.isOrdinary()) {
+            // Nothing the generic algorithm consults can have been replaced, so
+            // the splitter it would build, and every exec it would run through
+            // it, are this regexp's own. It builds that splitter - and so fixes
+            // the pattern - before it coerces the limit, which Annex B's
+            // compile() lets a valueOf change underneath; hence the capture.
+            final RegExp compiled = ordinary.regexp;
+            final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
+            return ordinary.splitDirect(compiled, str, lim);
+        }
+        final ScriptObject rx = matcherObject(self);
 
         final String flags = JSType.toString(rx.get("flags"));
         final boolean unicode = flags.indexOf('u') >= 0 || flags.indexOf('v') >= 0;
@@ -707,6 +837,8 @@ public final class NativeRegExp extends ScriptObject {
         final ScriptObject splitter = construct(speciesConstructor(rx), rx, stickyFlags);
 
         final List<Object> pieces = new ArrayList<>();
+        // 22.2.6.14 step 12: the splitter above is built first, so a limit whose
+        // valueOf recompiles the receiver cannot change what is being matched
         final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
         if (lim == 0) {
             return new NativeArray();
@@ -1298,8 +1430,13 @@ public final class NativeRegExp extends ScriptObject {
      * property would put a lookup and a handle invocation on every match.
      */
     private void writeLastIndex(final int value) {
-        final org.monflabs.nashorn.internal.runtime.Property property = getMap().findProperty("lastIndex");
-        if (property != null && property.isWritable()) {
+        final PropertyMap map = getMap();
+        if (map != lastIndexWritabilityMap) {
+            final org.monflabs.nashorn.internal.runtime.Property property = map.findProperty("lastIndex");
+            lastIndexWritable = property != null && property.isWritable();
+            lastIndexWritabilityMap = map;
+        }
+        if (lastIndexWritable) {
             setLastIndex(value);
         } else {
             set("lastIndex", value, CALLSITE_STRICT);
@@ -1379,7 +1516,11 @@ public final class NativeRegExp extends ScriptObject {
      * undefined when the pattern declared no named groups.
      */
     private Object buildGroupObject(final Object[] numberedGroups) {
-        final java.util.Map<String, java.util.List<Integer>> names = regexp.getGroupNames();
+        return buildGroupObject(numberedGroups, regexp);
+    }
+
+    private Object buildGroupObject(final Object[] numberedGroups, final RegExp compiled) {
+        final java.util.Map<String, java.util.List<Integer>> names = compiled.getGroupNames();
         if (names.isEmpty()) {
             return UNDEFINED;
         }
@@ -1407,9 +1548,13 @@ public final class NativeRegExp extends ScriptObject {
      * That is, replace null and groups that didn't match with undefined.
      */
     private Object[] groups(final RegExpMatcher matcher) {
+        return groups(matcher, regexp);
+    }
+
+    private Object[] groups(final RegExpMatcher matcher, final RegExp compiled) {
         final int groupCount = matcher.groupCount();
         final Object[] groups = new Object[groupCount + 1];
-        final BitVector groupsInNegativeLookahead  = regexp.getGroupsInNegativeLookahead();
+        final BitVector groupsInNegativeLookahead  = compiled.getGroupsInNegativeLookahead();
 
         for (int i = 0, lastGroupStart = matcher.start(); i <= groupCount; i++) {
             final int groupStart = matcher.start(i);

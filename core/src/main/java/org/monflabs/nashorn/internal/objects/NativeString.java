@@ -1091,19 +1091,22 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         }
 
         final String str = checkObjectToString(self);
-        final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
-
-        if (separator == UNDEFINED) {
-            return lim == 0 ? new NativeArray() : new NativeArray(new Object[]{str});
-        }
 
         if (separator instanceof NativeRegExp regexpSeparator) {
             // the built-in @@split is the same algorithm, reached without the
             // lookup: what a regular expression splits on must not depend on
-            // whether some script has installed a symbol method somewhere
+            // whether some script has installed a symbol method somewhere. The
+            // limit is left uncoerced - 22.1.3.23 hands it to @@split, which
+            // coerces it once, after it has fixed the pattern to match with.
             final Object splitted = viaSymbol(regexpSeparator, NativeSymbol.split, str, limit);
             return splitted != NOT_DELEGATED ? splitted
                     : NativeRegExp.split(regexpSeparator, str, limit);
+        }
+
+        final long lim = limit == UNDEFINED ? JSType.MAX_UINT : JSType.toUint32(limit);
+
+        if (separator == UNDEFINED) {
+            return lim == 0 ? new NativeArray() : new NativeArray(new Object[]{str});
         }
 
         // when separator is a string, it is treated as a literal search string to be used for splitting.

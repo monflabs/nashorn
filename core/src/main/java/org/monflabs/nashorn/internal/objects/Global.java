@@ -3153,6 +3153,46 @@ public final class Global extends Scope {
         return next != null && next.isBuiltin();
     }
 
+    /**
+     * Whether an ordinary regular expression still splits, matches and replaces
+     * the way an ordinary one does.
+     *
+     * The spec algorithms behind {@code @@split}, {@code @@match} and
+     * {@code @@replace} drive everything through properties - the species
+     * constructor, {@code exec}, {@code flags} - so a script can observe every
+     * step. While nobody has replaced any of them the answer is the same as a
+     * direct match's, and a caller may take the direct route.
+     *
+     * <p>{@code exec} and {@code flags} are asked for their builtin tag, which
+     * is sound because no other builtin bears those names. {@code constructor}
+     * and {@code @@species} are compared by value instead: a {@code constructor}
+     * property object is shared across builtin prototypes, so its tag is
+     * whichever builtin was initialised last and says nothing about this one.
+     *
+     * @return true if RegExp, its prototype's exec, flags and constructor, and
+     *         its own {@code Symbol.species} are the ones built in
+     */
+    public boolean isBuiltinRegExpPristine() {
+        if (builtinRegExp == null) {
+            return false;   // conservative for compile-only mode
+        }
+        if (this.regexp != builtinRegExp && this.regexp != LAZY_SENTINEL) {
+            // the sentinel means the global binding has never even been read,
+            // which is as untouched as it gets
+            return false;
+        }
+        final ScriptObject proto = ScriptFunction.getPrototype(builtinRegExp);
+        return isBuiltinProperty(proto.getMap(), "exec")
+                && isBuiltinProperty(proto.getMap(), "flags")
+                && proto.get("constructor") == builtinRegExp
+                && builtinRegExp.get(NativeSymbol.species) == builtinRegExp;
+    }
+
+    private static boolean isBuiltinProperty(final PropertyMap map, final Object key) {
+        final org.monflabs.nashorn.internal.runtime.Property property = map.findProperty(key);
+        return property != null && property.isBuiltin();
+    }
+
     private synchronized ScriptFunction getBuiltinJSAdapter() {
         if (this.builtinJSAdapter == null) {
             this.builtinJSAdapter = initConstructorAndSwitchPoint("JSAdapter", ScriptFunction.class);
