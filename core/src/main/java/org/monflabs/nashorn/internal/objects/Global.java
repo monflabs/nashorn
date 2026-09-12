@@ -3163,11 +3163,13 @@ public final class Global extends Scope {
      * step. While nobody has replaced any of them the answer is the same as a
      * direct match's, and a caller may take the direct route.
      *
-     * <p>{@code exec} and {@code flags} are asked for their builtin tag, which
-     * is sound because no other builtin bears those names. {@code constructor}
-     * and {@code @@species} are compared by value instead: a {@code constructor}
+     * <p>All four are asked for their builtin tag rather than read, which is
+     * what makes this cheap enough to ask on every call. A {@code constructor}
      * property object is shared across builtin prototypes, so its tag is
-     * whichever builtin was initialised last and says nothing about this one.
+     * whichever built-in was tagged last - but a write to any of them
+     * invalidates it, so the answer is conservative in the right direction:
+     * never true when one of them has been replaced, and false for a while if
+     * some other realm's built-in shares the tag.
      *
      * @return true if RegExp, its prototype's exec, flags and constructor, and
      *         its own {@code Symbol.species} are the ones built in
@@ -3181,11 +3183,11 @@ public final class Global extends Scope {
             // which is as untouched as it gets
             return false;
         }
-        final ScriptObject proto = ScriptFunction.getPrototype(builtinRegExp);
-        return isBuiltinProperty(proto.getMap(), "exec")
-                && isBuiltinProperty(proto.getMap(), "flags")
-                && proto.get("constructor") == builtinRegExp
-                && builtinRegExp.get(NativeSymbol.species) == builtinRegExp;
+        final PropertyMap protoMap = ScriptFunction.getPrototype(builtinRegExp).getMap();
+        return isBuiltinProperty(protoMap, "exec")
+                && isBuiltinProperty(protoMap, "flags")
+                && isBuiltinProperty(protoMap, "constructor")
+                && isBuiltinProperty(builtinRegExp.getMap(), NativeSymbol.species);
     }
 
     private static boolean isBuiltinProperty(final PropertyMap map, final Object key) {

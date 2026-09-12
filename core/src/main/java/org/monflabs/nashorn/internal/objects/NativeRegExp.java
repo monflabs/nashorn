@@ -809,6 +809,63 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     /**
+     * Every match of an ordinary regexp over a subject, for the global walks
+     * that {@link #matchDirect} and {@link #replaceDirect} do.
+     *
+     * RegExpExec writes lastIndex after every match and resets it on the
+     * failure that ends the walk, so the value it leaves behind is zero and
+     * every value before that is one no script can see - nothing runs between
+     * two steps of the walk. Keeping the position in a local instead spares a
+     * property read and an Integer box per match, and only the last one is
+     * worth recording as the legacy static.
+     *
+     * <p>A sticky regexp is not walked this way: it anchors at lastIndex rather
+     * than searching forward, so it goes back through {@code execInner}.
+     *
+     * @param str     the subject
+     * @param matcher a matcher for it, or null if the pattern never matches
+     * @return the matches, in order
+     */
+    private List<RegExpResult> collectMatches(final String str, final RegExpMatcher matcher) {
+        final List<RegExpResult> results = new ArrayList<>();
+        setLastIndex(0);
+        if (matcher == null) {
+            return results;
+        }
+        if (regexp.isSticky()) {
+            RegExpResult sticky;
+            while ((sticky = execInner(str, matcher)) != null) {
+                results.add(sticky);
+                if (((String)sticky.getGroups()[0]).isEmpty()) {
+                    setLastIndex((int)advanceStringIndex(str, getLastIndex(), regexp.isUnicodeMode()));
+                }
+            }
+            return results;
+        }
+
+        final boolean unicode = regexp.isUnicodeMode();
+        final boolean hasIndices = regexp.isHasIndices();
+        final int size = str.length();
+        int index = 0;
+        while (index <= size && matcher.search(index)) {
+            final Object[] gs = groups(matcher);
+            final RegExpResult match = new RegExpResult(str, matcher.start(), gs, buildGroupObject(gs));
+            if (hasIndices) {
+                match.setIndices(buildIndices(matcher, gs));
+            }
+            results.add(match);
+            index = matcher.end();
+            if (matcher.start() == matcher.end()) {
+                index = (int)advanceStringIndex(str, index, unicode);
+            }
+        }
+        if (!results.isEmpty()) {
+            globalObject.setLastRegExpResult(results.get(results.size() - 1));
+        }
+        return results;
+    }
+
+    /**
      * ES2026 22.2.6.8 for an ordinary regexp - see {@link #isOrdinary}.
      *
      * The generic form reads {@code flags} as a string, writes {@code lastIndex}
@@ -824,20 +881,15 @@ public final class NativeRegExp extends ScriptObject {
         if (!regexp.isGlobal()) {
             return exec(str);
         }
-        setLastIndex(0);
-        final boolean unicode = regexp.isUnicodeMode();
-        final List<Object> matches = new ArrayList<>();
-        RegExpResult match;
-        while ((match = execInner(str)) != null) {
-            final String matched = (String)match.getGroups()[0];
-            matches.add(matched);
-            if (matched.isEmpty()) {
-                // 22.2.6.8 step 8.e.iii.2: an empty match advances by a whole
-                // code point, which is what the pre-ES2015 direct path did not do
-                setLastIndex((int)advanceStringIndex(str, getLastIndex(), unicode));
-            }
+        final List<RegExpResult> found = collectMatches(str, regexp.match(str));
+        if (found.isEmpty()) {
+            return null;
         }
-        return matches.isEmpty() ? null : new NativeArray(matches.toArray());
+        final Object[] matches = new Object[found.size()];
+        for (int i = 0; i < matches.length; i++) {
+            matches[i] = found.get(i).getGroups()[0];
+        }
+        return new NativeArray(matches);
     }
 
     /**
@@ -855,54 +907,151 @@ public final class NativeRegExp extends ScriptObject {
      */
     private String replaceDirect(final String str, final Object function, final String replaceText)
             throws Throwable {
-        final boolean global = regexp.isGlobal();
-        final boolean unicode = global && regexp.isUnicodeMode();
-        if (global) {
-            setLastIndex(0);
+        final RegExpMatcher matcher = regexp.match(str);
+        final boolean streamable = regexp.isGlobal() && !regexp.isSticky() && matcher != null;
+        if (!streamable) {
+            // a sticky or non-global regexp goes through the exec that honours
+            // lastIndex; there is at most a handful of matches either way
+            final List<RegExpResult> results = regexp.isGlobal()
+                    ? collectMatches(str, matcher)
+                    : matchOrNothing(execInner(str, matcher));
+            return results.isEmpty() ? str : substitute(str, results, function, replaceText);
         }
 
-        final List<RegExpResult> results = new ArrayList<>();
-        RegExpResult result;
-        while ((result = execInner(str)) != null) {
-            results.add(result);
-            if (!global) {
-                break;
-            }
-            if (((String)result.getGroups()[0]).isEmpty()) {
-                setLastIndex((int)advanceStringIndex(str, getLastIndex(), unicode));
-            }
-        }
-        if (results.isEmpty()) {
-            return str;
-        }
-
+        // Nothing script-visible changes between two steps of the walk - the
+        // matcher is this method's own, lastIndex is left at zero throughout
+        // and the legacy statics are set once at the end - so the specified
+        // "find every match, then replace" and finding each match as it is
+        // replaced cannot be told apart. Streaming is one pass and keeps no
+        // match objects alive.
         final MethodHandle invoker = function == null ? null : getReplaceValueInvoker();
         final Object self = function == null || Bootstrap.isStrictCallable(function)
                 ? UNDEFINED : Global.instance();
-        final StringBuilder accumulated = new StringBuilder();
+        final boolean unicode = regexp.isUnicodeMode();
+        final boolean hasIndices = regexp.isHasIndices();
+        // a replacement with no $ in it is itself, so there is nothing to
+        // substitute into and nothing to build per match
+        final boolean plainText = replaceText != null && replaceText.indexOf('$') < 0;
+        final int size = str.length();
+
+        StringBuilder accumulated = null;
+        Object[] lastGroups = null;
+        int lastStart = 0;
+        int nextSourcePosition = 0;
+        int index = 0;
+        setLastIndex(0);
+
+        while (index <= size && matcher.search(index)) {
+            final Object[] gs = groups(matcher, regexp);
+            final int position = matcher.start();
+            final String matched = (String)gs[0];
+            lastGroups = gs;
+            lastStart = position;
+
+            if (plainText) {
+                if (accumulated == null) {
+                    accumulated = new StringBuilder(size + 16);
+                }
+                if (position >= nextSourcePosition) {
+                    accumulated.append(str, nextSourcePosition, position).append(replaceText);
+                    nextSourcePosition = position + matched.length();
+                }
+                index = matcher.end();
+                if (position == index) {
+                    index = (int)advanceStringIndex(str, index, unicode);
+                }
+                continue;
+            }
+
+            final Object namedCaptures = buildGroupObject(gs, regexp);
+            final boolean hasNamed = namedCaptures != UNDEFINED;
+            final String replaced;
+            if (function != null) {
+                // the arguments are the groups as they stand - the match, then
+                // the captures - so there is nothing to copy out first
+                final Object[] arguments = Arrays.copyOf(gs, gs.length + 2 + (hasNamed ? 1 : 0));
+                arguments[gs.length] = (double)position;
+                arguments[gs.length + 1] = str;
+                if (hasNamed) {
+                    arguments[gs.length + 2] = namedCaptures;
+                }
+                replaced = (String)invoker.invokeExact(function, self, arguments);
+            } else {
+                final Object[] captures = Arrays.copyOfRange(gs, 1, gs.length);
+                final Object named = hasNamed ? Global.toObject(namedCaptures) : UNDEFINED;
+                replaced = getSubstitution(matched, str, position, captures, named, replaceText);
+            }
+
+            if (accumulated == null) {
+                accumulated = new StringBuilder(size + 16);
+            }
+            if (position >= nextSourcePosition) {
+                accumulated.append(str, nextSourcePosition, position).append(replaced);
+                nextSourcePosition = position + matched.length();
+            }
+
+            index = matcher.end();
+            if (position == index) {
+                index = (int)advanceStringIndex(str, index, unicode);
+            }
+        }
+
+        if (accumulated == null) {
+            return str;
+        }
+        // the legacy statics answer for the last match, as they would have if
+        // every match had been made before any replacement
+        final RegExpResult last = new RegExpResult(str, lastStart, lastGroups, buildGroupObject(lastGroups, regexp));
+        if (hasIndices) {
+            last.setIndices(buildIndices(matcher, lastGroups));
+        }
+        globalObject.setLastRegExpResult(last);
+
+        if (nextSourcePosition < size) {
+            accumulated.append(str, nextSourcePosition, size);
+        }
+        return accumulated.toString();
+    }
+
+    private static List<RegExpResult> matchOrNothing(final RegExpResult match) {
+        return match == null ? List.of() : List.of(match);
+    }
+
+    /** Builds the output for matches that were all found before any replacement ran. */
+    private String substitute(final String str, final List<RegExpResult> results, final Object function,
+            final String replaceText) throws Throwable {
+        final MethodHandle invoker = function == null ? null : getReplaceValueInvoker();
+        final Object self = function == null || Bootstrap.isStrictCallable(function)
+                ? UNDEFINED : Global.instance();
+        final boolean plainText = replaceText != null && replaceText.indexOf('$') < 0;
+        final StringBuilder accumulated = new StringBuilder(str.length() + 16);
         int nextSourcePosition = 0;
         for (final RegExpResult match : results) {
             final Object[] gs = match.getGroups();
             final String matched = (String)gs[0];
             final int position = Math.min(Math.max(match.getIndex(), 0), str.length());
-            final Object[] captures = new Object[gs.length - 1];
-            System.arraycopy(gs, 1, captures, 0, captures.length);
             final Object namedCaptures = match.getGroupObject();
+            final boolean hasNamed = namedCaptures != UNDEFINED;
 
             final String replaced;
+            if (plainText) {
+                if (position >= nextSourcePosition) {
+                    accumulated.append(str, nextSourcePosition, position).append(replaceText);
+                    nextSourcePosition = position + matched.length();
+                }
+                continue;
+            }
             if (function != null) {
-                final boolean hasNamed = namedCaptures != UNDEFINED;
-                final Object[] arguments = new Object[captures.length + 3 + (hasNamed ? 1 : 0)];
-                arguments[0] = matched;
-                System.arraycopy(captures, 0, arguments, 1, captures.length);
-                arguments[captures.length + 1] = (double)position;
-                arguments[captures.length + 2] = str;
+                final Object[] arguments = Arrays.copyOf(gs, gs.length + 2 + (hasNamed ? 1 : 0));
+                arguments[gs.length] = (double)position;
+                arguments[gs.length + 1] = str;
                 if (hasNamed) {
-                    arguments[captures.length + 3] = namedCaptures;
+                    arguments[gs.length + 2] = namedCaptures;
                 }
                 replaced = (String)invoker.invokeExact(function, self, arguments);
             } else {
-                final Object named = namedCaptures == UNDEFINED ? UNDEFINED : Global.toObject(namedCaptures);
+                final Object[] captures = Arrays.copyOfRange(gs, 1, gs.length);
+                final Object named = hasNamed ? Global.toObject(namedCaptures) : UNDEFINED;
                 replaced = getSubstitution(matched, str, position, captures, named, replaceText);
             }
 
@@ -1567,6 +1716,20 @@ public final class NativeRegExp extends ScriptObject {
     }
 
     private RegExpResult execInner(final String string) {
+        return execInner(string, regexp.match(string));
+    }
+
+    /**
+     * The same, over a matcher the caller owns. A walk that matches repeatedly -
+     * a global match or replace - makes one matcher and keeps it, rather than
+     * one per match; nothing script-visible runs between two steps of such a
+     * walk, so there is no one to see it reused.
+     *
+     * @param string  the subject
+     * @param matcher a matcher for that subject, or null if the pattern never matches
+     * @return the match, or null
+     */
+    private RegExpResult execInner(final String string, final RegExpMatcher matcher) {
         // ES2015 21.2.5.2.2: a sticky regexp tracks lastIndex the way a global
         // one does, and both reset it on failure.
         final boolean isSticky = regexp.isSticky();
@@ -1584,7 +1747,6 @@ public final class NativeRegExp extends ScriptObject {
             return null;
         }
 
-        final RegExpMatcher matcher = regexp.match(string);
         if (matcher == null || !matcher.search(start)) {
             if (tracksLastIndex) {
                 writeLastIndex(0);
