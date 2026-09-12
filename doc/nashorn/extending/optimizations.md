@@ -89,6 +89,10 @@ Measured with optimistic types off against 15.7 and the fork's previous revision
 | Annex B's same-function-object aliases (`trimLeft`/`trimRight`, `toGMTString`, `Number.parseInt`/`parseFloat`) installed before the built-ins are tagged | `Global` | a method call on a primitive string: `slice` 41ms → 1ms, `charAt` 53ms → 21ms per 5M | None. The write was invalidating the String, Number and Date switch points during startup, so no realm ever had them. |
 | An ordinary regexp split by searching forward instead of building a sticky splitter and calling `exec` through it at every position | `NativeRegExp`, `NativeString`, `Global` | 200k `split(/\s+/)` 1780ms → 219ms (15.7: 224ms); Octane `regexp` 1.53× slower than 15.7 → parity | Only while `RegExp` and its prototype's `exec`, `flags`, `constructor` and `@@species` are untouched and the instance carries no own property; anything else takes the spec algorithm. `@@replace` and `@@match` still take it always. |
 | `lastIndex` writability cached against the property map it was read for | `NativeRegExp` | 200k `match(/[a-z]+/g)` 340ms → 219ms (15.7: 264ms) | None; making `lastIndex` non-writable replaces the property and so the map, which is what invalidates the cache. |
+| `@@match` and `@@replace` take the same pristine-regexp guard as `@@split`, and `String.prototype.match`/`replace` are defined in terms of them | `NativeRegExp`, `NativeString` | after any script stores a well-known string symbol: `replace` 82ms → 34ms, `match` 206ms → 126ms per 100-200k | None. The two copies of the algorithm are now one, which also fixes an empty match in unicode mode advancing by a code unit rather than a code point. |
+| The nasgen-generated built-in constructors resolved once per JVM instead of per realm | `Global` | realm creation 61us → 49us against upstream's 42us; `startup.50globals` -15% | None; the handles last as long as the engine's own classes. |
+| `getOptimisticGetter` caches the handle where the program point cannot reach it - the exact type, or a wider one | `AccessorProperty` | not measurable on the gate, whose property metrics move 20% run to run; it is a link-time cost, and the gate measures steady state | Only the program-point-independent cases are cached, which is every read that cannot deoptimise. |
+| `Promise.prototype.finally` reads the intrinsic `%Promise%` rather than the global property, as `then` already did | `NativePromise` | one property lookup per call | None; it is also what the specification says. |
 | Eight new perf-gate scripts (`arith`, `strbuild`, `regexp`, `wideobject`, `megamorphic`, `forof`, `closures`, `sort`) | `core/src/test/scripts/perf/` | none by themselves - they are what makes the rest measurable | Their bands are the default 20%, not measured per metric like the seven original scripts' are. |
 
 ## 3. Reliability under optimistic types
@@ -110,11 +114,16 @@ touched - `protochain` +57%, `instanceof` +15%, `toprimitive` +19% - the price o
 proxy-in-chain bit on every prototype walk. With optimistic types on those three turn into the
 largest wins in the first table, so they are no longer a net cost; what remains is:
 
-- **Startup**: +20% against 15.7 (+5% more from the flip). Every built-in the eleven later
-  editions added is one more property to install on a new realm; Annex B alone is 6.6%.
+- **Startup**: every built-in the eleven later editions added is one more property to install on a
+  new realm; Annex B alone is 6.6%. Measured against 15.7 in one JVM with the two interleaved, a
+  fresh engine now costs 98us against 100us and a fresh realm on an existing engine 49us against
+  42us - the second is the realm-per-request figure, and the remaining 17% is the property count.
 - **Octane regexp**: was 2-3× slower than 15.7; the direct split closed it and the two now
   measure the same.
-- **Compilation**: +7% against 15.7 before the flip, +17% more with it.
+- **Compilation**: +7% against 15.7 before the flip, +17% more with it. Two named causes: the
+  optimistic pipeline's three extra phases and the deoptimisation bookkeeping they emit, and
+  `CompilationPhase.ES6_DESUGARING_PHASE`, a whole-IR pass 15.7 does not have because it has no
+  destructuring, rest parameters or spread to rewrite. Neither comes off without giving something up.
 
 ## 5. Tried and reverted
 
@@ -135,8 +144,7 @@ Each was measured and taken out again; the measurement is the reason the benchma
 - `AccessorProperty.getOptimisticGetter` builds its method-handle chain on every link, unlike the
   non-optimistic getter; a cache keyed by program point costs memory per property. It matters
   more now that the mode is the default.
-- The pristine-`RegExp.prototype` fast path now covers `split`; `@@replace` and `@@match` still
-  run the property-driven algorithm, which only a script calling them by symbol reaches.
+- `CodeBuffer` is the one compile-time cost that is removable rather than structural; see above.
 - The scalability and reliability items of the September 2026 audit - engine and context
   lifecycle (`close()`), per-Global creation cost, the JVM-wide monitors on `PropertyMap` and
   `Source`, interruptible engine loops - are recorded in the audit plan and not started.

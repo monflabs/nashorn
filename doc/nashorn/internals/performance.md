@@ -220,6 +220,22 @@ A fourth, smaller one rode along: a global or sticky match looked `lastIndex` up
 on every match to find out whether it was still writable. The answer is now cached against the map
 it was read for.
 
+A fifth turned up when the first four were in: the guard that makes `split` direct was wired to
+`split` alone. `String.prototype.match` and `replace` are reached through `@@match` and `@@replace`
+the moment any object anywhere in the process stores one of the five well-known string symbols as a
+key - a static latch, one realm's script enough to set it for every other, permanently - and those
+two had no guard, so they fell onto the property-driven algorithm and stayed there. Measured after
+one such assignment, `replace` went from 28ms to 82ms and `match` from 161ms to 206ms. Both now take
+the same guard, and both are flat across the latch. `String.prototype.match` and `replace` are
+defined in terms of them rather than carrying their own copies, which also settled a divergence the
+copies had: the old direct path advanced an empty match by a code unit where the specification
+advances by a code point.
+
+And realm creation, which is what a realm-per-request embedder pays on every request: `Global.init`
+resolved 56 built-in constructors reflectively per realm, and `getDeclaredConstructor` copies a fresh
+reflective object on every call. Resolved once per JVM instead, a fresh realm went from 61
+microseconds to 49 against upstream's 42, and a fresh engine from 106 to 98 against upstream's 100.
+
 After all four, 34 of the 45 comparable rows are at or below 15.7 and none of the remaining eleven
 is worse than 1.41×; measured standalone rather than through that harness, most of them are at
 parity. Three perf-gate scripts - `evalcache`, `split` and `stringmethods` - exist so that none of
