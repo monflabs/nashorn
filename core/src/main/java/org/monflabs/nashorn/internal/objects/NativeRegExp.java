@@ -533,8 +533,11 @@ public final class NativeRegExp extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@match", arity = 1)
     public static Object match(final Object self, final Object string) {
-        final ScriptObject rx = matcherObject(self);
         final String str = JSType.toString(string);
+        if (self instanceof NativeRegExp ordinary && ordinary.isOrdinary()) {
+            return ordinary.matchDirect(str);
+        }
+        final ScriptObject rx = matcherObject(self);
 
         // the flags are read once, as a string, rather than as the individual
         // accessors: a subclass that overrides "flags" decides all of them
@@ -614,13 +617,19 @@ public final class NativeRegExp extends ScriptObject {
      * @param string      what to search
      * @param replacement the replacement text, or a function producing it
      * @return the resulting string
+     * @throws Throwable whatever the replacement function throws
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, name = "@@replace", arity = 2)
-    public static Object replace(final Object self, final Object string, final Object replacement) {
-        final ScriptObject rx = matcherObject(self);
+    public static Object replace(final Object self, final Object string, final Object replacement) throws Throwable {
         final String str = JSType.toString(string);
         final boolean callable = Bootstrap.isCallable(replacement);
         final String replaceText = callable ? null : JSType.toString(replacement);
+        if (self instanceof NativeRegExp ordinary && ordinary.isOrdinary()) {
+            // after the coercion above, which can run script - and so can have
+            // recompiled this regexp through Annex B's compile()
+            return ordinary.replaceDirect(str, callable ? replacement : null, replaceText);
+        }
+        final ScriptObject rx = matcherObject(self);
 
         final String flags = JSType.toString(rx.get("flags"));
         final boolean global = flags.indexOf('g') >= 0;
@@ -628,6 +637,11 @@ public final class NativeRegExp extends ScriptObject {
         if (global) {
             rx.set("lastIndex", 0, CALLSITE_STRICT);
         }
+
+        // a sloppy replacement function is called with the global as its this,
+        // which is what an ordinary sloppy call substitutes for undefined
+        final Object replacementSelf = !callable || Bootstrap.isStrictCallable(replacement)
+                ? UNDEFINED : Global.instance();
 
         // every match is collected before any replacement is built, so that a
         // replacement function cannot disturb the walk
@@ -674,7 +688,7 @@ public final class NativeRegExp extends ScriptObject {
                 if (hasNamed) {
                     arguments[captureCount + 3] = namedCaptures;
                 }
-                replaced = JSType.toString(ScriptRuntime.apply((ScriptFunction)replacement, UNDEFINED, arguments));
+                replaced = (String)getReplaceValueInvoker().invokeExact(replacement, replacementSelf, arguments);
             } else {
                 // ES2018 21.2.5.8: for a string replacement the named-capture
                 // value is coerced with ToObject (which throws for null), and
@@ -792,6 +806,115 @@ public final class NativeRegExp extends ScriptObject {
         }
         pieces.add(string.substring(p, size));
         return new NativeArray(pieces.toArray());
+    }
+
+    /**
+     * ES2026 22.2.6.8 for an ordinary regexp - see {@link #isOrdinary}.
+     *
+     * The generic form reads {@code flags} as a string, writes {@code lastIndex}
+     * as a property and calls {@code exec} through the object on every match,
+     * each of which is only observable because something can be replaced. This
+     * one walks the matcher, and {@code execInner} keeps {@code lastIndex} where
+     * the specification's RegExpExec would leave it, reset included.
+     *
+     * @param str what to match against
+     * @return the matches, or null if there are none
+     */
+    private Object matchDirect(final String str) {
+        if (!regexp.isGlobal()) {
+            return exec(str);
+        }
+        setLastIndex(0);
+        final boolean unicode = regexp.isUnicodeMode();
+        final List<Object> matches = new ArrayList<>();
+        RegExpResult match;
+        while ((match = execInner(str)) != null) {
+            final String matched = (String)match.getGroups()[0];
+            matches.add(matched);
+            if (matched.isEmpty()) {
+                // 22.2.6.8 step 8.e.iii.2: an empty match advances by a whole
+                // code point, which is what the pre-ES2015 direct path did not do
+                setLastIndex((int)advanceStringIndex(str, getLastIndex(), unicode));
+            }
+        }
+        return matches.isEmpty() ? null : new NativeArray(matches.toArray());
+    }
+
+    /**
+     * ES2026 22.2.6.11 for an ordinary regexp - see {@link #isOrdinary}.
+     *
+     * Every match is found before any replacement is built, as the generic form
+     * does, so that a replacement function cannot disturb the walk; what it does
+     * not do is materialise each match as a script object first.
+     *
+     * @param str          what to search
+     * @param function     the replacement function, or null
+     * @param replaceText  the replacement text when there is no function
+     * @return the resulting string
+     * @throws Throwable whatever the replacement function throws
+     */
+    private String replaceDirect(final String str, final Object function, final String replaceText)
+            throws Throwable {
+        final boolean global = regexp.isGlobal();
+        final boolean unicode = global && regexp.isUnicodeMode();
+        if (global) {
+            setLastIndex(0);
+        }
+
+        final List<RegExpResult> results = new ArrayList<>();
+        RegExpResult result;
+        while ((result = execInner(str)) != null) {
+            results.add(result);
+            if (!global) {
+                break;
+            }
+            if (((String)result.getGroups()[0]).isEmpty()) {
+                setLastIndex((int)advanceStringIndex(str, getLastIndex(), unicode));
+            }
+        }
+        if (results.isEmpty()) {
+            return str;
+        }
+
+        final MethodHandle invoker = function == null ? null : getReplaceValueInvoker();
+        final Object self = function == null || Bootstrap.isStrictCallable(function)
+                ? UNDEFINED : Global.instance();
+        final StringBuilder accumulated = new StringBuilder();
+        int nextSourcePosition = 0;
+        for (final RegExpResult match : results) {
+            final Object[] gs = match.getGroups();
+            final String matched = (String)gs[0];
+            final int position = Math.min(Math.max(match.getIndex(), 0), str.length());
+            final Object[] captures = new Object[gs.length - 1];
+            System.arraycopy(gs, 1, captures, 0, captures.length);
+            final Object namedCaptures = match.getGroupObject();
+
+            final String replaced;
+            if (function != null) {
+                final boolean hasNamed = namedCaptures != UNDEFINED;
+                final Object[] arguments = new Object[captures.length + 3 + (hasNamed ? 1 : 0)];
+                arguments[0] = matched;
+                System.arraycopy(captures, 0, arguments, 1, captures.length);
+                arguments[captures.length + 1] = (double)position;
+                arguments[captures.length + 2] = str;
+                if (hasNamed) {
+                    arguments[captures.length + 3] = namedCaptures;
+                }
+                replaced = (String)invoker.invokeExact(function, self, arguments);
+            } else {
+                final Object named = namedCaptures == UNDEFINED ? UNDEFINED : Global.toObject(namedCaptures);
+                replaced = getSubstitution(matched, str, position, captures, named, replaceText);
+            }
+
+            if (position >= nextSourcePosition) {
+                accumulated.append(str, nextSourcePosition, position).append(replaced);
+                nextSourcePosition = position + matched.length();
+            }
+        }
+        if (nextSourcePosition < str.length()) {
+            accumulated.append(str, nextSourcePosition, str.length());
+        }
+        return accumulated.toString();
     }
 
     /** Whether stepping code points from {@code from} lands exactly on {@code at}. */
@@ -1602,204 +1725,12 @@ public final class NativeRegExp extends ScriptObject {
         return execInner(string) != null;
     }
 
-    /**
-     * Searches and replaces the regular expression portion (match) with the
-     * replaced text instead. For the "replacement text" parameter, you can use
-     * the keywords $1 to $2 to replace the original text with values from
-     * sub-patterns defined within the main pattern.
-     *
-     * @param string String to match.
-     * @param replacement Replacement string.
-     * @return String with substitutions.
-     */
-    String replace(final String string, final String replacement, final Object function) throws Throwable {
-        final RegExpMatcher matcher = regexp.match(string);
-
-        if (matcher == null) {
-            return string;
-        }
-
-        if (!regexp.isGlobal()) {
-            if (!matcher.search(0)) {
-                return string;
-            }
-
-            final StringBuilder sb = new StringBuilder();
-            sb.append(string, 0, matcher.start());
-
-            if (function != null) {
-                final Object self = Bootstrap.isStrictCallable(function) ? UNDEFINED : Global.instance();
-                sb.append(callReplaceValue(getReplaceValueInvoker(), function, self, matcher, string));
-            } else {
-                appendReplacement(matcher, string, replacement, sb);
-            }
-            sb.append(string, matcher.end(), string.length());
-            return sb.toString();
-        }
-
-        setLastIndex(0);
-
-        if (!matcher.search(0)) {
-            return string;
-        }
-
-        int thisIndex = 0;
-        int previousLastIndex;
-        final StringBuilder sb = new StringBuilder();
-
-        final MethodHandle invoker = function == null ? null : getReplaceValueInvoker();
-        final Object self = function == null || Bootstrap.isStrictCallable(function) ? UNDEFINED : Global.instance();
-
-        do {
-            sb.append(string, thisIndex, matcher.start());
-            if (function != null) {
-                sb.append(callReplaceValue(invoker, function, self, matcher, string));
-            } else {
-                appendReplacement(matcher, string, replacement, sb);
-            }
-
-            thisIndex = matcher.end();
-
-            // ECMA6 21.2.5.6 step 8.g.iv.5: If matchStr is empty advance index by one
-            if (matcher.start() == matcher.end()) {
-                setLastIndex(thisIndex + 1);
-                previousLastIndex = thisIndex + 1;
-            } else {
-                previousLastIndex = thisIndex;
-            }
-        } while (previousLastIndex <= string.length() && matcher.search(previousLastIndex));
-
-        sb.append(string, thisIndex, string.length());
-
-        return sb.toString();
-    }
-
-    private void appendReplacement(final RegExpMatcher matcher, final String text, final String replacement, final StringBuilder sb) {
-        /*
-         * Process substitution patterns:
-         *
-         * $$ -> $
-         * $& -> the matched substring
-         * $` -> the portion of string that precedes matched substring
-         * $' -> the portion of string that follows the matched substring
-         * $n -> the nth capture, where n is [1-9] and $n is NOT followed by a decimal digit
-         * $nn -> the nnth capture, where nn is a two digit decimal number [01-99].
-         */
-
-        int cursor = 0;
-        Object[] groups = null;
-
-        while (cursor < replacement.length()) {
-            char nextChar = replacement.charAt(cursor);
-            if (nextChar == '$') {
-                // Skip past $
-                cursor++;
-                if (cursor == replacement.length()) {
-                    // nothing after "$"
-                    sb.append('$');
-                    break;
-                }
-
-                nextChar = replacement.charAt(cursor);
-                final int firstDigit = nextChar - '0';
-
-                if (firstDigit >= 0 && firstDigit <= 9 && firstDigit <= matcher.groupCount()) {
-                    // $0 is not supported, but $01 is. implementation-defined: if n>m, ignore second digit.
-                    int refNum = firstDigit;
-                    cursor++;
-                    if (cursor < replacement.length() && firstDigit < matcher.groupCount()) {
-                        final int secondDigit = replacement.charAt(cursor) - '0';
-                        if (secondDigit >= 0 && secondDigit <= 9) {
-                            final int newRefNum = firstDigit * 10 + secondDigit;
-                            if (newRefNum <= matcher.groupCount() && newRefNum > 0) {
-                                // $nn ($01-$99)
-                                refNum = newRefNum;
-                                cursor++;
-                            }
-                        }
-                    }
-                    if (refNum > 0) {
-                        if (groups == null) {
-                            groups = groups(matcher);
-                        }
-                        // Append group if matched.
-                        if (groups[refNum] != UNDEFINED) {
-                            sb.append((String) groups[refNum]);
-                        }
-                    } else { // $0. ignore.
-                        assert refNum == 0;
-                        sb.append("$0");
-                    }
-                } else if (nextChar == '$') {
-                    sb.append('$');
-                    cursor++;
-                } else if (nextChar == '&') {
-                    sb.append(matcher.group());
-                    cursor++;
-                } else if (nextChar == '`') {
-                    sb.append(text, 0, matcher.start());
-                    cursor++;
-                } else if (nextChar == '\'') {
-                    sb.append(text, matcher.end(), text.length());
-                    cursor++;
-                } else if (nextChar == '<' && !regexp.getGroupNames().isEmpty()) {
-                    // ES2018 $<name>
-                    final int close = replacement.indexOf('>', cursor + 1);
-                    if (close < 0) {
-                        sb.append('$');
-                    } else {
-                        final java.util.List<Integer> idxs = regexp.getGroupNames().get(replacement.substring(cursor + 1, close));
-                        if (idxs != null) {
-                            if (groups == null) {
-                                groups = groups(matcher);
-                            }
-                            // ES2025: with a duplicated name, substitute the
-                            // capture of whichever group participated (at most
-                            // one does)
-                            for (final int idx : idxs) {
-                                if (groups[idx] != UNDEFINED) {
-                                    sb.append((String) groups[idx]);
-                                    break;
-                                }
-                            }
-                        }
-                        // an unknown name (or a matched-but-empty group) contributes nothing
-                        cursor = close + 1;
-                    }
-                } else {
-                    // unknown substitution or $n with n>m. skip.
-                    sb.append('$');
-                }
-            } else {
-                sb.append(nextChar);
-                cursor++;
-            }
-        }
-    }
-
     private static final Object REPLACE_VALUE = new Object();
 
     private static MethodHandle getReplaceValueInvoker() {
         return Global.instance().getDynamicInvoker(REPLACE_VALUE,
             () -> Bootstrap.createDynamicCallInvoker(String.class, Object.class, Object.class, Object[].class)
         );
-    }
-
-    private String callReplaceValue(final MethodHandle invoker, final Object function, final Object self, final RegExpMatcher matcher, final String string) throws Throwable {
-        final Object[] groups = groups(matcher);
-        // ES2018: a function replacement receives the named-capture object as
-        // its last argument when the pattern declares named groups.
-        final Object groupObject = buildGroupObject(groups);
-        final boolean hasNamed = groupObject != UNDEFINED;
-        final Object[] args   = Arrays.copyOf(groups, groups.length + 2 + (hasNamed ? 1 : 0));
-
-        args[groups.length]     = matcher.start();
-        args[groups.length + 1] = string;
-        if (hasNamed) {
-            args[groups.length + 2] = groupObject;
-        }
-
-        return (String)invoker.invokeExact(function, self, args);
     }
 
 

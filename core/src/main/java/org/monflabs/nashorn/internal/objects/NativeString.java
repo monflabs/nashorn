@@ -835,30 +835,10 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             return matched;
         }
 
-        if (!nativeRegExp.getGlobal()) {
-            return nativeRegExp.exec(str);
-        }
-
-        nativeRegExp.setLastIndex(0);
-
-        final List<Object> matches = new ArrayList<>();
-
-        ScriptObject result;
-        // We follow ECMAScript 6 spec here (checking for empty string instead of previous index)
-        // as the ES5 specification is buggy and causes empty strings to be matched twice.
-        while ((result = nativeRegExp.exec(str)) != null) {
-            final String matchStr = JSType.toString(result.get(0));
-            if (matchStr.isEmpty()) {
-                nativeRegExp.setLastIndex(nativeRegExp.getLastIndex() + 1);
-            }
-            matches.add(matchStr);
-        }
-
-        if (matches.isEmpty()) {
-            return null;
-        }
-
-        return new NativeArray(matches.toArray());
+        // the built-in @@match, which takes the direct route for an ordinary
+        // regexp: one algorithm, so what a regexp matches does not depend on
+        // whether some script has installed a symbol method somewhere
+        return NativeRegExp.match(nativeRegExp, str);
     }
 
     /**
@@ -891,11 +871,9 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             return replaced;
         }
 
-        if (Bootstrap.isCallable(replacement)) {
-            return nativeRegExp.replace(str, "", replacement);
-        }
-
-        return nativeRegExp.replace(str, JSType.toString(replacement), null);
+        // as for match above: the built-in @@replace, which takes the direct
+        // route for an ordinary regexp
+        return NativeRegExp.replace(nativeRegExp, str, replacement);
     }
 
     /**

@@ -1,0 +1,21 @@
+cases: 17
+  ["1","2","2"]
+  ["1","1",null]
+  null
+  ["","","",""]
+  ["","","",""]
+  a#b#
+  Smith John
+  12/09/2026
+  a[1@1]b[2@3]
+  -a-b-c-
+  -a-😀-b-
+  a[b|a|c]c
+  a!b.c
+  global
+  undefined
+  match leaves lastIndex 0
+  replace leaves lastIndex 0
+subclass match: ["1"]
+own exec honoured: null
+replaced exec honoured: a# true
