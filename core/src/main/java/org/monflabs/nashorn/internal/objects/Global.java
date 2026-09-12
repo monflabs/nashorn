@@ -3053,14 +3053,18 @@ public final class Global extends Scope {
 
     private synchronized ScriptFunction getBuiltinDate() {
         if (this.builtinDate == null) {
-            this.builtinDate = initConstructorAndSwitchPoint("Date", ScriptFunction.class);
+            this.builtinDate = initConstructorAndSwitchPoint("Date", ScriptFunction.class, date -> {
+                if (context.getEnv()._annexB) {
+                    // B.2.4.3 says toGMTString is not merely the same code as
+                    // toUTCString but the same function object, which an
+                    // annotation cannot say - so the property is pointed at the
+                    // other one here, before the tagging a write would undo
+                    final ScriptObject proto = ScriptFunction.getPrototype(date);
+                    proto.set("toGMTString", proto.get("toUTCString"), 0);
+                }
+            });
             final ScriptObject dateProto = ScriptFunction.getPrototype(builtinDate);
-            if (context.getEnv()._annexB) {
-                // B.2.4.3 says toGMTString is not merely the same code as
-                // toUTCString but the same function object, which an annotation
-                // cannot say - so the property is pointed at the other one here
-                dateProto.set("toGMTString", dateProto.get("toUTCString"), 0);
-            } else {
+            if (!context.getEnv()._annexB) {
                 // B.2.4
                 removeAnnexB(dateProto, "getYear", "setYear", "toGMTString");
             }
@@ -3747,7 +3751,33 @@ public final class Global extends Scope {
     }
 
     private <T extends ScriptObject> T initConstructorAndSwitchPoint(final String name, final Class<T> clazz) {
+        return initConstructorAndSwitchPoint(name, clazz, null);
+    }
+
+    /**
+     * The same, with a chance to adjust the built-in before its properties are
+     * tagged.
+     *
+     * Writing to a tagged built-in property invalidates the switch point that
+     * every call site on that built-in was linked against - which is the point
+     * of the tag, and right when a script does it. But a realm that does it to
+     * itself while starting up, to make one property the very function object
+     * another one holds, would hand every script an already-invalidated
+     * built-in: no constant-folded {@code String.prototype.charAt}, no folded
+     * global. So those writes happen here, before the tag exists.
+     *
+     * @param <T> the built-in's type
+     * @param name the built-in's name, and its switch point's key
+     * @param clazz the built-in's class
+     * @param adjust what to do before tagging, or null
+     * @return the built-in
+     */
+    private <T extends ScriptObject> T initConstructorAndSwitchPoint(final String name, final Class<T> clazz,
+            final java.util.function.Consumer<T> adjust) {
         final T func = initConstructor(name, clazz);
+        if (adjust != null) {
+            adjust.accept(func);
+        }
         tagBuiltinProperties(name, func);
         return func;
     }
@@ -3796,13 +3826,24 @@ public final class Global extends Scope {
         // built-in constructors
         this.builtinArray     = initConstructorAndSwitchPoint("Array", ScriptFunction.class);
         this.builtinBoolean   = initConstructorAndSwitchPoint("Boolean", ScriptFunction.class);
-        this.builtinNumber    = initConstructorAndSwitchPoint("Number", ScriptFunction.class);
         // ES2015 20.1.2.12/13: Number.parseInt and Number.parseFloat are required
         // to be the very same function objects as the global ones, not merely
         // equivalent, and test262 compares them with ===.
-        this.builtinNumber.set("parseInt", this.parseInt, 0);
-        this.builtinNumber.set("parseFloat", this.parseFloat, 0);
-        this.builtinString    = initConstructorAndSwitchPoint("String", ScriptFunction.class);
+        this.builtinNumber    = initConstructorAndSwitchPoint("Number", ScriptFunction.class, number -> {
+            number.set("parseInt", this.parseInt, 0);
+            number.set("parseFloat", this.parseFloat, 0);
+        });
+        this.builtinString    = initConstructorAndSwitchPoint("String", ScriptFunction.class, string -> {
+            if (env._annexB) {
+                // B.2.3: String.prototype.trimLeft/trimRight are not merely the
+                // same code as trimStart/trimEnd but the SAME function object -
+                // point the (nasgen-created, non-enumerable) properties at the
+                // ES2019 ones.
+                final ScriptObject stringProto = ScriptFunction.getPrototype(string);
+                stringProto.set("trimLeft", stringProto.get("trimStart"), 0);
+                stringProto.set("trimRight", stringProto.get("trimEnd"), 0);
+            }
+        });
         this.builtinMath      = initConstructorAndSwitchPoint("Math", ScriptObject.class);
         this.builtinReflect   = initConstructorAndSwitchPoint("Reflect", ScriptObject.class);
         this.builtinPromise   = initConstructorAndSwitchPoint("Promise", ScriptFunction.class);
@@ -3864,14 +3905,7 @@ public final class Global extends Scope {
 
         if (!env._annexB) {
             removeAnnexB();
-        } else {
-            // B.2.3: String.prototype.trimLeft/trimRight are not merely the same
-            // code as trimStart/trimEnd but the SAME function object - point the
-            // (nasgen-created, non-enumerable) properties at the ES2019 ones.
-            final ScriptObject stringProto = getStringPrototype();
-            stringProto.set("trimLeft", stringProto.get("trimStart"), 0);
-            stringProto.set("trimRight", stringProto.get("trimEnd"), 0);
-        }
+        }   // the Annex B aliases are installed with their built-ins, before tagging
 
         if (! env._no_typed_arrays) {
             this.arrayBuffer       = LAZY_SENTINEL;
