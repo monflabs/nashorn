@@ -94,6 +94,8 @@ Measured with optimistic types off against 15.7 and the fork's previous revision
 | The nasgen-generated built-in constructors resolved once per JVM instead of per realm | `Global` | realm creation 61us → 49us against upstream's 42us; `startup.50globals` -15% | None; the handles last as long as the engine's own classes. |
 | `getOptimisticGetter` caches the handle where the program point cannot reach it - the exact type, or a wider one | `AccessorProperty` | not measurable on the gate, whose property metrics move 20% run to run; it is a link-time cost, and the gate measures steady state | Only the program-point-independent cases are cached, which is every read that cannot deoptimise. |
 | `Promise.prototype.finally` reads the intrinsic `%Promise%` rather than the global property, as `then` already did | `NativePromise` | one property lookup per call | None; it is also what the specification says. |
+| A match kept as its start/end pairs, the captures cut out of the input only if something reads them, so `test` builds none | `RegExpResult`, `NativeRegExp` | `regexptest` -29%; `test` with six captures 1490ms against 15.7's 1537ms | Named groups and the `d` flag keep the eager form, since the group object and the indices need the captures. This is GraalJS's `LazyRegexResultArray` in the small. |
+| `String.prototype.replace` over a search string searches for the string instead of escaping it into a pattern and running the engine | `NativeString`, `NativeRegExp` | 300k replaces 37ms → 8ms, against 15.7's 36ms | The legacy statics are left alone by this path, as upstream leaves them: they answer for the last `RegExpBuiltinExec`, and a string search is not one. |
 | Eight new perf-gate scripts (`arith`, `strbuild`, `regexp`, `wideobject`, `megamorphic`, `forof`, `closures`, `sort`) | `core/src/test/scripts/perf/` | none by themselves - they are what makes the rest measurable | Their bands are the default 20%, not measured per metric like the seven original scripts' are. |
 
 ## 3. Reliability under optimistic types
@@ -138,7 +140,30 @@ Each was measured and taken out again; the measurement is the reason the benchma
 - `-XX:TypeProfileLevel=222` in the benchmark profile: slower than the JVM default on JDK 25 in
   one run; not re-measured with care.
 
-## 6. Not done
+## 6. Measured against GraalJS's approach
+
+GraalJS is an AST interpreter that Truffle partial-evaluates, so most of what makes it fast -
+self-specializing nodes, call-target splitting, value profiles, frame escape analysis, and TRegex,
+which is a DFA compiler built on the same machinery - is architecture rather than technique and does
+not carry to an engine that emits bytecode. Three of its ideas are data structures, and those do:
+
+- **Lazy match results.** Done, above, for `test`. Not worth extending to `exec`: with the capture
+  strings skipped entirely as an experiment, `exec` reading only `m[0]` went from 710ms to 665ms on
+  a six-capture pattern, because the cost is Joni tracking the capture registers through
+  backtracking, not Nashorn cutting the substrings. 15.7 measures the same, so there is nothing here
+  that is this fork's to win.
+- **Literal patterns outside the regexp engine.** Done, above.
+- **A primitive `lastIndex`.** Not done. GraalJS keeps it as an int in the shape; here it is a data
+  property that nasgen backs with an `Object` field, and no `@Property` in the tree is primitive, so
+  it would take extending nasgen. The part that is cheap - reading an `Integer` without going through
+  `JSType.toNumber` - was implemented, measured at nothing on `exec` over a global regexp, and taken
+  out again.
+
+One more was tried and dropped: TruffleString caches single-character strings, which would make
+`charAt` allocation-free. 2.7M `charAt` calls measure 4ms, so C2's escape analysis already removes
+that allocation.
+
+## 7. Not done
 
 - `CodeBuffer` records one capturing lambda per emitted instruction; primitive arrays would cut
   compile-time allocation, for the `compile` metric only.

@@ -242,6 +242,21 @@ no `$` in it is now appended as it stands rather than going through the substitu
 find that out. `match(/[a-z]+/g)` is 174ms against 15.7's 228ms, and `replace(/[aeiou]/g, fn)` 100ms
 against its 98ms.
 
+Two ideas came from looking at what GraalJS does differently, and they are the two of its techniques
+that are data structures rather than Truffle. `RegExp.prototype.test` never reads the captures, but
+it went through the exec that builds them and discarded the result; a match is now kept as its
+start/end pairs and the substrings are cut only if something reads them, which the legacy statics
+still can. And `String.prototype.replace` over a search string escaped it into a pattern and ran the
+regexp engine to find what `indexOf` finds: 300k replaces went from 37ms to 8ms, against 15.7's 36ms.
+A third, keeping `lastIndex` primitive as GraalJS does, is not available here - it is a data property
+nasgen backs with an `Object` field - and the part of it that was cheap measured at nothing.
+
+What did not come across is most of GraalJS: partial evaluation over self-specializing nodes is its
+architecture, and TRegex is built on the same machinery. Deferring the whole match result, its
+`LazyRegexResultArray`, was measured before it was written and turned out not to pay for `exec` -
+skipping the capture strings entirely moved a six-capture `exec` from 710ms to 665ms, because the
+cost is Joni tracking capture registers through backtracking, and 15.7 measures the same.
+
 And realm creation, which is what a realm-per-request embedder pays on every request: `Global.init`
 resolved 56 built-in constructors reflectively per realm, and `getDeclaredConstructor` copies a fresh
 reflective object on every call. Resolved once per JVM instead, a fresh realm went from 61
