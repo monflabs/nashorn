@@ -290,7 +290,20 @@ public final class ScriptRunner {
     }
 
     private void execute(final Sample sample, final String source, final boolean echo, final Console console, final Listener listener) {
-        final ScriptEngine eng = engine(sample.options());
+        final ScriptEngine eng;
+        try {
+            eng = engine(sample.options());
+        } catch (final RuntimeException e) {
+            // Building the engine can fail before any script runs - a sample whose
+            // "// @option" line names an option this engine no longer has is the way
+            // it happens in practice. The listener is the only thing that tells the
+            // UI, and SampleRunTest, that a run is over, so letting this escape left
+            // both waiting forever: the Run button stayed disabled, and the test hung
+            // until its timeout with no output and nothing to say which sample it was.
+            listener.started();
+            listener.finished(new Result(0, e, false));
+            return;
+        }
         final Run run = new Run(eng);
         current.set(run);
         listener.started();
