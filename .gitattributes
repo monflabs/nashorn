@@ -1,0 +1,28 @@
+# Line endings are part of this project's test data.
+#
+# Several tests parse a file and assert on character offsets into it -
+# core/src/test/scripts/nosecurity/parserapi.js reads its own source and prints
+# every node's startPosition/endPosition, and the treeapi tests do the same for
+# the files they parse. A CRLF checkout adds one character per line, so every
+# offset shifts and the .js.EXPECTED comparison fails: on Windows, parserapi.js
+# reported endPosition 1138 where the expected file says 1109, one byte for each
+# of the 29 line endings in between.
+#
+# So the whole tree is normalised to LF in the working tree on every platform,
+# not merely in the repository. There are no .bat or .cmd files here, and the
+# shell scripts need LF anyway.
+#
+# NOTE for an existing Windows checkout: this file only governs what git writes
+# out. A tree already checked out with CRLF stays that way until it is
+# renormalised, and `git checkout -- .` alone will not do it - git's stat cache
+# considers the files unchanged and skips them. This does:
+#
+#     git add --renormalize .
+#     git commit -m "normalise line endings"      (or reset, if there is nothing to commit)
+#     git rm --cached -r .
+#     git reset --hard
+#
+* text=auto eol=lf
+
+# Binary, and left exactly as it is.
+*.png binary

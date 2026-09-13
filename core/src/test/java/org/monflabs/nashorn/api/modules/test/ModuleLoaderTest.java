@@ -145,11 +145,24 @@ public class ModuleLoaderTest {
         }
     }
 
+    /**
+     * A path, spelled so a JavaScript string literal means it.
+     *
+     * A Windows path is full of backslashes, and the lexer reads each one as the
+     * start of an escape: {@code 'C:\Users\...\counter.js'} reaches the module
+     * loader as {@code C:Users...counter.js} and resolves to nothing. Doubling
+     * them is what makes the literal denote the path. Harmless on a platform
+     * whose separator is a forward slash, where there is nothing to double.
+     */
+    private static String literal(final Path path) {
+        return path.toString().replace("\\", "\\\\");
+    }
+
     @Test
     public void registeringALoaderReplacesTheDefaultFilesystem() {
         final ScriptEngine e = engine(new JavaModuleLoader().add("math", Map.of("x", 1)));
         try {
-            e.eval("import { count } from '" + dir.resolve("app.js") + "';");
+            e.eval("import { count } from '" + literal(dir.resolve("app.js")) + "';");
             fail("expected the resolution error");
         } catch (final ScriptException expected) {
             assertTrue(expected.getMessage().contains("app.js"), expected.getMessage());
@@ -163,7 +176,7 @@ public class ModuleLoaderTest {
         final ScriptEngine e = engine(new PathModuleLoader(dir));
         // bare against the root, ./ and ../ against the importer, absolute as itself
         final ScriptObjectMirror ns = (ScriptObjectMirror)e.eval(
-                "import { seen } from 'sub/inner.js';\nimport { count } from '" + dir.resolve("counter.js") + "';\nexport { seen, count };");
+                "import { seen } from 'sub/inner.js';\nimport { count } from '" + literal(dir.resolve("counter.js")) + "';\nexport { seen, count };");
         assertEquals(ns.getMember("seen"), "inner sees 0");
         assertEquals(ns.getMember("count"), 0);
     }
