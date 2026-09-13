@@ -45,7 +45,7 @@ the engine's own business.
 
 | API | What it is for | Read |
 | --- | --- | --- |
-| **`api.tree.Parser`** | The parser as a public AST - `CompilationUnitTree`, the `*Tree` interfaces, `SimpleTreeVisitorES6` - for linters, rewriters and analysers that must not depend on internals. | [The parser API](../guide/parser-api.md) |
+| **`api.tree.Parser`** | The parser as a public AST - `CompilationUnitTree`, the `*Tree` interfaces, `SimpleTreeVisitorES6` - for linters, rewriters and analysers that must not depend on internals. | [The parser API](../internals/parser-api.md) |
 | **`api.debugger.Debugger`** | Programmatic control of the debugger an engine runs with `--debugger`: breakpoints, pause, step, terminate, frames, scopes, values, and a passive `TraceListener` stream of statements and completion values. `Debugger.of(engine)`. | [Debugging scripts](../guide/debugging.md#the-api) |
 | **`api.debugger.DebuggerFrontend`** | A service the engine looks up for `--inspect`: the Chrome DevTools Protocol server is one; a frontend speaking another protocol would be another. | [The debugger](../internals/debugger.md) |
 

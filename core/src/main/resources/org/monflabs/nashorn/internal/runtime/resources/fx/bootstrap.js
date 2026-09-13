@@ -68,5 +68,5 @@ javafx.application.Application.launch((Java.extend(javafx.application.Applicatio
         }
     }
 
-    // No arguments passed to application (handled thru $ARG.)
+    // No arguments passed to application.
 })).class, new (Java.type("java.lang.String[]"))(0));

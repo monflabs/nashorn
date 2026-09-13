@@ -63,55 +63,19 @@ public class EvalScript {
 Compile, run, and `Hello, World` appears — the exception handling is elided here; `eval` throws
 `javax.script.ScriptException` on script errors.
 
-## Two ways to create an engine
+## Configuring the engine
 
-`Hello, world` above uses **`javax.script`** — `ScriptEngineManager.getEngineByName(...)`. That is
-the right choice for **simply evaluating scripts**: it is the standard JSR-223 entry point, needs no
-Nashorn-specific imports, and gives a working engine with the default configuration.
+`Hello, world` uses the standard JSR-223 lookup, which is the right choice for **simply evaluating
+scripts**: no Nashorn-specific imports, and a working engine with the default configuration. That
+engine is deliberately **bare**, though — the defaults, and no script libraries and no module
+loaders.
 
-That engine is deliberately **bare**, though: the defaults, and — importantly — **no script
-libraries and no module loaders**. When a script needs more than the language itself, build the
-engine with the fork's own **`NashornScriptEngineBuilder`** instead — the fluent, type-safe way to
-configure:
-
-- **engine [options](../reference/options.md)** — strict mode, sandboxing, the time zone, the
-  debugger, the [event loop](../libraries/overview.md#the-event-loop) (off by default —
-  `.eventLoop(true)` to run `Promise`, `async`/`await`, timers and `fetch`)…;
-- **[script libraries](../extending/script-libraries.md)** — the `host` timers and `fetch`, or your
-  own values installed into every realm (there is no discovery, so a bare engine has none);
-- **[module loaders](../extending/module-loaders.md)** — resolving `import` to files, class-path
-  resources, Java values, or the [Node modules](../libraries/node.md).
-
-`getEngineByName` configures none of these. Options *can* also be passed as raw `--option` strings
-(and libraries as varargs) to the deprecated `NashornScriptEngineFactory.getScriptEngine(...)`
-overloads — but the builder's typed methods are checked at compile time, and it alone can register a
-module loader.
-
-```java
-import javax.script.ScriptEngine;
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
-import org.monflabs.nashorn.libs.FetchLibrary;
-import org.monflabs.nashorn.libs.HostLibrary;
-
-ScriptEngine engine = new NashornScriptEngineBuilder()
-        .strict(true)                                    // an engine option
-        .eventLoop(true)                                 // timers and fetch need somewhere to run
-        .library(new HostLibrary(), new FetchLibrary())  // adds setTimeout, fetch, ...
-        .build();
-engine.eval("setTimeout(() => print('tick'), 10)");      // needs both lines above
-```
-
-?> Both are needed. The library supplies the function; the [event loop](../libraries/overview.md#the-event-loop)
-runs what it schedules. Without `.eventLoop(true)` the call throws a `TypeError` saying so, rather
-than quietly scheduling work nothing would run.
-
-`build()` returns an ordinary `javax.script.ScriptEngine`, so everything in
-[Using the engine](using-the-engine.md) works the same either way — the builder only decides *what
-the engine can do* before you run anything against it.
-
-**Rule of thumb:** `getEngineByName` for a quick eval; **`NashornScriptEngineBuilder` for anything
-real** — and always when scripts use libraries or `import`. [Creating the engine](engine-setup.md)
-covers the choice and every option in full.
+The moment a script needs an [option](../reference/options.md), a
+[script library](../extending/script-libraries.md) (the `host` timers, `fetch`, or your own), the
+[event loop](../libraries/overview.md#the-event-loop), or `import`
+[module loaders](../extending/module-loaders.md), build the engine with the fork's own
+`NashornScriptEngineBuilder` instead. **[Creating the engine](engine-setup.md) covers the choice,
+the builder, and every option in full.**
 
 ## What language you get
 
@@ -148,8 +112,8 @@ Manager, which the JDK itself removed.
 ## Where next
 
 - [Creating the engine](engine-setup.md) — the builder, options, class filtering, script libraries.
-- [Using the engine](using-the-engine.md) — getting an engine, configuring it with the builder,
-  evaluating, invoking, bindings and scopes.
+- [Using the engine](using-the-engine.md) — evaluating, invoking, bindings and scopes, and what to
+  reuse across evaluations.
 - [Connecting with Java](connecting-with-java.md) — the `Java` object and everything interop.
 - Running scripts from the command line — [The shell](../reference/shell.md).
 - Trying things out interactively — [the playground](playground.md), a sample browser built by the

@@ -59,6 +59,24 @@ compiled-code cache and globals.
   installed into every global the engine creates. There is no discovery — a bare engine has none, so
   the builder (or a deprecated factory overload) is the only way to add them.
 
+A library and the event loop usually travel together:
+
+```java
+import org.monflabs.nashorn.libs.FetchLibrary;
+import org.monflabs.nashorn.libs.HostLibrary;
+
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .eventLoop(true)                                 // timers and fetch need somewhere to run
+        .library(new HostLibrary(), new FetchLibrary())  // adds setTimeout, fetch, ...
+        .build();
+engine.eval("setTimeout(() => print('tick'), 10)");      // needs both lines above
+```
+
+?> Both are needed. The library supplies the function; the
+[event loop](../libraries/overview.md#the-event-loop) runs what it schedules. Without
+`.eventLoop(true)` the call throws a `TypeError` saying so, rather than quietly scheduling work
+nothing would run.
+
 ## The javax.script route, and its options
 
 `new ScriptEngineManager().getEngineByName("nashorn-monflabs")` returns a working engine with the
@@ -153,6 +171,69 @@ tracing) that stay with `option(...)`.
 | `dumpStackOnError(boolean)` | `-doe` | off (builder), on (no-argument factory engine) | A script error also dumps the Java stack of its origin. |
 | `debugger(boolean)` | `--debugger` | off | Scripts compile with the [debugger's](debugging.md) hooks, so a client can attach; costs some speed. |
 | `inspect(hostAndPort, wait)` | `--inspect` / `--inspect-brk` | off | Listen for a Chrome DevTools Protocol client; `wait` pauses at the first statement until one attaches. Implies the debugger. |
+
+## Making the most of an engine
+
+Nashorn compiles to bytecode and links call sites as they run, so nearly all of its cost is paid the
+first time. Reusing the right things is what turns that into throughput.
+
+**Reuse the engine.** Every `build()` makes a new engine with its own
+[Context](../internals/contexts-globals.md): its own class loaders, its own compiled-class cache, its
+own linker. Two engines share nothing but the JVM-wide structure classes. One long-lived engine per
+configuration is the shape to aim for; a fresh engine per request throws away every compilation.
+
+**Reuse compiled scripts.** A compiled class belongs to the *engine*, not to a realm, and one
+`CompiledScript` runs against as many realms as you like:
+
+```java
+CompiledScript compiled = ((Compilable) engine).compile(source);   // once
+compiled.eval(contextA);                                           // many
+compiled.eval(contextB);
+```
+
+Even without `Compilable`, evaluating the same `Source` twice is a cache hit — the engine's class
+cache is keyed by source (`--class-cache-size`, 50 by default), so re-running a script the engine has
+seen costs no compilation. `--persistent-code-cache` extends that across **processes**, which is what
+to reach for when startup time rather than steady state is the problem.
+
+**Let the code get hot.** [Optimistic typing](../internals/optimistic-typing.md) is on by default: the
+first runs deoptimise and recompile, and the steady state afterwards is several times faster. That
+bargain only pays for code that runs more than once. For a script evaluated once and discarded,
+`.optimisticTypes(false)` skips the recompiles and starts faster.
+
+**Reuse bindings.** A fresh `Bindings` means a fresh realm — a complete set of built-ins — because
+the engine associates one global with each bindings object (the
+[scope model](using-the-engine.md#the-scope-model)). Built-ins are created lazily, so a realm is
+cheaper than it sounds, but not free. Create bindings deliberately and hold on to them, rather than
+calling `createBindings()` per request.
+
+### Sharing a realm
+
+Two evaluations can share one realm, and so share state. Three ways, in increasing order of
+bluntness:
+
+1. **Pass the same `Bindings` object.** The realm is stored *in* the bindings, so any
+   `ScriptContext` whose `ENGINE_SCOPE` is that same object evaluates in the same realm. This is the
+   ordinary way to keep state across evaluations.
+2. **Hand the realm to another bindings.** The realm travels as the value under the reserved key
+   `NashornScriptEngine.NASHORN_GLOBAL` — and `createBindings()` returns a `ScriptObjectMirror` that
+   *is* the realm. So a plain `SimpleBindings` can be pointed at an existing one:
+
+   ```java
+   Bindings shared = engine.createBindings();          // or engine.getBindings(ENGINE_SCOPE)
+   Bindings other  = new SimpleBindings();
+   other.put(NashornScriptEngine.NASHORN_GLOBAL, shared);
+   // a context whose ENGINE_SCOPE is `other` now evaluates in `shared`'s realm
+   ```
+
+3. **`globalPerEngine(true)`** (`--global-per-engine`) collapses the model: one realm for the whole
+   engine, whatever bindings are passed. Use it when you want JSR-223's bindings plumbing out of the
+   picture entirely.
+
+!> A realm is **single-threaded**. Sharing one is how you share *state*, not how you get parallelism:
+two threads evaluating against one realm at the same time is a data race, and nothing detects it. For
+concurrency, give each thread its own realm and share the compiled code — see
+[Threads and concurrency](concurrency.md).
 
 ## Engine metadata
 

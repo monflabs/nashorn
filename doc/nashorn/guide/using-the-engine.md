@@ -2,102 +2,14 @@
 
 The engine implements `javax.script` — `ScriptEngine`, `Compilable` and `Invocable` — plus the
 Nashorn-specific types in `org.monflabs.nashorn.api.scripting` where the standard interfaces run out.
-This page covers both getting an engine and running scripts against it. **How you create the engine
-decides what it can do; how you run scripts against it is the same either way.**
+This page is about **running scripts** against an engine you already have.
 
-## Getting an engine
-
-There are two entry points:
-
-**The `javax.script` lookup** — the standard JSR-223 way, for **simply evaluating scripts**:
-
-```java
-ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
-```
-
-The name must be `nashorn-monflabs` (or the `Nashorn-Monflabs` casing); the engine deliberately does
-**not** answer to the generic `js`, `JavaScript` or `ECMAScript`, nor to plain `nashorn` (see
-[Creating the engine](engine-setup.md#engine-metadata)). What you get is a *bare* engine: the
-defaults, no script libraries, no module loaders. It carries `-doe` (dump the Java stack on a script
-error).
-
-**The `NashornScriptEngineBuilder`** — the fork's own builder, and the type-safe way to configure the
-engine. Reach for it the moment a script needs an [option](../reference/options.md), a
-[script library](../extending/script-libraries.md) or `import`
-[module loaders](../extending/module-loaders.md) — none of which the bare engine has:
-
-```java
-import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
-import org.monflabs.nashorn.libs.FetchLibrary;
-import org.monflabs.nashorn.libs.HostLibrary;
-
-ScriptEngine engine = new NashornScriptEngineBuilder()
-        .strict(true)                                    // an engine option
-        .library(new HostLibrary(), new FetchLibrary())  // fetch, timers, atob/btoa
-        .moduleLoader(new PathModuleLoader(scriptsDir))  // where import resolves
-        .build();
-```
-
-`build()` returns an ordinary `javax.script.ScriptEngine`, so everything below this section works the
-same whichever way you built it. Prefer the builder for real work; see
-[Creating the engine](engine-setup.md) for every option and method.
-
-?> Options and libraries can also be passed as raw `--option` strings and varargs to the deprecated
-`NashornScriptEngineFactory.getScriptEngine(...)` overloads. The builder's typed methods are checked
-at compile time, and it alone can register a **module loader** — so use it for new code.
-
-## Configuring with the builder
-
-A builder starts with **no options** (what the shell runs with), adds what it is told in order — a later
-setting of the same option wins, as on a command line — and `build()` validates them, throwing
-`IllegalArgumentException` for one it does not know. A builder can be reused, and every `build()` is a
-new engine with its own compiled-code cache and globals. The three things only the builder reaches:
-
-**Options.** Each has a typed method; `option(...)` takes any other in its command-line spelling. The
-two are interchangeable — `java(false)` and `option("--no-java")` build the same engine.
-
-```java
-ScriptEngine engine = new NashornScriptEngineBuilder()
-        .annexB(false)                       // --annexB=false — the ECMAScript standard alone
-        .java(false)                         // --no-java — the bluntest sandbox
-        .locale(Locale.US)
-        .optimisticTypes(false)              // run-once script: faster warmup, no deoptimising recompiles
-        .option("--class-cache-size=100")    // anything without a named method
-        .build();
-```
-
-Options are fixed at construction — no per-`eval` switch — so two configurations means two engines,
-which coexist cleanly, each its own [Context](../internals/contexts-globals.md). The
-[options reference](../reference/options.md) and the tables in
-[Creating the engine](engine-setup.md#engine-options) cover every one, including class loading and a
-[`ClassFilter`](custom-objects.md#classfilter) (`classLoader(...)`, `classFilter(...)`), which gate
-what Java a script can see.
-
-**Script libraries.** A [script library](../extending/script-libraries.md) installs globals into
-*every* global the engine creates. Nothing is installed automatically — a bare engine has none, not
-even the standard `host` and `fetch`:
-
-```java
-// .library(new HostLibrary()).eventLoop(true) on the builder
-engine.eval("setTimeout(() => print('tick'), 10)");
-```
-
-The library supplies the function; the **event loop** — off by default, `.eventLoop(true)` — runs
-what it schedules, and without it the call throws a `TypeError` saying so. With the loop on, `eval`
-returns when the script is *idle* (its timers and microtasks have drained), not merely when its
-synchronous code finishes — see
-[Overview and the event loop](../libraries/overview.md). A script that leaves an interval running
-keeps `eval` from returning, so clear it in the same evaluation.
-
-**Module loaders.** By default `import` resolves against the filesystem. Register a
-[module loader](../extending/module-loaders.md) — files under a root, class-path resources, Java
-values, or the [Node modules](../libraries/node.md) — to change that; loaders are consulted in order,
-first answer wins, and registering any replaces the default filesystem resolution.
-
-```java
-// scriptsDir/greet.mjs:  export function hi(n) { return 'hi ' + n; }
-engine.eval("import { hi } from 'greet.mjs'; print(hi('there'))");   // needs the moduleLoader above
-```
+Creating and configuring one is [Creating the engine](engine-setup.md): the two entry points
+(`ScriptEngineManager.getEngineByName("nashorn-monflabs")` for a bare engine,
+`NashornScriptEngineBuilder` for anything that needs an option, a
+[script library](../extending/script-libraries.md) or `import`), every option with its builder
+method, and the engine's JSR-223 metadata. Whichever way it was built, `build()` returns an ordinary
+`javax.script.ScriptEngine` and everything below works the same.
 
 ## Evaluating scripts
 
@@ -206,12 +118,9 @@ newContext.getBindings(ScriptContext.ENGINE_SCOPE).put("x", "world");
 engine.eval("print(x)", newContext);         // world — a different global
 ```
 
-The `--global-per-engine` option (a builder option) collapses the model: one global for the whole
-engine, whatever bindings are passed. Use it when you want JSR-223's bindings plumbing out of the
-picture.
-
-?> A fresh global per bindings is not free — each carries its own set of built-ins. Create bindings
-deliberately, reuse them, and prefer `CompiledScript` when running one script against many.
+Keeping state across evaluations, collapsing the model with `--global-per-engine`, and what a
+fresh realm actually costs are in
+[Sharing a realm](engine-setup.md#sharing-a-realm).
 
 ## ScriptObjectMirror
 

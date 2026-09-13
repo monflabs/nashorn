@@ -4,51 +4,23 @@ ECMAScript 2026 conformance
 This engine implements [ECMAScript 2026](https://262.ecma-international.org/17.0/)
 (ECMA-262, 17th edition) together with its **Annex B**, and is measured against a
 pinned commit of [tc39/test262](https://github.com/tc39/test262). The slice is
-selected at runtime by `Test262Selector`, and of its ~79,000 executions
+selected at runtime by `Test262Selector`, and of its ~78,600 executions
 **none fail** with the engine's defaults, and **8 fail** without optimistic types, named in
 `core/src/test/resources/test262-expectations-pessimistic.txt`. The run
 fails on an unexpected pass as well as an unexpected failure, so conformance can
-only move forwards. (The ES2024 additions - `Object.groupBy`/`Map.groupBy`,
-`Promise.withResolvers`, `String.prototype.isWellFormed`/`toWellFormed`, resizable
-`ArrayBuffer` and growable `SharedArrayBuffer` with `transfer`, `Atomics.waitAsync`
-and the RegExp `v` flag - are all in, so are the **ES2025** additions:
-**iterator helpers** (a new `Iterator` global, `Iterator.from`, and the
-`map`/`filter`/`take`/`drop`/`flatMap`/`reduce`/`toArray`/`forEach`/`some`/`every`/
-`find` methods), the **`Set` methods** (`union`, `intersection`, `difference`,
-`symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`),
-**`Float16Array`** (with `Math.f16round` and `DataView` `getFloat16`/`setFloat16`),
-**`RegExp.escape`**, **`Promise.try`**, the **RegExp pattern modifiers**
-`(?ims-ims:…)`, **duplicate named capture groups**, and **import attributes** with
-**JSON modules** (`with { type: "json" }`); and so now are the **ES2026** additions:
-**`Error.isError`**, **`Math.sumPrecise`**, the **upsert** methods
-`Map`/`WeakMap`.prototype.`getOrInsert`/`getOrInsertComputed`, **`Iterator.concat`**,
-**`Uint8Array`** to/from **base64 and hex** (`fromBase64`/`fromHex`/`toBase64`/`toHex`/
-`setFromBase64`/`setFromHex`), **JSON source access** (a `source` context for
-`JSON.parse`'s reviver) with **`JSON.rawJSON`**/**`JSON.isRawJSON`**, and
-**`Array.fromAsync`**. The slice selects their feature tags. `RegExp.escape`, which
-the finished-proposals list also files under 2026, shipped in ES2025 above.
+only move forwards.
+
+This document records the **divergences**: what fails, what is held out of the
+measured slice and why, and what is excluded from it. Anything the language
+defines and this document does not name, conforms.
+
 Deliberately excluded, being **ES2027**: Temporal, explicit resource management
 (`using`/`await using`), `Atomics.pause` and import defer - their `features:` tags
-are absent from `Test262Selector.FEATURES`, so the deny rule drops those tests.)
+are absent from `Test262Selector.FEATURES`, so the deny rule drops those tests.
 
-All **8** are the one carried-over Annex B shape: an indirect `eval` whose
+All **8** failures are the one carried-over Annex B shape: an indirect `eval` whose
 block-level function declaration must update a `var` the global already had,
-rooted in how the engine merges eval scopes (see below). No ES2022, ES2023,
-ES2024, ES2025 or ES2026 feature corner remains - the eight ES2025 corners that were
-briefly held out are all fixed (detailed under
-[ES2025 corners](#es2025-corners-what-is-held-out) below), and every ES2026 feature
-corner passes with nothing held out.
-
-The resizable typed-array corners once settled here are now **fixed**: a typed
-array's `[[Get]]`/`[[Set]]`/`[[HasProperty]]` for a canonical numeric index no
-longer consults the prototype - an out-of-range index, or one an ES2024 resize
-left out of bounds, reads as `undefined`, reports absent, and drops a write - and
-an element write on a resizable buffer coerces its value before it re-checks the
-bounds (a `valueOf` that resizes the buffer is seen). The fixed-buffer element
-path is unchanged, so nothing on the hot path pays for it. The top-level-await
-`rejection-order` case is fixed too: `AsyncModuleExecutionRejected` now rejects a
-module's own top-level capability before recursing into its async parents, so a
-graph settles its rejections leaf-to-root.
+rooted in how the engine merges eval scopes (see below).
 
 Two shapes of the ES2024 RegExp `v` flag are held out because
 `java.util.regex` has no character-class member that is a string (the same kind
@@ -59,65 +31,6 @@ excluded from the slice by `Test262Selector.unicodeSetsInScope`; every other
 part of the class-set grammar - nested classes, union, intersection (`&&`),
 difference (`--`), ranges, single-code-point `\q{...}`, and property escapes -
 is implemented and passes.
-
-The ES2022 corners earlier documented here are now **fixed**:
-
-- **The thousands-of-private-names Unicode identifier tests**. A class spelling
-  thousands of distinct private names binds each as a `const :private:x` in its
-  carrier scope, and at that scale the carrier's generated method passed the JVM's
-  64 KB limit - the splitter kept every lexical declaration in the one method
-  (even 5000 plain `const` would not compile). The splitter now divides lexical
-  declarations across sub-methods: a declaration moved into a split binds in the
-  real block that was split, forced into scope so the split methods reach the one
-  binding. Fourteen of the eighteen tests now compile and pass; the four keyed to
-  Unicode 17.0.0 join their non-class siblings in the selector's `LATER_UNICODE`
-  hold-out, since JDK 25 carries Unicode 16 (see below).
-- **The direct-`eval` interaction with the new lexical features**. A direct
-  `eval` now carries its caller's ES2022 early-error context into its own parse:
-  an `eval` whose body names `arguments`, written where a field initializer or
-  static block forbids it, is the parse-time `SyntaxError` the specification asks
-  for (the caller's no-`arguments` context is read from its function, the eval
-  program's `arguments` use tested the same arrow-transparent way the initializer
-  itself is), and an `eval` naming a private member the caller's private
-  environment does not hold - gathered from the `:private:x` bindings on the
-  caller's scope chain, an empty environment for a top-level eval - is likewise a
-  `SyntaxError`. A private-name reference remains lexically visible to a direct
-  `eval` nested in a class method.
-- **Two `#x in obj` grammar corners**: a private identifier is a primary only as
-  the immediate left operand of `in`, so one surviving as an operator's right
-  operand (`#a in #b in c`) or as a `for`-`in` target is now a `SyntaxError`.
-- **Two top-level-await corners**: `new await` at a module's top level (or in an
-  async function) is a `SyntaxError` - `await` is a `UnaryExpression`, not the
-  `MemberExpression` `new` wants - and an asynchronous *cycle* now settles a
-  module's fulfilment in the order the 2025 InnerModuleEvaluation erratum
-  requires, a cyclic async dependency counted as pending so it runs to completion
-  before its waiter's body. Everything else about top-level await conforms - the
-  `await` operator and `for await` at a module's top level, the asynchronous
-  evaluation order across a dependency graph, dynamic `import()` of a module that
-  awaits, and rejection propagation.
-
-Everything else about class fields and private members - public, static, and
-private fields, private methods and accessors and their static forms, field
-initializers (with `this`, `super`, the class name, outer lexicals, and a private
-name's own `NamedEvaluation`), computed keys, static initializer blocks, the
-brand check, the double-installation `TypeError`, invisibility to every form of
-reflection, and the initialization order - conforms.
-
-The corners earlier documented here are **fixed**. The ES2020 ones: `Object(1n) & 1`
-and its kin now throw the `TypeError` a BigInt-to-number coercion must (the
-call-return Java-argument converter no longer takes a BigInt for a Number);
-`(a?.b)()` binds `this` to the chain's base; and `JSON.stringify` calls a BigInt's
-`toJSON` with the primitive as its receiver. And the last module-instantiation
-corner - **a circular module read before its body runs** (`verify-dfs`): a fixture
-imports a hoisted function export back from the entry module that is still
-evaluating, and the specification makes that binding available because function
-declarations are initialised during module *instantiation*, before any module body
-runs. The engine now runs a module body in two passes (`ModuleRecord.instantiate`
-then `ModuleRecord.evaluate`): the first makes each scope and hoists its function
-declarations across the whole graph, so a cyclic dependent finds the export; the
-second runs the bodies for real. The same fix made dynamic `import()` a microtask
-(it no longer evaluates inline), so it can no longer preempt the depth-first
-evaluation order of the static graph it sits in.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their
 tests are held out of the slice — not counted as failures — with the reason
@@ -131,11 +44,15 @@ default. An engine built with `--annexB=false` has none of it.
 
 ```
 mvn -Pfetch-externals -pl core generate-test-resources    # once
-mvn -Ptest262 -DskipTests verify
+mvn -Ptest262 -DskipTests verify                          # engine defaults
+mvn -Ptest262 -DskipTests verify -Dnashorn.test262.optimistic=false
 ```
 
-    test262: 77976 executions from src/test/scripts/external/test262-main, in 12 processes
-    failing: 8   expected to fail: 8
+    test262: 78580 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 0   expected to fail: 0        # engine defaults
+
+    test262: 78580 executions from src/test/scripts/external/test262-main, in 12 processes
+    failing: 8   expected to fail: 8        # --optimistic-types=false
 
 What is not measured, and why
 -----------------------------
@@ -143,7 +60,7 @@ What is not measured, and why
 The suite holds 53,872 test files and tracks the current draft specification, so
 most of it is about editions this engine does not claim. Three things are
 excluded by decision, and one proposal filed inside the Annex B directory;
-everything else outside the slice is simply later than ECMAScript 2024.
+everything else outside the slice is simply later than ECMAScript 2026.
 
 | Excluded | Files | Reason | Revisit? |
 | --- | --- | --- | --- |
@@ -152,59 +69,11 @@ everything else outside the slice is simply later than ECMAScript 2024.
 | `staging/` | 1,483 | Proposals and unreviewed tests, not part of any edition | **Never.** This engine targets the approved standard - see below |
 | `legacy-regexp` tagged | 24 | `RegExp.$1`, `lastMatch` and their kin - a separate Stage 3 proposal, `esid: pending`, filed under `annexB/` by the suite but not part of Annex B | **Never**, on staging's reasoning |
 
-`annexB/` is **no longer excluded**: Annex B is implemented, behind `--annexB`, and its
-directory is measured with the rest. See below. The `async-generator` directories,
-excluded at the ES2017 target, are **now in scope**: async iteration is ES2018 and is
-implemented. The ES2019 additions are all in scope and pass: `Array.prototype.flat`
-and `flatMap` (and their `@@unscopables` entries), `Object.fromEntries`,
-`String.prototype.trimStart`/`trimEnd` (with the Annex B `trimLeft`/`trimRight` as the
-same function objects), `Symbol.prototype.description` (nullable), optional catch
-binding, the guaranteed-stable `Array.prototype.sort`, the JSON superset (raw
-U+2028/U+2029 in string literals) and well-formed `JSON.stringify`. The ES2020
-additions are in scope too: nullish coalescing (`??`), optional chaining
-(`?.`/`?.[]`/`?.()`), `String.prototype.matchAll` and `Symbol.matchAll`,
-`export * as ns from`, dynamic `import()`, `import.meta`, `globalThis`,
-`Promise.allSettled`, `for`-`in` order, and the whole of **BigInt** - the
-primitive and its operators, `BigInt.asIntN`/`asUintN`, the `BigInt64Array`/
-`BigUint64Array` typed arrays, the `DataView` big-64 accessors, and `Atomics` over
-them. The ES2021 additions are in scope too: `String.prototype.replaceAll`,
-`Promise.any` with `AggregateError`, the logical assignment operators
-(`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef` /
-`FinalizationRegistry`. A handful of BigInt corner cases are settled divergences,
-named in the expectations file (see below). The ES2022 additions are in scope:
-`Array`/`String`/`%TypedArray%`.prototype.`at`, `Object.hasOwn`, the `cause` option
-on the `Error` constructors, the RegExp `d` flag (match indices), class fields and
-static initializer blocks, private class members (`#x` fields, methods, accessors,
-their static forms, and `#x in obj`), and top-level `await`; their settled corners
-are the ones named at the top of this document. The ES2023 additions are in scope
-and pass: `Array.prototype.findLast` / `findLastIndex` (and the `%TypedArray%`
-forms), the change-array-by-copy methods `toReversed` / `toSorted` / `toSpliced` /
-`with`, the hashbang grammar (`#!` at a script or module's very start), and
-non-registered symbols as `WeakMap` / `WeakSet` keys and `WeakRef` /
-`FinalizationRegistry` targets. The ES2024 additions are in scope and pass:
-`Object.groupBy` / `Map.groupBy`, `Promise.withResolvers`,
-`String.prototype.isWellFormed` / `toWellFormed`, resizable `ArrayBuffer` and
-growable `SharedArrayBuffer` (with `transfer` / `transferToFixedLength`),
-`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag; the only ES2024
-shapes not measured are the two `v`-flag string-set limits, held out because the
-JDK regex backend cannot express a class member that is a string. And the ES2025
-additions — the target of this edition — are in scope and pass: the iterator
-helpers (a new `Iterator` global, `Iterator.from`, and
-`map`/`filter`/`take`/`drop`/`flatMap`/`reduce`/`toArray`/`forEach`/`some`/`every`/
-`find`), the new `Set` methods (`union`, `intersection`, `difference`,
-`symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`),
-`Float16Array` (with `Math.f16round` and `DataView` `getFloat16`/`setFloat16`),
-`RegExp.escape`, `Promise.try`, the RegExp pattern modifiers `(?ims-ims:…)`,
-duplicate named capture groups, and import attributes with JSON modules; the
-ES2025 shapes not measured are the backend and engine corners named under
-[ES2025 corners](#es2025-corners-what-is-held-out) above.
-
-Everything else the selector leaves out is a later edition: every test whose
-`features:` tag names something introduced after the target - explicit resource
-management (`using` / `await using`), the `Uint8Array` base64/hex methods
-(`toBase64`, `fromHex`, and their kin), `Array.fromAsync`, `Error.isError`, and
-the rest. Those are not failures; they are outside the target. Most would fail if
-run, because the features are not implemented.
+Everything the language defines through **ECMAScript 2026** is in scope, `annexB/` included.
+Whatever the selector leaves out beyond the table above is a later edition: every test whose
+`features:` tag names something introduced after ES2026 — Temporal, explicit resource management
+(`using` / `await using`), `Atomics.pause`, import defer. Those are not failures; they are outside
+the target, and most would fail if run, because the features are not implemented.
 
 Two ES2018 surfaces are in scope but limited by the substrate, so a bounded set of
 their tests is held out of the slice with the reason recorded in the selector -
@@ -355,37 +224,13 @@ edition. Single-code-point `\q{…}` (which is just a set of characters) is impl
 ES2025 corners: what is held out
 --------------------------------
 
-The ES2025 additions - iterator helpers, the `Set` methods, `Float16Array`, `RegExp.escape`,
-`Promise.try`, RegExp pattern modifiers, duplicate named capture groups, and import attributes with
-JSON modules - are implemented and in scope, and **every ES2025 feature corner passes**. Eight tests
-were briefly held out and then fixed, each an engine corner rather than a missing feature:
-
-- **`Object.prototype.toString` on an iterator with no `@@toStringTag`**
-  (`built-ins/Object/prototype/toString/symbol-tag-{array,map,set,string}-builtin`) — once the tag is
-  removed, an iterator has no `[[builtinTag]]` of its own and reads as `"[object Object]"`. The
-  `builtinTag` switch had listed the space-less prototype class names (`"ArrayIterator"`) but an
-  iterator *instance*'s class name carries a space (`"Array Iterator"`), so it fell through to that
-  name. Iterator instances are now matched by type.
-- **`%Iterator.prototype%` `@@toStringTag` / `constructor`**
-  (`built-ins/Iterator/prototype/Symbol.toStringTag/weird-setter`) — a `SetterThatIgnoresPrototype`-
-  Properties must see the assignment's *receiver*, but a nasgen `@Setter` binds `this` to the home
-  prototype. Both accessors are now hand-installed on the shared prototype (in `getIteratorPrototype`),
-  so a write through a child object defines an own property as the spec requires.
-- **`Iterator.from` on a primitive string** (`built-ins/Iterator/from/iterable-primitives`) — the
-  `@@iterator` getter now runs with the primitive as its `this` (GetV), not with the wrapper made only
-  to reach the property; a getter observing `typeof this` sees `"string"`.
-- **`Iterator.from` return-method** (`built-ins/Iterator/from/return-method-calls-base-return-method`)
-  — `%WrapForValidIteratorPrototype%.return` now returns the wrapped iterator's own `return` result
-  rather than a synthesized done result, and reads `return` off the iterator so the call sequence is
-  observed.
-- **`Float16Array` bit-precision** (`built-ins/TypedArray/prototype/set/bit-precision`) — a same-type
-  `Float16Array`→`Float16Array` `set` copies the raw bytes (spec step 28a), preserving NaN payloads,
-  rather than round-tripping through a `double`; `Float16Array` also now reports `isFloatArray`.
-
-Two RegExp shapes are held out in `Test262Selector.REGEXP_ENGINE_LIMITS`, the same kind of substrate
-limit as the ES2018 property escapes and the ES2024 `v`-flag string-sets, because a modifier-bearing
-or duplicate-name pattern must compile with the JDK engine (Joni has no inline flags) and that engine's
-flavour diverges from ES in a few places:
+Everything about the ES2025 additions — iterator helpers, the `Set` methods, `Float16Array`,
+`RegExp.escape`, `Promise.try`, pattern modifiers, duplicate named capture groups, import attributes
+with JSON modules — is implemented and in scope except two RegExp shapes, held out in
+`Test262Selector.REGEXP_ENGINE_LIMITS`. They are the same kind of substrate limit as the ES2018
+property escapes and the ES2024 `v`-flag string-sets: a modifier-bearing or duplicate-name pattern
+must compile with the JDK engine (Joni has no inline flags), and that engine's flavour diverges from
+ES in a few places:
 
 - **RegExp pattern modifiers** — a non-unicode `.` under `(?s:…)` matches a whole code point rather
   than one code unit (the same code-unit-vs-code-point limit as the ES2022 non-unicode match indices),
@@ -398,33 +243,6 @@ flavour diverges from ES in a few places:
   iterated matcher uses such a backreference) are held out. Everything else about duplicate names -
   `.groups`, `.indices`, enumeration order, `match`/`replace`/`replaceAll`/`matchAll`/`split`/`search`,
   and the same-alternative syntax rejection - passes.
-
-Resizable ArrayBuffers and the element hot path
------------------------------------------------
-
-Resizable `ArrayBuffer`s and growable `SharedArrayBuffer`s are implemented — the `{maxByteLength}`
-option, `resize`/`grow`, the `resizable`/`growable`/`maxByteLength`/`detached` accessors,
-`transfer`/`transferToFixedLength`, length-tracking views and out-of-bounds views (a fixed-length view
-a shrink pushed past the end), views rebuilt over the same never-moved storage on a resize. The
-standalone `ArrayBuffer`, `SharedArrayBuffer` and `DataView` surfaces pass, and so do the generic
-`Array.prototype` methods on a resized typed array (a generic method skips an out-of-bounds index
-where the `%TypedArray%` method visits it as `undefined` — the two iterate differently).
-
-**The out-of-bounds element corners are fixed.** A typed array's `[[Get]]`, `[[Set]]` and
-`[[HasProperty]]` for a canonical numeric index must never consult the prototype — out of range reads
-as `undefined`, reports absent, and drops a write. The `get(Object)`/`has(Object)` overrides always
-did that for a string key; the number-keyed reads (`get(int)`/`get(double)`), `has(int)`/`has(double)`,
-and a boxed-number key handed to `get(Object)`/`has(Object)` by the `in` operator and the reflective
-operations now do too, each still delegating an in-range access to the fast path so a normal read pays
-one range test and no more. And an element write on a resizable buffer coerces its value to a
-primitive (`10.4.5.16` step, where a `valueOf`/`Symbol.toPrimitive` may resize the buffer) *before* it
-judges the index against the resulting length — gated on the buffer being resizable and the key being
-a numeric index, so a fixed buffer's writes and every named-property write keep the plain order. This
-clears `Array/prototype/fill/typed-array-resize`,
-`TypedArray/of/resized-with-out-of-bounds-and-in-bounds-indices`,
-`TypedArray/out-of-bounds-behaves-like-detached`, and
-`TypedArrayConstructors/internals/Set/resized-out-of-bounds-to-in-bounds-index`, with no measured
-performance cost on the fixed-buffer element path.
 
 Tail calls: never
 -----------------

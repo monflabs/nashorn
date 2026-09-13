@@ -26,7 +26,7 @@ Called *on* another object — `someScope.load(...)` via `call`/`apply` — it e
 that object on the scope chain, like `with (someScope) eval(src)`. A handful of engine-supplied
 scripts are addressable with the `nashorn:` pseudo-scheme, notably
 `load("nashorn:mozilla_compat.js")` for the old Rhino compatibility layer and
-`load("nashorn:parser.js")` for the script-side [parser](../guide/parser-api.md).
+`load("nashorn:parser.js")` for the script-side [parser](../internals/parser-api.md).
 
 ### `loadWithNewGlobal(source, args...)`
 

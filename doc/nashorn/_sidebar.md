@@ -7,7 +7,6 @@
   - [Connecting with Java](/guide/connecting-with-java.md)
   - [Custom objects and extensions](/guide/custom-objects.md)
   - [ES modules](/guide/modules.md)
-  - [The parser API](/guide/parser-api.md)
   - [Threads and concurrency](/guide/concurrency.md)
   - [Debugging scripts](/guide/debugging.md)
   - [The playground](/guide/playground.md)
@@ -17,7 +16,6 @@
   - [Objects from Java: JSObject vs ScriptObject](/extending/java-objects.md)
   - [Script libraries](/extending/script-libraries.md)
   - [Module loaders](/extending/module-loaders.md)
-  - [Optimizations over 15.7](/extending/optimizations.md)
 
 - **Standard Libraries**
   - [Overview and the event loop](/libraries/overview.md)
@@ -41,6 +39,7 @@
   - [Annex B](/internals/annex-b.md)
   - [Non-standard functions](/internals/non-standard-functions.md)
   - [nasgen](/internals/nasgen.md)
+  - [The parser API](/internals/parser-api.md)
   - [Regular expressions](/internals/regexp.md)
   - [The debugger](/internals/debugger.md)
 
@@ -50,3 +49,8 @@
   - [The shell](/reference/shell.md)
   - [Logging and debugging](/reference/debugging.md)
   - [Conformance](/reference/conformance.md)
+  - [Optimizations over 15.7](/reference/optimizations.md)
+
+- **Project**
+  - [Building and releasing](/project/building-and-releasing.md)
+  - [The documentation site](/project/documentation.md)

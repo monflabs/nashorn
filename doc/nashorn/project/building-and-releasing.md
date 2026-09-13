@@ -1,9 +1,10 @@
 # Building and releasing
 
 Maintainer notes for building the reactor, bumping the version, and cutting a
-release to Maven Central + GitHub. For what the engine *is*, see the top-level
-`README.md` and `CLAUDE.md`; for the release script's internals, read the header
-of [`release.sh`](release.sh).
+release to Maven Central + GitHub. For what the engine *is*, start at the
+[documentation home](../README.md); for the release script's internals, read the
+header of [`buildtools/release.sh`](../../../buildtools/release.sh ':ignore').
+Working on these pages is [The documentation site](documentation.md).
 
 ## Building
 
@@ -18,7 +19,7 @@ mvn -pl core test      # core tests only
 mvn javadoc:javadoc    # the public API javadoc
 ```
 
-The reactor is seven modules. Three are **published** to Maven Central; the rest
+The reactor is six modules. Three are **published** to Maven Central; the rest
 build locally only:
 
 | Module | Artifact | Published |
@@ -94,7 +95,7 @@ Commit the bump (poms + docs + changelog) before releasing.
 
 ## Releasing
 
-Everything is driven by [`release.sh`](release.sh); it does not run any release
+Everything is driven by [`buildtools/release.sh`](../../../buildtools/release.sh ':ignore'); it does not run any release
 step here — it only builds, signs, stages, tags and uploads when you run it. Read
 its header for the exact behaviour and the environment toggles.
 

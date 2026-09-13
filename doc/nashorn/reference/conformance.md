@@ -4,39 +4,37 @@ This engine implements ECMAScript 2026 — ECMA-262, 17th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: ~79,000 selected executions, and nothing unexpected in either typing mode.**
-With optimistic types — the engine default since 2026.1.0 — **every execution passes**. With
-`--optimistic-types=false` the run has **8 settled failures**, all one shape: an indirect `eval` whose
-block-level function declaration must update a `var` the global already had. Compiled on demand, as
-every program is under optimistic types, the `var` reaches the global directly and the cases pass;
-compiled eagerly, it reaches the global through the merge of its scope, and they do not. The feature
-works in ordinary use — the failures need the runner's pre-populated global. CI runs both modes.
-**No feature corner remains held out** for ES2022 through ES2026. The eight ES2025 corners that were
-briefly held out — `Object.prototype.toString` on a tag-less iterator, the `%Iterator.prototype%`
-`@@toStringTag`/`constructor` accessors, `Iterator.from`'s primitive `this`-binding and its
-return-method forwarding, and `Float16Array` bit-precision — are all fixed and detailed in
-[doc/CONFORMANCE.md](../../CONFORMANCE.md). The ES2025 additions (iterator helpers, the `Set` methods,
-`Float16Array`, `RegExp.escape`, `Promise.try`, RegExp pattern modifiers, duplicate named capture
-groups, import attributes and JSON modules) and the seven finished **ES2026** additions
-(`Error.isError`, `Math.sumPrecise`, the `Map`/`WeakMap` upsert methods, `Iterator.concat`,
-`Uint8Array` to/from base64 and hex, JSON source access with `JSON.rawJSON`/`JSON.isRawJSON`, and
-`Array.fromAsync`) are all implemented and pass. Only two *substrate* limits are held out with them —
-the JDK-backend flavours of pattern modifiers and duplicate names — alongside the ES2018 property
-escapes and the ES2024 `v`-flag string-sets described below.
+**~78,600 selected executions.** With optimistic types — the engine default since 2026.1.0 —
+every one passes. With `--optimistic-types=false`, eight fail. The run is diffed against a
+checked-in expectations file and fails on an unexpected *pass* as well as an unexpected failure, so
+conformance can only move forwards.
 
-Temporal, explicit resource management, `Atomics.pause` and import defer are ES2027 and out of scope;
-their `features:` tags are absent from the selector.
+This page lists the divergences: what fails, what is held out of the measured slice, and what is
+excluded from it. Everything not named here conforms.
 
-The run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
-forwards: a fix must remove its expectation line, and a regression cannot hide.
+## What fails
 
-Two ES2018 surfaces are limited by the substrate rather than by choice, and their tests are held out
-of the slice (not counted as failures) with the reason recorded in the selector: a set of RegExp
-patterns that neither backend can compile with ES semantics — unbounded lookbehind, open-group
-backreferences, a subclassable `exec` — and the `\p{…}` Unicode **binary properties** and
-`Script_Extensions`, which the JDK's regex engine does not expose without a bundled Unicode Character
-Database. General-category and `Script` property escapes, named groups, the `s` flag, and bounded
-lookbehind all work on both backends.
+Eight executions, in the pessimistic mode only. All eight are one shape — an **indirect `eval` whose
+block-level function declaration must update a `var` the global already had** (Annex B B.3.3). A
+program compiled eagerly reaches the global through the merge of its scope and misses the update;
+compiled on demand, as every program is under optimistic types, its `var` reaches the global
+directly and the cases pass. The feature works in ordinary use — the failures need the runner's
+pre-populated global. They are listed in
+`core/src/test/resources/test262-expectations-pessimistic.txt`.
+
+## What is held out of the slice
+
+These are engine or substrate limits rather than missing features. Their tests are **not counted as
+failures**; the selector holds them out with the reason recorded beside each.
+
+| Held out | The limit |
+| --- | --- |
+| A set of RegExp patterns (ES2018) | Neither backend can compile them with ES semantics: unbounded lookbehind (the JDK's is bounded and left-to-right), open-group backreferences, a subclassable `exec`. |
+| `\p{…}` binary properties and `Script_Extensions` (ES2018) | `java.util.regex` does not expose them without a bundled Unicode Character Database. General-category and `Script` escapes, named groups, the `s` flag and bounded lookbehind all work on both backends. |
+| `\q{…}` of a multi-character string, and `\p{…}` of *strings* (ES2024 `v` flag) | A `java.util.regex` character class has no member that is a string. Every other part of the class-set grammar — nested classes, union, `&&`, `--`, ranges, single-code-point `\q{…}`, property escapes — is implemented and passes. |
+| Twelve dotAll / multiline / ignoreCase files under RegExp pattern modifiers (ES2025) | A modifier-bearing pattern must compile with the JDK engine, since Joni has no inline flags, and that engine's flavour diverges: a non-unicode `.` under `(?s:…)` matches a whole code point, and `$` under multiline and the folding of `\b`/`\w`/`\P{…}` under `(?i:…)` follow `java.util.regex` rather than the ES `Canonicalize`. The modifier grammar itself parses and the ordinary cases pass. |
+| Five duplicate-named-group files (ES2025) | A `\k<name>` backreference to a duplicated name would need a single numbered backreference that selects whichever group matched *and* still fails on a text mismatch. Everything else about duplicate names — `.groups`, `.indices`, enumeration order, the `String.prototype` methods, the same-alternative rejection — passes. |
+| Eight Unicode 17.0.0 identifier tests | JDK 25 carries Unicode 16, so a Unicode 17 identifier is not one to it. |
 
 ## Annex B
 
@@ -46,7 +44,8 @@ Annex B — the normative-optional annex of features the web depends on — is i
 `RegExp.prototype.compile`), the legacy syntax (HTML-like comments, the old pattern grammar,
 `for (var i = 0 in o)`), and the web-compatibility scoping rules, most notably B.3.3: a function
 declared in a block is also visible, `var`-like, in the enclosing function. `--annexB=false` gives
-an engine with none of it. 1,078 of the annex's 1,086 test files pass.
+an engine with none of it. 1,078 of the annex's 1,086 test files pass; the eight that do not are
+the indirect-eval shape described under [What fails](#what-fails).
 
 ## What is excluded, and why
 
