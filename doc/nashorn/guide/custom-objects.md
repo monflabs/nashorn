@@ -75,7 +75,7 @@ logged.foo;          // prints "get foo", yields "FOO"
 logged.greet("hi");  // prints "call greet(hi)"
 ```
 
-New code targeting ECMAScript 2019 should usually prefer the standard `Proxy`, which this engine
+New code should usually prefer the standard `Proxy`, which this engine
 implements in full; `JSAdapter` remains for the large body of existing code written against it.
 
 ## ClassFilter
@@ -102,4 +102,4 @@ you cannot, isolate at the process boundary, not inside the JVM. Combine the fil
 
 `JSObject` decides how *your* objects behave. To change how the engine links *any* Java type —
 adding properties to classes you do not control, say — drop below the API to a
-[Dynalink custom linker](dynalink-linkers.md).
+[Dynalink custom linker](../internals/dynalink-linkers.md).

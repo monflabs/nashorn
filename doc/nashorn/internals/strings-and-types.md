@@ -60,6 +60,13 @@ Compiled code only calls these generic versions when types are unknown or mixed;
 [optimistic typing](optimistic-typing.md) has settled on ints or doubles, `+` is an `iadd`/`dadd`
 with an overflow check, and `ScriptRuntime` never hears about it.
 
+ES2020's **BigInt** made these generic operators heavier: every one of them has to ask whether an
+operand is a `BigInteger` before it can decide what the operator means (`+` is the only one that
+also concatenates, so it is the awkward case). A profile of Octane put a quarter of all samples in
+this path, because each Object-typed operand went through the whole `ToPrimitive` chain and boxed a
+`Double` twice. The operators and relationals now take a **number-box fast path** first and reach
+the BigInt-aware code only when an operand really is one — see [Performance](performance.md).
+
 Symbols round out the picture: a `Symbol` is its own runtime type, refuses `toString` coercion (the
 one conversion that throws), and participates in property keys via `toPropertyKey` — which is why
 the engine's property maps key on `Object`, not `String`.

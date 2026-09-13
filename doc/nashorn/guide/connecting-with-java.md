@@ -176,4 +176,4 @@ cases.
 
 Under the hood all of this — property access on beans, overload selection, SAM conversion, adapter
 generation — is the [Dynalink linker machinery](../internals/linking.md), and it is extensible:
-[custom linkers](dynalink-linkers.md) can teach the engine new tricks for your own Java types.
+[custom linkers](../internals/dynalink-linkers.md) can teach the engine new tricks for your own Java types.

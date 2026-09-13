@@ -34,7 +34,7 @@ Linkers are asked in priority order; the first to return a `GuardedInvocation` w
 | *(fallback)* `NashornBeansLinker` | Plain Java objects: beans properties, method overload selection. |
 | *(fallback)* `NashornBottomLinker` | The end of the road: TypeErrors for `null` dereference, `undefined` for missing Java members, "not a function". |
 
-[User-supplied linkers](../guide/dynalink-linkers.md), discovered through the Context's class
+[User-supplied linkers](dynalink-linkers.md), discovered through the Context's class
 loader, slot in ahead of the beans linker — which is how scripts can be taught new behaviour for
 arbitrary Java types.
 

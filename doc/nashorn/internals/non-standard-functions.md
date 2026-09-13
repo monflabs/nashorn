@@ -1,12 +1,12 @@
 # Non-standard functions
 
-The engine's language is **ECMAScript 2019** (plus [Annex B](annex-b.md)). Everything a conforming
+The engine's language is **ECMAScript 2026** (plus [Annex B](annex-b.md)). Everything a conforming
 ECMAScript host must provide is there; this page catalogues what the engine adds *on top* — the
 functions and objects a script can call that are **not** part of the language standard. It is the
 architectural map; the [built-in globals reference](../reference/builtins.md) has the per-function
 detail, and the Java-interop surface has its own [guide](../guide/connecting-with-java.md).
 
-Three things shape the list:
+Two things shape the list:
 
 - Most extras hang off the **global object** (`Global`, in `internal.objects`), installed when the
   global is initialised. They are all `NOT_ENUMERABLE`, so `for…in` over the global never sees them.
@@ -26,10 +26,15 @@ Installed on every global, in any mode:
 | `load(source)` | Evaluate another script in the current global — file path, URL, or `{name, script}` object. |
 | `loadWithNewGlobal(source, …)` | Like `load`, but in a fresh global (realm isolation). |
 | `exit([code])` / `quit([code])` | `System.exit` with the given code (default 0). |
+| `readLine([prompt])` | Read a line from stdin. |
+| `readFully(file)` | Read a whole file into a string. |
 
-(`print` and the `load` pair are the ones a plain engine exposes beyond the language; `exit`/`quit`
-and the two host I/O functions too.) See [built-in globals](../reference/builtins.md#always-present) for the
-argument shapes.
+The last two were installed only under the removed scripting mode before 2026.1.0; they are
+unconditional now (`Global.initIOFunctions` over `IOFunctions`). The scripting-mode globals that went
+with them — `echo`, `$OPTIONS`, `$ENV`, `$ARG`, `$EXEC` and the `$OUT`/`$ERR`/`$EXIT` result holders —
+are gone along with the mode itself; `samples/exec.js` shows how to run a process over
+`ProcessBuilder`. See [built-in globals](../reference/builtins.md#always-present) for the argument
+shapes.
 
 ## The `Java` interop object
 
@@ -75,20 +80,6 @@ Grafted onto objects the standard already defines:
 | `Error.prototype.printStackTrace()` | function | Print the Java-side stack of the error. |
 | `Error.prototype` `stack`, `lineNumber`, `columnNumber`, `fileName` | accessors | Where the error was thrown (not functions, but non-standard). |
 
-## Host I/O globals
-
-Two host I/O extensions, present on every realm:
-
-| Global | What it is |
-| --- | --- |
-| `readLine([prompt])` | Read a line from stdin. |
-| `readFully(file)` | Read a whole file into a string. |
-
-They were installed only under the removed scripting mode before 2026.1.0; they are unconditional
-now (`Global.initIOFunctions` over `IOFunctions`). The scripting-mode globals that went with them —
-`echo`, `$OPTIONS`, `$ENV`, `$ARG`, `$EXEC` and the `$OUT`/`$ERR`/`$EXIT` result holders — are gone
-along with the mode itself; `samples/exec.js` shows how to run a process over `ProcessBuilder`.
-
 ## Property-lookup hooks
 
 Not provided by the engine but *called* by it when a script defines them — the pre-`Proxy` catch-alls:
@@ -98,9 +89,9 @@ Not provided by the engine but *called* by it when a script defines them — the
 
 ## How many
 
-Counting only the genuinely Nashorn-specific **functions**: 4 always-present globals, 14 `Java.*`
-methods, 5 extension methods on `Object`/`Error`, and 2 host I/O globals (`readLine`, `readFully`) —
-roughly **25**, alongside the interop objects (`Java`, `JavaImporter`, `JSAdapter`, `Packages` and the
+Counting only the genuinely Nashorn-specific **functions**: 6 always-present globals (`print`,
+`load`, `loadWithNewGlobal`, `exit`/`quit`, `readLine`, `readFully`), 14 `Java.*` methods and 5
+extension methods on `Object`/`Error` — roughly **25**, alongside the interop objects (`Java`, `JavaImporter`, `JSAdapter`, `Packages` and the
 six package roots) and the two lookup hooks.
 
 ## Adjacent, but not counted
@@ -110,5 +101,8 @@ six package roots) and the two lookup hooks.
   [Annex B](annex-b.md).
 - **`console`** (`console.log`, `warn`, `error`, `info`, `debug`, `trace`, `dir`, `dirxml`, `table`,
   `assert`, …): a host/web API from `NativeConsole`, not ECMAScript and not a Nashorn language
-  extension.
-- **`Debug`**: an internal diagnostics object, present for engine debugging rather than for scripts.
+  extension. It exists **only when the engine was built with `--debugger`** (or `--inspect`).
+- **`Debug`**: an internal diagnostics object, installed only when the JVM was started with
+  `-Dnashorn.debug=true`, for engine debugging rather than for scripts.
+- The **[standard libraries](../libraries/overview.md)** (`setTimeout`, `fetch`, `atob`/`btoa`, …):
+  host APIs an embedder opts into, shipped in the same artifact but installed by the builder.

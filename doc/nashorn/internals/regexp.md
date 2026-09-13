@@ -6,9 +6,20 @@ a Java engine accepts, and runs them on one of two backends.
 ## The pipeline
 
 ```text
-pattern source ──► RegExpScanner (rewrite + validate) ──► Joni  (default)
-                                                      └─► java.util.regex  (u-flagged patterns, or opt-in)
+pattern source ──► RegExpScanner (rewrite + validate) ──► Joni  (the default)
+                                                      └─► java.util.regex  (what Joni cannot express, or opt-in)
 ```
+
+Which backend a pattern lands on is decided per pattern, not per engine. Joni takes it unless the
+pattern needs something Joni's ES5-era JavaScript syntax has no form for, in which case the JDK
+engine does:
+
+| Routed to `java.util.regex` | Why |
+| --- | --- |
+| the `u` and `v` flags | Joni works in UTF-16 code units and has no notion of a code point, which is the whole of what those flags change |
+| `(?<name>…)`, `\k<name>`, `(?<=…)`, `(?<!…)` | Joni's JavaScript syntax has neither named groups nor lookbehind |
+| `(?ims-ims:…)` (ES2025 pattern modifiers) | Joni has no inline flags |
+| everything, with `-Dnashorn.regexp.impl=jdk` | the opt-in |
 
 **`RegExpScanner`** is a recursive-descent scanner over the ECMAScript pattern grammar that emits
 an equivalent Java-syntax pattern while enforcing the semantics the backends do not share with
@@ -28,13 +39,14 @@ minimum is met (so `(?:(?=(a)))?` leaves its group *undefined* where Ruby keeps 
 the check must not apply to an iteration below a counted quantifier's minimum. The `i`-flag case
 folding was likewise taught the pairs Unicode's simple folding has that Java's case mapping lacks.
 
-**`java.util.regex`** handles every pattern with the `u` flag, regardless of configuration: the
-unicode flag is *about* code points — an astral character is one atom, a class range may cross the
-surrogate boundary, folding is full Unicode — and Joni's code-unit model cannot express that. The
-JDK engine is code-point based, so `/u` patterns are compiled there, with `UNICODE_CASE` when `i`
-is present. `-Dnashorn.regexp.impl=jdk` opts everything into it.
+**`java.util.regex`** takes the patterns in the table above, regardless of configuration. The `u`
+and `v` flags are *about* code points — an astral character is one atom, a class range may cross the
+surrogate boundary, folding is full Unicode — and Joni's code-unit model cannot express that; the JDK
+engine is code-point based, and gets `UNICODE_CASE` when `i` is present. The syntax cases are simpler
+still: the scanner emits JDK-compatible syntax for a construct Joni's grammar does not have.
+`-Dnashorn.regexp.impl=jdk` opts everything into it.
 
-## ES2018 additions
+## ES2018 and later additions
 
 The ES2018 RegExp features are carried by the same rewrite-and-delegate design; both backends accept
 the syntax natively, so the scanner mostly passes it through while enforcing the ES rules and
@@ -54,6 +66,19 @@ threading a little extra state:
   `Script`/`sc`, and the ES binary-property list) to what `java.util.regex` accepts, matching names
   exactly rather than loosely.
 
+Three later editions extend the same design:
+
+- **ES2022's `d` flag** (`hasIndices`) records each group's start and end offsets and exposes them
+  as `.indices`, built lazily from the match's own region rather than on every match.
+- **ES2024's `v` flag** (`unicodeSets`) brings the class-set grammar — nested classes, `&&` and
+  `--`, string literals in `\q{…}` — which the scanner transcribes to the JDK engine's syntax. A
+  `\q{…}` holding a multi-character string, and `\p{…}` of *strings* (RGI_Emoji and its kin), are
+  engine limits and held out of the conformance slice.
+- **ES2025's pattern modifiers** `(?ims-ims:…)` route to the JDK engine (Joni has no inline flags),
+  and **duplicate named capture groups** — the same name on groups in disjoint alternatives — map a
+  name to the list of indices, with `.groups`, `.indices` and `$<name>` picking whichever group
+  actually participated.
+
 Two limits are the substrate's, not the design's, and are documented as such (both in
 `doc/CONFORMANCE.md` and the conformance selector, which holds their tests out of the slice rather
 than counting them as failures): a set of patterns neither backend can compile with ES semantics —
@@ -63,10 +88,16 @@ subclassable `exec` — and the `\p{…}` **binary properties** and `Script_Exte
 
 ## Caching
 
-Compiled patterns are cached in a weak map keyed on *pattern + flags + the Annex B setting* — the
-flag changes what a pattern means, so two engines that disagree about it must not share a
-compilation. `RegExp` literals additionally compile once per call site; `new RegExp(...)` goes
-through the cache each time.
+Compiled patterns are cached in a lock-free `ConcurrentHashMap` under a structured key — *pattern,
+flags, and the Annex B setting* — with soft values, cleared wholesale past 4096 entries. Annex B
+changes what a pattern means, so two engines that disagree about it must not share a compilation.
+`RegExp` literals additionally compile once per call site; `new RegExp(...)` goes through the cache
+each time.
+
+The cache used to be a synchronized `WeakHashMap` keyed on a freshly concatenated string that
+nothing else referenced — so an entry was collectable the moment it was put, and the cache mostly
+missed while every lookup still took a JVM-wide monitor. Fixing that is one of the
+[measured wins](performance.md) of the 2026 performance work.
 
 ## The object model above
 

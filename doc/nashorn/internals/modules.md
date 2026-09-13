@@ -1,7 +1,7 @@
 # Module system internals
 
-The [user-facing story](../guide/modules.md) is short: modules work, but only the internal
-`Context` API runs them. This page is how they work.
+The [user-facing story](../guide/modules.md) is short: a source that parses as a module runs as
+one, and `eval` hands back its namespace object. This page is how that works underneath.
 
 ## A module is a function with a prologue
 
@@ -16,7 +16,8 @@ declarations live in a **module scope object**, never on the global.
 ## ModuleRecord and the state machine
 
 Each loaded module is a `ModuleRecord` moving through
-`NEW → LINKING → LINKED → EVALUATING → EVALUATED`:
+`NEW → LINKING → LINKED → EVALUATING → EVALUATING_ASYNC → EVALUATED` (the async state is only
+entered by a graph that contains a top-level `await`):
 
 - **`link()`** loads the full graph of requested modules, then resolves every import and every
   indirect export via `resolveExport` — all *before any body runs*. A name nobody exports is a
@@ -26,7 +27,12 @@ Each loaded module is a `ModuleRecord` moving through
   — a re-entry returns instead of recursing.
 - **`evaluate()`** depth-first evaluates dependencies, then applies the module body. A module
   reached again on the same stack — a cycle — is simply not re-entered; a module already
-  `EVALUATED` returns immediately, which is the "runs once" guarantee.
+  `EVALUATED` returns immediately, which is the "runs once" guarantee. Since ES2022 a module body
+  may contain a **top-level `await`**, which makes evaluation asynchronous: the record tracks a
+  cycle root, a DFS index and a count of pending asynchronous dependencies, and a graph settles
+  leaf-to-root as each body's promise resolves. `evaluate()` returns a promise for the whole graph;
+  a graph with no `await` in it settles synchronously and the promise is already resolved when it
+  returns.
 
 The registry enforcing "same specifier, same module" is a map on the **Global** — one per realm, as
 the spec requires. Specifier resolution is the host hook, and this host's answer is the
@@ -61,4 +67,4 @@ error, listing the namespace is not.
 `Context.evaluateModule(source)` = `loadModule(...).link().evaluate()`. `loadModule` checks the
 realm's registry first, so a module graph shared by several entry evaluations loads each file once.
 The record's Java surface — `read(exportName)`, `exportNames()`, `namespace()` — is what the
-[guide's recipe](../guide/modules.md#running-modules--the-honest-part) uses to pull results out.
+[guide's recipe](../guide/modules.md#running-modules) uses to pull results out.

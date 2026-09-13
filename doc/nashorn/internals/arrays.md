@@ -65,3 +65,8 @@ ranges installs the deleted-range filter rather than compacting.
 `TypedArrayData` view over a `ByteBuffer` — for a [`SharedArrayBuffer`](atomics.md), a direct
 buffer whose storage other threads see. Element access links to the buffer exactly like the
 `int[]` case above; there is no boxing between a typed array and its bytes.
+
+ES2024's **resizable `ArrayBuffer`** and growable `SharedArrayBuffer` complicate exactly one thing:
+a view can now be length-tracking, or fall out of bounds entirely, so a `resize` rebuilds every
+view over the same storage. The fixed-buffer element path is untouched — the extra bounds work is
+gated so it costs nothing on a buffer that cannot change size.

@@ -3,18 +3,20 @@
 ECMAScript defines the language and its built-in objects; what a script expects from its *host* —
 timers, `fetch`, Base64 — comes from the platform. The standard libraries are this engine's
 platform: [script libraries](../extending/script-libraries.md), shipped inside `nashorn-core`
-itself, that give every engine the host functions scripts written for browsers or Node.js reach
-for — built the way the language's own objects are, and installed into every global an engine
-creates unless told otherwise.
+itself, that give an engine the host functions scripts written for browsers or Node.js reach for —
+built the way the language's own objects are. Nothing is installed automatically: you hand the
+builder the ones you want, and a bare engine has none of them.
 
 | Library | Provides | Page |
 | --- | --- | --- |
 | `host` | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`, `atob`, `btoa` | [host](host.md) |
 | `fetch` | `fetch`, `Headers`, `Request`, `Response` | [fetch](fetch.md) |
 
-The engine also ships a **[Node module resolver](node.md)**: `import fs from 'fs'` reaches a built-in
-`fs` module (synchronous, callback and promise forms). Unlike the libraries above it is reached by
-`import` rather than as a global.
+A separate, experimental artifact — **`nashorn-node`** — adds a
+**[Node module resolver](node.md)**: `import fs from 'fs'` reaches a built-in `fs` module
+(synchronous, callback and promise forms), and `buffer`, `os` and `path` likewise. Unlike the
+libraries above it is not part of `nashorn-core`, and it is reached by `import` rather than as a
+global.
 
 ## Getting them
 
@@ -72,7 +74,6 @@ The libraries are `ScriptLibrary` implementations in `org.monflabs.nashorn.libs`
 engine's own machinery: the host functions are built-in `ScriptFunction`s over a Java `switch`, and
 `Headers`, `Request` and `Response` are `@ScriptClass` classes that nasgen turns into real
 prototypes with accessor properties and symbol-keyed methods — exactly what the language's `Map`
-or `Promise` are. That machinery is internal, which a library shipped with the engine may use and
-a third-party one may not; for the public route see the
-[script libraries](../extending/script-libraries.md) page and the
-[extension APIs](../extending/apis.md) inventory cover what they use.
+or `Promise` are. That machinery is internal: a library shipped with the engine may use it, a third-party one may
+not. For the public route, see the [script libraries](../extending/script-libraries.md) page; the
+[extension APIs](../extending/apis.md) inventory lists what an extension is allowed to build on.

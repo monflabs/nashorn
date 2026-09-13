@@ -24,9 +24,10 @@ line under new coordinates, with the Java packages renamed to match
 The engine is a JPMS module named `org.monflabs.nashorn` with no dependencies of its own. Both
 placements work:
 
-- **Module path** (preferred): the module exports only its two API packages
-  (`org.monflabs.nashorn.api.scripting`, `org.monflabs.nashorn.api.tree`), so internals stay sealed
-  and the service registration flows through `provides javax.script.ScriptEngineFactory`.
+- **Module path** (preferred): the module exports only its API packages
+  (`org.monflabs.nashorn.api.scripting`, `api.tree`, `api.debugger`, `api.modules` and
+  `org.monflabs.nashorn.libs`), so internals stay sealed and the service registration flows through
+  `provides javax.script.ScriptEngineFactory`.
 - **Class path**: the same registration is duplicated in `META-INF/services`, so
   `ScriptEngineManager` discovery works there too.
 
@@ -94,10 +95,15 @@ import org.monflabs.nashorn.libs.HostLibrary;
 
 ScriptEngine engine = new NashornScriptEngineBuilder()
         .strict(true)                                    // an engine option
+        .eventLoop(true)                                 // timers and fetch need somewhere to run
         .library(new HostLibrary(), new FetchLibrary())  // adds setTimeout, fetch, ...
         .build();
-engine.eval("setTimeout(() => print('tick'), 10)");      // needs the host library above
+engine.eval("setTimeout(() => print('tick'), 10)");      // needs both lines above
 ```
+
+?> Both are needed. The library supplies the function; the [event loop](../libraries/overview.md#the-event-loop)
+runs what it schedules. Without `.eventLoop(true)` the call throws a `TypeError` saying so, rather
+than quietly scheduling work nothing would run.
 
 `build()` returns an ordinary `javax.script.ScriptEngine`, so everything in
 [Using the engine](using-the-engine.md) works the same either way — the builder only decides *what
@@ -109,34 +115,30 @@ covers the choice and every option in full.
 
 ## What language you get
 
-The engine speaks **ECMAScript 2024**, whole: `let`/`const`, classes, arrow functions, template
-literals, destructuring, generators, `async`/`await`, `Proxy`, `Reflect`, `Promise`, typed arrays,
-`SharedArrayBuffer` and `Atomics`, plus the ES2018 additions — object rest/spread (`{...o}`), async
-iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the
-`s` (dotAll) flag, named capture groups, lookbehind, and Unicode property escapes (`\p{…}`) — and the
-ES2019 additions: `Array.prototype.flat`/`flatMap`, `Object.fromEntries`,
-`String.prototype.trimStart`/`trimEnd`, `Symbol.prototype.description`, optional catch binding
-(`catch {}`), stable `Array.prototype.sort`, the JSON superset (raw U+2028/U+2029 in strings) and
-well-formed `JSON.stringify` — and the ES2020 additions: nullish coalescing (`??`), optional chaining
-(`?.`), `String.prototype.matchAll`, `export * as ns from`, dynamic `import()`, `import.meta`,
-`globalThis`, `Promise.allSettled`, and `BigInt` (with `BigInt64Array`/`BigUint64Array` and the
-`DataView`/`Atomics` big-64 operations) — and the ES2021 additions:
-`String.prototype.replaceAll`, `Promise.any`/`AggregateError`, the logical assignment operators
-(`&&=`, `||=`, `??=`), numeric separators (`1_000`), and `WeakRef`/`FinalizationRegistry` — and the
-ES2022 additions: `Array`/`String`/`%TypedArray%`.prototype.`at`, `Object.hasOwn`, the `cause` option
-on `Error`, the RegExp `d` (match-indices) flag, **class fields** and **static initializer blocks**,
-**private class members** (`#x` fields, methods, accessors, static forms, and `#x in obj`), and
-**top-level `await`** — and the ES2023 additions: `Array.prototype.findLast`/`findLastIndex`
-(and the typed-array forms), the change-array-by-copy methods `toReversed`/`toSorted`/`toSpliced`/`with`,
-the hashbang line (`#!`), and non-registered symbols as `WeakMap`/`WeakSet` keys and
-`WeakRef`/`FinalizationRegistry` targets — and the ES2024 additions:
-`Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`,
-`String.prototype.isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and growable
-`SharedArrayBuffer` (`{maxByteLength}`, `resize`/`grow`, `transfer`/`transferToFixedLength`),
-`Atomics.waitAsync`, and the RegExp `v` (`unicodeSets`) flag with its class-set grammar. There is
-no ES5 mode and no version switch — the `--language` option has been removed. Annex B, the web-compatibility annex
-(`escape`, `__proto__`, HTML-like comments, block-function hoisting…), is on by default and removed
-entirely by the `--annexB=false` [option](../reference/options.md).
+The engine speaks **ECMAScript 2026** ([ECMA-262, 17th edition](https://262.ecma-international.org/17.0/)),
+whole. There is no ES5 mode and no version switch — the `--language` option has been removed — so
+every edition below is simply the language:
+
+| Edition | What it brought |
+| --- | --- |
+| **ES2015** | `let`/`const`, arrow functions, classes, generators, destructuring, rest/spread, `for…of`, template literals, symbols, `Map`/`Set`, `Proxy`, `Reflect`, `Promise`, typed arrays, modules |
+| **ES2016–17** | `**`, `Array.prototype.includes`, `Object.values`/`entries`, `padStart`/`padEnd`, `async`/`await`, `SharedArrayBuffer`, `Atomics` |
+| **ES2018** | object rest/spread (`{...o}`), async iteration (`async function*`, `for await`), `Promise.prototype.finally`, and the RegExp upgrades: the `s` (dotAll) flag, named capture groups, lookbehind, `\p{…}` property escapes |
+| **ES2019** | `flat`/`flatMap`, `Object.fromEntries`, `trimStart`/`trimEnd`, `Symbol.prototype.description`, optional catch binding (`catch {}`), stable `sort`, the JSON superset, well-formed `JSON.stringify` |
+| **ES2020** | `??`, `?.`, `matchAll`, `export * as ns from`, dynamic `import()`, `import.meta`, `globalThis`, `Promise.allSettled`, **BigInt** (with the big-64 typed arrays and `DataView`/`Atomics` operations) |
+| **ES2021** | `replaceAll`, `Promise.any`/`AggregateError`, logical assignment (`&&=`, `\|\|=`, `??=`), numeric separators (`1_000`), `WeakRef`/`FinalizationRegistry` |
+| **ES2022** | `at`, `Object.hasOwn`, the `cause` option on `Error`, the RegExp `d` flag, **class fields**, **static initializer blocks**, **private class members** (`#x`, including `#x in obj`), **top-level `await`** |
+| **ES2023** | `findLast`/`findLastIndex`, `toReversed`/`toSorted`/`toSpliced`/`with`, the hashbang line (`#!`), non-registered symbols as weak keys |
+| **ES2024** | `Object.groupBy`/`Map.groupBy`, `Promise.withResolvers`, `isWellFormed`/`toWellFormed`, resizable `ArrayBuffer` and growable `SharedArrayBuffer`, `Atomics.waitAsync`, the RegExp `v` flag |
+| **ES2025** | **iterator helpers**, the **`Set` methods**, **`Float16Array`**, `RegExp.escape`, `Promise.try`, RegExp pattern modifiers `(?ims-ims:…)`, duplicate named capture groups, **import attributes** with JSON modules |
+| **ES2026** | `Error.isError`, `Math.sumPrecise`, the **upsert** methods (`getOrInsert`/`getOrInsertComputed`), `Iterator.concat`, **`Uint8Array` base64/hex**, **JSON source access** with `JSON.rawJSON`, **`Array.fromAsync`** |
+
+**Annex B**, the web-compatibility annex (`escape`, `__proto__`, HTML-like comments, block-function
+hoisting…), is on by default and removed entirely by
+[`--annexB=false`](../reference/options.md).
+
+Deliberately out: proper tail calls and ECMA-402 (internationalization). Temporal, explicit resource
+management (`using`), `Atomics.pause` and import defer are ES2027 and not implemented.
 
 Two things older Nashorn documentation promises are gone from this fork: the **backquote-exec
 syntax** (the backquote now belongs to template literals) along with the rest of scripting mode, and

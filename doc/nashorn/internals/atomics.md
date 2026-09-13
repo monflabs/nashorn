@@ -24,9 +24,13 @@ the wait-queue map below.
 `weakCompareAndSet` loop over read-combine-narrow — and `compareExchange` maps directly onto the
 VarHandle primitive.
 
-One honest wrinkle: the JDK provides no byte-buffer view VarHandle for byte-sized elements, so
-8-bit accesses are serialised under a private monitor instead — and `Atomics.isLockFree` **says
-so**, reporting false for the widths that really do take a lock.
+One honest wrinkle: a byte-buffer view VarHandle offers its atomic update modes only from four
+bytes wide up. A byte has no view handle at all, and a short has one that will only read and write —
+so the read-modify-write operations at those two widths (`add`, `and`, `or`, `xor`, `sub`,
+`exchange`, `compareExchange`) are serialised under a private monitor instead. That lock is not
+something the specification describes, and it holds only against other narrow accesses made the same
+way. Note that `Atomics.isLockFree` still answers `true` for widths 1, 2 and 4, as the specification
+permits — it is a consistency contract, not a report of this implementation's locking.
 
 Argument validation follows the spec's observable ordering pedantically: the array's length is read
 *before* the index is coerced, so an index whose `valueOf` detaches or resizes things is measured

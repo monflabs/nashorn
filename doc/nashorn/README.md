@@ -1,14 +1,24 @@
 # Nashorn
 
 Nashorn is a JavaScript engine for the JVM: it compiles JavaScript to JVM bytecode and links call
-sites with `invokedynamic`. This fork — published as **`org.monflabs.nashorn:nashorn-core`**,
-version 2026.0.0, reporting itself as *OpenJDK-Monflabs* — implements **ECMAScript 2024** (ECMA-262, 15th
-edition) together with its Annex B, measured continuously against the official `tc39/test262`
-conformance suite. It requires **JDK 25 or later** and has **no dependencies at all**. To avoid colliding with the
-official Nashorn library, everything about it carries the fork's own name: the Java package and
-module are `org.monflabs.nashorn` rather than `org.openjdk.nashorn`, so the two jars can sit side
-by side anywhere - module path included - and the script engine registers as `nashorn-monflabs`
-rather than `nashorn`, so a `javax.script` lookup always finds the engine it named.
+sites with `invokedynamic`. This fork implements **ECMAScript 2026**
+([ECMA-262, 17th edition](https://262.ecma-international.org/17.0/)) together with its Annex B,
+measured continuously against the official `tc39/test262` conformance suite. It requires **JDK 25 or
+later** and has **no dependencies at all**.
+
+```xml
+<dependency>
+  <groupId>org.monflabs.nashorn</groupId>
+  <artifactId>nashorn-core</artifactId>
+  <version>2026.0.0</version>
+</dependency>
+```
+
+Everything about the fork carries its own name, so it never collides with the official Nashorn
+library: the Java package and module are `org.monflabs.nashorn` rather than `org.openjdk.nashorn`,
+so the two jars can sit side by side anywhere — module path included — the engine reports itself as
+*OpenJDK-Monflabs*, and it registers with `javax.script` as `nashorn-monflabs` rather than plain
+`nashorn`, so a lookup always finds the engine it named.
 
 ```java
 import javax.script.ScriptEngine;
@@ -17,14 +27,17 @@ import javax.script.ScriptEngineManager;
 public class Hello {
     public static void main(String[] args) throws Exception {
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
-        engine.eval("print(`Nashorn speaks ${'ES' + 2017}`);");
+        engine.eval("print(`Nashorn speaks ES${2026}`);");
     }
 }
 ```
 
 There is no ES5-only mode and nothing to switch on: classes, generators, `async`/`await`,
-destructuring, modules, `Proxy`, `SharedArrayBuffer` and the rest are simply the language. The
-web-compatibility extensions of Annex B are on by default and removable with `--annexB=false`.
+destructuring, modules, `Proxy`, `SharedArrayBuffer`, class fields, private members, top-level
+`await`, iterator helpers and the rest are simply the language — see
+[what language you get](guide/getting-started.md#what-language-you-get) for the edition-by-edition
+list. The web-compatibility extensions of Annex B are on by default and removable with
+`--annexB=false`.
 
 ## Finding your way
 
@@ -48,6 +61,8 @@ each with its estimated gain and its limits.
 **[Standard Libraries](libraries/overview.md)** — what a script expects from its host beyond the
 language, shipped inside the engine: [timers, `queueMicrotask` and Base64](libraries/host.md),
 and [`fetch`](libraries/fetch.md), on an event loop that lets `eval` return when the script is idle.
+Alongside them, the separate, experimental [Node module resolver](libraries/node.md) answers
+`import fs from 'fs'` and its kin.
 
 **[Technical Guide](internals/architecture.md)** — for reading or changing the engine: the compiler
 pipeline, optimistic typing, how objects, arrays, strings and call sites really work, generators on

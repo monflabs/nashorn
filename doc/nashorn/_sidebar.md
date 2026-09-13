@@ -6,7 +6,6 @@
   - [Using the engine](/guide/using-the-engine.md)
   - [Connecting with Java](/guide/connecting-with-java.md)
   - [Custom objects and extensions](/guide/custom-objects.md)
-  - [Dynalink custom linkers](/guide/dynalink-linkers.md)
   - [ES modules](/guide/modules.md)
   - [The parser API](/guide/parser-api.md)
   - [Threads and concurrency](/guide/concurrency.md)
@@ -24,6 +23,7 @@
   - [Overview and the event loop](/libraries/overview.md)
   - [host: timers, microtasks, Base64](/libraries/host.md)
   - [fetch](/libraries/fetch.md)
+  - [node: the Node module resolver](/libraries/node.md)
 
 - **Technical Guide**
   - [Architecture and the pipeline](/internals/architecture.md)
@@ -32,6 +32,7 @@
   - [Objects and property maps](/internals/objects.md)
   - [Arrays](/internals/arrays.md)
   - [Call sites and linking](/internals/linking.md)
+  - [Dynalink custom linkers](/internals/dynalink-linkers.md)
   - [Generators, async, iteration](/internals/generators-async.md)
   - [Module system internals](/internals/modules.md)
   - [Contexts, globals and realms](/internals/contexts-globals.md)

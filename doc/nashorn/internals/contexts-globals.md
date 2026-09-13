@@ -10,8 +10,8 @@ Globals; compiled code belongs to the Context and runs against whichever Global 
 | Per **Context** | Per **Global** (realm) |
 | --- | --- |
 | `ScriptEnvironment` — the [options](../reference/options.md), fixed at construction | Every built-in constructor and prototype (many created lazily on first touch) |
-| Class loaders and the compiled-class cache (per-`Source`, LRU, `--class-cache-size`) | The global lexical scope (`let`/`const` at top level) and its invalidation switch point |
-| The persistent code store (`--persistent-code-cache`) | The [job queue](generators-async.md#the-job-queue) — microtasks are per realm |
+| Class loaders and the compiled-class cache (keyed by `Source` plus an `eval`'s compilation context, LRU, `--class-cache-size`) | The global lexical scope (`let`/`const` at top level) and its invalidation switch point |
+| The persistent code store (`--persistent-code-cache`) | The [job queue](generators-async.md#the-job-queue-and-the-event-loop-behind-it) — microtasks are per realm |
 | The Dynalink [`DynamicLinker`](linking.md) and discovered custom linkers | The [module registry](modules.md) — one record per specifier per realm |
 | The `ClassFilter` and application class loader | The live generator set |
 | Builtin switch points (invalidated when a builtin is redefined) | |
@@ -23,19 +23,21 @@ static loader, so all Contexts in a process share one shape zoo.
 ## The current realm is a scoped value
 
 `Context.getGlobal()` reads a static `ScopedValue` (JEP 506, final in JDK 25). Everything that runs
-script establishes it around the run — `Context.callWithGlobal`/`runWithGlobal` bind the realm for
-exactly the duration of an operation: the JSR-223 entry points around each call,
+script establishes it around the run: `Context.callWithGlobal`/`runWithGlobal` bind the realm for
+exactly the duration of an operation — the JSR-223 entry points around each call,
 `loadWithNewGlobal` around the loaded script, generator and async bodies on their
-[virtual threads](generators-async.md). A scoped value rather than a thread-local because the
-binding structurally cannot outlive its scope — nothing to forget to restore, nothing to leak to
-the next task on a pooled thread — and because reads are cheaper on the virtual threads generators
-run their bodies on. The nested same-realm case (a mirror used inside its own realm) short-circuits
-to a comparison. This is still the mechanism behind the
+[virtual threads](generators-async.md). The nested same-realm case (a mirror used inside its own
+realm) short-circuits to a comparison.
+
+Why a scoped value rather than a thread-local: the binding structurally cannot outlive its scope —
+nothing to forget to restore, nothing to leak to the next task on a pooled thread — and reads are
+cheaper on the virtual threads generators run their bodies on.
+
+Two consequences worth knowing. This is the mechanism behind the
 [concurrency rule](../guide/concurrency.md): the engine does not associate state with "the" thread,
-it associates a realm with *each* thread, and one realm on two threads at once is a data race. One
-consequence worth knowing: scoped values are not inherited by a plainly-started thread, so a thread
-you start yourself begins with no realm — exactly why the engine binds the realm explicitly on each
-generator's thread.
+it associates a realm with *each* thread, and one realm on two threads at once is a data race. And
+scoped values are not inherited by a plainly-started thread, so a thread you start yourself begins
+with no realm — exactly why the engine binds the realm explicitly on each generator's thread.
 
 ## Realms are cheap-ish, code is shared
 

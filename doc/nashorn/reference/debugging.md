@@ -21,17 +21,24 @@ Levels are the `java.util.logging` names — `severe`, `warning`, `info`, `confi
 
 | Logger | Shows |
 | --- | --- |
+| `parser` | Parsing activity, per source. |
 | `compiler` | Compilation activity at the job level. |
 | `recompile` | Optimistic deoptimisation and recompilation — which functions, why, with what types. |
 | `codegen` | Every bytecode as it is emitted, with the emission id and stack state (example below). |
 | `fold` | Constant folding, before lowering. |
 | `lower` | The lowering pass: comparisons to runtime calls, finally inlining, control flow. |
+| `splitter` | The 64KB-method splitter: which functions were cut, and where. |
 | `symbols` | Assignment of symbols to identifiers. |
 | `scopedepths` | Scope-depth calculation for non-local symbols. |
 | `fields` | Field representation decisions (`finest` traces every field read/write). |
-| `time` | Timers per compilation phase, dumped at exit (example below). |
+| `arrays` | `ArrayData` storage transitions — int → double → Object, and sparse. |
+| `const` | `GlobalConstants` folding: which global reads linked to a constant, and what invalidated them. |
+| `apply2call` | The `apply`-to-`call` specialisation. |
 | `methodhandles` | Method handle operations (very verbose; pairs with `-Dnashorn.methodhandles.debug.stacktrace`). |
 | `classcache` | Compiled-class cache hits and evictions. |
+| `codestore` | The persistent code cache (`--persistent-code-cache`): stores, loads and misses. |
+| `source` | Source loading — files, URLs, digests. |
+| `time` | Timers per compilation phase, dumped at exit (example below). |
 
 ### Reading the codegen log
 

@@ -4,24 +4,30 @@ This engine implements ECMAScript 2026 — ECMA-262, 17th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**The headline numbers: ~79,000 selected executions, 8 expected failures.** Everything else passes,
-in both of the engine's typing modes. All 8 are one shape — an indirect `eval` whose block-level
-function declaration must update a `var` the global already had, rooted in how the engine merges eval
-scopes (the feature works in ordinary use; the failures need the runner's pre-populated global).
-No ES2022, ES2023, ES2024, ES2025 or ES2026 feature corner remains — the eight ES2025 corners once briefly
-held out (`Object.prototype.toString` on a tag-less iterator, the `%Iterator.prototype%`
+**The headline numbers: ~79,000 selected executions, and nothing unexpected in either typing mode.**
+With optimistic types — the engine default since 2026.1.0 — **every execution passes**. With
+`--optimistic-types=false` the run has **8 settled failures**, all one shape: an indirect `eval` whose
+block-level function declaration must update a `var` the global already had. Compiled on demand, as
+every program is under optimistic types, the `var` reaches the global directly and the cases pass;
+compiled eagerly, it reaches the global through the merge of its scope, and they do not. The feature
+works in ordinary use — the failures need the runner's pre-populated global. CI runs both modes.
+**No feature corner remains held out** for ES2022 through ES2026. The eight ES2025 corners that were
+briefly held out — `Object.prototype.toString` on a tag-less iterator, the `%Iterator.prototype%`
 `@@toStringTag`/`constructor` accessors, `Iterator.from`'s primitive `this`-binding and its
-return-method forwarding, and `Float16Array` bit-precision) are all fixed, detailed in
-[doc/CONFORMANCE.md](../../CONFORMANCE.md): the ES2025 iterator helpers, `Set` methods, `Float16Array`, `RegExp.escape`,
-`Promise.try`, RegExp pattern modifiers, duplicate named capture groups and import attributes / JSON
-modules are all implemented and pass (the pattern-modifier and duplicate-name JDK-backend flavour
-limits are held out in the selector, as the ES2018 property escapes and the ES2024 `v`-flag string-sets
-are). The seven finished **ES2026** additions — `Error.isError`, `Math.sumPrecise`, the `Map`/`WeakMap`
-upsert methods, `Iterator.concat`, `Uint8Array` to/from base64 and hex, JSON source access with
-`JSON.rawJSON`/`JSON.isRawJSON`, and `Array.fromAsync` — are all implemented and pass with nothing held
-out; Temporal, explicit resource management, `Atomics.pause` and import defer are ES2027 and out of
-scope (their `features:` tags are absent from the selector). The
-run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
+return-method forwarding, and `Float16Array` bit-precision — are all fixed and detailed in
+[doc/CONFORMANCE.md](../../CONFORMANCE.md). The ES2025 additions (iterator helpers, the `Set` methods,
+`Float16Array`, `RegExp.escape`, `Promise.try`, RegExp pattern modifiers, duplicate named capture
+groups, import attributes and JSON modules) and the seven finished **ES2026** additions
+(`Error.isError`, `Math.sumPrecise`, the `Map`/`WeakMap` upsert methods, `Iterator.concat`,
+`Uint8Array` to/from base64 and hex, JSON source access with `JSON.rawJSON`/`JSON.isRawJSON`, and
+`Array.fromAsync`) are all implemented and pass. Only two *substrate* limits are held out with them —
+the JDK-backend flavours of pattern modifiers and duplicate names — alongside the ES2018 property
+escapes and the ES2024 `v`-flag string-sets described below.
+
+Temporal, explicit resource management, `Atomics.pause` and import defer are ES2027 and out of scope;
+their `features:` tags are absent from the selector.
+
+The run fails on an unexpected *pass* as well as an unexpected failure, so conformance can only move
 forwards: a fix must remove its expectation line, and a regression cannot hide.
 
 Two ES2018 surfaces are limited by the substrate rather than by choice, and their tests are held out
@@ -52,9 +58,8 @@ an engine with none of it. 1,078 of the annex's 1,086 test files pass.
 | `legacy-regexp` | `RegExp.$1` and its kin are a Stage 3 proposal the suite files under Annex B; the properties themselves have always been present, but the proposal's tests are out of scope. |
 | `[[IsHTMLDDA]]` | `document.all` emulation can only be produced by a web host. |
 
-Everything else outside the selected slice is simply a later edition — ES2026 and beyond (explicit
-resource management, the `Uint8Array` base64/hex methods, `Array.fromAsync`, `Error.isError`, and the
-rest) — which this engine does not claim.
+Everything else outside the selected slice is simply a later edition — ES2027 and beyond (Temporal,
+explicit resource management, `Atomics.pause`, import defer) — which this engine does not claim.
 
 The full report — how the slice is selected, the exact exclusion lists, what Annex B costs, and how
 to reproduce every number — is the canonical
@@ -67,5 +72,8 @@ mvn -Pfetch-externals -pl core generate-test-resources    # clone test262, once
 mvn -Ptest262 -DskipTests verify                          # the full conformance run
 ```
 
-The run reports `failing: 20   expected to fail: 20` on a healthy tree. Narrow it while working
-with `-Dnashorn.test262.include=/built-ins/Math/`.
+On a healthy tree the run ends with `failing: 0   expected to fail: 0`; add
+`-Dnashorn.test262.optimistic=false` for the pessimistic slice, which ends with
+`failing: 8   expected to fail: 8`. Narrow either while working with
+`-Dnashorn.test262.include=/built-ins/Math/`, and regenerate the expectations with
+`-Dnashorn.test262.write.expectations=true`.

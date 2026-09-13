@@ -68,10 +68,13 @@ compile would have had.
 
 ## Where the compiled code lives
 
-Compiled classes install into a per-[Context](contexts-globals.md) `ScriptLoader`, are cached
-per-`Source` in the Context's class cache, and can persist across processes with
-`--persistent-code-cache`. One compiled script serves many globals: the bytecode binds to a realm
-only through the `ScriptFunction` created against it.
+Compiled classes install into a per-[Context](contexts-globals.md) `ScriptLoader` and are cached in
+the Context's class cache. The key is the `Source` **plus the compilation context an `eval` was
+written in** — strictness, whether `new.target` and `super` are legal, whether `arguments` is
+forbidden, and the private names in scope — because the same text compiles differently in each, and
+a cache keyed on the text alone would hand back the wrong class. Compiled code can also persist
+across processes with `--persistent-code-cache`. One compiled script serves many globals: the
+bytecode binds to a realm only through the `ScriptFunction` created against it.
 
 ## Seeing it
 

@@ -32,7 +32,7 @@ With no script file the shell reads one line at a time from standard input and p
 each:
 
 ```text
-nashorn> println("Hello, World!")
+nashorn> print("Hello, World!")
 Hello, World!
 nashorn> arguments.join(", ")     // after: Shell -- a b c
 a, b, c

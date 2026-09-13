@@ -78,11 +78,14 @@ what Java a script can see.
 even the standard `host` and `fetch`:
 
 ```java
-engine.eval("setTimeout(() => print('tick'), 10)");   // needs new HostLibrary() above
+// .library(new HostLibrary()).eventLoop(true) on the builder
+engine.eval("setTimeout(() => print('tick'), 10)");
 ```
 
-These put an **event loop** behind the engine: `eval` returns when the script is *idle* (its timers
-and microtasks have drained), not merely when its synchronous code finishes — see
+The library supplies the function; the **event loop** — off by default, `.eventLoop(true)` — runs
+what it schedules, and without it the call throws a `TypeError` saying so. With the loop on, `eval`
+returns when the script is *idle* (its timers and microtasks have drained), not merely when its
+synchronous code finishes — see
 [Overview and the event loop](../libraries/overview.md). A script that leaves an interval running
 keeps `eval` from returning, so clear it in the same evaluation.
 

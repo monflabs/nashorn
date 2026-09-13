@@ -32,8 +32,10 @@ Property values go to one of two places:
   the smallest padded size that fits its property count. The structure loader is JVM-wide, so every
   Context shares the same `JO`/`JD` zoo.
 - **Spill arrays** — a `long[]` and an `Object[]` on the `ScriptObject` — once fields run out or
-  for shapes built dynamically. Spill grows in chunks of eight; `SpillProperty` accessors index the
-  arrays through cached method handles.
+  for shapes built dynamically. The first chunk is eight slots, and growth is **geometric**
+  thereafter (doubling): growing by a fixed chunk each time copied the arrays *N/8* times, which is
+  quadratic for a wide, dictionary-shaped object. `SpillProperty` accessors index the arrays through
+  cached method handles.
 
 Getter/setter pairs defined by scripts (`Object.defineProperty` accessors) are
 `UserAccessorProperty`: the *map* records only a spill slot, and the actual getter/setter functions
@@ -69,6 +71,11 @@ declaration swaps the map, and the site relinks to a normal read for free.
 Maps also carry object-level state — extensibility, "contains array keys" — and the
 [builtin switch point](contexts-globals.md) tagging that lets compiled code bind directly to
 `Array.prototype.push` and friends until somebody redefines them.
+
+ES2022's **private class members** (`#x`) deliberately sit outside all of this: they are kept in a
+per-object slot that no property map records, so no form of reflection — `Object.keys`,
+`getOwnPropertyNames`, a `Proxy` trap, `JSON.stringify` — can see them, which is exactly the
+privacy the specification asks for.
 
 Set `-Dnashorn.debug` and call `Debug.map(obj)` to see any object's map;
 `Debug.dumpCounters()` reports process-wide map statistics — both invaluable when checking whether

@@ -6,10 +6,11 @@ site binds to a Java type, the debugger a frontend attaches to. This page is the
 public API those extensions are built from — what each piece is for, and where it is documented —
 followed by the line between what is public and what is not.
 
-The public surface is exactly the packages `module-info.java` exports unconditionally:
-`org.monflabs.nashorn.api.scripting`, `org.monflabs.nashorn.api.tree` and
-`org.monflabs.nashorn.api.debugger` - plus one hook that is the JDK's rather than the engine's,
-Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the engine's own business.
+The public surface is exactly the packages `module-info.java` exports unconditionally —
+`org.monflabs.nashorn.api.scripting`, `api.tree`, `api.debugger`, `api.modules` and
+`org.monflabs.nashorn.libs` (the standard libraries themselves) - plus one hook that is the JDK's
+rather than the engine's, Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is
+the engine's own business.
 
 ## Handing scripts values and functions
 
@@ -28,7 +29,7 @@ Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the e
 
 | API | What it is for | Read |
 | --- | --- | --- |
-| **`ScriptLibrary`** | A named bundle of Java globals, scripts and an initializer, installed into *every* global an engine creates - the default context's, each `createBindings()`, a `loadWithNewGlobal`, the shell's. Discovered as a `ServiceLoader` provider or passed to the builder's `library(...)`; `initialize(global)` reaches into the global to extend prototypes from Java. | [Script libraries](script-libraries.md) |
+| **`ScriptLibrary`** | A named bundle of Java globals, scripts and an initializer, installed into *every* global an engine creates - the default context's, each `createBindings()`, a `loadWithNewGlobal`, the shell's. Contributed imperatively, by passing it to the builder's `library(...)` - there is no service discovery and no `--libraries` option, so a bare engine installs none; `initialize(global)` reaches into the global to extend prototypes from Java. | [Script libraries](script-libraries.md) |
 | `ScriptLibrary.Script` | A script of a library: `of(name, text)`, `ofResource(Class, path)`, `ofUrl(url)`. | [Script libraries](script-libraries.md) |
 
 ## Shaping the engine
@@ -38,7 +39,7 @@ Dynalink's `GuardingDynamicLinkerExporter`. Everything under `internal` is the e
 | **`NashornScriptEngineBuilder`** | Building an engine one choice at a time: options by name or in command-line spelling, the application class loader, a `ClassFilter`, and script libraries and module loaders (contributed explicitly - no discovery). (`NashornScriptEngineFactory`'s overloads for the same are deprecated; its no-argument `getScriptEngine()` stays the `javax.script` entry point.) | [Creating the engine](../guide/engine-setup.md) |
 | **`ClassFilter`** | One method, `exposeToScripts(className)`: which Java classes a script may reach through `Java.type` and the package globals. The sandboxing hook. | [Custom objects](../guide/custom-objects.md#classfilter) |
 | `-classpath`, `--module-path`, `--add-modules` | Where scripts find Java classes - a class path or module layer of the engine's own, on top of the application's loader. | [Options](../reference/options.md) |
-| **`jdk.dynalink.linker.GuardingDynamicLinkerExporter`** | A Dynalink linker of your own, registered as a service, which the engine picks up: how call sites link to *your* Java types - property access on a domain object, calls on a custom callable - ahead of the default bean linking. A JDK API (`jdk.dynalink`), not the engine's; the engine's own `api.linker.NashornLinkerExporter` is how *it* exports its linkers, not a hook. | [Dynalink custom linkers](../guide/dynalink-linkers.md) |
+| **`jdk.dynalink.linker.GuardingDynamicLinkerExporter`** | A Dynalink linker of your own, registered as a service, which the engine picks up: how call sites link to *your* Java types - property access on a domain object, calls on a custom callable - ahead of the default bean linking. A JDK API (`jdk.dynalink`), not the engine's; the engine's own `api.linker.NashornLinkerExporter` is how *it* exports its linkers, not a hook. | [Dynalink custom linkers](../internals/dynalink-linkers.md) |
 
 ## Tooling hooks
 
@@ -81,7 +82,7 @@ The things an extension is tempted to take from it have public homes:
 | `ECMAErrors.typeError` / `Global.newTypeError` | `ScriptUtils.typeError(message)`, `rangeError(message)` |
 | `Context.eval` into a global | `ScriptLibrary.initialize(global)` with `global.eval(source)`, or `engine.eval(source, bindings)` |
 | `Global.put` on a fresh global | `ScriptLibrary.globals()`, or `initialize(global)` and `setMember` |
-| `Context.evaluateModule` | the one gap: modules have [no public entry point yet](../guide/modules.md) |
+| `Context.evaluateModule` | `engine.eval(source)` - a source that parses as a module [runs as one](../guide/modules.md#running-modules) and yields its namespace object |
 
 If an extension needs something from `internal` that this table does not cover, that is the shape of
 the next public API, not a reason to reach past the boundary.

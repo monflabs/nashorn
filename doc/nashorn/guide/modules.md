@@ -1,9 +1,10 @@
 # ES modules
 
-Nashorn implements the ECMAScript 2015 module system in full — `import`, `export`, default and named
-exports, `export *`, namespace imports, live bindings, cycles — and its behaviour is exercised by
-the module slice of the official conformance suite. What it does **not** yet have is a public way to
-run one. This page covers both halves honestly.
+Nashorn implements the ECMAScript module system in full: `import`, `export`, default and named
+exports, `export *` and `export * as ns`, namespace imports, live bindings, cycles, dynamic
+`import()`, `import.meta`, top-level `await`, and ES2025's import attributes with JSON modules
+(`import data from "d.json" with { type: "json" }`). Its behaviour is exercised by the module slice
+of the official conformance suite.
 
 ## Writing modules
 
@@ -87,9 +88,9 @@ above. A specifier nothing answers is a `TypeError` naming it and its importer, 
 before anything runs. Building a loader — the contract, the built-ins as templates, pure-Java
 modules — is the [module loaders](../extending/module-loaders.md) page of *Extending the engine*.
 
-## Meanwhile, in scripts
+## The script-side alternatives
 
-Until modules get a public door, the practical structuring tools for script code are
+For code that is not written as modules, the structuring tools are
 [`load`](../reference/builtins.md#loadsource) — same global, think `#include` — and
 `loadWithNewGlobal` for isolation. Neither gives you live bindings or module scope; both are honest
 about being what they are.

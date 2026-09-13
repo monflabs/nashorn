@@ -1,16 +1,16 @@
 # Built-in globals
 
-Beyond the objects ECMAScript 2019 defines, Nashorn's global carries a small set of its own
+Beyond the objects ECMAScript 2026 defines, Nashorn's global carries a small set of its own
 functions and properties. This page lists all of them; the Java-access globals (`Java`, `Packages`,
 `JavaImporter` and the package roots) have a [page of their own](../guide/connecting-with-java.md).
 
 ## Always present
 
-### `print(arg...)` and `println(arg...)`
+### `print(arg...)`
 
-Write their arguments to standard output, space-separated. `print` appends a newline (it is the same
-function as `println`) unless the engine was started with `--print-no-newline`, in which case the
-two differ in exactly that.
+Writes its arguments to standard output, space-separated, followed by a newline — unless the engine
+was started with `--print-no-newline`, in which case it writes no trailing newline. There is no
+separate `println` global.
 
 ### `load(source)`
 
@@ -56,6 +56,16 @@ Two host I/O extensions, on every realm:
 | --- | --- |
 | `readLine([prompt])` | Read one line from standard input, optionally printing a prompt first. |
 | `readFully(file)` | Read a whole file into a string. A non-file argument is a `TypeError`. |
+
+## Present only in some engines
+
+| Global | When | What it is |
+| --- | --- | --- |
+| `console` | the engine was built with `--debugger` (or `--inspect`) | The `console` object a debugger front end expects: `log`, `info`, `debug`, `trace`, `warn`, `error`, `dir`, `dirxml`, `table`, `assert`, `count`/`countReset`, `time`/`timeEnd`/`timeLog`, `group`/`groupCollapsed`/`groupEnd` and `clear`. Without the option the engine has no `console` at all. |
+| `Debug` | the JVM was started with `-Dnashorn.debug=true` | Engine-internal introspection (`Debug.map`, `Debug.dumpCounters`, …), used by the engine's own tests. Not an API. |
+
+The [standard libraries](../libraries/overview.md) add more — `setTimeout`, `fetch`, `atob`/`btoa` —
+but only when an embedder hands them to the builder; a bare engine has none of them.
 
 ## Present only at the shell prompt
 

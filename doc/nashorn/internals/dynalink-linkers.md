@@ -6,7 +6,7 @@ framework. Nashorn's own behaviour — beans access, overload selection, SAM con
 of Dynalink linkers, and the chain is **open**: you can plug in linkers of your own and change how
 scripts see whole families of Java types, without touching the types or the scripts.
 
-Use a custom linker when [`JSObject`](custom-objects.md) is not an option — classes you do not
+Use a custom linker when [`JSObject`](../guide/custom-objects.md) is not an option — classes you do not
 control (arrays, NIO buffers, a DOM library), or a policy you want applied to *every* object of a
 kind rather than instances you wrap by hand.
 
@@ -96,7 +96,7 @@ compiles its exporter and runs the demonstration:
   past you.
 - Your `GuardedInvocation`'s guard decides correctness: it must fail when the receiver stops
   matching your assumptions, or stale links will serve wrong answers.
-- Linkers are discovered per engine ([Context](../internals/contexts-globals.md)) through its class
+- Linkers are discovered per engine ([Context](contexts-globals.md)) through its class
   loader; two engines can carry different linker sets.
 - How Nashorn's own chain is ordered, and what the call-site descriptors encode, is on the
-  [linking internals page](../internals/linking.md).
+  [linking internals page](linking.md).

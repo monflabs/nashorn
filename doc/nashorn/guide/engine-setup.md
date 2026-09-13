@@ -34,14 +34,21 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
 A builder starts with **no options** (what the shell runs with), adds what it is told in order — a
 later setting of the same option wins, as on a command line — and `build()` validates the options
 the way the command line would, throwing `IllegalArgumentException` for one it does not know. The
-named methods cover the engine's configuration: the language and its extras (`annexB`, `strict`,
-`syntaxExtensions`, `typedArrays`), the Java side (`java(false)` for the bluntest
-sandbox, `classPath`, `modulePath(path, modules...)`), compilation (`optimisticTypes`,
-`lazyCompilation`, `classCacheSize`, `persistentCodeCache`), the environment scripts see
-(`timeZone`, `locale`, `globalPerEngine`), debugging (`dumpStackOnError`, `debugger`,
-`inspect(hostAndPort, waitForClient)`); `option(...)` takes anything
-else - the diagnostic switches, `--log`, the `--print-*` family - in its command-line spelling. A builder can be reused, and every
-`build()` is a new engine with its own compiled-code cache and globals.
+named methods cover the engine's configuration:
+
+| Area | Methods |
+| --- | --- |
+| The language | `annexB`, `strict`, `syntaxExtensions`, `typedArrays` |
+| Asynchrony | `eventLoop` — off by default; everything that waits needs it |
+| The Java side | `java(false)` for the bluntest sandbox, `classPath`, `modulePath(path, modules…)`, `classLoader`, `classFilter` |
+| Compilation | `optimisticTypes`, `lazyCompilation`, `classCacheSize`, `persistentCodeCache` |
+| The environment scripts see | `timeZone`, `locale`, `globalPerEngine` |
+| Debugging | `dumpStackOnError`, `debugger`, `inspect(hostAndPort, waitForClient)` |
+| Extensions | `library(…)`, `moduleLoader(…)` |
+
+`option(...)` takes anything else — the diagnostic switches, `--log`, the `--print-*` family — in its
+command-line spelling. A builder can be reused, and every `build()` is a new engine with its own
+compiled-code cache and globals.
 
 - The **class loader** is what scripts see when they reach for Java classes (`Java.type`,
   `Packages`). By default it is the current thread's context class loader.
@@ -105,7 +112,7 @@ tracing) that stay with `option(...)`.
 | --- | --- | --- | --- |
 | `java(boolean)` | `--no-java` | on | Whether scripts may touch Java at all: off removes `Java`, `Packages`, `JavaImporter` and the package roots — the bluntest sandbox. Combine with a `classFilter` for belt and braces. |
 | `classFilter(filter)` | — | none | Which Java classes a script may see, one name at a time. |
-| `classLoader(loader)` | — | context loader | The loader scripts reach Java through, and libraries are discovered through. |
+| `classLoader(loader)` | — | context loader | The loader scripts reach Java through. |
 | `classPath(path)` | `-classpath` | none | A class path of the engine's own, on top of the application loader. |
 | `modulePath(path, modules...)` | `--module-path` + `--add-modules` | none | A module layer of the engine's own; the modules to resolve are required. |
 
@@ -125,6 +132,17 @@ tracing) that stay with `option(...)`.
 | `timeZone(TimeZone)` | `-timezone` | the JVM's | What `new Date()` and the local getters answer with. Pin it rather than inheriting the host's. |
 | `locale(Locale)` | `--locale` | the JVM's | What `toLocaleString` and its kin answer with. |
 | `globalPerEngine(boolean)` | `--global-per-engine` | off | One global shared by all bindings instead of one per bindings — see [the scope model](using-the-engine.md#the-scope-model). |
+
+**Asynchrony**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
+| `eventLoop(boolean)` | `--event-loop` | **off** | Whether the realm has an [event loop](../libraries/overview.md#the-event-loop). With it off, every capability that would need one — `Promise`, `async`/`await`, async generators, the timers, `queueMicrotask`, `fetch` — throws a `TypeError` the moment it is used. Turn it on to run asynchronous code; leave it off for a purely synchronous embedder. With it on, `eval` returns when the script is *idle*, not merely when its synchronous code finishes. |
+
+**Extensions**
+
+| Builder | Option | Default | What it decides |
+| --- | --- | --- | --- |
 | `library(libraries...)` | — | none | Which [script libraries](../extending/script-libraries.md) to install into every global. Contributed explicitly; a bare engine has none, including the standard `host` and `fetch`. |
 | `moduleLoader(loaders...)` | — | filesystem | Where `import` finds its modules: a [chain of loaders](../extending/module-loaders.md), first answer wins. Registering any loader replaces the default filesystem resolution. |
 
@@ -138,16 +156,23 @@ tracing) that stay with `option(...)`.
 
 ## Engine metadata
 
-The factory answers the standard JSR-223 queries: names `nashorn-monflabs`/`Nashorn-Monflabs` only;
-MIME types `application/javascript`, `application/ecmascript`, `text/javascript`, `text/ecmascript`;
-extension `js`. It deliberately does **not** register under the generic names `js`, `JavaScript` or
-`ECMAScript`, nor under plain `nashorn` — those belong to any JavaScript engine (and `nashorn` to
-the official library), so keeping this engine's name to its own means a `getEngineByName` lookup
-never resolves here by accident and an application with several engines always gets the one it asked
-for. (The MIME types and the `js` extension are unchanged, so `getEngineByMimeType`/`getEngineByExtension`
-still find it — only the *names* are restricted.) The
-`THREADING` parameter returns `null` — the engine makes no thread-safety promise; see
-[Threads and concurrency](concurrency.md).
+The factory answers the standard JSR-223 queries:
+
+| Query | Answer |
+| --- | --- |
+| `getNames()` | `nashorn-monflabs`, `Nashorn-Monflabs` — **and nothing else** |
+| `getMimeTypes()` | `application/javascript`, `application/ecmascript`, `text/javascript`, `text/ecmascript` |
+| `getExtensions()` | `js` |
+| `getEngineName()` | `OpenJDK-Monflabs` |
+| `getLanguageName()` | `ECMAScript` |
+| `getParameter("THREADING")` | `null` — no thread-safety promise; see [Threads and concurrency](concurrency.md) |
+
+The restricted name list is deliberate. `js`, `JavaScript` and `ECMAScript` belong to *any*
+JavaScript engine, and plain `nashorn` to the official library, so keeping this engine's names to
+its own means a `getEngineByName` lookup never resolves here by accident, and an application with
+several engines always gets the one it asked for. The MIME types and the `js` extension are
+unchanged, so `getEngineByMimeType` and `getEngineByExtension` still find it — only the *names* are
+restricted.
 
 Every engine created by one factory shares nothing with its siblings except the factory object
 itself; engine instances are independent.

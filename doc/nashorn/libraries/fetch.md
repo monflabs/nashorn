@@ -2,8 +2,10 @@
 
 `fetch` provides the WHATWG fetch API: `fetch(input, init)` returning a promise of a `Response`,
 and the `Headers`, `Request` and `Response` classes. It is part of `nashorn-core`, but not installed automatically: hand `new FetchLibrary()` to the
-engine builder's `library(...)` to have it (it does not need the `host` library). Simply not adding
-it is the right setting for an engine that must not reach the network. (The shell installs it by default — see [The shell](../reference/shell.md).)
+engine builder's `library(...)` to have it (it does not need the `host` library). It does need the
+[event loop](overview.md#the-event-loop) — `.eventLoop(true)` — since it returns a promise. Simply
+not adding the library is the right setting for an engine that must not reach the network. (The
+shell turns on both by default — see [The shell](../reference/shell.md).)
 
 ```js
 (async function () {

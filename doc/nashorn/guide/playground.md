@@ -17,17 +17,18 @@ The tree on the left holds five categories, read straight out of the jar's resou
 
 * **Getting started** — `print` and `console`, values and types, functions and closures, the
   built-in objects, errors.
-* **ECMAScript support** — the ES2015, ES2016, ES2017 and ES2018 feature sets, one sample per feature,
-  plus an Annex B pair that is worth running twice: once as is, once with
+* **ECMAScript support** — one folder per edition, ES2015 through ES2026, with a sample per
+  feature, plus an Annex B pair that is worth running twice: once as is, once with
   `// @option --annexB=false` as the first line.
 * **Standard libraries** — grouped by library: **host** (the event-loop functions — timers,
   microtasks, Base64) and **fetch** (against public APIs: Open-Meteo weather, GitHub).
 * **Standard Packages** — the experimental Node-compatibility modules resolved by `nashorn-node`:
   `fs`, `os` and `path`.
 * **Nashorn extensions** — `Java.type`, collections, `Java.extend` and `Java.super`,
-  `JavaImporter`, streams, `JSAdapter`, `Object.bindProperties`, `load`, the parser API,
-  the JSR-223 engine driven from script, script libraries, module loaders, and a
-  debugging sample.
+  `JavaImporter`, Java methods as functions, streams, `JSAdapter`, `JSObject` from Java,
+  `Object.bindProperties`, `noSuchProperty`/`noSuchMethod`, `load`/`__FILE__`/`__LINE__`,
+  the parser API, the JSR-223 engine driven from script, debugging, script libraries and
+  module loaders.
 
 A sample is simply a folder with a `main.js`; a `README.md` beside it is rendered beneath the
 editor and console, sibling files appear as read-only editor tabs — and double as **modules**: the
