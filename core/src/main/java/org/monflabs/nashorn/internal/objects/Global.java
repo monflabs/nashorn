@@ -1521,7 +1521,7 @@ public final class Global extends Scope {
      * @return the global singleton
      */
     public static Global instance() {
-        return Objects.requireNonNull(Context.getGlobal());
+        return Context.getGlobalRequired();
     }
 
     private static Global instanceFrom(final Object self) {
@@ -3174,24 +3174,26 @@ public final class Global extends Scope {
      *         its own {@code Symbol.species} are the ones built in
      */
     public boolean isBuiltinRegExpPristine() {
-        if (builtinRegExp == null) {
+        if (builtinRegExp == null || pristineRegExpProtoMap == null) {
             return false;   // conservative for compile-only mode
         }
-        if (this.regexp != builtinRegExp && this.regexp != LAZY_SENTINEL) {
-            // the sentinel means the global binding has never even been read,
-            // which is as untouched as it gets
-            return false;
-        }
-        final PropertyMap protoMap = ScriptFunction.getPrototype(builtinRegExp).getMap();
-        return isBuiltinProperty(protoMap, "exec")
-                && isBuiltinProperty(protoMap, "flags")
-                && isBuiltinProperty(protoMap, "constructor")
-                && isBuiltinProperty(builtinRegExp.getMap(), NativeSymbol.species);
-    }
-
-    private static boolean isBuiltinProperty(final PropertyMap map, final Object key) {
-        final org.monflabs.nashorn.internal.runtime.Property property = map.findProperty(key);
-        return property != null && property.isBuiltin();
+        final ScriptObject proto = ScriptFunction.getPrototype(builtinRegExp);
+        // What the @@split/@@match/@@replace algorithms actually read: exec and
+        // constructor off RegExp.prototype, the flags getter, and @@species off
+        // the constructor. Map identity settles every accessor and every added,
+        // deleted or redefined property in one comparison; only a plain write to
+        // a data property leaves the map alone, and exec is the one that matters.
+        //
+        // The builtin switch point cannot be used for this. It is shared by
+        // everything tagBuiltinProperties tags under the name "RegExp" - the
+        // global binding included - so "RegExp = x" invalidated it and turned
+        // every direct path off, though it says nothing about RegExp.prototype.
+        // v8's own regexp.js opens with exactly that line, and the generic
+        // fallback is several times slower than the code it replaced.
+        return proto.getMap() == pristineRegExpProtoMap
+                && builtinRegExp.getMap() == pristineRegExpCtorMap
+                && proto.get("exec") == pristineRegExpExec
+                && proto.get("constructor") == builtinRegExp;
     }
 
     private synchronized ScriptFunction getBuiltinJSAdapter() {
@@ -3271,6 +3273,18 @@ public final class Global extends Scope {
         return builtinRangeError;
     }
 
+    /**
+     * The realm's intrinsic %RegExp%, for the built-ins that need the
+     * constructor itself. SpeciesConstructor's default is the intrinsic the
+     * caller names, not the global binding: after {@code globalThis.RegExp = X}
+     * a split still builds its splitter from %RegExp%, and reading the global
+     * property instead was both a divergence and a generic lookup per call.
+     * @return the intrinsic RegExp constructor
+     */
+    ScriptFunction builtinRegExp() {
+        return getBuiltinRegExp();
+    }
+
     private synchronized ScriptFunction getBuiltinRegExp() {
         if (this.builtinRegExp == null) {
             this.builtinRegExp = initConstructorAndSwitchPoint("RegExp", ScriptFunction.class);
@@ -3286,9 +3300,18 @@ public final class Global extends Scope {
             // RegExp.prototype should behave like a RegExp object. So copy the
             // properties.
             regExpProto.addBoundProperties(DEFAULT_REGEXP);
+            // what isBuiltinRegExpPristine() compares against - see there
+            this.pristineRegExpProtoMap = regExpProto.getMap();
+            this.pristineRegExpCtorMap = builtinRegExp.getMap();
+            this.pristineRegExpExec = regExpProto.get("exec");
         }
         return builtinRegExp;
     }
+
+    /** The shape and the one data value the direct regexp paths assume; see isBuiltinRegExpPristine. */
+    private PropertyMap pristineRegExpProtoMap;
+    private PropertyMap pristineRegExpCtorMap;
+    private Object pristineRegExpExec;
 
     private synchronized ScriptFunction getBuiltinURIError() {
         if (this.builtinURIError == null) {

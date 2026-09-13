@@ -71,6 +71,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Collections;
 import java.util.WeakHashMap;
 import org.monflabs.nashorn.internal.runtime.debugger.DebuggerImpl;
@@ -393,7 +394,33 @@ public final class Context {
     public static Global getGlobal() {
         // This class in a package.access protected package.
         // Trusted code only can call this method.
+        // isBound() walks the binding stack rather than reading ScopedValue's
+        // per-thread cache, so this is the slow read - but it is the only one
+        // that tolerates no realm at all, which a standalone api.tree parse has.
+        // Callers that require a realm use getGlobalRequired() below.
         return currentGlobal.isBound() ? currentGlobal.get() : null;
+    }
+
+    /**
+     * The current global scope, which the caller requires to be established.
+     *
+     * ScopedValue has a small per-thread cache that only {@link ScopedValue#get()}
+     * consults; {@code isBound()} and {@code orElse()} both walk the binding stack
+     * on every call and never touch it. Reading the realm through {@code isBound()}
+     * therefore cost an uncached walk per read, which made
+     * {@code ScopedValue.findBinding} the single hottest frame in the engine -
+     * 80% of samples while creating closures, since every {@code ScriptFunction}
+     * asks for the realm. This takes the cached path instead.
+     *
+     * @return the current global scope, never null
+     * @throws NullPointerException if no realm is established
+     */
+    public static Global getGlobalRequired() {
+        try {
+            return currentGlobal.get();
+        } catch (final NoSuchElementException e) {
+            throw new NullPointerException("no current global");
+        }
     }
 
     /**

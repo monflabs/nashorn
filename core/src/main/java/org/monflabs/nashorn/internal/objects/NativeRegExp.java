@@ -715,10 +715,21 @@ public final class NativeRegExp extends ScriptObject {
      * the constructor or the prototype. While that holds, the property-driven
      * spec algorithms cannot observe anything a direct match does not do.
      */
+    private static final boolean DBG_ORD = System.getProperty("nashorn.debug.ordinary") != null;
+    private static long ordYes, ordNo;
     private boolean isOrdinary() {
-        return getMap() == $nasgenmap$
-                && getProto() == globalObject.getRegExpPrototype()
-                && globalObject.isBuiltinRegExpPristine();
+        final boolean map = getMap() == $nasgenmap$;
+        final boolean proto = getProto() == globalObject.getRegExpPrototype();
+        final boolean pristine = map && proto && globalObject.isBuiltinRegExpPristine();
+        final boolean r = map && proto && pristine;
+        if (DBG_ORD) {
+            if (r) { ordYes++; } else { ordNo++; }
+            if ((ordYes + ordNo) % 200000 == 0) {
+                System.err.println("ORDINARY yes=" + ordYes + " no=" + ordNo
+                        + "  map=" + map + " proto=" + proto + " pristine=" + pristine);
+            }
+        }
+        return r;
     }
 
     /**
@@ -780,6 +791,13 @@ public final class NativeRegExp extends ScriptObject {
                 break;   // no match anywhere at or after q
             }
             final int at = match.getIndex();
+            if (at >= size) {
+                // The specified loop runs while q < size and anchors each attempt
+                // at q, so a match at the very end of the subject is one it never
+                // reaches - "x".split(/$/) is ["x"], not ["x", ""]. Searching
+                // forward from q can land there, so it is a miss here too.
+                break;
+            }
             if (unicode && !alignsWithCodePoints(string, q, at)) {
                 // the sticky walk would have stepped over this position
                 q = (int)advanceStringIndex(string, at, true);
@@ -941,28 +959,37 @@ public final class NativeRegExp extends ScriptObject {
         int index = 0;
         setLastIndex(0);
 
+        boolean matched1 = false;
         while (index <= size && matcher.search(index)) {
-            final Object[] gs = groups(matcher, regexp);
             final int position = matcher.start();
-            final String matched = (String)gs[0];
-            lastGroups = gs;
-            lastStart = position;
+            final int end = matcher.end();
 
             if (plainText) {
+                // Nothing but the match's extent is used here: the replacement
+                // is itself, and the captures would only be thrown away. They
+                // are materialised once after the walk, for the legacy statics,
+                // rather than once per match - an Object[] and a substring per
+                // group per match otherwise, all of it garbage.
+                matched1 = true;
+                lastStart = position;
                 if (accumulated == null) {
                     accumulated = new StringBuilder(size + 16);
                 }
                 if (position >= nextSourcePosition) {
                     accumulated.append(str, nextSourcePosition, position).append(replaceText);
-                    nextSourcePosition = position + matched.length();
+                    nextSourcePosition = end;
                 }
-                index = matcher.end();
+                index = end;
                 if (position == index) {
                     index = (int)advanceStringIndex(str, index, unicode);
                 }
                 continue;
             }
 
+            final Object[] gs = groups(matcher, regexp);
+            final String matched = (String)gs[0];
+            lastGroups = gs;
+            lastStart = position;
             final Object namedCaptures = buildGroupObject(gs, regexp);
             final boolean hasNamed = namedCaptures != UNDEFINED;
             final String replaced;
@@ -998,6 +1025,12 @@ public final class NativeRegExp extends ScriptObject {
 
         if (accumulated == null) {
             return str;
+        }
+        if (matched1) {
+            // the plain-text walk kept no captures; one search re-establishes
+            // the matcher on the last match so the statics can be built from it
+            matcher.search(lastStart);
+            lastGroups = groups(matcher, regexp);
         }
         // the legacy statics answer for the last match, as they would have if
         // every match had been made before any replacement
@@ -1216,15 +1249,18 @@ public final class NativeRegExp extends ScriptObject {
 
     /** The constructor a derived operation should build with (ES2015 7.3.20). */
     private static Object speciesConstructor(final ScriptObject rx) {
+        // ES2026 7.3.24 SpeciesConstructor(O, defaultConstructor): the default is
+        // the %RegExp% intrinsic the caller names, not the global "RegExp"
+        // binding, so shadowing the name does not redirect a split's splitter
         final Object constructor = rx.get("constructor");
         if (constructor == UNDEFINED) {
-            return Global.instance().get("RegExp");
+            return Global.instance().builtinRegExp();
         }
         if (!(constructor instanceof ScriptObject sobj)) {
             throw typeError("not.an.object", ScriptRuntime.safeToString(constructor));
         }
         final Object species = sobj.get(NativeSymbol.species);
-        return species == UNDEFINED || species == null ? Global.instance().get("RegExp") : species;
+        return species == UNDEFINED || species == null ? Global.instance().builtinRegExp() : species;
     }
 
     private static ScriptObject construct(final Object constructor, final Object pattern, final String flags) {
