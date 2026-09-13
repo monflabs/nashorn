@@ -45,6 +45,7 @@
 
 - **Reference**
   - [Command-line options](/reference/options.md)
+  - [API javadoc](/reference/api.md)
   - [Built-in globals](/reference/builtins.md)
   - [The shell](/reference/shell.md)
   - [Logging and debugging](/reference/debugging.md)

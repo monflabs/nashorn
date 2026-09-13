@@ -15,6 +15,47 @@ against afterwards is the same `javax.script` either way (see [Using the engine]
 Use `getEngineByName` for a quick eval; use the builder for anything that needs configuration or that
 runs scripts using libraries or `import`.
 
+## The moving parts
+
+Two vocabularies meet here: `javax.script`'s and Nashorn's own. Every configuration choice below
+makes sense once you know which of them a setting belongs to.
+
+```
+JVM process
+└── ScriptEngine ──────── one Context: the options, the class loaders,
+    │                     the compiled-code cache, the linker, the class filter
+    ├── realm A ───────── one Global: Object, Array, print, the top-level
+    ├── realm B                       var/let/const, the module registry, the job queue
+    └── realm C           (one realm per Bindings object)
+```
+
+| Term | What it is | How many |
+| --- | --- | --- |
+| **Engine** (`ScriptEngine`) | What you configure and hold. Internally one [`Context`](../internals/contexts-globals.md): class loaders, the compiled-class cache, the Dynalink linker, the class filter. | one per configuration |
+| **Realm**, a.k.a. the **global** (`Global`) | One complete world for scripts: every built-in constructor and prototype, the global namespace your `var`s land in, the top-level lexical scope, the module registry, the event loop's job queue. The spec's word is *realm*; Nashorn's class is `Global`. | many per engine |
+| **Bindings** (`Bindings`) | JSR-223's name-to-value map. In Nashorn a bindings object **is** the handle on a realm — the engine stores the realm in it under `"nashorn.global"`, and `createBindings()` returns a mirror that *is* a fresh realm. Different bindings, different world. | one realm each |
+| **Script context** (`ScriptContext`) | The bundle of bindings for one evaluation. Its `ENGINE_SCOPE` picks the realm; `GLOBAL_SCOPE` is consulted only as a fallback for names the realm doesn't have. | per evaluation, or reused |
+| **Compiled script** (`CompiledScript`) | Bytecode for a source. Belongs to the **engine**, not to a realm, so one compilation runs in every realm of that engine. | per source |
+| **Mirror** (`ScriptObjectMirror`) | A script object seen safely from Java. It remembers its home realm and switches to it around each operation. | per object |
+| **Builder / factory** | What makes engines. The options it takes are frozen into the engine at construction. | — |
+
+### Why the split decides your configuration
+
+Three consequences follow, and between them they explain every recommendation on this page:
+
+1. **Options are fixed when the engine is built.** They live in a `ScriptEnvironment` the `Context`
+   holds for life; nothing on this page can be changed afterwards. So *configuration is engine
+   identity*: two settings, two engines.
+2. **Code is per engine, state is per realm.** That is the seam to exploit — share the engine so a
+   script is compiled once, split the realm so nothing leaks between evaluations. It is why
+   `compile()` once and `createBindings()` per worker is the recurring shape below.
+3. **A realm is the unit of single-threadedness.** One realm, one thread at a time; the engine around
+   it is happily shared. See [Threads and concurrency](concurrency.md).
+
+The [scope model](using-the-engine.md#the-scope-model) shows how an evaluation resolves to a realm in
+practice, and [Contexts, globals and realms](../internals/contexts-globals.md) has the full inventory
+of what sits on which side of the line.
+
 ## The builder
 
 ```java
@@ -234,6 +275,170 @@ bluntness:
 two threads evaluating against one realm at the same time is a data race, and nothing detects it. For
 concurrency, give each thread its own realm and share the compiled code — see
 [Threads and concurrency](concurrency.md).
+
+### Configurations by use case
+
+The choices above interact, and which combination is right follows almost entirely from two
+questions: **how many times does a given script run**, and **how many threads touch one realm**.
+Six shapes cover nearly everything.
+
+| Use case | Engine | Realm | The settings that matter |
+| --- | --- | --- | --- |
+| [Run once and exit](#run-a-script-once-and-exit) | one, discarded | default bindings | `optimisticTypes(false)` |
+| [Repeated evaluation, one thread](#a-long-lived-single-threaded-session) | one, long-lived | one, held | defaults; `compile()` once |
+| [Concurrent requests, isolated](#concurrent-requests-each-isolated) | one, shared | one per thread | `compile()` once, pool realms |
+| [Concurrent requests, shared state](#concurrent-requests-sharing-state) | one, shared | one, locked | `globalPerEngine(true)` + your lock |
+| [Startup-dominated, many processes](#startup-dominated-many-short-processes) | one per process | default bindings | `persistentCodeCache(true)`, `optimisticTypes(false)` |
+| [Asynchronous scripts](#asynchronous-scripts) | one, long-lived | one per concurrent flow | `eventLoop(true)` |
+
+#### Run a script once and exit
+
+A CLI tool, a build step, a configuration expression. The script runs once, so there is no steady
+state to reach and every recompilation is pure loss. Turn optimistic types off; leave the event loop
+off unless the script awaits something.
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .optimisticTypes(false)
+        .build();
+Object result = engine.eval(Files.readString(script));
+```
+
+#### A long-lived single-threaded session
+
+A REPL, a rules engine driven from one thread, per-user templating. Keep everything: one engine, one
+`Bindings` held for the life of the session so state accumulates in its realm, and the script
+compiled once. Optimistic types stay on — this is the case they were built for.
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder().build();   // one, for the process
+Bindings session = engine.createBindings();                       // one realm, held
+
+ScriptContext ctx = new SimpleScriptContext();
+ctx.setBindings(session, ScriptContext.ENGINE_SCOPE);
+
+CompiledScript rules = ((Compilable) engine).compile(rulesSource); // once
+rules.eval(ctx);                                                   // many, state persists
+```
+
+#### Concurrent requests, each isolated
+
+A server handling requests that must not see each other's state. Share the **engine** — that is what
+shares the compiled code — and give each thread its own realm. A realm is not free (it is a full set
+of built-ins), so hold one per worker rather than creating one per request.
+
+```java
+static final ScriptEngine ENGINE = new NashornScriptEngineBuilder().build();
+static final CompiledScript SCRIPT = ((Compilable) ENGINE).compile(source);   // compiled once
+
+static final ThreadLocal<ScriptContext> REALM = ThreadLocal.withInitial(() -> {
+    ScriptContext ctx = new SimpleScriptContext();
+    ctx.setBindings(ENGINE.createBindings(), ScriptContext.ENGINE_SCOPE);      // one realm per worker
+    return ctx;
+});
+
+Object handle(Request req) throws ScriptException {
+    ScriptContext ctx = REALM.get();
+    ctx.getBindings(ScriptContext.ENGINE_SCOPE).put("request", req);
+    return SCRIPT.eval(ctx);
+}
+```
+
+That holds a realm per worker, which is right for a **fixed pool of platform threads**. On
+**virtual threads** it is actively wrong: one thread per request means one realm per request, so
+nothing is reused and realm creation is unbounded. Own the realms in a pool instead, and let the
+queue bound concurrency:
+
+```java
+static final BlockingQueue<ScriptContext> REALMS = new ArrayBlockingQueue<>(POOL_SIZE);
+static {
+    for (int i = 0; i < POOL_SIZE; i++) {
+        ScriptContext ctx = new SimpleScriptContext();
+        ctx.setBindings(ENGINE.createBindings(), ScriptContext.ENGINE_SCOPE);
+        REALMS.add(ctx);
+    }
+}
+
+Object handle(Request req) throws Exception {
+    ScriptContext ctx = REALMS.take();          // blocks - the pool is the concurrency limit
+    try {
+        ctx.getBindings(ScriptContext.ENGINE_SCOPE).put("request", req);
+        return SCRIPT.eval(ctx);
+    } finally {
+        REALMS.put(ctx);
+    }
+}
+```
+
+A `ScopedValue` does **not** replace either of these: it has no per-thread initial value and no
+storage, so it cannot be what *supplies* a realm. What it is good for is *propagating* the borrowed
+one — making it reachable from helper code during the request without passing it down every
+signature, which is how the engine tracks the current realm itself:
+
+```java
+static final ScopedValue<ScriptContext> CURRENT_REALM = ScopedValue.newInstance();
+
+ScopedValue.where(CURRENT_REALM, ctx).call(() -> SCRIPT.eval(ctx));   // visible to everything below
+```
+
+Compilation is serialised per engine, so pre-compiling with `Compilable` also keeps request threads
+from queueing behind each other on first use. If a pooled realm may have been left dirty — a stray
+`setInterval`, a mutated built-in — discard it and build a fresh one rather than returning it to the
+pool.
+
+#### Concurrent requests, sharing state
+
+When the requests genuinely must see one shared script world. There is no configuration that makes
+this safe by itself: **you** supply the mutual exclusion. `globalPerEngine(true)` removes the
+bindings plumbing so there is visibly one realm, and the lock is yours to hold.
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .globalPerEngine(true)      // one realm, whatever bindings are passed
+        .build();
+
+synchronized (engine) {             // the whole interaction, not just the eval
+    engine.eval("state.count++");
+}
+```
+
+`ScriptUtils.makeSynchronizedFunction(fn, monitor)` narrows the lock to one function when a whole-engine
+lock is too coarse. For sharing *data* rather than a realm, `SharedArrayBuffer` and `Atomics` are the
+only channel with defined concurrent semantics — see [Threads and concurrency](concurrency.md).
+
+#### Startup-dominated, many short processes
+
+Serverless invocations, a CLI run repeatedly, tests. The same script is compiled from scratch in every
+process, and the persistent code cache is what breaks that cycle: compiled classes are written to disk
+keyed by source and configuration, so the second process onward loads them instead of compiling.
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .persistentCodeCache(true)
+        .optimisticTypes(false)     // a run-once script never reaches the steady state
+        .build();
+```
+
+The cache directory is keyed by the four settings that change what a source *compiles to* —
+optimistic types, Annex B, the debugger hooks and `-strict` — so engines that disagree on any of them
+keep separate stores and share no entries. Keep the configuration stable across processes or the
+cache never warms up.
+
+#### Asynchronous scripts
+
+Anything using `Promise`, `async`/`await`, timers or `fetch`. The event loop is **off by default** and
+each of those throws a `TypeError` until it is on. Note two consequences: `eval` returns when the
+script is *idle*, not when its synchronous part ends; and the loop belongs to the realm, so a realm is
+the unit of concurrency here too — never drive one from two threads.
+
+```java
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .eventLoop(true)
+        .library(new HostLibrary(), new FetchLibrary())   // timers and fetch are opt-in too
+        .build();
+
+engine.eval("fetch(url).then(r => r.text()).then(print)");  // returns once settled
+```
 
 ## Engine metadata
 

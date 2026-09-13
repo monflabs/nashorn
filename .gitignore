@@ -15,3 +15,7 @@ NashornProfile.txt
 
 # heap dumps from -XX:+HeapDumpOnOutOfMemoryError in the test JVMs
 *.hprof
+
+# Javadoc copied into the docsify site by buildtools/build-javadoc.sh; generated
+# at publish time, never checked in
+/doc/nashorn/api/

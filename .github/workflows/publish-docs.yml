@@ -1,0 +1,68 @@
+# Publishes the docsify documentation site to GitHub Pages, with the javadoc
+# of the three published artifacts generated into it.
+#
+# The javadoc is built here rather than checked in, so the site always
+# documents the revision it was published from - buildtools/build-javadoc.sh
+# is the same script used for a local preview.
+#
+# Pages must be set to "GitHub Actions" as its source (Settings -> Pages)
+# for the deploy step to have somewhere to publish to.
+name: Publish documentation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one half-done: a cancelled
+# deploy can leave the site serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 25
+          cache: maven
+
+      # Writes doc/nashorn/api/{core,debugger,node}/, which the site's
+      # "API javadoc" page links to.
+      - name: Generate the javadoc into the site
+        run: ./buildtools/build-javadoc.sh
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # doc/nashorn is the site root: index.html, the markdown, the vendored
+      # docsify assets, the javadoc just generated, and the .nojekyll that
+      # keeps Pages from hiding _sidebar.md.
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: doc/nashorn
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
