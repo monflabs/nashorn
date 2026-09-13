@@ -63,7 +63,7 @@ public class SampleRunTest {
             count++;
             final Recorder recorder = new Recorder();
             runner.run(sample, sample.source(), false, recorder, recorder);
-            final ScriptRunner.Result result = recorder.await(60);
+            final ScriptRunner.Result result = recorder.await(60, sample.id());
             final String expected = EXPECTED_FAILURES.get(sample.id());
             if (expected != null) {
                 if (result.failure() == null || !ScriptRunner.describe(result.failure()).contains(expected)) {
@@ -84,7 +84,7 @@ public class SampleRunTest {
         for (final Sample sample : SampleLibrary.load().samples()) {
             final Recorder recorder = new Recorder();
             runner.run(sample, sample.source(), true, recorder, recorder);
-            final ScriptRunner.Result result = recorder.await(60);
+            final ScriptRunner.Result result = recorder.await(60, sample.id() + " (echo mode)");
             final String expected = EXPECTED_FAILURES.get(sample.id());
             if (expected != null) {
                 if (result.failure() == null || !ScriptRunner.describe(result.failure()).contains(expected)) {

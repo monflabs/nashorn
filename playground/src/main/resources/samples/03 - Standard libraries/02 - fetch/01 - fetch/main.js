@@ -5,6 +5,25 @@
 // These calls go to public APIs that need no key - so this sample needs
 // the network, and says so if it has none.
 
+// Every request below is bounded. A machine with no network at all fails fast
+// (DNS says so), but one behind a proxy or captive portal can accept the
+// connection and then stall, and an unbounded fetch would then wait forever -
+// this sample runs in the build, so that would hang it. Promise.race against a
+// timer is the portable way to put a ceiling on it; clearing the timer on the
+// way out lets the event loop go idle instead of waiting for a timer nobody
+// needs any more.
+var TIMEOUT_MS = 8000;
+
+function withTimeout(promise, what) {
+    var timer;
+    var timeout = new Promise(function (resolve, reject) {
+        timer = setTimeout(function () {
+            reject(new Error(what + ' did not answer within ' + TIMEOUT_MS + ' ms'));
+        }, TIMEOUT_MS);
+    });
+    return Promise.race([promise, timeout]).finally(function () { clearTimeout(timer); });
+}
+
 // Current weather in Paris, from Open-Meteo (https://open-meteo.com)
 async function weather(city, latitude, longitude) {
     var response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current_weather=true');
@@ -28,19 +47,19 @@ async function repository(name) {
 
 (async function () {
     try {
-        await weather('Paris', 48.85, 2.35);
-        await weather('Tokyo', 35.68, 139.69);
+        await withTimeout(weather('Paris', 48.85, 2.35), 'Paris');
+        await withTimeout(weather('Tokyo', 35.68, 139.69), 'Tokyo');
 
-        await repository('openjdk/nashorn');
-        await repository('openjdk/no-such-repository');   // a 404: resolved, with ok false
+        await withTimeout(repository('openjdk/nashorn'), 'the GitHub API');
+        await withTimeout(repository('openjdk/no-such-repository'), 'the GitHub API');   // a 404: resolved, with ok false
 
         // several requests in flight at once
         var started = Date.now();
-        var cities = await Promise.all([
+        var cities = await withTimeout(Promise.all([
             fetch('https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&current_weather=true'),
             fetch('https://api.open-meteo.com/v1/forecast?latitude=-33.87&longitude=151.21&current_weather=true'),
             fetch('https://api.open-meteo.com/v1/forecast?latitude=51.51&longitude=-0.13&current_weather=true')
-        ]);
+        ]), 'three cities at once');
         var temperatures = [];
         for (var response of cities) {
             temperatures.push((await response.json()).current_weather.temperature);
@@ -52,7 +71,8 @@ async function repository(name) {
         headers.append('accept', 'text/plain');
         print('Headers are case-insensitive and joined:', headers.get('ACCEPT'));
     } catch (e) {
-        // a network or DNS failure rejects with a TypeError
+        // a network or DNS failure rejects with a TypeError; a stalled one hits
+        // the ceiling above and rejects with the Error withTimeout threw
         print('No network? fetch rejected with', e.name + ':', e.message);
     }
     try {

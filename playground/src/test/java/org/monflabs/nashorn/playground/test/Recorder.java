@@ -73,8 +73,22 @@ final class Recorder implements ScriptRunner.Console, ScriptRunner.Listener {
     }
 
     ScriptRunner.Result await(final long seconds) throws InterruptedException {
+        return await(seconds, "the script");
+    }
+
+    /**
+     * Waits for the run to finish, naming {@code what} if it does not.
+     *
+     * The name matters: this runs over every bundled sample in a loop, and a
+     * bare "did not finish" says nothing about which one hung. So does whether
+     * the script ever *started* - a run that never started is the engine or the
+     * compilation hanging, not the script.
+     */
+    ScriptRunner.Result await(final long seconds, final String what) throws InterruptedException {
         if (!done.await(seconds, TimeUnit.SECONDS)) {
-            throw new AssertionError("the script did not finish within " + seconds + "s; output so far:\n" + out + err);
+            throw new AssertionError(what + " did not finish within " + seconds + "s"
+                    + " (" + (started.getCount() == 0 ? "it started" : "it never started") + ")"
+                    + "; output so far:\n" + (out.length() + err.length() == 0 ? "  <none>" : out.toString() + err));
         }
         return result;
     }
