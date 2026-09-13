@@ -333,7 +333,12 @@ public final class NativeJSON extends ScriptObject {
         // 24.3.12 step 8.a hands SerializeJSONProperty ToString(index), so what
         // a toJSON or a replacer is told an element is called is its name and
         // not its number. The lookup above still goes by the number.
-        final Object name = key instanceof Integer ? JSType.toString(key) : key;
+        // 24.3.12 step 8.a hands SerializeJSONProperty ToString(index), but the
+        // name is only ever *observed* by a toJSON or a replacer. Converting an
+        // array index eagerly cost an int-to-string per element of every array
+        // serialised, all of it thrown away in the common case where the object
+        // has neither, so it is deferred to the three places that read it.
+        Object name = key;
         try {
             if (value instanceof java.math.BigInteger) {
                 // ES2020 SerializeJSONProperty: Type(value) is Object *or BigInt*
@@ -343,6 +348,9 @@ public final class NativeJSON extends ScriptObject {
                 // strict getter or method sees a "bigint" this, not the wrapper.
                 final Object toJSON = getFromPrimitive(value, "toJSON");
                 if (toJSON instanceof ScriptFunction fn) {
+                    if (name instanceof Integer) {
+                        name = JSType.toString(name);
+                    }
                     value = ScriptRuntime.apply(fn, value, name);
                 }
             } else if (value instanceof ScriptObject) {
@@ -350,6 +358,9 @@ public final class NativeJSON extends ScriptObject {
                 final ScriptObject svalue = (ScriptObject)value;
                 final Object toJSON = toJSONInvoker.getGetter().invokeExact(svalue);
                 if (Bootstrap.isCallable(toJSON)) {
+                    if (name instanceof Integer) {
+                        name = JSType.toString(name);
+                    }
                     value = toJSONInvoker.getInvoker().invokeExact(toJSON, svalue, name);
                 }
             } else if (value instanceof JSObject) {
@@ -361,6 +372,9 @@ public final class NativeJSON extends ScriptObject {
             }
 
             if (state.replacerFunction != null) {
+                if (name instanceof Integer) {
+                    name = JSType.toString(name);
+                }
                 value = getREPLACER_INVOKER().invokeExact(state.replacerFunction, holder, name, value);
             }
         } catch(Error|RuntimeException t) {
