@@ -30,7 +30,6 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -46,7 +45,6 @@ import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -199,10 +197,8 @@ public final class PlaygroundFrame extends JFrame {
         runButton.addActionListener(e -> run());
         stopButton.addActionListener(e -> runner.stop());
         stopButton.setEnabled(false);
-        final JButton clear = new JButton("Clear");
+        final JButton clear = new JButton("Clear console");
         clear.addActionListener(e -> console.clear());
-        final JButton saveAs = new JButton("Save as\u2026");
-        saveAs.addActionListener(e -> saveAs());
         echo.addActionListener(e -> run());
         wordWrap.addActionListener(e -> console.setWrap(wordWrap.isSelected()));
         debugButton.addActionListener(e -> startDebugSession(true));
@@ -230,10 +226,8 @@ public final class PlaygroundFrame extends JFrame {
         bar.add(echo);
         bar.addSeparator();
         bar.add(clear);
-        bar.add(wordWrap);
         bar.add(preserve);
-        bar.addSeparator();
-        bar.add(saveAs);
+        bar.add(wordWrap);
         bar.add(Box.createHorizontalGlue());
         bar.add(debugButton);
         bar.add(externalDebugButton);
@@ -336,18 +330,6 @@ public final class PlaygroundFrame extends JFrame {
         return new Sample(s.id(), s.categories(), s.title(), text, s.readme(), s.files(), SampleLibrary.options(text));
     }
 
-    private void saveAs() {
-        final JFileChooser chooser = new JFileChooser();
-        chooser.setSelectedFile(new File(sample == null ? "script.js" : sample.title().replaceAll("[^A-Za-z0-9._-]", "_") + ".js"));
-        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            try {
-                Files.writeString(chooser.getSelectedFile().toPath(), editor.getSource(), StandardCharsets.UTF_8);
-            } catch (final IOException e) {
-                JOptionPane.showMessageDialog(this, e.getMessage(), "Cannot save", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
     // -- running ------------------------------------------------------------------
 
     private Future<?> run() {
@@ -426,6 +408,10 @@ public final class PlaygroundFrame extends JFrame {
             final JFrame frame = new JFrame("Nashorn Debugger");
             frame.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
             frame.setSize(1200, 850);
+            // centred on the playground window rather than dropped at the
+            // screen origin - it has to be sized first, since the centring is
+            // computed from the frame's current size
+            frame.setLocationRelativeTo(PlaygroundFrame.this);
             frame.getContentPane().add(panel, BorderLayout.CENTER);
 
             debugSession = token;
