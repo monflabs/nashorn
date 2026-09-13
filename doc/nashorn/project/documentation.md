@@ -44,18 +44,14 @@ deliberately does *not* use `javadoc:aggregate`: an aggregate run at the parent 
 per-module plugin configuration — notably core's exclusion of every internal package — and fails on
 the internal classes it then tries to document.
 
-## Publishing to GitHub Pages
+## Publishing
 
-`.github/workflows/publish-docs.yml` publishes the site on every push to `main`, and on demand from
-the Actions tab. It generates the javadoc with the script above and uploads `doc/nashorn` whole as
-the Pages artifact, so the published site is exactly what `./serve-docs.sh` serves locally.
-
-Two things the site depends on and that are easy to lose:
-
-* `doc/nashorn/.nojekyll` — without it Pages runs Jekyll, which hides every path beginning with an
-  underscore, starting with `_sidebar.md`.
-* **Settings → Pages → Source must be "GitHub Actions"**, not a branch. The deploy step has nowhere
-  to publish to otherwise, and fails with a permissions error rather than an obvious one.
+The site is published to <https://monflabs.github.io/nashorn/> by the
+[publish-docs workflow](workflows.md#publish-documentation) on every push to
+`main` — it runs the javadoc script above and uploads `doc/nashorn` whole, so
+what is published is exactly what `./serve-docs.sh` serves locally. Nothing is
+copied to a branch by hand, and the release script does not publish the docs
+either.
 
 ## Conventions
 

@@ -223,7 +223,8 @@ report, `-Prun` to execute a sample script through the engine, and `-Prelease` t
 build the signed artifacts for publication.
 
 Cutting a release, and the version-numbering rules that go with it, are
-[Building and releasing](doc/nashorn/project/building-and-releasing.md).
+[Building](doc/nashorn/project/building.md) and
+[Releasing](doc/nashorn/project/releasing.md).
 
 ## Contributing
 

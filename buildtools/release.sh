@@ -19,7 +19,7 @@
 # 2 along with this work; if not, write to the Free Software Foundation,
 # Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-# Cuts a release, on macOS, in four moves:
+# Cuts a release, on macOS, in three moves:
 #
 #   1. Builds and (unless a dry run) *stages* the three library jars (core,
 #      debugger, node) to Maven Central through the Sonatype Central Portal
@@ -30,8 +30,11 @@
 #   2. Tags the release branch (main) with v<version> and pushes the tag.
 #   3. Creates a GitHub release carrying the three library jars and the runnable
 #      playground -all jar.
-#   4. Publishes the docsify site (doc/nashorn) to the gh-pages branch and, first
-#      time only, points GitHub Pages at it.
+#
+# It does NOT publish the documentation. The site is deployed by the
+# publish-docs workflow on every push to main, javadoc and all, and GitHub Pages
+# takes its source from that workflow rather than from a branch - so cutting a
+# release from a pushed main has already rebuilt it.
 #
 # SECURITY - the script holds no secrets and puts none on a command line:
 #   * Central token   -> read by Maven from ~/.m2/settings.xml <server id=central>.
@@ -53,8 +56,7 @@
 #     release build unsigned (mvn -Prelease verify, no upload to Central and no
 #     passphrase prompt), installs the jars locally and runs the smoke test, checks
 #     the tag name is free without creating it, lists the GitHub-release assets
-#     without creating the release, and stages the docs into a temp directory
-#     instead of the gh-pages branch. Preconditions that would only matter for a
+#     without creating the release. Preconditions that would only matter for a
 #     real run (clean/synced main, a free tag, the token) are downgraded to
 #     warnings, so you can rehearse from any branch and before the secrets are set
 #     up. Signing is exercised only by a real run.
@@ -69,7 +71,6 @@
 #   RELEASE_SKIP_CENTRAL=1         skip step 1 (e.g. Central already published)
 #   RELEASE_SKIP_SMOKE=1           skip the smoke test of the built jars
 #   RELEASE_SKIP_GHRELEASE=1       skip step 3
-#   RELEASE_SKIP_DOCS=1            skip step 4
 
 set -euo pipefail
 
@@ -79,16 +80,6 @@ PORTAL_URL="https://central.sonatype.com/publishing/deployments"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-
-WORKTREES=""
-cleanup() {
-  local wt
-  for wt in $WORKTREES; do
-    git worktree remove --force "$wt" >/dev/null 2>&1 || true
-    rm -rf "$wt" >/dev/null 2>&1 || true
-  done
-}
-trap cleanup EXIT
 
 note() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
@@ -110,7 +101,7 @@ gate() { if dry; then warn "$1"; else die "$1"; fi; }
 
 # --- preflight ----------------------------------------------------------------
 
-for tool in mvn git gh java rsync awk; do
+for tool in mvn git gh java awk; do
   command -v "$tool" >/dev/null 2>&1 || die "missing required tool: $tool"
 done
 
@@ -165,7 +156,7 @@ cat <<EOF
   Tag        : ${TAG}
   Central    : nashorn-core, nashorn-debugger, nashorn-node  (staged, manual Publish)
   GitHub rel : the 3 library jars + the playground -all jar
-  Docs       : doc/nashorn -> gh-pages  (https://$(echo "$REPO_SLUG" | sed 's#/#.github.io/#')/)
+  Docs       : published from ${RELEASE_BRANCH} by the publish-docs workflow, not by this script
 
 EOF
 if dry; then
@@ -257,52 +248,16 @@ else
   rm -f "$notes"
 fi
 
-# --- 4. docsify -> gh-pages ---------------------------------------------------
+# --- 4. documentation (not this script's job) ---------------------------------
+#
+# .github/workflows/publish-docs.yml builds the javadoc into doc/nashorn and
+# deploys the whole site to GitHub Pages on every push to main; Pages is
+# configured with that workflow as its source. A release is cut from a clean,
+# pushed main, so the commit being released is already being published - there
+# is nothing to copy to a branch here, and doing so would publish nothing.
 
-if dry; then
-  stage="$(mktemp -d)"
-  rsync -a --exclude '.git' "${ROOT}/doc/nashorn/" "$stage/"
-  touch "$stage/.nojekyll"
-  note "[dry] docs staged to $stage ($(find "$stage" -type f | wc -l | tr -d ' ') files); NOT pushed to gh-pages"
-  note "      preview it with:  (cd $stage && python3 -m http.server 8000)   then open http://localhost:8000/"
-  note "      remove it when done:  rm -rf $stage"
-elif [ "${RELEASE_SKIP_DOCS:-}" = "1" ]; then
-  note "skipping docs publish (RELEASE_SKIP_DOCS=1)"
-else
-  note "publishing doc/nashorn to gh-pages"
-  wt="$(mktemp -d)"
-  WORKTREES="$WORKTREES $wt"
-  if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-    git fetch --quiet origin gh-pages
-    git worktree add --quiet -B gh-pages "$wt" origin/gh-pages
-  else
-    git worktree add --quiet --detach "$wt"
-    ( cd "$wt" && git checkout --quiet --orphan gh-pages && { git rm -rf . >/dev/null 2>&1 || true; } )
-  fi
-  # mirror the site (docsify is static); --delete drops files removed since last time
-  rsync -a --delete --exclude '.git' "${ROOT}/doc/nashorn/" "$wt/"
-  touch "$wt/.nojekyll"   # so GitHub Pages serves _sidebar.md and friends verbatim
-  (
-    cd "$wt"
-    git add -A
-    if git diff --cached --quiet; then
-      note "docs unchanged; nothing to push"
-    else
-      git commit --quiet -m "docs: nashorn-monflabs ${VERSION}"
-      git push --quiet origin gh-pages
-      note "docs pushed to gh-pages"
-    fi
-  )
-  git worktree remove --force "$wt"
-
-  # first time only: point Pages at the gh-pages branch root
-  if ! gh api "repos/${REPO_SLUG}/pages" >/dev/null 2>&1; then
-    note "enabling GitHub Pages from gh-pages"
-    printf '{"source":{"branch":"gh-pages","path":"/"}}' \
-      | gh api -X POST "repos/${REPO_SLUG}/pages" --input - >/dev/null 2>&1 \
-      || warn "could not enable Pages automatically; set it in Settings -> Pages (source: gh-pages, /)"
-  fi
-fi
+note "docs: published from ${RELEASE_BRANCH} by the publish-docs workflow (not by this script)"
+note "      watch it at https://github.com/${REPO_SLUG}/actions/workflows/publish-docs.yml"
 
 # --- done ---------------------------------------------------------------------
 
@@ -313,11 +268,10 @@ if dry; then
   echo "    - published nashorn-core/debugger/node ${VERSION} to ${PORTAL_URL}"
   echo "    - tagged and pushed ${TAG}"
   echo "    - created https://github.com/${REPO_SLUG}/releases/tag/${TAG} with the 4 jars"
-  echo "    - published the docs to ${pages_url}"
   echo "  Re-run without RELEASE_DRY_RUN=1 (on a clean, synced ${RELEASE_BRANCH}) to do it for real."
 else
   note "Released ${VERSION}."
   echo "    Central : ${PORTAL_URL}   (confirm it shows Published)"
   echo "    GitHub  : https://github.com/${REPO_SLUG}/releases/tag/${TAG}"
-  echo "    Docs    : ${pages_url}"
+  echo "    Docs    : ${pages_url}   (deployed by the publish-docs workflow)"
 fi

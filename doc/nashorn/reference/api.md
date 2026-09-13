@@ -28,5 +28,5 @@ The javadoc is not checked in. To read it locally, build it into the site first:
 ```
 
 Without that step the links 404 locally, which is expected — the published site always has them,
-because the [publish workflow](../project/documentation.md#publishing-to-github-pages) runs the same
+because the [publish workflow](../project/workflows.md#publish-documentation) runs the same
 script before deploying.

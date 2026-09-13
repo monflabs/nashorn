@@ -111,8 +111,9 @@ globals beyond ECMAScript, the shell, logging and debugging switches, the confor
 the catalogue of [optimizations over OpenJDK Nashorn 15.7](reference/optimizations.md), each with its
 estimated gain and its limits.
 
-**[Project](project/building-and-releasing.md)** — building the reactor from source, cutting a
-release, and [working on these pages](project/documentation.md).
+**[Contributors](project/building.md)** — building the reactor from source, the
+[CI workflows](project/workflows.md), [cutting a release](project/releasing.md), and
+[working on these pages](project/documentation.md).
 
 ## Historical material
 

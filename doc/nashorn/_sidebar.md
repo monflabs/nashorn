@@ -52,6 +52,8 @@
   - [Conformance](/reference/conformance.md)
   - [Optimizations over 15.7](/reference/optimizations.md)
 
-- **Project**
-  - [Building and releasing](/project/building-and-releasing.md)
+- **Contributors**
+  - [Building](/project/building.md)
+  - [GitHub Actions](/project/workflows.md)
+  - [Releasing](/project/releasing.md)
   - [The documentation site](/project/documentation.md)
