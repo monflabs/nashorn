@@ -43,6 +43,21 @@ public class SampleRunTest {
             "01 - Getting started/10 - Errors", "undefinedFunction",
             "02 - ECMAScript support/01 - ES2015/23 - Proper tail calls", "StackOverflowError");
 
+    /**
+     * Samples that reach the public internet, and so cannot gate a build.
+     *
+     * They are not skipped because they are slow. A fetch that connects and then
+     * stalls cannot be cancelled - the engine has no AbortSignal, and the realm's
+     * event loop counts the request as a pending operation until it completes, so
+     * the run never ends however the script is written. Racing a timer in the
+     * script settles the promise but not the loop; that was tried, and the run
+     * still waited. A build gate that depends on someone else's network being
+     * healthy is a flaky build gate, so these run in the playground, for a human
+     * who can see the result and press Stop, and not here.
+     */
+    private static final java.util.Set<String> NEEDS_NETWORK = java.util.Set.of(
+            "03 - Standard libraries/02 - fetch/01 - fetch");
+
     private ScriptRunner runner;
 
     @BeforeClass
@@ -60,6 +75,9 @@ public class SampleRunTest {
         final List<String> failures = new ArrayList<>();
         int count = 0;
         for (final Sample sample : SampleLibrary.load().samples()) {
+            if (NEEDS_NETWORK.contains(sample.id())) {
+                continue;
+            }
             count++;
             final Recorder recorder = new Recorder();
             runner.run(sample, sample.source(), false, recorder, recorder);
@@ -82,6 +100,9 @@ public class SampleRunTest {
     public void everySampleRunsInEchoModeToo() throws IOException, InterruptedException {
         final List<String> failures = new ArrayList<>();
         for (final Sample sample : SampleLibrary.load().samples()) {
+            if (NEEDS_NETWORK.contains(sample.id())) {
+                continue;
+            }
             final Recorder recorder = new Recorder();
             runner.run(sample, sample.source(), true, recorder, recorder);
             final ScriptRunner.Result result = recorder.await(60, sample.id() + " (echo mode)");
