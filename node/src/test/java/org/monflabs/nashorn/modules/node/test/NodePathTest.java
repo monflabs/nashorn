@@ -123,7 +123,9 @@ public class NodePathTest {
     @Test
     public void resolveIsAbsoluteAndCollapses() throws Exception {
         // resolve consults the cwd, so assert the shape rather than an exact string.
-        assertTrue((Boolean) r("path.posix.isAbsolute(path.posix.resolve('foo/bar', './baz'))"));
+        // The cwd is the host's: on Windows it starts with a drive letter, which is
+        // not posix-absolute, so assert the collapsed tail instead of absoluteness.
+        assertTrue((Boolean) r("path.posix.resolve('foo/bar', './baz').endsWith('foo/bar/baz')"));
         assertEquals(r("path.posix.resolve('/foo/bar', './baz')"), "/foo/bar/baz");
         assertEquals(r("path.posix.resolve('/foo/bar', '/tmp/file/')"), "/tmp/file");
         assertEquals(r("path.win32.resolve('C:\\\\foo\\\\bar', '.\\\\baz')"), "C:\\foo\\bar\\baz");
@@ -172,8 +174,10 @@ public class NodePathTest {
     public void defaultMatchesTheHostFlavour() throws Exception {
         final boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
         assertEquals(r("path.sep"), windows ? "\\" : "/");
-        // The bare named export is the host flavour's function.
-        assertEquals(r("path.basename('/a/b/c.js')"), windows ? "/a/b/c.js" : "c.js");
+        // The bare named export is the host flavour's function. A backslash path is
+        // what discriminates them: win32 takes '\' as a separator and posix does not.
+        // A forward slash would not - win32 accepts that too, so both answer 'c.js'.
+        assertEquals(r("path.basename('a\\\\b\\\\c.js')"), windows ? "c.js" : "a\\b\\c.js");
     }
 
     @Test
