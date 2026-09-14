@@ -199,8 +199,23 @@ public final class ConsolePane extends JPanel implements ScriptRunner.Console {
         text.repaint();
     }
 
-    /** The console's text. */
+    /**
+     * The console's text, newline-delimited on every platform.
+     *
+     * <p>Read from the document rather than through {@link JTextPane#getText()}:
+     * that one serialises through the editor kit, which substitutes
+     * {@code System.lineSeparator()} for each newline when the document carries no
+     * end-of-line property - so on Windows it would hand back CRLF. The console's
+     * line model is '\n' throughout ({@code padToLine} counts those), and its
+     * callers align on it.
+     */
     public String getText() {
-        return text.getText();
+        final StyledDocument doc = text.getStyledDocument();
+        try {
+            return doc.getText(0, doc.getLength());
+        } catch (final BadLocationException e) {
+            // the document is ours; cannot happen
+            return "";
+        }
     }
 }

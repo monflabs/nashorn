@@ -502,7 +502,11 @@ public final class ScriptRunner {
 
         @Override
         public void write(final char[] cbuf, final int off, final int len) {
-            final String text = new String(cbuf, off, len);
+            // print() goes through println(), which emits System.lineSeparator() - CRLF
+            // on Windows. The console's line model is '\n' throughout, so fold the pair
+            // here, at the boundary where engine output enters it; a lone CR is left
+            // alone, being a character a script deliberately wrote.
+            final String text = new String(cbuf, off, len).replace("\r\n", "\n");
             if (error) {
                 console.err(text);
             } else {
