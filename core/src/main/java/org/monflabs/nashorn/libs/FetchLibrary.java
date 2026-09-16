@@ -57,8 +57,6 @@ import org.monflabs.nashorn.internal.runtime.ScriptFunction;
  * request returns once it has completed. The promise rejects with a
  * {@code TypeError} on a network or URL failure; an HTTP error status resolves,
  * with {@code response.ok} false, as the specification says.
- *
- * @since 2017.0.0
  */
 public final class FetchLibrary implements ScriptLibrary {
 

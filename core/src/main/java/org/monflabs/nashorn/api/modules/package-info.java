@@ -28,7 +28,5 @@
  * to {@code eval} that parses as a module runs as one - and a module can be
  * script ({@link org.monflabs.nashorn.api.modules.Module#source Module.source})
  * or pure Java ({@link org.monflabs.nashorn.api.modules.Module#values Module.values}).
- *
- * @since 2017.0.0
  */
 package org.monflabs.nashorn.api.modules;

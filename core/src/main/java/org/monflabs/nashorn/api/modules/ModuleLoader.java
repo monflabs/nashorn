@@ -24,8 +24,6 @@ package org.monflabs.nashorn.api.modules;
 /**
  * One link of an engine's module-loading chain: asked, in registration order,
  * for every specifier an {@code import} names, until one answers.
- *
- * @since 2017.0.0
  */
 @FunctionalInterface
 public interface ModuleLoader {

@@ -27,7 +27,6 @@ package org.monflabs.nashorn.api.debugger;
  * @param host the host to bind
  * @param port the port to bind; 0 for one the system picks
  * @param waitForDebugger whether execution waits for a client to attach
- * @since 2017.0.0
  */
 public record InspectOptions(String host, int port, boolean waitForDebugger) {
 

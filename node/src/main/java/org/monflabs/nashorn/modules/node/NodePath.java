@@ -43,8 +43,6 @@ import org.monflabs.nashorn.internal.runtime.Undefined;
  * such as {@code join} - are the flavour matching the host operating system, as
  * in Node. Only {@code resolve} consults the process working directory
  * ({@code user.dir}); everything else depends solely on its arguments.
- *
- * @since 2017.0.0
  */
 public final class NodePath {
 

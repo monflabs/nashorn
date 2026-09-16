@@ -51,8 +51,6 @@ import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
  * <p>The exported {@code Buffer} object and every method are realm-agnostic:
  * they act on the current realm through {@link Global#instance()} at call time,
  * so the fixed module exports are safe to share across realms.
- *
- * @since 2017.0.0
  */
 public final class NodeBuffer {
 

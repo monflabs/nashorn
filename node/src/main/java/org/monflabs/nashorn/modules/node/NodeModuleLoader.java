@@ -35,8 +35,6 @@ import org.monflabs.nashorn.api.modules.ModuleLoader;
  * <p>The modules implemented so far are {@code fs} (see {@link NodeFs}),
  * {@code buffer} (the Node {@code Buffer}, a {@code Uint8Array} subclass),
  * {@code os} (see {@link NodeOs}) and {@code path} (see {@link NodePath}).
- *
- * @since 2017.0.0
  */
 public final class NodeModuleLoader implements ModuleLoader {
 

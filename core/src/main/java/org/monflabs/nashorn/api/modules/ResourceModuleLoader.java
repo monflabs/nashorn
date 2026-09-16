@@ -37,8 +37,6 @@ import java.util.Objects;
  * root. The canonical name is {@code classpath:/<path>}, which no file path
  * collides with. A missing resource, or a referrer of some other loader, is
  * answered with null.
- *
- * @since 2017.0.0
  */
 public final class ResourceModuleLoader implements ModuleLoader {
     private final ClassLoader loader;

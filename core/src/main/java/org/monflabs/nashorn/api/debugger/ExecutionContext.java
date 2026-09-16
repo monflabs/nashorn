@@ -23,8 +23,6 @@ package org.monflabs.nashorn.api.debugger;
 
 /**
  * A realm: one global object and everything created in it.
- *
- * @since 2017.0.0
  */
 public interface ExecutionContext {
 

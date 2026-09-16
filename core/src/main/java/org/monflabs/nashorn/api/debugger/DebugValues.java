@@ -30,8 +30,6 @@ import java.util.List;
  * <p>The reading methods touch script objects and must run on the thread
  * that owns them - through {@link PausedEvent#call} while paused - except
  * that primitives and functions' names may be read anywhere.
- *
- * @since 2017.0.0
  */
 public interface DebugValues {
 

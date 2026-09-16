@@ -25,8 +25,6 @@ import java.util.List;
 
 /**
  * A call frame of a paused thread. Valid until the thread resumes.
- *
- * @since 2017.0.0
  */
 public interface DebugFrame {
 

@@ -34,7 +34,6 @@
  * companion to the exact same version of {@code nashorn-core}; do not mix versions.
  *
  * @moduleGraph
- * @since 2017.0.0
  */
 module org.monflabs.nashorn.modules.node {
     requires transitive org.monflabs.nashorn;

@@ -25,8 +25,6 @@ import java.util.List;
 
 /**
  * A breakpoint that has been set.
- *
- * @since 2017.0.0
  */
 public interface Breakpoint {
 

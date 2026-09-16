@@ -28,8 +28,6 @@ import java.io.IOException;
  * exposes a {@link Debugger} to the outside, such as the Chrome DevTools
  * Protocol server of the {@code nashorn-debugger} artifact. Found through
  * {@link java.util.ServiceLoader}.
- *
- * @since 2017.0.0
  */
 public interface DebuggerFrontend {
 

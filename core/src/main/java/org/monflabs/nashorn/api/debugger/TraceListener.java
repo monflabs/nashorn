@@ -31,8 +31,6 @@ package org.monflabs.nashorn.api.debugger;
  * further hooks suppressed for their duration. Do not call back into script
  * directly; read values through {@link Debugger#values()}, whose
  * {@code callFunction} and {@code evaluateWith} are safe here.
- *
- * @since 2017.0.0
  */
 public interface TraceListener {
 

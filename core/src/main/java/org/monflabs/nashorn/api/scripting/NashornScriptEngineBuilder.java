@@ -58,8 +58,6 @@ import javax.script.ScriptEngine;
  * {@link NashornScriptEngineFactory}, which stay for compatibility; the
  * factory's no-argument {@code getScriptEngine()} remains the
  * {@code javax.script} entry point and is not going anywhere.
- *
- * @since 2017.0.0
  */
 public final class NashornScriptEngineBuilder {
     private final List<String> options = new ArrayList<>();
@@ -352,7 +350,6 @@ public final class NashornScriptEngineBuilder {
      *
      * @param loaders the loaders, in chain order
      * @return this
-     * @since 2017.0.0
      */
     public NashornScriptEngineBuilder moduleLoader(final ModuleLoader... loaders) {
         for (final ModuleLoader loader : Objects.requireNonNull(loaders, "loaders")) {

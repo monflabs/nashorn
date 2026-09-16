@@ -46,8 +46,6 @@ import org.monflabs.nashorn.internal.runtime.JobQueue;
  * running the realm's script - from where a script called you, typically -
  * and the tasks run there too, with the realm bound, so a task may call script
  * functions freely.
- *
- * @since 2017.0.0
  */
 public final class EventLoop {
     private final JobQueue queue;

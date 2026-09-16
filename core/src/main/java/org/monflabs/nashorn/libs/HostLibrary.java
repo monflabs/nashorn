@@ -48,8 +48,6 @@ import org.monflabs.nashorn.internal.runtime.linker.Bootstrap;
  * thread once its delay has passed and the script is between turns, and an
  * {@code eval} that scheduled one returns when the last has fired. Each
  * global has timer ids and pending timers of its own.
- *
- * @since 2017.0.0
  */
 public final class HostLibrary implements ScriptLibrary {
 

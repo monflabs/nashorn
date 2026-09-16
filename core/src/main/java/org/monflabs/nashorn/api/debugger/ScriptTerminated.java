@@ -26,8 +26,6 @@ package org.monflabs.nashorn.api.debugger;
  * {@link Error} rather than an exception, so that script code catching what
  * it can does not keep it; and the debugger throws it again at every
  * statement the thread reaches until the script has unwound entirely.
- *
- * @since 2017.0.0
  */
 public final class ScriptTerminated extends Error {
     private static final long serialVersionUID = 1L;

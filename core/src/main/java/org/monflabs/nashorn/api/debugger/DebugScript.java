@@ -25,8 +25,6 @@ import java.util.List;
 
 /**
  * A compiled script: a source the engine has turned into code.
- *
- * @since 2017.0.0
  */
 public interface DebugScript {
 

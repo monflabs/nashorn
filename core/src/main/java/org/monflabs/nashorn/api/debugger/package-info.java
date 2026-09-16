@@ -38,7 +38,5 @@
  * {@link org.monflabs.nashorn.api.debugger.PausedEvent#terminate() terminate}, which ends the
  * script on the spot by unwinding it with a
  * {@link org.monflabs.nashorn.api.debugger.ScriptTerminated} no script {@code catch} can hold.
- *
- * @since 2017.0.0
  */
 package org.monflabs.nashorn.api.debugger;

@@ -29,8 +29,6 @@ import java.util.concurrent.Callable;
  * resuming methods is called - from any thread - and meanwhile runs whatever
  * {@link #call} is handed, so that script objects are only ever touched by the
  * thread that owns them.
- *
- * @since 2017.0.0
  */
 public interface PausedEvent {
 

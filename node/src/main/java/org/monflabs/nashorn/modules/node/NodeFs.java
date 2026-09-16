@@ -58,8 +58,6 @@ import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
  * UTF-8 by default or the encoding given in the options; pass {@code "latin1"}
  * for a byte-preserving round trip. (The engine has no Node {@code Buffer}
  * type.) Errors carry a Node {@code code} such as {@code "ENOENT"}.
- *
- * @since 2017.0.0
  */
 public final class NodeFs {
 

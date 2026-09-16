@@ -26,8 +26,6 @@ package org.monflabs.nashorn.api.debugger;
  * listener implements only what it wants. {@link #paused} runs on the thread
  * that paused, before it blocks; everything else runs on the thread that
  * caused the event.
- *
- * @since 2017.0.0
  */
 public interface DebugListener {
 

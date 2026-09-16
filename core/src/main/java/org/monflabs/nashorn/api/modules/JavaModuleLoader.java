@@ -44,8 +44,6 @@ import java.util.Objects;
  * <p>A module without a {@code "default"} entry has no default export, and a
  * default import of it fails at link time, as it would against a script
  * module that never wrote {@code export default}.
- *
- * @since 2017.0.0
  */
 public final class JavaModuleLoader implements ModuleLoader {
     private final Map<String, Module> modules = new LinkedHashMap<>();

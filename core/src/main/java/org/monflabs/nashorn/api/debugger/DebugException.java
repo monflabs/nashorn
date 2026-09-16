@@ -23,8 +23,6 @@ package org.monflabs.nashorn.api.debugger;
 
 /**
  * An evaluation failed: the expression did not parse, or threw.
- *
- * @since 2017.0.0
  */
 public final class DebugException extends Exception {
     private static final long serialVersionUID = 1L;

@@ -48,8 +48,6 @@ import org.monflabs.nashorn.internal.objects.Global;
  * OS: {@code uptime()} is the JVM's uptime, {@code cpus()} reports the processor
  * count with best-effort model and timing, and {@code loadavg()} carries the
  * one-minute system load in all three slots where the platform exposes only that.
- *
- * @since 2017.0.0
  */
 public final class NodeOs {
 

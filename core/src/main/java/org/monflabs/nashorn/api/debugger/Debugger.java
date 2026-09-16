@@ -28,8 +28,6 @@ import javax.script.ScriptEngine;
  * The debugger of one engine. Obtained with {@link #of(ScriptEngine)} for an
  * engine created with the {@code --debugger} option; every method is safe to
  * call from any thread.
- *
- * @since 2017.0.0
  */
 public interface Debugger {
 
@@ -63,14 +61,12 @@ public interface Debugger {
      * remove the listener when done.
      *
      * @param listener the listener
-     * @since 2017.0.0
      */
     void addTraceListener(TraceListener listener);
 
     /**
      * Removes a trace listener.
      * @param listener the listener
-     * @since 2017.0.0
      */
     void removeTraceListener(TraceListener listener);
 

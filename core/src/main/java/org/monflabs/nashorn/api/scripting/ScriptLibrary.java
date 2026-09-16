@@ -60,8 +60,6 @@ import java.util.Objects;
  *     Script.ofResource(Geometry.class, "geometry.js"));
  * ScriptEngine engine = new NashornScriptEngineBuilder().library(geometry).build();
  * }</pre>
- *
- * @since 2017.0.0
  */
 public interface ScriptLibrary {
 

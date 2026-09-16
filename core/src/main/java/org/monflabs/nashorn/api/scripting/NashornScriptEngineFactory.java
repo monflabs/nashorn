@@ -242,7 +242,6 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param libraries the libraries
      * @return newly created script engine.
      * @throws NullPointerException if {@code libraries} or one of them is {@code null}
-     * @since 2017.0.0
      * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
     @Deprecated(since = "2017.0.0")
@@ -258,7 +257,6 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param libraries the libraries
      * @return newly created script engine.
      * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
-     * @since 2017.0.0
      * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
     @Deprecated(since = "2017.0.0")
@@ -278,7 +276,6 @@ public final class NashornScriptEngineFactory implements ScriptEngineFactory {
      * @param libraries the libraries
      * @return newly created script engine.
      * @throws NullPointerException if {@code args}, {@code libraries} or one of the libraries is {@code null}
-     * @since 2017.0.0
      * @deprecated use {@link NashornScriptEngineBuilder}, which takes the same choices one at a time
      */
     @Deprecated(since = "2017.0.0")

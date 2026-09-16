@@ -27,7 +27,5 @@
  * {@code Headers}, {@code Request}, {@code Response}). Neither is installed
  * automatically; hand the one you want to the engine builder's
  * {@code library(...)}.
- *
- * @since 2017.0.0
  */
 package org.monflabs.nashorn.libs;

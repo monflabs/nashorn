@@ -33,8 +33,6 @@ import java.util.Objects;
  * once-per-realm registry - two loads answering the same name are one module -
  * and what stack traces show. Loaders keep their names disjoint: an absolute
  * file path, a {@code classpath:} URL, a registered name.
- *
- * @since 2017.0.0
  */
 public final class Module {
     private final String name;

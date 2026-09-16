@@ -46,8 +46,6 @@ import org.monflabs.nashorn.debugger.ws.HttpWebSocketServer;
  *       engine.eval(...);
  *   }
  * </pre>
- *
- * @since 2017.0.0
  */
 public final class CdpServer implements DebuggerFrontend {
 

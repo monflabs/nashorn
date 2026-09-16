@@ -31,7 +31,6 @@ import java.util.List;
  * @param location where it was thrown, or null if unknown
  * @param frames the frames it unwound, innermost first, valid only during the call
  * @param context the context it was thrown in
- * @since 2017.0.0
  */
 public record ExceptionEvent(Object thrown, String message, Location location, List<DebugFrame> frames, ExecutionContext context) {
 }

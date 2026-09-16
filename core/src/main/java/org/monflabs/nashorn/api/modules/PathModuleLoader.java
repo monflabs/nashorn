@@ -34,8 +34,6 @@ import java.nio.file.Path;
  * are literal - no extension guessing - and the canonical name is the
  * absolute normalised path. A file that is not there, or a referrer of some
  * other loader, is answered with null.
- *
- * @since 2017.0.0
  */
 public final class PathModuleLoader implements ModuleLoader {
     private final Path root;

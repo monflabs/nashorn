@@ -222,7 +222,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return its type name
-     * @since 2017.0.0
      */
     public static String typeOf(final Object value) {
         return JSType.of(value).typeName();
@@ -233,7 +232,6 @@ public final class ScriptUtils {
      * a Java {@code null} is the script's {@code null}.
      *
      * @return undefined
-     * @since 2017.0.0
      */
     public static Object undefined() {
         return ScriptRuntime.UNDEFINED;
@@ -244,7 +242,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true for undefined, false for anything else - null included
-     * @since 2017.0.0
      */
     public static boolean isUndefined(final Object value) {
         return value == ScriptRuntime.UNDEFINED;
@@ -255,7 +252,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true for either
-     * @since 2017.0.0
      */
     public static boolean isNullOrUndefined(final Object value) {
         return JSType.nullOrUndefined(value);
@@ -269,7 +265,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true for a string
-     * @since 2017.0.0
      */
     public static boolean isString(final Object value) {
         return JSType.isString(value);
@@ -283,7 +278,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true for a number
-     * @since 2017.0.0
      */
     public static boolean isNumber(final Object value) {
         return JSType.isNumber(value);
@@ -295,7 +289,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true for a primitive
-     * @since 2017.0.0
      */
     public static boolean isPrimitive(final Object value) {
         return JSType.isPrimitive(value);
@@ -308,7 +301,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return true if calling it makes sense
-     * @since 2017.0.0
      */
     public static boolean isCallable(final Object value) {
         return Bootstrap.isCallable(value);
@@ -325,7 +317,6 @@ public final class ScriptUtils {
      * @return the number
      * @throws NashornException with a TypeError for a symbol, or an object that will not convert -
      *         made in the current realm, so from where a script called you
-     * @since 2017.0.0
      */
     public static double toNumber(final Object value) {
         return JSType.toNumber(value);
@@ -338,7 +329,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return the integer
-     * @since 2017.0.0
      */
     public static int toInt32(final Object value) {
         return JSType.toInt32(value);
@@ -350,7 +340,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return the integer, 0 to 2<sup>32</sup>-1
-     * @since 2017.0.0
      */
     public static long toUint32(final Object value) {
         return JSType.toUint32(value);
@@ -362,7 +351,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return the integer, 0 to 65535
-     * @since 2017.0.0
      */
     public static int toUint16(final Object value) {
         return JSType.toUint16(value);
@@ -375,7 +363,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return the long
-     * @since 2017.0.0
      */
     public static long toLong(final Object value) {
         return JSType.toLong(value);
@@ -388,7 +375,6 @@ public final class ScriptUtils {
      *
      * @param value a value
      * @return the boolean
-     * @since 2017.0.0
      */
     public static boolean toBoolean(final Object value) {
         return JSType.toBoolean(value);
@@ -405,7 +391,6 @@ public final class ScriptUtils {
      * @return the string
      * @throws NashornException with a TypeError for a symbol - made in the current realm, so from
      *         where a script called you
-     * @since 2017.0.0
      */
     public static String toString(final Object value) {
         return JSType.toString(value);
@@ -419,7 +404,6 @@ public final class ScriptUtils {
      * @param value a value
      * @return a primitive
      * @throws NashornException with a TypeError if the object will not convert
-     * @since 2017.0.0
      */
     public static Object toPrimitive(final Object value) {
         return JSType.toPrimitive(value);
@@ -433,7 +417,6 @@ public final class ScriptUtils {
      * @param hint {@code Number.class} or {@code String.class}
      * @return a primitive
      * @throws NashornException with a TypeError if the object will not convert
-     * @since 2017.0.0
      */
     public static Object toPrimitive(final Object value, final Class<?> hint) {
         return JSType.toPrimitive(value, hint);
@@ -449,7 +432,6 @@ public final class ScriptUtils {
      * @param value a value
      * @return the object, as a mirror
      * @throws NashornException with a TypeError for null or undefined
-     * @since 2017.0.0
      */
     public static JSObject toObject(final Object value) {
         if (value instanceof JSObject) {
@@ -468,7 +450,6 @@ public final class ScriptUtils {
      * @param x a value
      * @param y a value
      * @return whether they are strictly equal
-     * @since 2017.0.0
      */
     public static boolean strictEquals(final Object x, final Object y) {
         return x instanceof ScriptObjectMirror && y instanceof ScriptObjectMirror ? x.equals(y) : ScriptRuntime.EQ_STRICT(x, y);
@@ -482,7 +463,6 @@ public final class ScriptUtils {
      * @param x a value
      * @param y a value
      * @return whether they are loosely equal
-     * @since 2017.0.0
      */
     public static boolean looseEquals(final Object x, final Object y) {
         if (x instanceof ScriptObjectMirror && y instanceof ScriptObjectMirror) {
@@ -524,7 +504,6 @@ public final class ScriptUtils {
      * @param x a value
      * @param y a value
      * @return whether they are the same value
-     * @since 2017.0.0
      */
     public static boolean sameValue(final Object x, final Object y) {
         return x instanceof ScriptObjectMirror && y instanceof ScriptObjectMirror ? x.equals(y) : ScriptRuntime.sameValue(x, y);
@@ -537,7 +516,6 @@ public final class ScriptUtils {
      * @param x a value
      * @param y a value
      * @return whether they are the same value, zeros aside
-     * @since 2017.0.0
      */
     public static boolean sameValueZero(final Object x, final Object y) {
         return x instanceof ScriptObjectMirror && y instanceof ScriptObjectMirror ? x.equals(y) : ScriptRuntime.sameValueZero(x, y);
@@ -552,7 +530,6 @@ public final class ScriptUtils {
      * @return the value
      * @throws NashornException with a TypeError for null or undefined, made in the current realm
      * @throws IllegalStateException for null or undefined with no realm bound on the thread
-     * @since 2017.0.0
      */
     public static Object requireObjectCoercible(final Object value) {
         if (JSType.nullOrUndefined(value)) {
@@ -569,7 +546,6 @@ public final class ScriptUtils {
      *
      * @param message the message
      * @return the exception to throw
-     * @since 2017.0.0
      */
     public static NashornException typeError(final String message) {
         return withErrorObject(new ECMAException(realm().newTypeError(message), null));
@@ -581,7 +557,6 @@ public final class ScriptUtils {
      *
      * @param message the message
      * @return the exception to throw
-     * @since 2017.0.0
      */
     public static NashornException error(final String message) {
         return withErrorObject(new ECMAException(realm().newError(message), null));
@@ -593,7 +568,6 @@ public final class ScriptUtils {
      *
      * @param message the message
      * @return the exception to throw
-     * @since 2017.0.0
      */
     public static NashornException rangeError(final String message) {
         return withErrorObject(new ECMAException(realm().newRangeError(message), null));
