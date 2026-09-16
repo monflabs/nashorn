@@ -108,7 +108,13 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
     <maven.deploy.plugin.version>3.1.2</maven.deploy.plugin.version>
     <maven.gpg.plugin.version>3.2.4</maven.gpg.plugin.version>
     <!-- Sonatype Central Portal publisher; confirm the latest before releasing. -->
-    <central.publishing.plugin.version>0.7.0</central.publishing.plugin.version>
+    <!--
+      0.11.0 and not 0.7.0: the first release upload succeeded and then the build
+      failed parsing the reply - Central's DeploymentApiResponse grew a "warnings"
+      field that 0.7.0's model does not declare, and Jackson rejects unknown
+      properties. The deployment was staged and valid; only the plugin fell over.
+    -->
+    <central.publishing.plugin.version>0.11.0</central.publishing.plugin.version>
     <exec.maven.plugin.version>3.2.0</exec.maven.plugin.version>
     <jacoco.maven.plugin.version>0.8.12</jacoco.maven.plugin.version>
   </properties>
