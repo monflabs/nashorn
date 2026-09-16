@@ -62,6 +62,13 @@ import org.monflabs.nashorn.internal.runtime.ScriptFunction;
  */
 public final class FetchLibrary implements ScriptLibrary {
 
+    /**
+     * The default ceiling on a single request, matching the client's connect
+     * timeout. Generous enough that no healthy server meets it, and finite so a
+     * silent one cannot pin an event loop for ever.
+     */
+    public static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(30);
+
     /** One client per JVM, made on first use: it is thread safe and pools connections. */
     private static final class Client {
         static final HttpClient INSTANCE = HttpClient.newBuilder()
@@ -74,10 +81,41 @@ public final class FetchLibrary implements ScriptLibrary {
     static {
         try {
             FETCH = MethodHandles.lookup().findStatic(FetchLibrary.class, "fetch",
-                    MethodType.methodType(Object.class, Object.class, Object.class, Object.class));
+                    MethodType.methodType(Object.class, Duration.class, Object.class, Object.class, Object.class));
         } catch (final ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
+    }
+
+    /**
+     * How long a request may take before it is abandoned, or null for no limit.
+     */
+    private final Duration responseTimeout;
+
+    /**
+     * A fetch bounded by {@link #DEFAULT_RESPONSE_TIMEOUT}.
+     */
+    public FetchLibrary() {
+        this(DEFAULT_RESPONSE_TIMEOUT);
+    }
+
+    /**
+     * A fetch with a response timeout of its own.
+     *
+     * A request in flight holds the realm's event loop open - it is a pending
+     * operation, and {@code eval} returns only when the loop is idle - and there
+     * is no way for a script to cancel one: this engine has no {@code AbortSignal},
+     * and racing the promise against a timer settles the promise while leaving the
+     * request, and so the loop, exactly where it was. So a server that accepts a
+     * connection and then says nothing would keep an embedder waiting for as long
+     * as it cared to, which is why there is a ceiling at all.
+     *
+     * @param responseTimeout the ceiling on one request, or null for none - which
+     *        is what the WHATWG specification describes, and is a reasonable
+     *        choice for a host that does its own supervision
+     */
+    public FetchLibrary(final Duration responseTimeout) {
+        this.responseTimeout = responseTimeout;
     }
 
     @Override
@@ -87,7 +125,10 @@ public final class FetchLibrary implements ScriptLibrary {
 
     @Override
     public void initialize(final JSObject global) {
-        Global.instance().installFetchLibrary(ScriptFunction.createBuiltin("fetch", FETCH));
+        // The builtin is one static handle with the timeout bound into it, so two
+        // engines configured differently do not have to share a value.
+        Global.instance().installFetchLibrary(ScriptFunction.createBuiltin("fetch",
+                MethodHandles.insertArguments(FETCH, 0, responseTimeout)));
     }
 
     /**
@@ -99,7 +140,7 @@ public final class FetchLibrary implements ScriptLibrary {
      * @return a promise of a Response
      */
     @SuppressWarnings("unused")
-    private static Object fetch(final Object self, final Object input, final Object init) {
+    private static Object fetch(final Duration responseTimeout, final Object self, final Object input, final Object init) {
         Global.requireEventLoop("fetch");
         final Global global = Global.instance();
         final NativePromise promise = NativePromise.newAsyncPromise(global);
@@ -107,7 +148,7 @@ public final class FetchLibrary implements ScriptLibrary {
         final HttpRequest wire;
         try {
             request = NativeRequest.from(global, input, init);
-            wire = build(request);
+            wire = build(request, responseTimeout);
         } catch (final ECMAException e) {
             NativePromise.rejectAsyncPromise(promise, e.getThrown());
             return promise;
@@ -139,8 +180,14 @@ public final class FetchLibrary implements ScriptLibrary {
         return promise;
     }
 
-    private static HttpRequest build(final NativeRequest request) {
+    private static HttpRequest build(final NativeRequest request, final Duration responseTimeout) {
         final HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(request.url()));
+        if (responseTimeout != null) {
+            // On expiry the client completes the request exceptionally, and the
+            // rejection path below ends the pending operation - so the event loop
+            // is released whether the server answers or not.
+            builder.timeout(responseTimeout);
+        }
         for (final Map.Entry<String, List<String>> header : request.headers().asMap().entrySet()) {
             try {
                 builder.header(header.getKey(), String.join(", ", header.getValue()));

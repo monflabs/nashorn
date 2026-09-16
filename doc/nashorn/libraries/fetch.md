@@ -51,6 +51,31 @@ Streams (`response.body` as a `ReadableStream`), `AbortController`/`signal`, `Fo
 `Response.redirect`. Headers the JDK client controls itself (`Host`, `Content-Length`,
 `Connection`) are set by it and cannot be overridden.
 
+## Timeouts
+
+Two ceilings, both on the JDK's `HttpClient`: **30 seconds to connect**, and **30 seconds for a
+request to complete**. The second is configurable, and exists because there is no other way out of
+a stalled request:
+
+```java
+// a tighter ceiling
+.library(new FetchLibrary(Duration.ofSeconds(5)))
+
+// none at all - what the specification describes
+.library(new FetchLibrary(null))
+```
+
+A request in flight is a **pending operation** on the realm's [event
+loop](overview.md#the-event-loop), so `eval` returns only once it has finished. A script cannot
+cancel one — there is no `AbortSignal` here, and racing the promise against a timer settles the
+*promise* while leaving the request, and therefore the loop, exactly where they were. So without a
+ceiling a server that accepts a connection and then says nothing keeps an embedder waiting for as
+long as it likes. On expiry the promise rejects with a `TypeError`, like any other network failure,
+and the pending operation ends.
+
+Pass `null` if your host does its own supervision and you would rather have the specification's
+behaviour.
+
 ## The shape
 
 The classes have the shape WebIDL gives them, because they are built-ins: `Headers.prototype`,

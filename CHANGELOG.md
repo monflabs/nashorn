@@ -3,6 +3,12 @@ OpenJDK Nashorn Changelog
 
 2026.1.0 (unreleased)
 ---------------------
+`   ` `           ` **`fetch` has a response timeout.** A request in flight is a pending operation on the realm's event loop, so `eval` returns only when it finishes - and nothing could make it finish. There is no `AbortSignal`, and racing the promise against a timer settles the promise while leaving the request, and the loop, exactly where they were. A server that accepted a connection and then said nothing kept an embedder waiting indefinitely.
+
+* `FetchLibrary` now bounds every request at `DEFAULT_RESPONSE_TIMEOUT`, 30 seconds, matching the client's existing connect timeout. On expiry the promise rejects with a `TypeError` like any other network failure, and the pending operation ends.
+* `new FetchLibrary(Duration)` sets a ceiling of your own; `new FetchLibrary(null)` removes it, which is what the WHATWG specification describes and is reasonable for a host that supervises its own requests. The value is bound into the installed builtin, so two engines configured differently do not share one.
+* `FetchLibraryTest.aStalledServerDoesNotPinTheEventLoop` pins it against a local server that accepts and never answers - without the ceiling that test does not fail an assertion, it never returns.
+
 `   ` `           ` **Scripting mode and `jjs` are gone.** The `-scripting` option and every syntax and global that hung off it are removed. The backquote exec syntax had already gone to template literals in 2026.0.0, and ECMAScript covers the rest: a template literal is a heredoc with interpolation, `String.raw` is one without, and `//` is a comment everywhere.
 
 * Removed syntax: heredocs (`<<EOF`, `<<<EOF`), `#` line comments, and `${expr}` interpolation inside double-quoted strings.

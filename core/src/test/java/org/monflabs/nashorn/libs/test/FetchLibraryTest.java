@@ -47,6 +47,8 @@ import org.testng.annotations.Test;
 public class FetchLibraryTest {
     private HttpServer server;
     private String base;
+    /** Holds /stall's handler until the class is done with it. */
+    private final java.util.concurrent.CountDownLatch stalled = new java.util.concurrent.CountDownLatch(1);
 
     @BeforeClass
     public void serve() throws IOException {
@@ -71,6 +73,17 @@ public class FetchLibraryTest {
             x.getResponseHeaders().add("X-Multi", "b");
             reply(x, 201, "text/plain", reply);
         });
+        // accepts the connection and then says nothing - the shape a response
+        // timeout exists for. Released in stop(), so the handler thread ends with
+        // the class rather than sitting on the sleep.
+        server.createContext("/stall", x -> {
+            try {
+                stalled.await();
+            } catch (final InterruptedException ignored) {
+                // the class is ending
+            }
+            reply(x, 200, "text/plain", "at last");
+        });
         server.start();
         base = "http://127.0.0.1:" + server.getAddress().getPort();
     }
@@ -86,6 +99,7 @@ public class FetchLibraryTest {
 
     @AfterClass
     public void stop() {
+        stalled.countDown();
         server.stop(0);
         ((java.util.concurrent.ExecutorService)server.getExecutor()).shutdownNow();
     }
@@ -93,6 +107,31 @@ public class FetchLibraryTest {
     private static ScriptEngine engine() {
         // contributed explicitly to the builder - there is no discovery
         return new NashornScriptEngineBuilder().eventLoop(true).library(new HostLibrary(), new FetchLibrary()).build();
+    }
+
+    /**
+     * A server that accepts and then says nothing must not pin the event loop.
+     *
+     * This is the reason FetchLibrary has a response timeout at all: a request in
+     * flight is a pending operation, so eval returns only once it has finished,
+     * and a script cannot cancel one - there is no AbortSignal, and racing the
+     * promise against a timer settles the promise while leaving the request, and
+     * the loop, where they were. Without the ceiling this eval never returns, and
+     * the test fails by timing out rather than by asserting.
+     */
+    @Test(timeOut = 30_000)
+    public void aStalledServerDoesNotPinTheEventLoop() throws ScriptException {
+        final ScriptEngine e = new NashornScriptEngineBuilder().eventLoop(true)
+                .library(new HostLibrary(), new FetchLibrary(java.time.Duration.ofMillis(300)))
+                .build();
+        final long started = System.nanoTime();
+        assertEquals(e.eval("var outcome; fetch('" + base + "/stall').then("
+                + "  function () { outcome = 'resolved'; },"
+                + "  function (err) { outcome = err.name; });"
+                + "outcome"), null);   // the eval returns when the loop is idle, not before
+        assertEquals(e.eval("outcome"), "TypeError");
+        assertTrue(System.nanoTime() - started < java.util.concurrent.TimeUnit.SECONDS.toNanos(20),
+                "the eval should return as soon as the request is abandoned");
     }
 
     @Test(timeOut = 30_000)
