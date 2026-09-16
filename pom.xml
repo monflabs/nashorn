@@ -254,9 +254,28 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
           <!--
             Publish by default: the parent POM itself must go to Central, or the
             published core/debugger/node POMs reference a parent that isn't there
-            and no consumer can resolve them. The non-library modules (nasgen,
-            debugger-ui, playground) opt out with skipPublishing=true.
+            and no consumer can resolve them.
+
+            The non-library modules are kept out of the deployment HERE, by
+            artifactId, and not with skipPublishing in each module. Two reasons,
+            both learned the hard way on the first release attempt:
+
+              * The plugin uploads once, at the end of the reactor, from the last
+                project in it (DeployLifecycleParticipant). The last module is
+                playground; with skipPublishing=true on it, the upload step was
+                skipped altogether. The build succeeded, a bundle appeared under
+                target/central-publishing, and nothing ever reached the Portal.
+              * skipPublishing does not keep a module's artifacts out of the
+                bundle either. The bundle held all seven modules.
+
+            excludeArtifacts is matched against Artifact.getArtifactId(), so
+            these are bare artifact ids.
           -->
+          <excludeArtifacts>
+            <excludeArtifact>nashorn-nasgen</excludeArtifact>
+            <excludeArtifact>nashorn-debugger-ui</excludeArtifact>
+            <excludeArtifact>nashorn-playground</excludeArtifact>
+          </excludeArtifacts>
         </configuration>
       </plugin>
     </plugins>

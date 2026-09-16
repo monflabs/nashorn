@@ -75,6 +75,20 @@ Commit the bump (poms, docs, changelog) before releasing.
   gpg --keyserver keyserver.ubuntu.com --send-keys <KEYID>
   ```
 
+  **And a pinentry that works without a terminal.** maven-gpg-plugin forks `gpg`,
+  and the default curses pinentry has no TTY there: signing fails with
+  `Inappropriate ioctl for device` and exit 2, after the whole release build. A
+  GUI pinentry avoids it:
+
+  ```bash
+  echo "pinentry-program $(command -v pinentry-mac)" >> ~/.gnupg/gpg-agent.conf
+  gpgconf --kill gpg-agent
+  echo hi | gpg --clearsign > /dev/null     # a dialog appears; tick "save in keychain"
+  ```
+
+  `release.sh` test-signs before it builds anything, so a broken pinentry now
+  fails in a second rather than after the build.
+
 - **A Portal token** in `~/.m2/settings.xml` under the id `central`:
 
   ```xml

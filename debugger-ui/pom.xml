@@ -106,7 +106,9 @@ Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
         <groupId>org.sonatype.central</groupId>
         <artifactId>central-publishing-maven-plugin</artifactId>
         <configuration>
-          <skipPublishing>true</skipPublishing>
+          <!-- kept out of the deployment by the parent's excludeArtifacts,
+               not by skipPublishing: see the note there -->
+          <skipPublishing>false</skipPublishing>
         </configuration>
       </plugin>
     </plugins>

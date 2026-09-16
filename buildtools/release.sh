@@ -74,6 +74,14 @@
 
 set -euo pipefail
 
+# Temporary files to remove on the way out (the deploy log, below).
+RELEASE_TEMPS=""
+cleanup_temps() {
+  local f
+  for f in $RELEASE_TEMPS; do rm -f "$f"; done
+}
+trap cleanup_temps EXIT
+
 REPO_SLUG="${REPO_SLUG:-monflabs/nashorn}"
 RELEASE_BRANCH="${RELEASE_BRANCH:-main}"
 PORTAL_URL="https://central.sonatype.com/publishing/deployments"
@@ -104,6 +112,22 @@ gate() { if dry; then warn "$1"; else die "$1"; fi; }
 for tool in mvn git gh java awk; do
   command -v "$tool" >/dev/null 2>&1 || die "missing required tool: $tool"
 done
+
+# Signing is the first thing a real run does, and it is the first thing that
+# goes wrong: maven-gpg-plugin forks gpg, and a pinentry with no terminal fails
+# with "Inappropriate ioctl for device" and exit 2 - after the whole -Prelease
+# build. Prove it here, in a second, instead.
+test_signing() {
+  local probe
+  probe="$(mktemp)"
+  printf 'release-preflight\n' > "$probe"
+  if gpg --batch --yes --detach-sign -o "${probe}.sig" "$probe" >/dev/null 2>&1 && [ -s "${probe}.sig" ]; then
+    rm -f "$probe" "${probe}.sig"
+    return 0
+  fi
+  rm -f "$probe" "${probe}.sig"
+  return 1
+}
 
 gh auth status >/dev/null 2>&1 || gate "gh is not authenticated (run: gh auth login)"
 
@@ -162,6 +186,14 @@ EOF
 if dry; then
   note "DRY RUN — building and staging locally; nothing is published, pushed or tagged."
 else
+  note "checking that gpg can sign (a passphrase prompt here is expected)"
+  test_signing || die "gpg could not sign. A pinentry with no terminal is the usual cause:
+    a GUI pinentry works from a forked gpg where the curses one does not -
+      echo \"pinentry-program \$(command -v pinentry-mac || command -v pinentry-gtk-2)\" >> ~/.gnupg/gpg-agent.conf
+      gpgconf --kill gpg-agent
+    then re-check with:  echo hi | gpg --clearsign >/dev/null
+    (export GPG_TTY=\$(tty) is the other fix, less reliable under Maven.)"
+  note "gpg signs"
   confirm "Release ${VERSION}? This publishes outside your machine."
 fi
 
@@ -177,7 +209,24 @@ elif [ "${RELEASE_SKIP_CENTRAL:-}" = "1" ]; then
   mvn -B -Prelease -DskipTests clean package
 else
   note "building, signing and staging to the Central Portal (gpg-agent will prompt to sign)"
-  mvn -B -Prelease clean deploy
+  deploy_log="$(mktemp)"
+  RELEASE_TEMPS="$RELEASE_TEMPS $deploy_log"
+  mvn -B -Prelease clean deploy 2>&1 | tee "$deploy_log"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || die "the release build failed; nothing was tagged or published"
+
+  # Maven exits 0 whether or not the bundle was uploaded. It did not, once: the
+  # plugin uploads from the LAST project in the reactor, that module carried
+  # skipPublishing=true, and the run ended with a bundle on disk and nothing at
+  # the Portal - while this script cheerfully said "STAGED". Offline mode does
+  # the same thing, and says so in a warning nobody reads. So look.
+  if grep -q "requires online mode for execution but Maven is currently offline" "$deploy_log"; then
+    die "the publish goal was skipped: Maven ran offline. Re-run without -o/--offline."
+  fi
+  if ! grep -qiE "deployment|uploaded" "$deploy_log"; then
+    warn "the build log mentions no deployment - the upload may have been skipped"
+    warn "check ${PORTAL_URL} before continuing; if it is empty, nothing was staged"
+    confirm "Continue anyway?"
+  fi
 fi
 
 for j in "${JARS[@]}"; do [ -f "$j" ] || die "expected artifact missing: $j (did the build run?)"; done
