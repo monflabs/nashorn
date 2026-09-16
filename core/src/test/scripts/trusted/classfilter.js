@@ -32,7 +32,7 @@ var NashornScriptEngineFactory = Java.type("org.monflabs.nashorn.api.scripting.N
 
 var fac = new NashornScriptEngineFactory();
 // allow only "java.*" classes to be accessed
-// Java access is a library since 2026.1.0; the filter still decides class by class
+// Java access is a library since 2026.0.0; the filter still decides class by class
 var e = fac.getScriptEngine([], null,
     function(name) name.startsWith("java."),
     java.util.List.of(new (Java.type('org.monflabs.nashorn.libs.JavaLibrary'))()));

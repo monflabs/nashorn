@@ -30,7 +30,7 @@ Boolean options accept both forms: `--annexB` means true, `--annexB=false` means
 | `--inspect-brk` | | | Like `--inspect`, but wait for the client to attach and pause at the first statement. |
 | `--module-path` | | | Where to find user **Java** (JPMS) modules. This is not about ES modules. |
 | `--add-modules` | | | Root **Java** modules to resolve. Likewise JPMS, not ES modules. |
-| `--optimistic-types` | `-ot` | `true` | Optimistic type assumptions with deoptimizing recompilation: better steady-state performance, longer warmup. On by default since 2026.1.0; `--optimistic-types=false` for a run-once script. See [Optimistic typing](../internals/optimistic-typing.md). |
+| `--optimistic-types` | `-ot` | `true` | Optimistic type assumptions with deoptimizing recompilation: better steady-state performance, longer warmup. On by default here, where upstream had it off; `--optimistic-types=false` for a run-once script. See [Optimistic typing](../internals/optimistic-typing.md). |
 | `-strict` | | `false` | Run all scripts in ECMAScript strict mode. |
 | `-timezone` | `-t` | JVM default | Time zone for script execution (`Date` and friends). |
 | `-version` | `-v` | | Print the version and exit. |

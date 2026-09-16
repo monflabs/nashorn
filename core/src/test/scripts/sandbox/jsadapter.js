@@ -30,7 +30,7 @@
  */
 
 var mgr = new javax.script.ScriptEngineManager();
-// JSAdapter is a nashorn-library global since 2026.1.0
+// JSAdapter is a nashorn-library global since 2026.0.0
 var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
 var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
 var engine = new Builder().library(new NashornLibrary()).build();

@@ -32,8 +32,6 @@ import java.util.function.Consumer;
  * {@code WebSocketConnection} (a real socket) and an in-process one (no socket at all, for when the engine and a
  * debugger client run in the same JVM) - {@code CdpSession} itself has no
  * idea which one it is talking to.
- *
- * @since 2026.1.0
  */
 public interface CdpTransport {
 

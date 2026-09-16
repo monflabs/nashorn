@@ -4,7 +4,7 @@ This engine implements ECMAScript 2026 — ECMA-262, 17th edition — together w
 measured against a pinned commit of the official [tc39/test262](https://github.com/tc39/test262)
 suite on every conformance run.
 
-**~78,600 selected executions.** With optimistic types — the engine default since 2026.1.0 —
+**~78,600 selected executions.** With optimistic types — this engine's default, where upstream had them off —
 every one passes. With `--optimistic-types=false`, eight fail. The run is diffed against a
 checked-in expectations file and fails on an unexpected *pass* as well as an unexpected failure, so
 conformance can only move forwards.

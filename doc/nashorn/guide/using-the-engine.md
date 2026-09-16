@@ -12,7 +12,7 @@ method, and the engine's JSR-223 metadata. Whichever way it was built, `build()`
 `javax.script.ScriptEngine` and everything below works the same.
 
 ?> The examples on this page call `print`, so they assume an engine carrying the
-[nashorn library](../libraries/nashorn.md) — `.library(new NashornLibrary())`. Since 2026.1.0 a bare
+[nashorn library](../libraries/nashorn.md) — `.library(new NashornLibrary())`. Since 2026.0.0 a bare
 engine is exactly ECMAScript and has no `print`.
 
 ## Evaluating scripts

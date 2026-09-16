@@ -23,7 +23,7 @@ The version lives in three kinds of place, and all three have to change:
 1. **The poms** (parent plus every module's parent reference) — done for you:
 
    ```bash
-   mvn versions:set -DnewVersion=2026.1.0 -DgenerateBackupPoms=false
+   mvn versions:set -DnewVersion=2026.0.0 -DgenerateBackupPoms=false
    ```
 
 2. **Hardcoded strings in the docs and README.** `versions:set` does not touch
@@ -34,7 +34,7 @@ The version lives in three kinds of place, and all three have to change:
    ```bash
    grep -rl '2026\.0\.0' --include='*.md' --include='*.html' . \
      | grep -v CHANGELOG.md \
-     | xargs sed -i '' 's/2026\.0\.0/2026.1.0/g'
+     | xargs sed -i '' 's/2026\.0\.0/2026.0.0/g'
    ```
 
    Then re-grep to be sure nothing stale remains:
@@ -46,7 +46,7 @@ The version lives in three kinds of place, and all three have to change:
 3. **`CHANGELOG.md`** — a new dated section at the top, in the existing format:
 
    ```
-   2026.1.0 (2026.11.01)
+   2026.0.0 (2026.11.01)
    ---------------------
    ...what changed...
    ```

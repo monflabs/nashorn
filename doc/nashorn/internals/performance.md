@@ -29,7 +29,7 @@ Joni's `ByteCodeMachine` 10 GB, `ConsString` 9.8 GB, `FindProperty` 6.4 GB.
 
 Two things fall straight out of that. First, the generic arithmetic path had become expensive.
 ES2020 made every operator BigInt-aware, so an operator whose operands are both Object-typed -
-which, with optimistic types off (the default until 2026.1.0), is most arithmetic on a property
+which, with optimistic types off (the default until 2026.0.0), is most arithmetic on a property
 value or an unproven local - is compiled as a call to `ScriptRuntime.SUB`/`MUL`/`LT`/`BIT_AND` and friends,
 and those went through `ToNumeric` → `ToPrimitive` → an eight-way `isPrimitive` instanceof chain,
 boxing a `Double` on the way out and unboxing it again, for each operand of each operation.
@@ -273,7 +273,7 @@ the three can come back unnoticed.
 
 The largest single lever is a policy rather than a fix, and it was taken last, once the
 conformance suite passed in that mode: `--optimistic-types` shipped **off** through 2026.0.0
-(inherited from upstream 15.x) and is **on by default from 2026.1.0**. With it on, the same engine
+(inherited from upstream 15.x) and is **on by default from 2026.0.0**. With it on, the same engine
 runs Octane's crypto and navier-stokes about five times faster and richards about three, at the
 cost of a longer warmup through deoptimising recompiles. Measured on the ES2026 engine before
 this work, three iterations ("off" was the default then):

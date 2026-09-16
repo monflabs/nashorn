@@ -61,8 +61,6 @@ import org.monflabs.nashorn.internal.objects.Global;
  * <b>{@code exit} and {@code quit}</b> call {@code System.exit}, which is no
  * business of a script embedded in an application, so they belong to the shell
  * and are installed only at its prompt.
- *
- * @since 2026.1.0
  */
 public final class NashornLibrary implements ScriptLibrary {
 

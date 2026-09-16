@@ -15,8 +15,9 @@ builder the ones you want, and a bare engine has none of them.
 | `fetch` | `fetch`, `Headers`, `Request`, `Response` | [fetch](fetch.md) |
 
 The first two are Nashorn's own historical additions, and they are libraries for the same reason as
-the other two: since 2026.1.0 a bare engine has exactly what ECMAScript defines, and everything
-beyond that is contributed on purpose - including the way a script names a Java class.
+the other two: a bare engine has exactly what ECMAScript defines, and everything beyond that is
+contributed on purpose - including the way a script names a Java class. Upstream Nashorn installed
+all of it on every global.
 
 A separate, experimental artifact — **`nashorn-node`** — adds a
 **[Node module resolver](node.md)**: `import fs from 'fs'` reaches a built-in `fs` module

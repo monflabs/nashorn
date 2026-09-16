@@ -47,7 +47,7 @@ import org.testng.annotations.Test;
 public class MultipleEngineTest {
     @Test
     public void createAndUseManyEngine() throws ScriptException {
-        // print comes from the nashorn library since 2026.1.0; a bare engine has none
+        // print comes from the nashorn library; a bare engine has none
         final ScriptEngine e1 = new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
         e1.eval("var  x = 33; print(x);");
 

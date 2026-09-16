@@ -122,7 +122,7 @@ to update a `var` of that name the global already had. They pass on their own an
 when a neighbouring file is added or removed; what decides it is whether the outer program's `var`
 reached the global object directly or through the merge of its scope, which leaves the eval's binding
 aliased to it or orphaned beside it. That is this engine's eval scope merging rather than anything
-Annex B asks for. With optimistic types - the engine's default since 2026.1.0 - every program is
+Annex B asks for. With optimistic types - this engine's default, where upstream had them off - every program is
 compiled on demand and its `var` reaches the global directly, so the eight pass there: the default
 run's `test262-expectations.txt` lists nothing, and the eight live in
 `test262-expectations-pessimistic.txt`, the file the `-Dnashorn.test262.optimistic=false` run is

@@ -35,8 +35,6 @@ import java.util.concurrent.CompletionStage;
  * alongside {@link CdpTransport} and the session) can hand back to a UI
  * client without this module ever depending on the UI - the dependency runs
  * the other way.
- *
- * @since 2026.1.0
  */
 public interface CdpClientChannel {
 
@@ -66,8 +64,6 @@ public interface CdpClientChannel {
      * Where inbound frames and the close land. Callbacks may arrive on any
      * thread - the caller of {@link #listen(ChannelListener)} is responsible
      * for any marshaling it needs.
-     *
-     * @since 2026.1.0
      */
     interface ChannelListener {
 

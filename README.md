@@ -87,7 +87,7 @@ upstream `org.openjdk.nashorn` jar** on a class path and on a module path alike.
 
 ### What was removed
 
-**Scripting mode and `jjs` are gone** (2026.1.0) — the `-scripting` option,
+**Scripting mode and `jjs` are gone** (2026.0.0) — the `-scripting` option,
 heredocs, `#` comments, `${expr}` in double-quoted strings, and the
 `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG` globals. Shell scripting is a niche that `sh`,
 Node and Python have taken, and ECMAScript covers what remains: a template literal
@@ -95,7 +95,7 @@ is a heredoc with interpolation, `String.raw` is one without, `//` is a comment
 everywhere. `readLine` and `readFully` survive in the `nashorn`
 library, and `samples/exec.js` shows how to run a process over `ProcessBuilder`.
 
-**`--no-java` is gone** (2026.1.0), because it no longer has anything to remove:
+**`--no-java` is gone** (2026.0.0), because it no longer has anything to remove:
 Java access is the `java` library, and an engine that was not given it has no way
 for a script to name a JVM class. `ClassFilter` is unchanged and still decides
 class by class.

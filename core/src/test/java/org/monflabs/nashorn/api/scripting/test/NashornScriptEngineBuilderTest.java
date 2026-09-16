@@ -106,7 +106,7 @@ public class NashornScriptEngineBuilderTest {
     @Test
     public void theEngineShapingOptions() throws ScriptException {
         // no Java at all - which is what an engine is unless it is given the
-        // library, since 2026.1.0. --no-java is gone; saying nothing is the safe answer
+        // library. --no-java is gone; saying nothing is the safe answer
         final ScriptEngine sandboxed = new NashornScriptEngineBuilder().build();
         assertEquals(sandboxed.eval("[typeof Java, typeof Packages, typeof java, typeof javax].join(' ')"), "undefined undefined undefined undefined");
         assertEquals(new NashornScriptEngineBuilder().library(new org.monflabs.nashorn.libs.JavaLibrary()).build()

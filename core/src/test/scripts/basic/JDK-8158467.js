@@ -32,7 +32,7 @@ var Factory = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineF
 var fac = new Factory();
 
 // This script has to be given RuntimePermission("nashorn.setConfig")
-// Java access is a library since 2026.1.0, and the overload that takes libraries
+// Java access is a library since 2026.0.0, and the overload that takes libraries
 // substitutes the application loader for a null one - so the loader that cannot
 // see Nashorn's own classes, which is what this test is about, is made explicitly.
 var TestLibs = java.util.List.of(

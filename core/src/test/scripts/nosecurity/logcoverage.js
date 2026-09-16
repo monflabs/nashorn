@@ -54,7 +54,7 @@ function runScriptEngine(opts, name) {
             System.setErr(newErr);
             System.setOut(newOut);
             // the scripts run below call print, a nashorn-library global since
-            // 2026.1.0, so the nested engine is given the library
+            // 2026.0.0, so the nested engine is given the library
             var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
             var engine = new (Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder'))()
                     .option(Java.to(opts, "java.lang.String[]"))

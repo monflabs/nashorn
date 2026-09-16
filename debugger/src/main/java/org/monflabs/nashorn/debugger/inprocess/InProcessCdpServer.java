@@ -42,15 +42,11 @@ import org.monflabs.nashorn.debugger.cdp.CdpSession;
  *           InProcessCdpServer.open(debugger, InspectOptions.parse("", false));
  *   // hand handle.clientChannel() to a debugger UI in the same JVM
  * </pre>
- *
- * @since 2026.1.0
  */
 public final class InProcessCdpServer {
 
     /**
      * A running in-process session.
-     *
-     * @since 2026.1.0
      */
     public static final class Handle implements AutoCloseable {
         private final ServerEnd serverEnd;

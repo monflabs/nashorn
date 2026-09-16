@@ -376,7 +376,7 @@ public final class TestFinder {
     // "test-pessimistic" execution sets optimistic.override to this value and
     // every test then gets an explicit --optimistic-types=false; the
     // "test-optimistic" execution sets it to the opposite, which adds nothing,
-    // so those tests run on the engine's default - optimistic since 2026.1.0.
+    // so those tests run on the engine's default, which is optimistic in this fork.
     // (Upstream had the same constant true for 8u40, whose default was off.)
     private static final boolean OPTIMISTIC_OVERRIDE = false;
 

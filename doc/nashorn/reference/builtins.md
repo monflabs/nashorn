@@ -3,7 +3,7 @@
 Beyond the objects ECMAScript 2026 defines, Nashorn has a small set of globals of its own. This page
 lists all of them.
 
-!> **They are a library, not a default, since 2026.1.0.** A bare engine has `print`, `load`,
+!> **They are a library, not a default.** Upstream Nashorn put them on every global; here a bare engine has `print`, `load`,
 `JSAdapter` and the rest *no more* than it has `fetch` or `setTimeout`: an embedder that wants them
 contributes [`NashornLibrary`](../libraries/nashorn.md) to the builder. The shell and the playground
 install it for you. Java access is the exception — `Java`, `Packages`, `JavaImporter` and the package

@@ -30,7 +30,7 @@
 var factory = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory')
 var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
 var JavaLibrary = Java.type('org.monflabs.nashorn.libs.JavaLibrary');
-// Java access is a library since 2026.1.0; the filter still decides class by class
+// Java access is a library since 2026.0.0; the filter still decides class by class
 var engine  = new Builder().library(new JavaLibrary()).classFilter(function(str){
     return str.indexOf('java.lang.Class') != -1
             || str == 'java.lang.System'

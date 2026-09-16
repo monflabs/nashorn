@@ -3943,10 +3943,10 @@ public final class Global extends Scope {
      * {@link org.monflabs.nashorn.libs.JavaLibrary library} that contributes them.
      *
      * {@code Java}, {@code JavaImporter}, {@code Packages} and the package roots
-     * are the whole of a script's reach into the JVM by name, and since 2026.1.0
-     * an engine has them only if it was given this library. That replaced
-     * {@code --no-java}, which did the same job by deleting the properties again
-     * after nasgen had put them in every global's map.
+     * are the whole of a script's reach into the JVM by name, and an engine has
+     * them only if it was given this library. Upstream installed them always and
+     * offered {@code --no-java} to delete them again after nasgen had put them in
+     * every global's map; this is that job done the other way round.
      *
      * The {@code Java} object and {@code JavaImporter} were lazy properties
      * before, built on first read. They are built here instead: an engine that

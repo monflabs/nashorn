@@ -3,7 +3,7 @@
 Scripts can have full access to the JVM. The front door is the `Java` global object; the `Packages`
 hierarchy is the older, slower door kept for compatibility.
 
-!> **Since 2026.1.0 none of it is there by default.** `Java`, `JavaImporter`, `Packages` and the
+!> **Since 2026.0.0 none of it is there by default.** `Java`, `JavaImporter`, `Packages` and the
 package roots come from the [java library](../libraries/java.md) — `.library(new JavaLibrary())` on
 the builder — and an engine that was not given it has no way to *name* a Java class. The shell and
 the playground install it; a bare embedded engine does not. Everything on this page assumes an engine

@@ -57,8 +57,6 @@ import org.monflabs.nashorn.internal.objects.Global;
  * ways a script can <em>name</em> a Java class; a Java object the embedder puts
  * into the bindings is still a Java object, with its methods reachable. The
  * class filter is what limits that.
- *
- * @since 2026.1.0
  */
 public final class JavaLibrary implements ScriptLibrary {
 

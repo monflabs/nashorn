@@ -31,7 +31,7 @@
 var ScriptContext = javax.script.ScriptContext;
 var manager = new javax.script.ScriptEngineManager();
 
-// load comes from the nashorn library since 2026.1.0
+// load comes from the nashorn library since 2026.0.0
 var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
 var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
 var JavaLibrary = Java.type('org.monflabs.nashorn.libs.JavaLibrary');

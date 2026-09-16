@@ -19,7 +19,7 @@ gain against 15.7 is derived by chaining the two it is marked *est.*; the perf g
 
 Upstream shipped `--optimistic-types` off: narrow (`int`/`double`) types are assumed for every
 unproven value and the function is recompiled on demand when a guess fails. The fork turns it on
-(2026.1.0), after bringing the ES2026 conformance suite from 2 038 failing executions in that mode
+(2026.0.0), after bringing the ES2026 conformance suite from 2 038 failing executions in that mode
 to none - see [Performance](../internals/performance.md#optimistic-types) for the 20-odd defects that were in
 the way, each pinned by a regression script.
 

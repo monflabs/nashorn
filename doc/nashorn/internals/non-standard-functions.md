@@ -9,7 +9,7 @@ detail, and the Java-interop surface has its own [guide](../guide/connecting-wit
 Two things shape the list:
 
 - Most extras hang off the **global object** (`Global`, in `internal.objects`). They are all
-  `NOT_ENUMERABLE`, so `for…in` over the global never sees them. Since 2026.1.0 most are *not*
+  `NOT_ENUMERABLE`, so `for…in` over the global never sees them. Since 2026.0.0 most are *not*
   installed when the global is initialised: they come from the
   [nashorn library](../libraries/nashorn.md), and a bare engine has none of them.
 - A few are **methods grafted onto standard built-ins** (`Object`, `Error`) rather than globals.
@@ -32,7 +32,7 @@ Annex B — and **`console`**, which is a host/web API rather than a language fe
 | `readLine([prompt])` | Read a line from stdin. |
 | `readFully(file)` | Read a whole file into a string. |
 
-`readLine`/`readFully` were installed only under the removed scripting mode before 2026.1.0, and are
+`readLine`/`readFully` were installed only under the removed scripting mode before 2026.0.0, and are
 ordinary members of the library now (`IOFunctions` holds the handles).
 
 **`exit([code])` and `quit([code])`** — `System.exit` with the given code — are *not* in the library.

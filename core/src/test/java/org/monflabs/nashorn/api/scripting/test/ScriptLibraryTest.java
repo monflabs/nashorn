@@ -168,7 +168,7 @@ public class ScriptLibraryTest {
 
     @Test
     public void aJavaObjectAmongTheGlobalsIsUsedThroughTheInterop() throws ScriptException {
-        // Java.isJavaObject below is a JavaLibrary global since 2026.1.0
+        // Java.isJavaObject below is a JavaLibrary global
         final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new NashornLibrary(), new JavaLibrary(), GEOMETRY);
         assertEquals(engine.eval("clock.instant().getClass().getSimpleName()"), "Instant");
         assertEquals(engine.eval("Java.isJavaObject(clock)"), true);

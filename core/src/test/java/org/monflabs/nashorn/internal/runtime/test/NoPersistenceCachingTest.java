@@ -76,7 +76,7 @@ public class NoPersistenceCachingTest {
       // fine is enough for cache hits, finest produces way too much information
       // TODO this should be ported to use the RuntimeEvents instead of screen scraping
       // logs, as obviously this is very brittle
-      // the scripts below print, which the nashorn library carries since 2026.1.0
+      // the scripts below print, which the nashorn library carries
       engine = new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
               .option("--log=compiler:fine")
               .library(new org.monflabs.nashorn.libs.NashornLibrary())

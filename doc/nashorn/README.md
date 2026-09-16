@@ -74,7 +74,7 @@ list. The web-compatibility extensions of Annex B are on by default and removabl
 * **No dependencies at all**, and it **coexists with an upstream `org.openjdk.nashorn` jar** on a
   class path and on a module path alike.
 
-Removed in 2026.1.0: **scripting mode and `jjs`** — the `-scripting` option, heredocs, `#` comments,
+Removed in 2026.0.0: **scripting mode and `jjs`** — the `-scripting` option, heredocs, `#` comments,
 `${expr}` in double-quoted strings and the `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG` globals. Shell scripting
 is a niche `sh`, Node and Python have taken, and ECMAScript covers what remains. `readLine` and
 `readFully` survive as ordinary globals.

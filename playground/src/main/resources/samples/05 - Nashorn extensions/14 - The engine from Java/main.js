@@ -5,7 +5,7 @@ var manager = new ScriptEngineManager();
 print('found by name:', manager.getEngineByName('nashorn-monflabs') !== null);
 
 // The engine built here is not the bare one the manager hands back. Since
-// 2026.1.0 a bare engine has no print, no load and no JSAdapter - they are a
+// 2026.0.0 a bare engine has no print, no load and no JSAdapter - they are a
 // library, like fetch and the timers - and the scripts below print, so this one
 // is built with that library in it.
 var NashornScriptEngineBuilder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');

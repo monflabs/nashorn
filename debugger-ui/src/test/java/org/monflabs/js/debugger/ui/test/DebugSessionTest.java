@@ -106,7 +106,7 @@ public class DebugSessionTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        // print is a nashorn-library global since 2026.1.0, and one test here
+        // print is a nashorn-library global, and one test here
         // checks that it reaches the debugger's console
         engine = new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
                 .debugger(true)

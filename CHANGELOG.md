@@ -1,7 +1,7 @@
 OpenJDK Nashorn Changelog
 =========================
 
-2026.1.0 (unreleased)
+2026.0.0 (unreleased)
 ---------------------
 `   ` `           ` **Java access is a library too, and `--no-java` is gone.** `Java`, `JavaImporter`, `Packages` and the package roots `java`/`javax`/`javafx`/`com`/`org`/`edu` are `org.monflabs.nashorn.libs.JavaLibrary`. An engine that was not given it has no way for a script to *name* a Java class.
 
@@ -81,8 +81,6 @@ A third pass fixed the 198 that were left, so the optimistic run passes every ex
 
 `basic/es6/optimistic-guess-operands.js` pins them. Each is recorded in `doc/nashorn/internals/performance.md`; flipping the default is now only a warmup-cost decision.
 
-2026.0.0 (2026.09.08)
----------------------
 `   ` `           ` **The language target moves to ECMAScript 2026 (ECMA-262, 17th edition).** Everything the 2025 release implemented is unchanged; the seven finished ES2026 additions are layered on top, and the `tc39/test262` slice is retargeted to the 17th edition. `RegExp.escape`, which the finished-proposals list files under 2026, was already shipped in 2025.
 
 `   ` `           ` **`Error.isError`.** `Error.isError(v)` is true exactly for an object with an `[[ErrorData]]` slot - matched here by a trap-free look for the own `nashornException` marker - so it sees a cross-realm error, and is not fooled by a `Proxy` for one, by `Error.prototype`, or by `Object.create(Error.prototype)`.

@@ -1,6 +1,6 @@
 # java: Java access
 
-A script's reach into the JVM by name, as a library. Since **2026.1.0** an engine has it only if it
+A script's reach into the JVM by name, as a library. Since **2026.0.0** an engine has it only if it
 was given it:
 
 ```java

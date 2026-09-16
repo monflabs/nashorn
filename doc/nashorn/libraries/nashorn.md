@@ -1,7 +1,7 @@
 # nashorn: print, load and the rest
 
 Nashorn's own additions to the language, as a library. None of them are ECMAScript; they are what
-Nashorn has always put on the global object beyond the specification, and since **2026.1.0** they are
+Nashorn has always put on the global object beyond the specification, and since **2026.0.0** they are
 opt-in the way [`fetch`](fetch.md) and the [timers](host.md) are.
 
 ```java
@@ -47,7 +47,7 @@ since choosing an exit code is what a command line is for.
 ## Why it moved
 
 An embedder hands a script engine to code it does not control, and every global is surface. Before
-2026.1.0 every realm carried `load` — which reads files and URLs — and `readFully`, whether or not the
+2026.0.0 every realm carried `load` — which reads files and URLs — and `readFully`, whether or not the
 embedder had any use for them, and removing them meant deleting properties after the fact. The engine
 now starts with what ECMAScript defines, and everything else is a decision someone made on purpose.
 

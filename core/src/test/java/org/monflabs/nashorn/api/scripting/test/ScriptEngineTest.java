@@ -74,7 +74,7 @@ public class ScriptEngineTest {
     /**
      * An engine carrying the nashorn library, for a test whose subject is one of
      * the globals it installs. A bare engine has no print, load or JSAdapter
-     * since 2026.1.0 - they are contributed like fetch and the timers are.
+     * here - they are contributed like fetch and the timers are.
      */
     private static ScriptEngine nashornEngine() {
         return new NashornScriptEngineBuilder().library(new NashornLibrary()).build();

@@ -50,7 +50,7 @@ Without optimistic types (`--optimistic-types=false`), single `Object`-field cla
 
 Warmup pays for steady state: every deoptimisation is a full recompile plus a rest-of compile, and
 pathological code can deoptimise repeatedly before settling. The mode is the default since
-2026.1.0 - it runs Octane's numeric benchmarks three to five times faster - once the conformance
+2026.0.0 - it runs Octane's numeric benchmarks three to five times faster - once the conformance
 suite passed in it; long-running compute (servers, data crunching) is what it is for, and a
 run-once script that never gets hot can turn it off with `--optimistic-types=false`. The
 `recompile` [logger](../reference/debugging.md) shows every deoptimisation with its reason —

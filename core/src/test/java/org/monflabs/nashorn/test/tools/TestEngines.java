@@ -30,7 +30,7 @@ import org.monflabs.nashorn.libs.NashornLibrary;
 /**
  * Engines for the tests that want the globals a bare engine no longer has.
  *
- * Since 2026.1.0 an engine is exactly ECMAScript: {@code print} and {@code load}
+ * Since 2026.0.0 an engine is exactly ECMAScript: {@code print} and {@code load}
  * come from {@link NashornLibrary}, and {@code Java}, {@code Packages} and the
  * package roots from {@link JavaLibrary}. Most of this suite predates that and is
  * written in the dialect an engine used to have, so rather than repeat two
