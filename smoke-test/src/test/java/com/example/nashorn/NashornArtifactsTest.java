@@ -36,6 +36,8 @@ import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.libs.FetchLibrary;
 import org.monflabs.nashorn.libs.HostLibrary;
+import org.monflabs.nashorn.libs.JavaLibrary;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import org.monflabs.nashorn.modules.node.NodeModuleLoader;
 import org.junit.jupiter.api.Test;
 
@@ -54,6 +56,39 @@ class NashornArtifactsTest {
         assertEquals(3, ((Number) engine.eval("1 + 2")).intValue());
         assertEquals("--x", engine.eval("'x'.padStart(3, '-')"));           // ES2017
         assertEquals("has2=true", engine.eval("(() => `has2=${[1,2,3].includes(2)}`)()")); // arrow + template + includes
+    }
+
+    @Test
+    void aBareEngineIsExactlyEcmaScript() throws Exception {
+        // the headline of this release: nothing beyond the specification unless
+        // an embedder asks. Checked from the published jar, because a mistake
+        // here cannot be taken back once Central has it.
+        final ScriptEngine bare = new NashornScriptEngineBuilder().build();
+        assertEquals("undefined undefined undefined undefined undefined",
+                bare.eval("[typeof print, typeof load, typeof JSAdapter, typeof Java, typeof Packages].join(' ')"),
+                "a bare engine should carry none of Nashorn's own globals");
+        // and it is still a working ECMAScript 2026 engine
+        assertEquals(6, ((Number) bare.eval("[1,2,3].reduce((a, b) => a + b)")).intValue());
+        assertEquals(true, bare.eval("Error.isError(new TypeError('x'))"));   // ES2026
+    }
+
+    @Test
+    void nashornAndJavaGlobalsArriveAsLibraries() throws Exception {
+        final ScriptEngine engine = new NashornScriptEngineBuilder()
+                .library(new NashornLibrary(), new JavaLibrary())
+                .build();
+        assertEquals("function function object object",
+                engine.eval("[typeof print, typeof load, typeof Java, typeof Packages].join(' ')"));
+        // the Java bridge actually works, not merely exists
+        assertEquals(2, ((Number) engine.eval(
+                "var l = new (Java.type('java.util.ArrayList'))(); l.add('a'); l.add('b'); l.size()")).intValue());
+        // and each library stands alone
+        assertEquals("function undefined",
+                new NashornScriptEngineBuilder().library(new NashornLibrary()).build()
+                        .eval("[typeof print, typeof Java].join(' ')"));
+        assertEquals("undefined object",
+                new NashornScriptEngineBuilder().library(new JavaLibrary()).build()
+                        .eval("[typeof print, typeof Java].join(' ')"));
     }
 
     @Test

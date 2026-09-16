@@ -1,7 +1,7 @@
 OpenJDK Nashorn Changelog
 =========================
 
-2026.0.0 (unreleased)
+2026.0.0 (2026.09.16)
 ---------------------
 `   ` `           ` **Java access is a library too, and `--no-java` is gone.** `Java`, `JavaImporter`, `Packages` and the package roots `java`/`javax`/`javafx`/`com`/`org`/`edu` are `org.monflabs.nashorn.libs.JavaLibrary`. An engine that was not given it has no way for a script to *name* a Java class.
 
