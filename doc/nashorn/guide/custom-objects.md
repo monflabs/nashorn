@@ -64,7 +64,8 @@ object's indexed properties with a direct buffer.
 ## JSAdapter — the same idea, from the script side
 
 `JSAdapter` is a script-level proxy with Rhino ancestry: an object whose property access is routed
-through `__get__`, `__put__`, `__call__`, `__has__`, `__delete__`, `__getKeys__` hooks:
+through `__get__`, `__put__`, `__call__`, `__has__`, `__delete__`, `__getKeys__` hooks. It comes from
+the [nashorn library](../libraries/nashorn.md), so a bare engine does not have it:
 
 ```js
 var logged = new JSAdapter({
@@ -96,7 +97,7 @@ engine.eval("Java.type('java.io.File')");                    // ClassNotFoundExc
 script reaches through objects you hand it, does not limit CPU or memory, and there is no Security
 Manager in this fork (the JDK removed it) to back it up. Treat scripts you run as code you trust; if
 you cannot, isolate at the process boundary, not inside the JVM. Combine the filter with
-[`--no-java`](../reference/options.md) when scripts should be pure computation.
+leaving the [java library](../libraries/java.md) out when scripts should be pure computation.
 
 ## When this is still not enough
 

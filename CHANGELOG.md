@@ -3,6 +3,19 @@ OpenJDK Nashorn Changelog
 
 2026.1.0 (unreleased)
 ---------------------
+`   ` `           ` **Java access is a library too, and `--no-java` is gone.** `Java`, `JavaImporter`, `Packages` and the package roots `java`/`javax`/`javafx`/`com`/`org`/`edu` are `org.monflabs.nashorn.libs.JavaLibrary`. An engine that was not given it has no way for a script to *name* a Java class.
+
+* `--no-java`, its `-nj` alias, `ScriptEnvironment._no_java` and the builder's `java(boolean)` are removed. The option deleted those properties again after nasgen had written them into every global's map, which is the wrong way round: not installing them is the answer, and saying nothing is now the safe outcome rather than the dangerous one.
+* **`ClassFilter` is unaffected** and still decides class by class what `Java.type` may resolve. The two compose: the library decides whether a script can name Java classes at all, the filter decides which. Leaving the library out is not a sandbox on its own - a Java object the embedder puts in the bindings is still a Java object, with its methods reachable.
+* The repair for an engine that relied on the default is `.library(new JavaLibrary())`. The repair for a `--no-java` engine is to delete the option.
+
+`   ` `           ` **Nashorn's own globals are a library now.** `print`, `load`, `loadWithNewGlobal`, `readLine`, `readFully`, `JSAdapter` and `__FILE__`/`__DIR__`/`__LINE__` are no longer installed on every realm. They are `org.monflabs.nashorn.libs.NashornLibrary`, contributed to the builder like `fetch` and the timers, and a bare engine has none of them. **This breaks a script that calls `print` on an engine built as before**; the repair is one line, `.library(new NashornLibrary())`.
+
+* An embedder hands a script engine to code it does not control, and every global is surface. Every realm used to carry `load`, which reads files and URLs, whether or not the embedder had a use for it, and taking it away meant deleting properties after the fact. An engine now starts with what ECMAScript defines, and the rest is a decision.
+* `exit` and `quit` are not in the library. They call `System.exit`, which is no business of a script embedded in an application, so `Global.addExitBuiltins` holds them and only the shell installs them - on any run, a script file as much as the prompt, since choosing an exit code is what a command line does. `input`/`evalinput` stay the prompt's alone.
+* **Java access is unchanged.** `Java`, `Packages`, `JavaImporter` and the package roots are still installed by default and still removed by `--no-java`, a switch that predates this and that embedders already use. Putting them behind the library as well would have given one job two answers.
+* The shell and the playground install the library themselves - a command line without `print` is not a command line - and so do the script-test harness and the test262 runner, which needs `print` because the suite's own `doneprintHandle.js` reports through it.
+
 `   ` `           ` **`fetch` has a response timeout.** A request in flight is a pending operation on the realm's event loop, so `eval` returns only when it finishes - and nothing could make it finish. There is no `AbortSignal`, and racing the promise against a timer settles the promise while leaving the request, and the loop, exactly where they were. A server that accepted a connection and then said nothing kept an embedder waiting indefinitely.
 
 * `FetchLibrary` now bounds every request at `DEFAULT_RESPONSE_TIMEOUT`, 30 seconds, matching the client's existing connect timeout. On expiry the promise rejects with a `TypeError` like any other network failure, and the pending operation ends.

@@ -72,6 +72,7 @@ Details in [Generators and async functions](../internals/generators-async.md).
 
 ## `loadWithNewGlobal`
 
-From script, `loadWithNewGlobal(src, args...)` runs code in a fresh realm and returns the result
+From script, `loadWithNewGlobal(src, args...)` — one of the
+[nashorn library](../libraries/nashorn.md)'s globals — runs code in a fresh realm and returns the result
 across the boundary — the script-side isolation primitive, and a natural fit for handing a
 self-contained job to another thread's engine.

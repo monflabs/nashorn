@@ -29,6 +29,7 @@
 
 package org.monflabs.nashorn.internal.runtime.test;
 
+import org.monflabs.nashorn.test.tools.TestEngines;
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngine;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
@@ -50,7 +51,7 @@ public class JDK_8186807_Test {
 
     @Test
     public void testScript() throws ScriptException {
-        NashornScriptEngine engine = (NashornScriptEngine) new NashornScriptEngineFactory().getScriptEngine();
+        NashornScriptEngine engine = (NashornScriptEngine) TestEngines.full();
         engine.put("a", new Func());
         engine.eval("var Assert = Java.type('org.testng.Assert')\n" +
                 "var fn=function() {return 2;}\n" +

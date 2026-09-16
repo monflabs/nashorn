@@ -38,11 +38,14 @@ import java.util.Map;
 import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 import org.monflabs.nashorn.api.scripting.AbstractJSObject;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
+import org.monflabs.nashorn.libs.JavaLibrary;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary.Script;
 import org.monflabs.nashorn.api.scripting.ScriptUtils;
@@ -165,7 +168,8 @@ public class ScriptLibraryTest {
 
     @Test
     public void aJavaObjectAmongTheGlobalsIsUsedThroughTheInterop() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(GEOMETRY);
+        // Java.isJavaObject below is a JavaLibrary global since 2026.1.0
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new NashornLibrary(), new JavaLibrary(), GEOMETRY);
         assertEquals(engine.eval("clock.instant().getClass().getSimpleName()"), "Instant");
         assertEquals(engine.eval("Java.isJavaObject(clock)"), true);
     }
@@ -203,7 +207,7 @@ public class ScriptLibraryTest {
 
     @Test
     public void everyNewGlobalGetsTheLibrary() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(GEOMETRY);
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new NashornLibrary(), GEOMETRY);
         final Bindings fresh = engine.createBindings();
         assertEquals(engine.eval("circumference(2)", fresh), 4 * Math.PI);
         final ScriptContext context = new SimpleScriptContext();
@@ -238,7 +242,7 @@ public class ScriptLibraryTest {
 
     @Test
     public void anEngineWithNoLibraryHasNone() throws ScriptException {
-        assertEquals(new NashornScriptEngineFactory().getScriptEngine().eval("typeof testlibGreet"), "undefined");
+        assertEquals(TestEngines.full().eval("typeof testlibGreet"), "undefined");
     }
 
     // -- override and naming ------------------------------------------------------------
@@ -268,7 +272,7 @@ public class ScriptLibraryTest {
 
     @Test
     public void initializeReachesIntoTheGlobalFromJava() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(STRINGS);
+        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine(new NashornLibrary(), STRINGS);
         assertEquals(engine.eval("'nashorn'.capitalize()"), "Nashorn");
         assertEquals(engine.eval("''.capitalize()"), "");
         assertEquals(engine.eval("typeof String.prototype.capitalize"), "function");

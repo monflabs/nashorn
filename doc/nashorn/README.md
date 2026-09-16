@@ -26,7 +26,8 @@ import javax.script.ScriptEngineManager;
 
 public class Hello {
     public static void main(String[] args) throws Exception {
-        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+        // print comes from the nashorn library; a bare engine is only ECMAScript
+        ScriptEngine engine = new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
         engine.eval("print(`Nashorn speaks ES${2026}`);");
     }
 }
@@ -62,7 +63,7 @@ list. The web-compatibility extensions of Annex B are on by default and removabl
   Chrome or VS Code exactly as with Node.
 * **An embeddable debugger UI.** A Swing panel laid out like the DevTools Sources view, speaking the
   same protocol over an **in-process channel** — no port, no socket.
-* **Sandboxing.** A [`ClassFilter`](guide/custom-objects.md#classfilter) class by class, `--no-java`
+* **Sandboxing.** A [`ClassFilter`](guide/custom-objects.md#classfilter) class by class, leaving the [java library](libraries/java.md) out
   to remove the Java bridge, and an engine-private class path or module layer.
 * **Tooling.** A public AST — the [parser API](internals/parser-api.md) — for linters and analysers.
 * **Performance.** Bytecode and `invokedynamic`, no interpreter tier;

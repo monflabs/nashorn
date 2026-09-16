@@ -33,6 +33,7 @@ import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertTrue;
 import static org.testng.internal.junit.ArrayAsserts.assertArrayEquals;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import org.testng.TestNG;
@@ -58,7 +59,7 @@ public class NumberAccessTest {
     @BeforeClass
     public static void setUpClass() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        e = m.getEngineByName("nashorn-monflabs");
+        e = TestEngines.full();
         o = new SharedObject();
         e.put("o", o);
         e.eval("var SharedObject = Packages.org.monflabs.nashorn.api.javaaccess.test.SharedObject;");

@@ -39,7 +39,7 @@ public class HostLibraryTest {
 
     private static ScriptEngine engine() {
         // contributed explicitly to the builder - there is no discovery
-        return new NashornScriptEngineBuilder().eventLoop(true).library(new HostLibrary(), new FetchLibrary()).build();
+        return new NashornScriptEngineBuilder().eventLoop(true).library(new HostLibrary(), new FetchLibrary(), new org.monflabs.nashorn.libs.JavaLibrary()).build();
     }
 
     @Test(timeOut = 30_000)

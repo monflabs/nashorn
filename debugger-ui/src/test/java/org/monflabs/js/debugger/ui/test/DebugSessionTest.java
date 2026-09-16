@@ -106,7 +106,12 @@ public class DebugSessionTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        // print is a nashorn-library global since 2026.1.0, and one test here
+        // checks that it reaches the debugger's console
+        engine = new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
+                .debugger(true)
+                .library(new org.monflabs.nashorn.libs.NashornLibrary())
+                .build();
         openServer();
         worker = Executors.newSingleThreadExecutor();
         ui = new PumpExecutor();

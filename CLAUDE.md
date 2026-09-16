@@ -227,6 +227,30 @@ parameter visible.
 snakeyaml is pinned at 2.4 because 1.6 (the Ant-era pin) rejects 283 in-scope frontmatter blocks with
 "special characters are not allowed".
 
+## Nashorn's own globals are a library
+
+Since 2026.1.0 a bare engine is **exactly ECMAScript**. `print`, `load`, `loadWithNewGlobal`,
+`readLine`, `readFully`, `JSAdapter` and `__FILE__`/`__DIR__`/`__LINE__` are installed by
+`org.monflabs.nashorn.libs.NashornLibrary`, contributed to the builder like `host` and `fetch`; the
+library is a thin `ScriptLibrary` calling `Global.installNashornExtensions()`, where the handles and
+the location placeholder live. `exit`/`quit` are not in it - they call `System.exit`, so `Global.addExitBuiltins` holds them and
+only `Shell` installs them, on **any** run (a script file as much as the prompt: choosing an exit
+code is a command line's business). `Global.addShellBuiltins` is the prompt's alone -
+`input`/`evalinput`.
+
+**Java access is a second library, `JavaLibrary`** (`Global.installJavaAccess`): `Java`,
+`JavaImporter`, `Packages` and the package roots `java`/`javax`/`javafx`/`com`/`org`/`edu`.
+`--no-java`, its `-nj` alias, `ScriptEnvironment._no_java` and the builder's `java(boolean)` are all
+**gone** - the option deleted those properties again after nasgen had written them into every
+global's map, and not installing them is the better answer. `ClassFilter` is unaffected and still
+decides class by class; the two compose.
+
+Four places install it because they must: `Shell.makeContext` (a command line without `print` is not
+one), the playground's `ScriptRunner`, `SharedContextEvaluator` for the script tests (818 of them
+print, 230 `load`), and `Test262Runner` - the suite counts `print` among a host's obligations, and
+its own `doneprintHandle.js` reports async completion through it. A Java test that evals `print`
+builds its engine with `.library(new NashornLibrary())`.
+
 ## Script libraries
 
 `api.scripting.ScriptLibrary` is contributed **only** imperatively - handed to the builder's

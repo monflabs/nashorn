@@ -19,6 +19,8 @@
 
 - **Standard Libraries**
   - [Overview and the event loop](/libraries/overview.md)
+  - [nashorn: print, load and the rest](/libraries/nashorn.md)
+  - [java: Java access](/libraries/java.md)
   - [host: timers, microtasks, Base64](/libraries/host.md)
   - [fetch](/libraries/fetch.md)
   - [node: the Node module resolver](/libraries/node.md)

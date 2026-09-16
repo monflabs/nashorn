@@ -46,7 +46,11 @@ try {
 // try the same via script engine
 
 var ScriptEngineManager = Java.type("javax.script.ScriptEngineManager");
-var engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+// load is a nashorn-library global since 2026.1.0, so a nested engine that uses
+// it has to be given the library
+var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
+var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
+var engine = new Builder().library(new NashornLibrary()).build();
 
 engine.eval("load('nashorn:mozilla_compat.js')");
 

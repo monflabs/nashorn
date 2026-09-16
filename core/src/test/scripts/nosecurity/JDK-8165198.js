@@ -29,7 +29,10 @@
  */
 
 var NashornScriptEngineFactory = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory");
-var e = new NashornScriptEngineFactory().getScriptEngine("-ot=false");
+var TestLibs = java.util.List.of(
+    new (Java.type('org.monflabs.nashorn.libs.NashornLibrary'))(),
+    new (Java.type('org.monflabs.nashorn.libs.JavaLibrary'))());
+var e = new NashornScriptEngineFactory().getScriptEngine(["-ot=false"], null, null, TestLibs);
 try {
     e.eval("with(new JavaImporter(java.util)){x}");
 } catch (e) {

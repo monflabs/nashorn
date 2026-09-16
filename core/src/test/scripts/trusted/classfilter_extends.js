@@ -28,11 +28,14 @@
  */
 
 var factory = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory')
-var engine  = new factory().getScriptEngine(function(str){
+var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
+var JavaLibrary = Java.type('org.monflabs.nashorn.libs.JavaLibrary');
+// Java access is a library since 2026.1.0; the filter still decides class by class
+var engine  = new Builder().library(new JavaLibrary()).classFilter(function(str){
     return str.indexOf('java.lang.Class') != -1
             || str == 'java.lang.System'
             || str.indexOf('java.util') != -1;
-})
+}).build()
 
 function tryEval (str) {
         try {

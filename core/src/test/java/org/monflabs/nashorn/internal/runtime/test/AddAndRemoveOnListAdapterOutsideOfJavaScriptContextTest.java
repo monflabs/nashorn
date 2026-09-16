@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 import org.testng.annotations.Test;
@@ -48,7 +49,7 @@ public class AddAndRemoveOnListAdapterOutsideOfJavaScriptContextTest {
 
     @SuppressWarnings("unchecked")
     private static <T> T getListAdapter() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine engine = TestEngines.full();
         return (T)engine.eval("Java.to([1, 2, 3, 4], 'java.util.List')");
     }
 

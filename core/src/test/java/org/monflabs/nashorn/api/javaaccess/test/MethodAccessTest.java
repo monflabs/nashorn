@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Locale;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import org.testng.AssertJUnit;
@@ -63,7 +64,7 @@ public class MethodAccessTest {
     @BeforeClass
     public static void setUpClass() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        e = m.getEngineByName("nashorn-monflabs");
+        e = TestEngines.full();
         o = new SharedObject();
         o.setEngine(e);
         e.put("o", o);

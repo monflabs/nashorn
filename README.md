@@ -33,11 +33,24 @@ Requires **JDK 25 or newer**, at build and at run time. See the
 ## Hello, world
 
 ```java
-ScriptEngine engine = new NashornScriptEngineBuilder().build();
+ScriptEngine engine = new NashornScriptEngineBuilder()
+        .library(new NashornLibrary())   // print, load and Nashorn's other globals
+        .build();
 engine.eval("""
     const greet = name => `Hello, ${name}!`;
     print(greet('world'));
     """);
+```
+
+A bare engine is exactly ECMAScript. Everything Nashorn adds on top is a library
+you contribute on purpose — `NashornLibrary` for `print`, `load` and `JSAdapter`,
+`JavaLibrary` for `Java`, `Packages` and the package roots, and `HostLibrary` /
+`FetchLibrary` for timers and `fetch`:
+
+```java
+ScriptEngine full = new NashornScriptEngineBuilder()
+        .library(new NashornLibrary(), new JavaLibrary())
+        .build();
 ```
 
 The builder (`org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder`) is
@@ -61,7 +74,7 @@ never resolves here by accident. There is also a command-line
 | **Node modules** | An experimental [resolver](doc/nashorn/libraries/node.md) for `fs`, `buffer`, `os` and `path`, reached as `import fs from 'fs'`. |
 | **Debugging** | A [Chrome DevTools Protocol](doc/nashorn/guide/debugging.md) server: `--inspect` and attach Chrome or VS Code, exactly as with Node. Breakpoints, stepping, scopes, watches, frame evaluation. |
 | **An embeddable debugger UI** | A Swing panel laid out like the DevTools Sources view, for putting a debugger inside your own Java application. It speaks the same protocol over an **in-process channel** — no port, no socket, nothing reachable from outside the JVM. |
-| **Sandboxing** | A [`ClassFilter`](doc/nashorn/guide/custom-objects.md#classfilter) decides class by class what a script may reach; `--no-java` removes the Java bridge entirely; the engine can be given a class path or module layer of its own. |
+| **Sandboxing** | A [`ClassFilter`](doc/nashorn/guide/custom-objects.md#classfilter) decides class by class what a script may reach; leaving the `java` library out removes the Java bridge entirely; the engine can be given a class path or module layer of its own. |
 | **Tooling** | A public AST — the [parser API](doc/nashorn/internals/parser-api.md) — for linters, rewriters and analysers that must not depend on internals. |
 | **Performance** | Scripts compile to JVM bytecode and link through `invokedynamic`; no interpreter tier. [Optimistic typing](doc/nashorn/internals/optimistic-typing.md) is on by default, and a [perf gate](doc/nashorn/internals/performance.md) runs on every push. |
 | **The playground** | A Swing sample browser with an editor, a console and the debugger a click away — the whole feature set as runnable, editable samples. Build the jar, run it locally. [More](doc/nashorn/guide/playground.md) |
@@ -79,8 +92,13 @@ heredocs, `#` comments, `${expr}` in double-quoted strings, and the
 `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG` globals. Shell scripting is a niche that `sh`,
 Node and Python have taken, and ECMAScript covers what remains: a template literal
 is a heredoc with interpolation, `String.raw` is one without, `//` is a comment
-everywhere. `readLine` and `readFully` survive as ordinary globals, and
-`samples/exec.js` shows how to run a process over `ProcessBuilder`.
+everywhere. `readLine` and `readFully` survive in the `nashorn`
+library, and `samples/exec.js` shows how to run a process over `ProcessBuilder`.
+
+**`--no-java` is gone** (2026.1.0), because it no longer has anything to remove:
+Java access is the `java` library, and an engine that was not given it has no way
+for a script to name a JVM class. `ClassFilter` is unchanged and still decides
+class by class.
 
 ## The language
 

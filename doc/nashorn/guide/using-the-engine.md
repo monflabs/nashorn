@@ -11,6 +11,10 @@ Creating and configuring one is [Creating the engine](engine-setup.md): the two 
 method, and the engine's JSR-223 metadata. Whichever way it was built, `build()` returns an ordinary
 `javax.script.ScriptEngine` and everything below works the same.
 
+?> The examples on this page call `print`, so they assume an engine carrying the
+[nashorn library](../libraries/nashorn.md) — `.library(new NashornLibrary())`. Since 2026.1.0 a bare
+engine is exactly ECMAScript and has no `print`.
+
 ## Evaluating scripts
 
 From a string, a `Reader`, or a URL:

@@ -105,10 +105,13 @@ public class NashornScriptEngineBuilderTest {
 
     @Test
     public void theEngineShapingOptions() throws ScriptException {
-        // no Java at all: the bluntest sandbox
-        final ScriptEngine sandboxed = new NashornScriptEngineBuilder().java(false).build();
+        // no Java at all - which is what an engine is unless it is given the
+        // library, since 2026.1.0. --no-java is gone; saying nothing is the safe answer
+        final ScriptEngine sandboxed = new NashornScriptEngineBuilder().build();
         assertEquals(sandboxed.eval("[typeof Java, typeof Packages, typeof java, typeof javax].join(' ')"), "undefined undefined undefined undefined");
-        assertEquals(new NashornScriptEngineBuilder().java(true).build().eval("typeof Java"), "object");
+        assertEquals(new NashornScriptEngineBuilder().library(new org.monflabs.nashorn.libs.JavaLibrary()).build()
+                .eval("[typeof Java, typeof Packages, typeof java, typeof JavaImporter].join(' ')"),
+                "object object object function");
         // Nashorn's own syntax refused without the extensions
         final ScriptEngine noExtensions = new NashornScriptEngineBuilder().syntaxExtensions(false).build();
         try {
@@ -152,7 +155,7 @@ public class NashornScriptEngineBuilderTest {
             final ScriptEngine engine = new NashornScriptEngineBuilder()
                     .classLoader(loader)
                     .classFilter(name -> !name.startsWith("java.io."))
-                    .library(geometry)
+                    .library(geometry, new org.monflabs.nashorn.libs.JavaLibrary())
                     .build();
             assertEquals(engine.eval("circumference(1)"), 2 * Math.PI);
             assertEquals(engine.eval("typeof setTimeout"), "undefined");

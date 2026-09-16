@@ -24,7 +24,7 @@ makes sense once you know which of them a setting belongs to.
 JVM process
 └── ScriptEngine ──────── one Context: the options, the class loaders,
     │                     the compiled-code cache, the linker, the class filter
-    ├── realm A ───────── one Global: Object, Array, print, the top-level
+    ├── realm A ───────── one Global: Object, Array, JSON, the top-level
     ├── realm B                       var/let/const, the module registry, the job queue
     └── realm C           (one realm per Bindings object)
 ```
@@ -81,7 +81,7 @@ named methods cover the engine's configuration:
 | --- | --- |
 | The language | `annexB`, `strict`, `syntaxExtensions`, `typedArrays` |
 | Asynchrony | `eventLoop` — off by default; everything that waits needs it |
-| The Java side | `java(false)` for the bluntest sandbox, `classPath`, `modulePath(path, modules…)`, `classLoader`, `classFilter` |
+| The Java side | `classPath`, `modulePath(path, modules…)`, `classLoader`, `classFilter` — and whether the [java library](../libraries/java.md) is installed at all |
 | Compilation | `optimisticTypes`, `lazyCompilation`, `classCacheSize`, `persistentCodeCache` |
 | The environment scripts see | `timeZone`, `locale`, `globalPerEngine` |
 | Debugging | `dumpStackOnError`, `debugger`, `inspect(hostAndPort, waitForClient)` |
@@ -110,7 +110,7 @@ ScriptEngine engine = new NashornScriptEngineBuilder()
         .eventLoop(true)                                 // timers and fetch need somewhere to run
         .library(new HostLibrary(), new FetchLibrary())  // adds setTimeout, fetch, ...
         .build();
-engine.eval("setTimeout(() => print('tick'), 10)");      // needs both lines above
+engine.eval("setTimeout(() => print('tick'), 10)");      // print is the nashorn library
 ```
 
 ?> Both are needed. The library supplies the function; the
@@ -132,7 +132,7 @@ has argument-taking `getScriptEngine` overloads that take the option strings dir
 ```java
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
 
-ScriptEngine strict = new NashornScriptEngineFactory().getScriptEngine("-strict", "--no-java");
+ScriptEngine strict = new NashornScriptEngineFactory().getScriptEngine("-strict");
 ```
 
 Those overloads (options, a class loader, a `ClassFilter`, libraries, in every combination) are
@@ -152,7 +152,7 @@ configurations means two engines, and two engines coexist cleanly in one process
 ## Engine options
 
 Every configuration choice the engine offers, by its builder method and its command-line spelling —
-the two are interchangeable, `option("--no-java")` and `java(false)` build the same engine. The
+the two are interchangeable, `option("--no-syntax-extensions")` and `syntaxExtensions(false)` build the same engine. The
 [options reference](../reference/options.md) has the diagnostic switches (`--log`, `--print-*`,
 tracing) that stay with `option(...)`.
 
@@ -169,7 +169,7 @@ tracing) that stay with `option(...)`.
 
 | Builder | Option | Default | What it decides |
 | --- | --- | --- | --- |
-| `java(boolean)` | `--no-java` | on | Whether scripts may touch Java at all: off removes `Java`, `Packages`, `JavaImporter` and the package roots — the bluntest sandbox. Combine with a `classFilter` for belt and braces. |
+| — | — | **off** | Whether scripts may name Java classes at all is no longer an option: `Java`, `Packages`, `JavaImporter` and the package roots come from the [java library](../libraries/java.md), and an engine that was not given it has none of them. `--no-java` and `java(boolean)` are gone. |
 | `classFilter(filter)` | — | none | Which Java classes a script may see, one name at a time. |
 | `classLoader(loader)` | — | context loader | The loader scripts reach Java through. |
 | `classPath(path)` | `-classpath` | none | A class path of the engine's own, on top of the application loader. |

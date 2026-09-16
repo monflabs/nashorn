@@ -28,6 +28,7 @@
  */
 package org.monflabs.nashorn.internal.runtime.test;
 
+import org.monflabs.nashorn.test.tools.TestEngines;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -414,7 +415,7 @@ public class CodeStoreAndPathTest {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
 
-        fac.getScriptEngine(ENGINE_OPTIONS_NOOPT);
+        fac.getScriptEngine(ENGINE_OPTIONS_NOOPT, null, null, TestEngines.LIBS);
 
         final Path expectedCodeCachePath = FileSystems.getDefault().getPath(oldUserDir + File.separator + codeCache);
         final Path actualCodeCachePath = FileSystems.getDefault().getPath(System.getProperty(
@@ -432,7 +433,7 @@ public class CodeStoreAndPathTest {
     public void changeUserDirTest() throws ScriptException, IOException {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
-        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_NOOPT);
+        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_NOOPT, null, null, TestEngines.LIBS);
         final Path codeCachePath = getCodeCachePath(false);
         final String newUserDir = "build/newUserDir";
         // Now changing current working directory
@@ -452,7 +453,7 @@ public class CodeStoreAndPathTest {
     public void codeCacheTest() throws ScriptException, IOException {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
-        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_NOOPT);
+        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_NOOPT, null, null, TestEngines.LIBS);
         final Path codeCachePath = getCodeCachePath(false);
         e.eval(code1);
         e.eval(code2);
@@ -466,7 +467,7 @@ public class CodeStoreAndPathTest {
     public void codeCacheTestOpt() throws ScriptException, IOException {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
-        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_OPT);
+        final ScriptEngine e = fac.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS);
         final Path codeCachePath = getCodeCachePath(true);
         e.eval(code1);
         e.eval(code2);
@@ -480,10 +481,10 @@ public class CodeStoreAndPathTest {
     public void testNestedFunctionStore() throws ScriptException, IOException {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(nestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(nestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(nestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(nestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(nestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(nestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(nestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(nestedFunctions);
     }
 
     @Test
@@ -491,10 +492,10 @@ public class CodeStoreAndPathTest {
         System.setProperty("nashorn.persistent.code.cache", codeCache);
         System.setProperty("nashorn.compiler.splitter.threshold", "500");
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(longNestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(longNestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(longNestedFunctions);
-        factory.getScriptEngine(ENGINE_OPTIONS_OPT).eval(longNestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(longNestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(longNestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(longNestedFunctions);
+        factory.getScriptEngine(ENGINE_OPTIONS_OPT, null, null, TestEngines.LIBS).eval(longNestedFunctions);
         System.getProperties().remove("nashorn.compiler.splitter.threshold");
     }
 

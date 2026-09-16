@@ -29,6 +29,7 @@
 
 package org.monflabs.nashorn.internal.runtime.test;
 
+import org.monflabs.nashorn.test.tools.TestEngines;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.fail;
 import java.io.File;
@@ -63,7 +64,7 @@ public class ClassFilterTest {
         };
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
         for (final String path : paths) {
-            final ScriptEngine engine = factory.getScriptEngine(new String[]{}, getClass().getClassLoader(), getClassFilter());
+            final ScriptEngine engine = factory.getScriptEngine(new String[]{}, getClass().getClassLoader(), getClassFilter(), TestEngines.LIBS);
             try {
                 engine.eval(new URLReader(new File(path).toURI().toURL()));
             } catch (final Exception e) {
@@ -74,8 +75,12 @@ public class ClassFilterTest {
 
     @Test
     public void noJavaOptionTest() {
-        final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine engine = factory.getScriptEngine(new String[]{"--no-java"}, getClass().getClassLoader(), getClassFilter());
+        // --no-java is gone: an engine has no reach into Java unless it was given
+        // JavaLibrary, so the bare engine below is what that option used to make
+        final ScriptEngine engine = new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
+                .classLoader(getClass().getClassLoader())
+                .classFilter(getClassFilter())
+                .build();
         try {
             engine.eval("var str = Java.type('java.lang.String');");
             fail("TypeError should have been thrown");
@@ -150,7 +155,7 @@ public class ClassFilterTest {
         }
 
         final NashornScriptEngineFactory factory = new NashornScriptEngineFactory();
-        final ScriptEngine engine = factory.getScriptEngine(getClassFilter());
+        final ScriptEngine engine = factory.getScriptEngine(new String[]{}, null, getClassFilter(), TestEngines.LIBS);
         try {
             engine.eval("var thread = Java.type('sun.misc.Unsafe')");
             fail("SecurityException should have been thrown");
@@ -196,7 +201,8 @@ public class ClassFilterTest {
         final ScriptEngine engine = factory.getScriptEngine(
               TestFinder.addExplicitOptimisticTypes(new String[]{"--persistent-code-cache", "--optimistic-types=true"}),
                   getClass().getClassLoader(),
-                  getClassFilter()
+                  getClassFilter(),
+                  TestEngines.LIBS
         );
         final String testScript = "var a = Java.type('java.lang.String');" + generateCodeForPersistentStore();
         try {
@@ -212,7 +218,8 @@ public class ClassFilterTest {
                     public boolean exposeToScripts(final String s) {
                         return false;
                     }
-                }
+                },
+                TestEngines.LIBS
         );
         try {
             engineSafe.eval(testScript);

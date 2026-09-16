@@ -43,7 +43,6 @@ decade, but they are not part of the supported surface and can change without no
 
 | Option | What it does |
 | --- | --- |
-| `--no-java` (`-nj`) | Disable Java support: removes `Java`, `Packages`, `JavaImporter` and the package roots from the global. |
 | `--global-per-engine` | One shared global for all `ENGINE_SCOPE` bindings of an engine, instead of one global per bindings object. Changes the [scope model](../guide/using-the-engine.md#the-scope-model). |
 | `--locale` (`-l`) | Locale for script execution (`toLocaleString` and friends). The documented sibling of `-timezone`. |
 | `--log=<system>[:<level>]` | Enable an internal logger — see [Logging and debugging](debugging.md). |
@@ -72,7 +71,7 @@ Options removed in this fork, kept here so old command lines can be diagnosed:
 
 - **`--language`**, the version switch — the engine is ES2026 and there is no ES5 mode.
 - **`-scripting`**, and with it heredocs, `#` comments, `${expr}` in double-quoted strings and the
-  `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG` globals. `readLine` and `readFully` survive as ordinary globals.
+  `$EXEC`/`$ENV`/`$OPTIONS`/`$ARG` globals. `readLine` and `readFully` survive, in the [nashorn library](../libraries/nashorn.md).
 - **`--function-statement-error`** and **`--function-statement-warning`** — block-level function
   declarations are simply legal now.
 

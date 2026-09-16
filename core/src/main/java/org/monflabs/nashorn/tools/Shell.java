@@ -48,6 +48,8 @@ import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
 import org.monflabs.nashorn.api.scripting.ScriptLibrary;
 import org.monflabs.nashorn.libs.FetchLibrary;
 import org.monflabs.nashorn.libs.HostLibrary;
+import org.monflabs.nashorn.libs.JavaLibrary;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import org.monflabs.nashorn.internal.runtime.ScriptFunction;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
 import org.monflabs.nashorn.internal.runtime.ScriptRuntime;
@@ -176,6 +178,10 @@ public class Shell {
 
         try {
             final Global global = context.createGlobal();
+            // exit and quit belong to any command-line run, a script as much as
+            // the prompt; the prompt's own input/evalinput are added in
+            // readEvalPrint
+            Context.runWithGlobal(global, global::addExitBuiltins);
             final ScriptEnvironment env = context.getEnv();
             final List<String> files = env.getFiles();
             if (files.isEmpty()) {
@@ -269,9 +275,13 @@ public class Shell {
             options.set("event.loop", stdLibraries);
         }
 
+        // The nashorn library is not optional here. print is how a script at a
+        // command line says anything, and load is how it reaches another file;
+        // a shell without them is not a shell. An embedded engine is the other
+        // way round and has neither unless it asks - see NashornLibrary.
         final List<ScriptLibrary> libraries = stdLibraries
-                ? List.of(new HostLibrary(), new FetchLibrary())
-                : List.of();
+                ? List.of(new NashornLibrary(), new JavaLibrary(), new HostLibrary(), new FetchLibrary())
+                : List.of(new NashornLibrary(), new JavaLibrary());
 
         try {
             return new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader(), null, libraries);

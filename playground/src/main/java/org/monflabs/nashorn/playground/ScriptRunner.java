@@ -49,6 +49,8 @@ import org.monflabs.nashorn.api.scripting.NashornException;
 import org.monflabs.nashorn.api.modules.Module;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
 import org.monflabs.nashorn.libs.HostLibrary;
+import org.monflabs.nashorn.libs.JavaLibrary;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import org.monflabs.nashorn.libs.FetchLibrary;
 import org.monflabs.nashorn.modules.node.NodeModuleLoader;
 import org.monflabs.nashorn.debugger.CdpServer;
@@ -262,7 +264,7 @@ public final class ScriptRunner {
                     .classCacheSize(0)
                     // the standard libraries and the Node modules are contributed
                     // explicitly - the engine discovers nothing on its own
-                    .library(new HostLibrary(), new FetchLibrary())
+                    .library(new NashornLibrary(), new JavaLibrary(), new HostLibrary(), new FetchLibrary())
                     .moduleLoader(new NodeModuleLoader())
                     // a sample's imports resolve to its own sibling files: main.js
                     // may be a module, and 'import x from "./data.js"' finds the tab.

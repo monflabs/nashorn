@@ -31,11 +31,15 @@
 var ScriptContext = javax.script.ScriptContext;
 var manager = new javax.script.ScriptEngineManager();
 
-var engine1 = manager.getEngineByName("nashorn-monflabs");
+// load comes from the nashorn library since 2026.1.0
+var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
+var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
+var JavaLibrary = Java.type('org.monflabs.nashorn.libs.JavaLibrary');
+var engine1 = new Builder().library(new NashornLibrary(), new JavaLibrary()).build();
 engine1.eval("load('nashorn:mozilla_compat.js')");
 manager.setBindings(engine1.getBindings(ScriptContext.ENGINE_SCOPE));
 
-var engine2 = manager.getEngineByName("nashorn-monflabs");
+var engine2 = new Builder().library(new NashornLibrary(), new JavaLibrary()).build();
 engine2.eval("load('nashorn:mozilla_compat.js');");
 engine2.eval("importPackage(java.util);");
 

@@ -34,6 +34,7 @@ import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
@@ -51,7 +52,7 @@ public class TrustedScriptEngineTest {
     @Test
     public void versionTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         assertEquals(e.getFactory().getEngineVersion(), Version.version());
     }
 
@@ -82,7 +83,7 @@ public class TrustedScriptEngineTest {
                 final NashornScriptEngineFactory nfac = (NashornScriptEngineFactory)fac;
                 final MyClassLoader loader = new MyClassLoader();
                 // set the classloader as app class loader
-                final ScriptEngine e = nfac.getScriptEngine(loader);
+                final ScriptEngine e = nfac.getScriptEngine(new String[0], loader, null, TestEngines.LIBS);
                 try {
                     e.eval("Packages.foo");
                     // check that the class loader was attempted
@@ -107,7 +108,7 @@ public class TrustedScriptEngineTest {
                 final String[] options = new String[] { "-strict" };
                 final MyClassLoader loader = new MyClassLoader();
                 // set the classloader as app class loader
-                final ScriptEngine e = nfac.getScriptEngine(options, loader);
+                final ScriptEngine e = nfac.getScriptEngine(options, loader, null, TestEngines.LIBS);
                 try {
                     e.eval("Packages.foo");
                     // check that the class loader was attempted
@@ -141,7 +142,7 @@ public class TrustedScriptEngineTest {
                 final NashornScriptEngineFactory nfac = (NashornScriptEngineFactory)fac;
                 // specify --no-syntax-extensions flag
                 final String[] options = new String[] { "--no-syntax-extensions" };
-                final ScriptEngine e = nfac.getScriptEngine(options);
+                final ScriptEngine e = nfac.getScriptEngine(options, null, null, TestEngines.LIBS);
                 try {
                     // try nashorn specific extension
                     e.eval("var f = funtion(x) 2*x;");
@@ -167,7 +168,7 @@ public class TrustedScriptEngineTest {
             if (fac instanceof NashornScriptEngineFactory) {
                 final NashornScriptEngineFactory nfac = (NashornScriptEngineFactory)fac;
                 final String[] options = new String[] { "--loader-per-compile=false" };
-                final ScriptEngine e = nfac.getScriptEngine(options);
+                final ScriptEngine e = nfac.getScriptEngine(options, null, null, TestEngines.LIBS);
                 try {
                     e.eval("2 + 3");
                     e.eval("4 + 4");
@@ -192,7 +193,7 @@ public class TrustedScriptEngineTest {
             if (fac instanceof NashornScriptEngineFactory) {
                 final NashornScriptEngineFactory nfac = (NashornScriptEngineFactory)fac;
                 final String[] options = new String[] { "--loader-per-compile=false" };
-                final ScriptEngine e = nfac.getScriptEngine(options);
+                final ScriptEngine e = nfac.getScriptEngine(options, null, null, TestEngines.LIBS);
                 e.put(ScriptEngine.FILENAME, "test.js");
                 try {
                     e.eval("2 + 3");
@@ -211,7 +212,7 @@ public class TrustedScriptEngineTest {
     public void globalPerEngineTest() throws ScriptException {
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
         final String[] options = new String[] { "--global-per-engine" };
-        final ScriptEngine e = fac.getScriptEngine(options);
+        final ScriptEngine e = fac.getScriptEngine(options, null, null, TestEngines.LIBS);
 
         e.eval("function foo() {}");
 
@@ -231,13 +232,13 @@ public class TrustedScriptEngineTest {
     @Test
     public void classFilterTest() throws ScriptException {
         final NashornScriptEngineFactory fac = new NashornScriptEngineFactory();
-        final ScriptEngine e = fac.getScriptEngine(new ClassFilter() {
+        final ScriptEngine e = fac.getScriptEngine(new String[0], null, new ClassFilter() {
             @Override
             public boolean exposeToScripts(final String fullName) {
                 // don't allow anything that is not "java."
                 return fullName.startsWith("java.");
             }
-        });
+        }, TestEngines.LIBS);
 
         assertEquals(e.eval("typeof javax.script.ScriptEngine"), "object");
         assertEquals(e.eval("typeof java.util.Vector"), "function");
@@ -262,7 +263,7 @@ public class TrustedScriptEngineTest {
                     // don't allow anything that is not "java."
                     return fullName.startsWith("java.");
                 }
-            });
+            }, TestEngines.LIBS);
 
         assertEquals(e.eval("typeof javax.script.ScriptEngine"), "object");
         assertEquals(e.eval("typeof java.util.Vector"), "function");

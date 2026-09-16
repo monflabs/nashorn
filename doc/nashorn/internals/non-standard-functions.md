@@ -8,30 +8,39 @@ detail, and the Java-interop surface has its own [guide](../guide/connecting-wit
 
 Two things shape the list:
 
-- Most extras hang off the **global object** (`Global`, in `internal.objects`), installed when the
-  global is initialised. They are all `NOT_ENUMERABLE`, so `for…in` over the global never sees them.
+- Most extras hang off the **global object** (`Global`, in `internal.objects`). They are all
+  `NOT_ENUMERABLE`, so `for…in` over the global never sees them. Since 2026.1.0 most are *not*
+  installed when the global is initialised: they come from the
+  [nashorn library](../libraries/nashorn.md), and a bare engine has none of them.
 - A few are **methods grafted onto standard built-ins** (`Object`, `Error`) rather than globals.
 
 What is deliberately *not* counted here as a "Nashorn function": **Annex B** built-ins
 (`escape`, the `String.prototype` markup helpers, `RegExp.$1`, …) — those are in the spec's own
 Annex B — and **`console`**, which is a host/web API rather than a language feature (see the end).
 
-## Always-present global functions
+## Global functions, from the nashorn library
 
-Installed on every global, in any mode:
+`NashornLibrary` installs these into every global of an engine that was given it
+(`Global.installNashornExtensions`). An engine that was not has none of them, and a script calling
+`print` on one gets a `ReferenceError`:
 
 | Function | What it does |
 | --- | --- |
 | `print(…)` | Write arguments to stdout, space-separated (newline unless `--print-no-newline`). |
 | `load(source)` | Evaluate another script in the current global — file path, URL, or `{name, script}` object. |
 | `loadWithNewGlobal(source, …)` | Like `load`, but in a fresh global (realm isolation). |
-| `exit([code])` / `quit([code])` | `System.exit` with the given code (default 0). |
 | `readLine([prompt])` | Read a line from stdin. |
 | `readFully(file)` | Read a whole file into a string. |
 
-The last two were installed only under the removed scripting mode before 2026.1.0; they are
-unconditional now (`Global.initIOFunctions` over `IOFunctions`). The scripting-mode globals that went
-with them — `echo`, `$OPTIONS`, `$ENV`, `$ARG`, `$EXEC` and the `$OUT`/`$ERR`/`$EXIT` result holders —
+`readLine`/`readFully` were installed only under the removed scripting mode before 2026.1.0, and are
+ordinary members of the library now (`IOFunctions` holds the handles).
+
+**`exit([code])` and `quit([code])`** — `System.exit` with the given code — are *not* in the library.
+A script embedded in an application has no business ending the JVM, so `Global.addExitBuiltins`
+installs them and only the shell does, on any run. `Global.addShellBuiltins` adds `input`/`evalinput`
+at the interactive prompt alone.
+
+The scripting-mode globals that went — `echo`, `$OPTIONS`, `$ENV`, `$ARG`, `$EXEC` and the `$OUT`/`$ERR`/`$EXIT` result holders —
 are gone along with the mode itself; `samples/exec.js` shows how to run a process over
 `ProcessBuilder`. See [built-in globals](../reference/builtins.md#always-present) for the argument
 shapes.
@@ -54,7 +63,7 @@ The single most Nashorn-specific object. Its methods bridge the two type systems
 | `Java.asJSONCompatible(obj)` | A JSON-friendly view of a value. |
 | `Java.synchronized(fn, obj)` | A function wrapper that synchronises on `obj`. |
 
-All of it (and the objects below) disappears under `--no-java`. Full treatment in
+All of it (and the objects below) comes from the [java library](../libraries/java.md); an engine not given it has none of it. Full treatment in
 [Connecting with Java](../guide/connecting-with-java.md).
 
 ## Java-access globals
@@ -89,10 +98,14 @@ Not provided by the engine but *called* by it when a script defines them — the
 
 ## How many
 
-Counting only the genuinely Nashorn-specific **functions**: 6 always-present globals (`print`,
-`load`, `loadWithNewGlobal`, `exit`/`quit`, `readLine`, `readFully`), 14 `Java.*` methods and 5
-extension methods on `Object`/`Error` — roughly **25**, alongside the interop objects (`Java`, `JavaImporter`, `JSAdapter`, `Packages` and the
-six package roots) and the two lookup hooks.
+Counting only the genuinely Nashorn-specific **functions**: 5 from the nashorn library (`print`,
+`load`, `loadWithNewGlobal`, `readLine`, `readFully`), 2 more at the shell prompt (`exit`/`quit`),
+14 `Java.*` methods and 5 extension methods on `Object`/`Error` — roughly **25**, alongside the
+interop objects (`Java`, `JavaImporter`, `Packages` and the six package roots, all still installed by
+default), `JSAdapter` (in the library) and the two lookup hooks.
+
+Only the Java-interop set is on a bare engine now. Everything else above is either a library someone
+contributed or a prompt someone is sitting at.
 
 ## Adjacent, but not counted
 

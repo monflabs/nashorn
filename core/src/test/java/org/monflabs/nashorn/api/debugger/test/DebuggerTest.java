@@ -38,6 +38,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import org.monflabs.nashorn.api.debugger.Breakpoint;
 import org.monflabs.nashorn.api.debugger.BreakpointRequest;
 import org.monflabs.nashorn.api.debugger.ConsoleEvent;
@@ -84,7 +85,7 @@ public class DebuggerTest {
 
     @BeforeMethod
     public void setUp() {
-        engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        engine = TestEngines.full("--debugger");
         debugger = Debugger.of(engine);
         worker = Executors.newSingleThreadExecutor();
         pauses.clear();
@@ -168,7 +169,7 @@ public class DebuggerTest {
 
     @Test
     public void engineWithoutTheOptionHasNoDebugger() {
-        final ScriptEngine plain = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine plain = TestEngines.full();
         try {
             Debugger.of(plain);
             fail("expected an IllegalStateException");
@@ -734,7 +735,7 @@ public class DebuggerTest {
         assertEquals(await(result), 2);
 
         // and is nothing without a listener - the plain engine runs through it
-        final ScriptEngine plain = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine plain = TestEngines.full();
         assertEquals(((Number)plain.eval("var b = 2; debugger; b * 2")).intValue(), 4);
     }
 
@@ -777,7 +778,7 @@ public class DebuggerTest {
 
     @Test
     public void aTraceListenerSeesStatementsAndCompletionValues() throws Exception {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final ScriptEngine engine = TestEngines.full("--debugger");
         final Debugger debugger = Debugger.of(engine);
         final List<String> events = new ArrayList<>();
         final TraceListener listener = new TraceListener() {
@@ -816,7 +817,7 @@ public class DebuggerTest {
 
     @Test
     public void tracingIsSilentWithoutAListenerAndStopsWhenRemoved() throws Exception {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final ScriptEngine engine = TestEngines.full("--debugger");
         final Debugger debugger = Debugger.of(engine);
         final List<String> events = new ArrayList<>();
         engine.eval("1 + 1;");   // no listener: nothing anywhere to observe it, and nothing thrown
@@ -835,7 +836,7 @@ public class DebuggerTest {
 
     @Test
     public void aTraceListenerMayReadValuesThroughTheSafePathsWithoutReentry() throws Exception {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final ScriptEngine engine = TestEngines.full("--debugger");
         final Debugger debugger = Debugger.of(engine);
         final List<String> texts = new ArrayList<>();
         final TraceListener listener = new TraceListener() {
@@ -861,7 +862,7 @@ public class DebuggerTest {
 
     @Test
     public void tracingCoexistsWithAPausedSession() throws Exception {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine("--debugger");
+        final ScriptEngine engine = TestEngines.full("--debugger");
         final Debugger debugger = Debugger.of(engine);
         final List<String> events = new ArrayList<>();
         final TraceListener trace = new TraceListener() {

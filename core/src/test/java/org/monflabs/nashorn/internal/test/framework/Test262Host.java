@@ -74,9 +74,14 @@ public final class Test262Host {
             try {
                 // the event loop is off by default; an agent may use async
                 // functions and await Atomics.waitAsync, which need it
+                // AGENT_HOST_OBJECT below is written with Java.type, so this
+                // engine needs the java library the way the main one does
                 final javax.script.ScriptEngine engine =
                         new org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder()
-                                .eventLoop(true).build();
+                                .eventLoop(true)
+                                .library(new org.monflabs.nashorn.libs.NashornLibrary(),
+                                         new org.monflabs.nashorn.libs.JavaLibrary())
+                                .build();
                 engine.eval(AGENT_HOST_OBJECT);
                 engine.eval(source);
             } catch (final Exception e) {

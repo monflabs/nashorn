@@ -54,10 +54,22 @@ public class EvalScript {
         final ScriptEngineManager factory = new ScriptEngineManager();
         // create a JavaScript engine
         final ScriptEngine engine = factory.getEngineByName("nashorn-monflabs");
-        // evaluate JavaScript code from String
-        engine.eval("print('Hello, World')");
+        // evaluate JavaScript code from String, and print what it returned
+        System.out.println(engine.eval("'Hello, ' + 'World'"));
     }
 }
+```
+
+An engine found this way is **bare** — exactly what ECMAScript defines. It has no `print`, and no
+`java` either: those are [Nashorn's own globals](../libraries/nashorn.md) and
+[Java access](../libraries/java.md), and each is a library you add:
+
+```java
+final ScriptEngine engine = new NashornScriptEngineBuilder()
+        .library(new NashornLibrary(), new JavaLibrary())
+        .build();
+engine.eval("print('Hello, World')");
+engine.eval("print(java.lang.System.getProperty('java.version'))");
 ```
 
 Compile, run, and `Hello, World` appears — the exception handling is elided here; `eval` throws

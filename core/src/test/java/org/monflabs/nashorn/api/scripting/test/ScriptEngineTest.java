@@ -52,6 +52,9 @@ import javax.script.CompiledScript;
 import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
@@ -68,6 +71,15 @@ import org.testng.annotations.Test;
  */
 @SuppressWarnings("javadoc")
 public class ScriptEngineTest {
+    /**
+     * An engine carrying the nashorn library, for a test whose subject is one of
+     * the globals it installs. A bare engine has no print, load or JSAdapter
+     * since 2026.1.0 - they are contributed like fetch and the timers are.
+     */
+    private static ScriptEngine nashornEngine() {
+        return new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
+    }
+
 
     private static void log(final String msg) {
         org.testng.Reporter.log(msg, true);
@@ -76,7 +88,7 @@ public class ScriptEngineTest {
     @Test
     public void argumentsTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         final String[] args = new String[] { "hello", "world" };
         try {
@@ -94,7 +106,7 @@ public class ScriptEngineTest {
     @Test
     public void argumentsWithTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         final String[] args = new String[] { "hello", "world" };
         try {
@@ -114,7 +126,7 @@ public class ScriptEngineTest {
     @Test
     public void argumentsEmptyTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         try {
             // The "arguments" global is a Nashorn extension carrying what was
@@ -132,7 +144,7 @@ public class ScriptEngineTest {
     @Test
     public void factoryTests() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         assertNotNull(e);
 
         final ScriptEngineFactory fac = e.getFactory();
@@ -178,8 +190,7 @@ public class ScriptEngineTest {
 
     @Test
     public void evalTests() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         e.put(ScriptEngine.FILENAME, "myfile.js");
 
         try {
@@ -210,8 +221,7 @@ public class ScriptEngineTest {
 
     @Test
     public void compileTests() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         CompiledScript script = null;
 
         try {
@@ -245,7 +255,7 @@ public class ScriptEngineTest {
     @Test
     public void compileAndEvalInDiffContextTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine engine = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine engine = TestEngines.full();
         final Compilable compilable = (Compilable) engine;
         final CompiledScript compiledScript = compilable.compile("foo");
         final ScriptContext ctxt = new SimpleScriptContext();
@@ -256,7 +266,7 @@ public class ScriptEngineTest {
     @Test
     public void accessGlobalTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         try {
             e.eval("var x = 'hello'");
@@ -269,8 +279,7 @@ public class ScriptEngineTest {
 
     @Test
     public void exposeGlobalTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
 
         try {
             e.put("y", "foo");
@@ -283,8 +292,7 @@ public class ScriptEngineTest {
 
     @Test
     public void putGlobalFunctionTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
 
         e.put("callable", new Callable<String>() {
             @Override
@@ -303,8 +311,7 @@ public class ScriptEngineTest {
 
     @Test
     public void windowAlertTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final Window window = new Window();
 
         try {
@@ -319,8 +326,7 @@ public class ScriptEngineTest {
 
     @Test
     public void windowLocationTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final Window window = new Window();
 
         try {
@@ -337,7 +343,7 @@ public class ScriptEngineTest {
     @Test
     public void windowItemTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final Window window = new Window();
 
         try {
@@ -354,8 +360,7 @@ public class ScriptEngineTest {
 
     @Test
     public void windowEventTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final Window window = new Window();
 
         try {
@@ -374,7 +379,7 @@ public class ScriptEngineTest {
     @Test
     public void throwTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         e.put(ScriptEngine.FILENAME, "throwtest.js");
 
         try {
@@ -390,7 +395,7 @@ public class ScriptEngineTest {
     @Test
     public void setTimeoutTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final Window window = new Window();
 
         try {
@@ -413,8 +418,7 @@ public class ScriptEngineTest {
 
     @Test
     public void setWriterTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final StringWriter sw = new StringWriter();
         e.getContext().setWriter(sw);
 
@@ -430,7 +434,7 @@ public class ScriptEngineTest {
     @Test
     public void redefineEchoTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         try {
             e.eval("var echo = {}; if (typeof echo !== 'object') { throw 'echo is a '+typeof echo; }");
@@ -442,7 +446,7 @@ public class ScriptEngineTest {
     @Test
     public void noEnumerablePropertiesTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         try {
             e.eval("for (i in this) { throw 'found property: ' + i }");
         } catch (final Exception exp) {
@@ -454,7 +458,7 @@ public class ScriptEngineTest {
     @Test
     public void noRefErrorForGlobalThisAccessTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         try {
             e.eval("this.foo");
         } catch (final Exception exp) {
@@ -466,7 +470,7 @@ public class ScriptEngineTest {
     @Test
     public void refErrorForUndeclaredAccessTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         try {
             e.eval("try { print(foo); throw 'no ref error' } catch (e) { if (!(e instanceof ReferenceError)) throw e; }");
         } catch (final Exception exp) {
@@ -478,7 +482,7 @@ public class ScriptEngineTest {
     @Test
     public void typeErrorForGlobalThisCallTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         try {
             e.eval("try { this.foo() } catch(e) { if (! (e instanceof TypeError)) throw 'no type error' }");
         } catch (final Exception exp) {
@@ -490,7 +494,7 @@ public class ScriptEngineTest {
     @Test
     public void refErrorForUndeclaredCallTest() {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         try {
             e.eval("try { foo() } catch(e) { if (! (e instanceof ReferenceError)) throw 'no ref error' }");
         } catch (final Exception exp) {
@@ -502,8 +506,7 @@ public class ScriptEngineTest {
     @Test
     // check that print function prints arg followed by newline char
     public void printTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final StringWriter sw = new StringWriter();
         e.getContext().setWriter(sw);
         try {
@@ -519,8 +522,7 @@ public class ScriptEngineTest {
     @Test
     // check that print prints all arguments (more than one)
     public void printManyTest() {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         final StringWriter sw = new StringWriter();
         e.getContext().setWriter(sw);
         try {
@@ -536,7 +538,7 @@ public class ScriptEngineTest {
     @Test
     public void scriptObjectAutoConversionTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         e.eval("obj = { foo: 'hello' }");
         e.put("Window", e.eval("Packages.org.monflabs.nashorn.api.scripting.test.Window"));
         assertEquals(e.eval("Window.funcJSObject(obj)"), "hello");
@@ -549,7 +551,7 @@ public class ScriptEngineTest {
     @Test
     public void checkProxyAccess() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final boolean[] reached = new boolean[1];
         final Runnable r = (Runnable)Proxy.newProxyInstance(
             ScriptEngineTest.class.getClassLoader(),
@@ -595,7 +597,7 @@ public class ScriptEngineTest {
     @Test
     public void checkPropertyReadPermissions() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         for (final String name : PROP_NAMES) {
             checkProperty(e, name);
@@ -606,7 +608,7 @@ public class ScriptEngineTest {
     @Test
     public void withOnMirrorTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         final Object obj = e.eval("({ foo: 'hello'})");
         final Object[] arr = new Object[1];
@@ -619,8 +621,7 @@ public class ScriptEngineTest {
     // @bug 8054223: Nashorn: AssertionError when use __DIR__ and ScriptEngine.eval()
     @Test
     public void check__DIR__Test() throws ScriptException {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
         e.eval("__DIR__");
     }
 
@@ -629,7 +630,7 @@ public class ScriptEngineTest {
     @Test
     public void enumerableGlobalsTest() throws ScriptException {
         final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         e.put(ScriptEngine.FILENAME, "test");
         final Object enumerable = e.eval(
@@ -655,7 +656,7 @@ public class ScriptEngineTest {
     @Test
     public void currentGlobalMissingTest() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         final Context ctx = new Context();
         e.put("ctx", ctx);
@@ -677,7 +678,7 @@ public class ScriptEngineTest {
     @Test
     public void getParameterInvalidKeyTest() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         // no exception expected here!
         final Object value = e.getFactory().getParameter("no value assigned to this key");
         assertNull(value);
@@ -687,7 +688,7 @@ public class ScriptEngineTest {
     @Test
     public void functionalInterfaceStringTest() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final AtomicBoolean invoked = new AtomicBoolean(false);
         e.put("f", new Function<String, String>() {
             @Override
@@ -704,7 +705,7 @@ public class ScriptEngineTest {
     @Test
     public void functionalInterfaceObjectTest() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final AtomicBoolean invoked = new AtomicBoolean(false);
         e.put("c", new Consumer<Object>() {
             @Override
@@ -720,7 +721,7 @@ public class ScriptEngineTest {
 
     @Test
     public void testLengthOnArrayLikeObjects() throws Exception {
-        final ScriptEngine e = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final Object val = e.eval("var arr = { length: 1, 0: 1}; arr.length");
 
         assertTrue(Number.class.isAssignableFrom(val.getClass()));
@@ -731,7 +732,7 @@ public class ScriptEngineTest {
     @Test
     public void illegalBindingsValuesTest() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
 
         try {
             e.put(null, "null-value");
@@ -854,7 +855,7 @@ public class ScriptEngineTest {
     @Test
     public void testScriptContextGetRemoveUndefined() throws Exception {
         final ScriptEngineManager manager = new ScriptEngineManager();
-        final ScriptEngine e = manager.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = TestEngines.full();
         final ScriptContext ctx = e.getContext();
         assertNull(ctx.getAttribute("undefinedname", ScriptContext.ENGINE_SCOPE));
         assertNull(ctx.removeAttribute("undefinedname", ScriptContext.ENGINE_SCOPE));

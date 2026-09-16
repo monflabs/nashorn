@@ -29,6 +29,7 @@
 package org.monflabs.nashorn.api.scripting.test;
 
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import org.testng.annotations.BeforeClass;
@@ -44,7 +45,7 @@ public class JDK_8169050_Test {
 
     @BeforeClass
     public void setupTest() {
-        engine = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+        engine = TestEngines.full();
     }
 
     @Test

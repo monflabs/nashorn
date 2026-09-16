@@ -9,8 +9,14 @@ builder the ones you want, and a bare engine has none of them.
 
 | Library | Provides | Page |
 | --- | --- | --- |
+| `nashorn` | `print`, `load`, `loadWithNewGlobal`, `readLine`, `readFully`, `JSAdapter`, `__FILE__`/`__DIR__`/`__LINE__` | [nashorn](nashorn.md) |
+| `java` | `Java`, `JavaImporter`, `Packages` and the package roots (`java`, `javax`, `com`, …) | [java](java.md) |
 | `host` | `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval`, `queueMicrotask`, `atob`, `btoa` | [host](host.md) |
 | `fetch` | `fetch`, `Headers`, `Request`, `Response` | [fetch](fetch.md) |
+
+The first two are Nashorn's own historical additions, and they are libraries for the same reason as
+the other two: since 2026.1.0 a bare engine has exactly what ECMAScript defines, and everything
+beyond that is contributed on purpose - including the way a script names a Java class.
 
 A separate, experimental artifact — **`nashorn-node`** — adds a
 **[Node module resolver](node.md)**: `import fs from 'fs'` reaches a built-in `fs` module

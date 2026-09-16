@@ -2,7 +2,7 @@
 
 Two objects organise everything at run time. A **`Context`** is an engine instance — one per
 `NashornScriptEngine`, one per `Shell` run. A **`Global`** is a *realm* — one complete set of
-built-ins (`Object`, `Array.prototype`, `print`…) and one global namespace. A Context owns many
+built-ins (`Object`, `Array.prototype`, `JSON`…) and one global namespace. A Context owns many
 Globals; compiled code belongs to the Context and runs against whichever Global is current.
 
 ## What lives where
@@ -68,7 +68,7 @@ silently do not, and nothing is incorrect either way.
 
 Realm construction runs the [nasgen](nasgen.md)-generated property maps, wires lazily-initialised
 builtins behind sentinel getters, applies option-dependent surgery
-([`--annexB=false` deletions](annex-b.md), `--no-java`), and only then tags builtin properties with
+([`--annexB=false` deletions](annex-b.md)), installs whatever libraries the engine was given, and only then tags builtin properties with
 their Context-level switch points — deletions after tagging would invalidate switch points shared
 with every other realm, a mistake the [Annex B implementation](annex-b.md) documents from
 experience.

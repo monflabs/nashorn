@@ -163,19 +163,6 @@ public final class NashornScriptEngineBuilder {
         return option((waitForClient ? "--inspect-brk=" : "--inspect=") + Objects.requireNonNull(hostAndPort, "hostAndPort"));
     }
 
-    /**
-     * Whether scripts may reach Java at all: with {@code false} (the
-     * {@code --no-java} option), {@code Java}, {@code Packages} and the
-     * package globals are gone, and {@code Java.type} with them - the
-     * bluntest sandbox, next to {@link #classFilter} for a finer one.
-     * Java access is on by default.
-     *
-     * @param enabled whether
-     * @return this
-     */
-    public NashornScriptEngineBuilder java(final boolean enabled) {
-        return option("--no-java=" + !enabled);
-    }
 
     /**
      * Whether Nashorn's own syntax extensions - {@code for each},

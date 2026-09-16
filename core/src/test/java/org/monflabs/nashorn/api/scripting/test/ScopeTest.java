@@ -40,6 +40,8 @@ import javax.script.CompiledScript;
 import javax.script.Invocable;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
@@ -56,6 +58,15 @@ import org.testng.annotations.Test;
  */
 @SuppressWarnings("javadoc")
 public class ScopeTest {
+    /**
+     * An engine carrying the nashorn library, for a test whose subject is one of
+     * the globals it installs. A bare engine has no print, load or JSAdapter
+     * since 2026.1.0 - they are contributed like fetch and the timers are.
+     */
+    private static ScriptEngine nashornEngine() {
+        return new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
+    }
+
 
     @Test
     public void createBindingsTest() {
@@ -215,8 +226,10 @@ public class ScopeTest {
     @Test
     // check that engine.js definitions are visible in all new global instances
     public void checkBuiltinsInNewBindingsTest() throws ScriptException {
-        final ScriptEngineManager m = new ScriptEngineManager();
-        final ScriptEngine e = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e = nashornEngine();
+        // the ScriptEngineManager used to supply this; a builder-made engine has
+        // no GLOBAL_SCOPE bindings of its own, and the test needs one below
+        e.getContext().setBindings(new javax.script.SimpleBindings(), ScriptContext.GLOBAL_SCOPE);
 
         // check default global instance has engine.js definitions
         final Bindings g = (Bindings) e.eval("this");

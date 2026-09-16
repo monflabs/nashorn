@@ -38,6 +38,7 @@ import java.util.function.Supplier;
 import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngine;
@@ -107,7 +108,7 @@ public class JavaAdapterTest {
 
     private static ScriptEngine createEngine() {
         // Use no optimistic typing so we run faster; short-running tests.
-        return new NashornScriptEngineFactory().getScriptEngine("-ot=false");
+        return TestEngines.full("-ot=false");
     }
 
     @Test

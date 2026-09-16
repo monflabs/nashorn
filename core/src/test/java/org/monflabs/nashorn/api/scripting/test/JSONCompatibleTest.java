@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptException;
 import org.monflabs.nashorn.api.scripting.JSObject;
 import org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory;
@@ -53,7 +54,7 @@ public class JSONCompatibleTest {
      */
     @Test
     public void testWrapArray() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine engine = TestEngines.full();
         final Object val = engine.eval("Java.asJSONCompatible([1, 2, 3])");
         assertEquals(asList(val), Arrays.asList(1, 2, 3));
     }
@@ -63,7 +64,7 @@ public class JSONCompatibleTest {
      */
     @Test
     public void testWrapObjectWithArray() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine engine = TestEngines.full();
         final Object val = engine.eval("Java.asJSONCompatible({x: [1, 2, 3]})");
         assertEquals(asList(asMap(val).get("x")), Arrays.asList(1, 2, 3));
     }
@@ -73,7 +74,7 @@ public class JSONCompatibleTest {
      */
     @Test
     public void testDeepWrapping() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine engine = TestEngines.full();
         final Object val = engine.eval("Java.asJSONCompatible({x: [1, {y: [2, {z: [3]}]}, [4, 5]]})");
         final Map<String, Object> root = asMap(val);
         final List<Object> x = asList(root.get("x"));
@@ -91,7 +92,7 @@ public class JSONCompatibleTest {
      */
     @Test
     public void testNonWrapping() throws ScriptException {
-        final ScriptEngine engine = new NashornScriptEngineFactory().getScriptEngine();
+        final ScriptEngine engine = TestEngines.full();
         final Object val = engine.eval("({x: [1, {y: [2, {z: [3]}]}, [4, 5]]})");
         final Map<String, Object> root = asMap(val);
         final Map<String, Object> x = asMap(root.get("x"));

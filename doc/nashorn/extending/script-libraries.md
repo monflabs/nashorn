@@ -191,6 +191,7 @@ declared.
 
 ```java
 ScriptEngine engine = new NashornScriptEngineBuilder().library(geometry).build();
+// print itself is a library - NashornLibrary - contributed the same way
 engine.eval("print(circumference(1), area(2), shapes.circle(2).area, clock.instant())");
 
 Bindings other = engine.createBindings();

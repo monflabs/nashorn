@@ -30,6 +30,8 @@
 package org.monflabs.nashorn.api.scripting.test;
 
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder;
+import org.monflabs.nashorn.libs.NashornLibrary;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import org.testng.annotations.Test;
@@ -45,12 +47,11 @@ import org.testng.annotations.Test;
 public class MultipleEngineTest {
     @Test
     public void createAndUseManyEngine() throws ScriptException {
-        final ScriptEngineManager m = new ScriptEngineManager();
-
-        final ScriptEngine e1 = m.getEngineByName("nashorn-monflabs");
+        // print comes from the nashorn library since 2026.1.0; a bare engine has none
+        final ScriptEngine e1 = new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
         e1.eval("var  x = 33; print(x);");
 
-        final ScriptEngine e2 = m.getEngineByName("nashorn-monflabs");
+        final ScriptEngine e2 = new NashornScriptEngineBuilder().library(new NashornLibrary()).build();
         e2.eval("try { print(x) } catch(e) { print(e); }");
     }
 }

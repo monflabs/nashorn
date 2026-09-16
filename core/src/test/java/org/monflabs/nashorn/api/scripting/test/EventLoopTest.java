@@ -74,7 +74,8 @@ public class EventLoopTest {
             });
             return ScriptUtils.undefined();
         });
-        return new NashornScriptEngineBuilder().eventLoop(true).library(ScriptLibrary.of("loop", Map.of("later", later, "cancel", cancel, "soon", soon, "request", request))).build();
+        return new NashornScriptEngineBuilder().eventLoop(true).library(ScriptLibrary.of("loop", Map.of("later", later, "cancel", cancel, "soon", soon, "request", request)),
+                        new org.monflabs.nashorn.libs.JavaLibrary()).build();
     }
 
     private interface Body {

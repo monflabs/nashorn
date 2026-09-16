@@ -45,12 +45,24 @@ completion are **not** provided — wrap the command in `rlwrap` if you want the
 
 ### The standard libraries
 
-Unlike the embeddable engine — which installs nothing unless the builder's `library(...)` is called —
-the shell installs the [standard libraries](../libraries/overview.md) into its engine **by default**,
+The shell always installs the [nashorn](../libraries/nashorn.md) and [java](../libraries/java.md)
+libraries — `print`, `load`, `readLine`, `Java`, `Packages`, the package roots. Neither is optional
+here: a command line whose scripts cannot print is not a command line, and reaching the JVM is most
+of why anyone scripts one. An embedded engine is the other way round and has none of them unless its
+builder asks. **`--std-libraries=false` does not take these away** — it governs the standard
+libraries below. The shell also adds **`exit`** and **`quit`**, which live nowhere else: they call `System.exit`,
+which is no business of a script inside an application. They are there for a script file too, not
+only the prompt — an exit code is a command line's business. `input`/`evalinput` are the
+prompt's alone.
+
+Beyond that, and unlike the embeddable engine — which installs nothing unless the builder's
+`library(...)` is called — the shell installs the
+[standard libraries](../libraries/overview.md) into its engine **by default**,
 so `setTimeout`/`clearTimeout`/`setInterval`, `queueMicrotask`, `atob`/`btoa` and `fetch`/`Headers`/
 `Request`/`Response` are there at the prompt and in a script it runs. This is a shell-only switch,
-not an engine option: pass **`--std-libraries=false`** (or `--no-std-libraries`) for a bare shell with
-none of them — the right setting for reproducing the plain engine's environment.
+not an engine option: pass **`--std-libraries=false`** (or `--no-std-libraries`) for a shell with
+none of them. That still leaves `print` and `Java` in place, so it reproduces an embedded engine
+given the nashorn and java libraries, not a bare one.
 
 Because those libraries need it, the shell also turns the
 [event loop](../libraries/overview.md#the-event-loop) on by default (it is off in a bare engine), so

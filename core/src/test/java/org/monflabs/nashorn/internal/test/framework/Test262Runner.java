@@ -498,8 +498,17 @@ public final class Test262Runner {
             // negative tests are expected to produce parse errors by the thousand;
             // the default limit of 100 would abort the run
             this.errors.setLimit(0);
+            // test262 counts print among the functions a host must provide - its
+            // own harness uses it, doneprintHandle.js reporting an async test's
+            // completion through it - and a bare engine no longer has one, so the
+            // library that carries it is contributed here like any other.
             this.context = new Context(options, errors, outWriter, errWriter,
-                    Thread.currentThread().getContextClassLoader());
+                    Thread.currentThread().getContextClassLoader(), null,
+                    java.util.List.of(new org.monflabs.nashorn.libs.NashornLibrary(),
+                            // the $262 host object this runner installs is built from a
+                            // script that uses Java.type, so the runner needs the java
+                            // library as well - the tests themselves never name a class
+                            new org.monflabs.nashorn.libs.JavaLibrary()));
         }
 
         Result run(final Variant variant) throws IOException {

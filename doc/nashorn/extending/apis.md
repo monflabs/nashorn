@@ -51,7 +51,9 @@ the engine's own business.
 
 ## Script-side extension points
 
-Some of the engine's extensibility is reachable from the script side and needs no Java at all:
+Some of the engine's extensibility is reachable from the script side and needs no Java at all. The
+`Java.*` set comes from the [java library](../libraries/java.md), and `JSAdapter` and `load` from the
+[nashorn library](../libraries/nashorn.md) — an engine given neither has none of this:
 
 - **`Java.extend`** and **`Java.super`** - subclass a Java class or implement an interface from script;
   an object literal supplies the overrides. **`Java.type`**, **`JavaImporter`**, **`Java.to`/`Java.from`**

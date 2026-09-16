@@ -32,7 +32,14 @@ var Factory = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineF
 var fac = new Factory();
 
 // This script has to be given RuntimePermission("nashorn.setConfig")
-var e = fac["getScriptEngine(java.lang.ClassLoader)"](null);
+// Java access is a library since 2026.1.0, and the overload that takes libraries
+// substitutes the application loader for a null one - so the loader that cannot
+// see Nashorn's own classes, which is what this test is about, is made explicitly.
+var TestLibs = java.util.List.of(
+    new (Java.type('org.monflabs.nashorn.libs.NashornLibrary'))(),
+    new (Java.type('org.monflabs.nashorn.libs.JavaLibrary'))());
+var bootOnly = new (Java.type('java.net.URLClassLoader'))(Java.to([], "java.net.URL[]"), null);
+var e = fac["getScriptEngine(java.lang.String[], java.lang.ClassLoader, org.monflabs.nashorn.api.scripting.ClassFilter, java.util.List)"]([], bootOnly, null, TestLibs);
 
 print(e.eval("java.lang.System"));
 print(e.eval("({ foo: 42})").foo);

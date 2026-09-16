@@ -180,26 +180,6 @@ public final class Global extends Scope {
     @Property(attributes = Attribute.NOT_ENUMERABLE)
     public Object unescape;
 
-    /** Nashorn extension: global.print */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public Object print;
-
-    /** Nashorn extension: global.load */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public Object load;
-
-    /** Nashorn extension: global.loadWithNewGlobal */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public Object loadWithNewGlobal;
-
-    /** Nashorn extension: global.exit */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public Object exit;
-
-    /** Nashorn extension: global.quit */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public Object quit;
-
     /** Value property NaN of the Global Object - ECMA 15.1.1.1 NaN */
     @Property(attributes = Attribute.NON_ENUMERABLE_CONSTANT)
     public static final double NaN = Double.NaN;
@@ -325,33 +305,6 @@ public final class Global extends Scope {
     }
 
     private volatile Object json = LAZY_SENTINEL;
-
-    /**
-     * Getter for Nashorn extension: global.JSAdapter
-     * @param self self reference
-     * @return value of the JSAdapter property
-     */
-    @Getter(name = "JSAdapter", attributes = Attribute.NOT_ENUMERABLE)
-    public static Object getJSAdapter(final Object self) {
-        final Global global = Global.instanceFrom(self);
-        if (global.jsadapter == LAZY_SENTINEL) {
-            global.jsadapter = global.getBuiltinJSAdapter();
-        }
-        return global.jsadapter;
-    }
-
-    /**
-     * Setter for Nashorn extension: global.JSAdapter
-     * @param self self reference
-     * @param value value for the JSAdapter property
-     */
-    @Setter(name = "JSAdapter", attributes = Attribute.NOT_ENUMERABLE)
-    public static void setJSAdapter(final Object self, final Object value) {
-        final Global global = Global.instanceFrom(self);
-        global.jsadapter = value;
-    }
-
-    private volatile Object jsadapter = LAZY_SENTINEL;
 
     /** ECMA 15.8 - The Math object */
     @Property(name = "Math", attributes = Attribute.NOT_ENUMERABLE)
@@ -1189,103 +1142,17 @@ public final class Global extends Scope {
 
     private volatile Object finalizationRegistry;
 
-    /** Nashorn extension: Java access - global.Packages */
-    @Property(name = "Packages", attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object packages;
-
-    /** Nashorn extension: Java access - global.com */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object com;
-
-    /** Nashorn extension: Java access - global.edu */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object edu;
-
-    /** Nashorn extension: Java access - global.java */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object java;
-
-    /** Nashorn extension: Java access - global.javafx */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object javafx;
-
-    /** Nashorn extension: Java access - global.javax */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object javax;
-
-    /** Nashorn extension: Java access - global.org */
-    @Property(attributes = Attribute.NOT_ENUMERABLE)
-    public volatile Object org;
 
     /**
-     * Getter for the Nashorn extension: Java access - global.JavaImporter.
+     * The value a location constant holds until it is read.
      *
-     * @param self self reference
-     * @return the value of the JavaImporter property
+     * {@code __FILE__}, {@code __DIR__} and {@code __LINE__} are not installed
+     * unless the nashorn library is - see {@link #installNashornExtensions()} -
+     * and they are ordinary properties whose value is this placeholder, which
+     * {@code replaceLocationPropertyPlaceholder} swaps for the real location as
+     * the read happens.
      */
-    @Getter(name = "JavaImporter", attributes = Attribute.NOT_ENUMERABLE)
-    public static Object getJavaImporter(final Object self) {
-        final Global global = Global.instanceFrom(self);
-        if (global.javaImporter == LAZY_SENTINEL) {
-            global.javaImporter = global.getBuiltinJavaImporter();
-        }
-        return global.javaImporter;
-    }
-
-    /**
-     * Setter for the Nashorn extension: Java access - global.JavaImporter.
-     *
-     * @param self self reference
-     * @param value value of the JavaImporter property
-     */
-    @Setter(name = "JavaImporter", attributes = Attribute.NOT_ENUMERABLE)
-    public static void setJavaImporter(final Object self, final Object value) {
-        final Global global = Global.instanceFrom(self);
-        global.javaImporter = value;
-    }
-
-    private volatile Object javaImporter;
-
-    /**
-     * Getter for the Nashorn extension: global.Java property.
-     *
-     * @param self self reference
-     * @return the value of the Java property
-     */
-    @Getter(name = "Java", attributes = Attribute.NOT_ENUMERABLE)
-    public static Object getJavaApi(final Object self) {
-        final Global global = Global.instanceFrom(self);
-        if (global.javaApi == LAZY_SENTINEL) {
-            global.javaApi = global.getBuiltinJavaApi();
-        }
-        return global.javaApi;
-    }
-
-    /**
-     * Setter for the Nashorn extension: global.Java property.
-     *
-     * @param self self reference
-     * @param value value of the Java property
-     */
-    @Setter(name = "Java", attributes = Attribute.NOT_ENUMERABLE)
-    public static void setJavaApi(final Object self, final Object value) {
-        final Global global = Global.instanceFrom(self);
-        global.javaApi = value;
-    }
-
-    private volatile Object javaApi;
-
-    /** Nashorn extension: current script's file name */
-    @Property(name = "__FILE__", attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public static final Object __FILE__ = LOCATION_PLACEHOLDER;
-
-    /** Nashorn extension: current script's directory */
-    @Property(name = "__DIR__", attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public static final Object __DIR__ = LOCATION_PLACEHOLDER;
-
-    /** Nashorn extension: current source line number being executed */
-    @Property(name = "__LINE__", attributes = Attribute.NON_ENUMERABLE_CONSTANT)
-    public static final Object __LINE__ = LOCATION_PLACEHOLDER;
+    private static final Object FILE_CONSTANT = LOCATION_PLACEHOLDER;
 
     private volatile NativeDate DEFAULT_DATE;
 
@@ -3211,9 +3078,6 @@ public final class Global extends Scope {
     }
 
     private synchronized ScriptFunction getBuiltinJavaImporter() {
-        if (getContext().getEnv()._no_java) {
-            throw new IllegalStateException();
-        }
         if (this.builtinJavaImporter == null) {
             this.builtinJavaImporter = initConstructor("JavaImporter", ScriptFunction.class);
         }
@@ -3221,9 +3085,6 @@ public final class Global extends Scope {
     }
 
     private synchronized ScriptObject getBuiltinJavaApi() {
-        if (getContext().getEnv()._no_java) {
-            throw new IllegalStateException();
-        }
         if (this.builtinJavaApi == null) {
             this.builtinJavaApi = initConstructor("Java", ScriptObject.class);
             this.builtInJavaExtend = (ScriptFunction)builtinJavaApi.get("extend");
@@ -3788,6 +3649,22 @@ public final class Global extends Scope {
 
         value = ScriptFunction.createBuiltin("evalinput", ShellFunctions.EVALINPUT);
         addOwnProperty("evalinput", Attribute.NOT_ENUMERABLE, value);
+
+    }
+
+    /**
+     * Adds {@code exit} and {@code quit} - a command line's way to choose an exit
+     * code.
+     *
+     * They call {@code System.exit}, which a script embedded in an application
+     * has no business doing, so they are not in the nashorn library. They are not
+     * only for the prompt either: a script the shell runs sets an exit code the
+     * same way, which is why this is separate from {@link #addShellBuiltins()}.
+     */
+    public void addExitBuiltins() {
+        final Object value = ScriptFunction.createBuiltin("exit", EXIT);
+        addOwnProperty("exit", Attribute.NOT_ENUMERABLE, value);
+        addOwnProperty("quit", Attribute.NOT_ENUMERABLE, value);
     }
 
     private synchronized SwitchPoint getLexicalScopeSwitchPoint() {
@@ -3881,12 +3758,6 @@ public final class Global extends Scope {
         this.decodeURIComponent = ScriptFunction.createBuiltin("decodeURIComponent", GlobalFunctions.DECODE_URICOMPONENT);
         this.escape             = ScriptFunction.createBuiltin("escape",     GlobalFunctions.ESCAPE);
         this.unescape           = ScriptFunction.createBuiltin("unescape",   GlobalFunctions.UNESCAPE);
-        this.print              = ScriptFunction.createBuiltin("print",      env._print_no_newline ? PRINT : PRINTLN);
-        this.load               = ScriptFunction.createBuiltin("load",       LOAD);
-        this.loadWithNewGlobal  = ScriptFunction.createBuiltin("loadWithNewGlobal", LOAD_WITH_NEW_GLOBAL);
-        this.exit               = ScriptFunction.createBuiltin("exit",       EXIT);
-        this.quit               = ScriptFunction.createBuiltin("quit",       EXIT);
-
         // built-in constructors
         this.builtinArray     = initConstructorAndSwitchPoint("Array", ScriptFunction.class);
         this.builtinBoolean   = initConstructorAndSwitchPoint("Boolean", ScriptFunction.class);
@@ -3949,24 +3820,6 @@ public final class Global extends Scope {
         // Error stuff
         initErrorObjects();
 
-        // java access
-        if (! env._no_java) {
-            this.javaApi = LAZY_SENTINEL;
-            this.javaImporter = LAZY_SENTINEL;
-            initJavaAccess();
-        } else {
-            // delete nasgen-created global properties related to java access
-            this.delete("Java", false);
-            this.delete("JavaImporter", false);
-            this.delete("Packages", false);
-            this.delete("com", false);
-            this.delete("edu", false);
-            this.delete("java", false);
-            this.delete("javafx", false);
-            this.delete("javax", false);
-            this.delete("org", false);
-        }
-
         if (!env._annexB) {
             removeAnnexB();
         }   // the Annex B aliases are installed with their built-ins, before tagging
@@ -4007,8 +3860,6 @@ public final class Global extends Scope {
             this.delete("BigInt64Array", false);
             this.delete("BigUint64Array", false);
         }
-
-        initIOFunctions();
 
         if (Context.DEBUG) {
             initDebug();
@@ -4087,7 +3938,35 @@ public final class Global extends Scope {
         return cons;
     }
 
-    private void initJavaAccess() {
+    /**
+     * Installs the Java-access globals, for the {@code java}
+     * {@link org.monflabs.nashorn.libs.JavaLibrary library} that contributes them.
+     *
+     * {@code Java}, {@code JavaImporter}, {@code Packages} and the package roots
+     * are the whole of a script's reach into the JVM by name, and since 2026.1.0
+     * an engine has them only if it was given this library. That replaced
+     * {@code --no-java}, which did the same job by deleting the properties again
+     * after nasgen had put them in every global's map.
+     *
+     * The {@code Java} object and {@code JavaImporter} were lazy properties
+     * before, built on first read. They are built here instead: an engine that
+     * did not ask for Java access no longer pays for the accessors, and one that
+     * did is going to read them.
+     */
+    public void installJavaAccess() {
+        initJavaPackages();
+        addOwnProperty("Packages", Attribute.NOT_ENUMERABLE, builtinPackages);
+        addOwnProperty("com", Attribute.NOT_ENUMERABLE, builtinCom);
+        addOwnProperty("edu", Attribute.NOT_ENUMERABLE, builtinEdu);
+        addOwnProperty("java", Attribute.NOT_ENUMERABLE, builtinJava);
+        addOwnProperty("javafx", Attribute.NOT_ENUMERABLE, builtinJavafx);
+        addOwnProperty("javax", Attribute.NOT_ENUMERABLE, builtinJavax);
+        addOwnProperty("org", Attribute.NOT_ENUMERABLE, builtinOrg);
+        addOwnProperty("Java", Attribute.NOT_ENUMERABLE, getBuiltinJavaApi());
+        addOwnProperty("JavaImporter", Attribute.NOT_ENUMERABLE, getBuiltinJavaImporter());
+    }
+
+    private void initJavaPackages() {
         final ScriptObject objectProto = getObjectPrototype();
         this.builtinPackages = new NativeJavaPackage("", objectProto);
         this.builtinCom = new NativeJavaPackage("com", objectProto);
@@ -4149,14 +4028,37 @@ public final class Global extends Scope {
     }
 
     /**
-     * Installs the two host I/O extensions, {@code readLine} and {@code readFully}.
+     * Installs the globals Nashorn adds to the language, for the {@code nashorn}
+     * {@link org.monflabs.nashorn.libs.NashornLibrary library} that contributes them.
+     *
+     * None of these are ECMAScript. A bare engine has none of them, the way it
+     * has no {@code fetch} and no timers: an embedder that wants {@code print}
+     * and {@code load} hands the library to the builder and gets them in every
+     * realm of that engine. Java access is the exception and is not here - it
+     * has {@code --no-java} of its own.
+     *
+     * {@code exit} and {@code quit} are not here either. They call
+     * {@code System.exit}, which is no business of a script embedded in an
+     * application, so they belong to the shell - see {@link #addShellBuiltins()}.
      */
-    private void initIOFunctions() {
-        ScriptObject value = ScriptFunction.createBuiltin("readLine", IOFunctions.READLINE);
-        addOwnProperty("readLine", Attribute.NOT_ENUMERABLE, value);
-
-        value = ScriptFunction.createBuiltin("readFully", IOFunctions.READFULLY);
-        addOwnProperty("readFully", Attribute.NOT_ENUMERABLE, value);
+    public void installNashornExtensions() {
+        final ScriptEnvironment env = getContext().getEnv();
+        addOwnProperty("print", Attribute.NOT_ENUMERABLE,
+                ScriptFunction.createBuiltin("print", env._print_no_newline ? PRINT : PRINTLN));
+        addOwnProperty("load", Attribute.NOT_ENUMERABLE,
+                ScriptFunction.createBuiltin("load", LOAD));
+        addOwnProperty("loadWithNewGlobal", Attribute.NOT_ENUMERABLE,
+                ScriptFunction.createBuiltin("loadWithNewGlobal", LOAD_WITH_NEW_GLOBAL));
+        addOwnProperty("readLine", Attribute.NOT_ENUMERABLE,
+                ScriptFunction.createBuiltin("readLine", IOFunctions.READLINE));
+        addOwnProperty("readFully", Attribute.NOT_ENUMERABLE,
+                ScriptFunction.createBuiltin("readFully", IOFunctions.READFULLY));
+        // built eagerly: the lazy getter it used to have was a property of the
+        // global's own map, which is exactly what this no longer occupies
+        addOwnProperty("JSAdapter", Attribute.NOT_ENUMERABLE, getBuiltinJSAdapter());
+        addOwnProperty("__FILE__", Attribute.NON_ENUMERABLE_CONSTANT, FILE_CONSTANT);
+        addOwnProperty("__DIR__", Attribute.NON_ENUMERABLE_CONSTANT, FILE_CONSTANT);
+        addOwnProperty("__LINE__", Attribute.NON_ENUMERABLE_CONSTANT, FILE_CONSTANT);
     }
 
     private void copyBuiltins() {
@@ -4164,19 +4066,12 @@ public final class Global extends Scope {
         this._boolean          = this.builtinBoolean;
         this.error             = this.builtinError;
         this.function          = this.builtinFunction;
-        this.com               = this.builtinCom;
-        this.edu               = this.builtinEdu;
-        this.java              = this.builtinJava;
-        this.javafx            = this.builtinJavafx;
-        this.javax             = this.builtinJavax;
-        this.org               = this.builtinOrg;
         this.math              = this.builtinMath;
         this.reflect           = this.builtinReflect;
         this.promise           = this.builtinPromise;
         this.proxy             = this.builtinProxy;
         this.number            = this.builtinNumber;
         this.object            = this.builtinObject;
-        this.packages          = this.builtinPackages;
         this.referenceError    = this.builtinReferenceError;
         this.string            = this.builtinString;
         this.syntaxError       = this.builtinSyntaxError;

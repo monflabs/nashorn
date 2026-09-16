@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import org.monflabs.nashorn.test.tools.TestEngines;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import org.testng.TestNG;
@@ -59,7 +60,7 @@ public class ArrayConversionTest {
 
     @BeforeClass
     public static void setUpClass() {
-        e = new ScriptEngineManager().getEngineByName("nashorn-monflabs");
+        e = TestEngines.full();
     }
 
     @AfterClass

@@ -27,10 +27,12 @@
  * @run
  */
 
-var factory = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineFactory')
-var engine  = new factory().getScriptEngine(function(str){
+var Builder = Java.type('org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder');
+var NashornLibrary = Java.type('org.monflabs.nashorn.libs.NashornLibrary');
+// the nested engine calls load, which the nashorn library carries since 2026.1.0
+var engine  = new Builder().classFilter(function(str){
     return str.indexOf('java.util') != -1;
-})
+}).library(new NashornLibrary(), new (Java.type('org.monflabs.nashorn.libs.JavaLibrary'))()).build()
 
 load("nashorn:mozilla_compat.js");
 engine.eval("load('nashorn:mozilla_compat.js');")

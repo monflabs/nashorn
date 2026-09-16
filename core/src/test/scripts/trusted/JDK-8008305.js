@@ -33,8 +33,10 @@ var FileReader = Java.type("java.io.FileReader");
 var ScriptEngineManager = Java.type("javax.script.ScriptEngineManager");
 var SecurityException = Java.type("java.lang.SecurityException");
 
-var m = new ScriptEngineManager();
-var e = m.getEngineByName("nashorn-monflabs");
+// the subtest reaches Java, which is a library since 2026.1.0
+var Builder = Java.type("org.monflabs.nashorn.api.scripting.NashornScriptEngineBuilder");
+var JavaLibrary = Java.type("org.monflabs.nashorn.libs.JavaLibrary");
+var e = new Builder().library(new JavaLibrary()).build();
 
 
 // subtest script file

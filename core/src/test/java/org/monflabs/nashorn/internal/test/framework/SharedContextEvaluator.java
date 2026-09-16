@@ -109,7 +109,13 @@ public final class SharedContextEvaluator implements ScriptEvaluator {
         final Options options = new Options("nashorn", werr);
         options.process(args);
         final ErrorManager errors = new ErrorManager(werr);
-        this.context = new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader());
+        // The script tests are written in Nashorn's dialect - print is how almost
+        // every one of them reports, and 230 of them call load - so the library
+        // that carries those is contributed here. The other evaluator runs through
+        // Shell, which installs it itself.
+        this.context = new Context(options, errors, wout, werr, Thread.currentThread().getContextClassLoader(),
+                null, java.util.List.of(new org.monflabs.nashorn.libs.NashornLibrary(),
+                        new org.monflabs.nashorn.libs.JavaLibrary()));
     }
 
     @Override
