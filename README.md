@@ -1,5 +1,10 @@
 # Nashorn Monflabs Engine
 
+[![Maven Central](https://img.shields.io/maven-central/v/org.monflabs.nashorn/nashorn-core?label=Maven%20Central)](https://central.sonatype.com/artifact/org.monflabs.nashorn/nashorn-core)
+[![Run Tests](https://github.com/monflabs/nashorn/actions/workflows/run-tests.yml/badge.svg)](https://github.com/monflabs/nashorn/actions/workflows/run-tests.yml)
+[![JDK 25+](https://img.shields.io/badge/JDK-25%2B-blue)](https://openjdk.org/projects/jdk/25/)
+[![License](https://img.shields.io/badge/license-GPLv2%20%2B%20CPE-blue)](LICENSE)
+
 > **This is a fork.** It descends from OpenJDK Nashorn
 > ([openjdk/nashorn](https://github.com/openjdk/nashorn), version 15.7) and is
 > **not affiliated with or endorsed by Oracle or the OpenJDK project**. It is
