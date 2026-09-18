@@ -64,26 +64,26 @@ libraries, module loaders. For a plain engine,
 `new ScriptEngineManager().getEngineByName("nashorn-monflabs")` works too — the
 fork registers under its own name only, never plain `nashorn`, so a JSR-223 lookup
 never resolves here by accident. There is also a command-line
-[shell](doc/nashorn/reference/shell.md) in the same artifact.
+[shell](https://monflabs.github.io/nashorn/#/reference/shell.md) in the same artifact.
 
 ## What it can do
 
 | | |
 | --- | --- |
 | **The whole language** | ECMAScript 2026 (ECMA-262, 17th edition) and its Annex B, measured against `tc39/test262`. Two documented exclusions: proper tail calls and ECMA-402. [Details](#the-language) |
-| **Java interop** | The reason to run JavaScript on the JVM. `Java.type`, `Java.extend`/`Java.super` to subclass a class or implement an interface from script, `JavaImporter`, bean property and overload resolution, a script function passed anywhere a SAM interface is wanted, and arrays and collections converted in both directions. [Guide](doc/nashorn/guide/connecting-with-java.md) |
-| **Embedding** | `javax.script` with `Compilable` and `Invocable`, a typed [builder](doc/nashorn/guide/engine-setup.md) for everything else, `ScriptObjectMirror` and `JSObject` at the boundary, and one realm per `Bindings` so threads and tenants stay apart. |
-| **Asynchrony** | An optional [event loop](doc/nashorn/libraries/overview.md#the-event-loop) per realm — off by default, so a synchronous embedder pays nothing. With it on, `eval` returns when the script is *idle*. Generators, `async` functions and async generators suspend on **virtual threads** rather than a compiler-built state machine, so `try`/`finally`, labelled breaks and deoptimisation work inside them unchanged. |
-| **Extending the engine** | [Script libraries](doc/nashorn/extending/script-libraries.md) install globals, scripts and prototype extensions into every realm, from Java or from JavaScript. [Module loaders](doc/nashorn/extending/module-loaders.md) decide where `import` looks: a directory, class-path resources, Java values, or your own. Both are handed to the builder — nothing is auto-discovered. |
-| **Host libraries** | The functions every JavaScript host has and ECMAScript does not define: [timers](doc/nashorn/libraries/host.md), `queueMicrotask`, `atob`/`btoa`, and [`fetch`](doc/nashorn/libraries/fetch.md) with `Headers`/`Request`/`Response`. |
-| **Node modules** | An experimental [resolver](doc/nashorn/libraries/node.md) for `fs`, `buffer`, `os` and `path`, reached as `import fs from 'fs'`. |
-| **Debugging** | A [Chrome DevTools Protocol](doc/nashorn/guide/debugging.md) server: `--inspect` and attach Chrome or VS Code, exactly as with Node. Breakpoints, stepping, scopes, watches, frame evaluation. |
+| **Java interop** | The reason to run JavaScript on the JVM. `Java.type`, `Java.extend`/`Java.super` to subclass a class or implement an interface from script, `JavaImporter`, bean property and overload resolution, a script function passed anywhere a SAM interface is wanted, and arrays and collections converted in both directions. [Guide](https://monflabs.github.io/nashorn/#/guide/connecting-with-java.md) |
+| **Embedding** | `javax.script` with `Compilable` and `Invocable`, a typed [builder](https://monflabs.github.io/nashorn/#/guide/engine-setup.md) for everything else, `ScriptObjectMirror` and `JSObject` at the boundary, and one realm per `Bindings` so threads and tenants stay apart. |
+| **Asynchrony** | An optional [event loop](https://monflabs.github.io/nashorn/#/libraries/overview.md?id=the-event-loop) per realm — off by default, so a synchronous embedder pays nothing. With it on, `eval` returns when the script is *idle*. Generators, `async` functions and async generators suspend on **virtual threads** rather than a compiler-built state machine, so `try`/`finally`, labelled breaks and deoptimisation work inside them unchanged. |
+| **Extending the engine** | [Script libraries](https://monflabs.github.io/nashorn/#/extending/script-libraries.md) install globals, scripts and prototype extensions into every realm, from Java or from JavaScript. [Module loaders](https://monflabs.github.io/nashorn/#/extending/module-loaders.md) decide where `import` looks: a directory, class-path resources, Java values, or your own. Both are handed to the builder — nothing is auto-discovered. |
+| **Host libraries** | The functions every JavaScript host has and ECMAScript does not define: [timers](https://monflabs.github.io/nashorn/#/libraries/host.md), `queueMicrotask`, `atob`/`btoa`, and [`fetch`](https://monflabs.github.io/nashorn/#/libraries/fetch.md) with `Headers`/`Request`/`Response`. |
+| **Node modules** | An experimental [resolver](https://monflabs.github.io/nashorn/#/libraries/node.md) for `fs`, `buffer`, `os` and `path`, reached as `import fs from 'fs'`. |
+| **Debugging** | A [Chrome DevTools Protocol](https://monflabs.github.io/nashorn/#/guide/debugging.md) server: `--inspect` and attach Chrome or VS Code, exactly as with Node. Breakpoints, stepping, scopes, watches, frame evaluation. |
 | **An embeddable debugger UI** | A Swing panel laid out like the DevTools Sources view, for putting a debugger inside your own Java application. It speaks the same protocol over an **in-process channel** — no port, no socket, nothing reachable from outside the JVM. |
-| **Sandboxing** | A [`ClassFilter`](doc/nashorn/guide/custom-objects.md#classfilter) decides class by class what a script may reach; leaving the `java` library out removes the Java bridge entirely; the engine can be given a class path or module layer of its own. |
-| **Tooling** | A public AST — the [parser API](doc/nashorn/internals/parser-api.md) — for linters, rewriters and analysers that must not depend on internals. |
-| **Performance** | Scripts compile to JVM bytecode and link through `invokedynamic`; no interpreter tier. [Optimistic typing](doc/nashorn/internals/optimistic-typing.md) is on by default, and a [perf gate](doc/nashorn/internals/performance.md) runs on every push. |
-| **The playground** | A Swing sample browser with an editor, a console and the debugger a click away — the whole feature set as runnable, editable samples. Build the jar, run it locally. [More](doc/nashorn/guide/playground.md) |
-| **Documentation** | A [complete, current doc site](doc/nashorn/README.md): user's guide, extension guide, standard libraries, engine internals, and the option and built-in reference. |
+| **Sandboxing** | A [`ClassFilter`](https://monflabs.github.io/nashorn/#/guide/custom-objects.md?id=classfilter) decides class by class what a script may reach; leaving the `java` library out removes the Java bridge entirely; the engine can be given a class path or module layer of its own. |
+| **Tooling** | A public AST — the [parser API](https://monflabs.github.io/nashorn/#/internals/parser-api.md) — for linters, rewriters and analysers that must not depend on internals. |
+| **Performance** | Scripts compile to JVM bytecode and link through `invokedynamic`; no interpreter tier. [Optimistic typing](https://monflabs.github.io/nashorn/#/internals/optimistic-typing.md) is on by default, and a [perf gate](https://monflabs.github.io/nashorn/#/internals/performance.md) runs on every push. |
+| **The playground** | A Swing sample browser with an editor, a console and the debugger a click away — the whole feature set as runnable, editable samples. Build the jar, run it locally. [More](https://monflabs.github.io/nashorn/#/guide/playground.md) |
+| **Documentation** | A [complete, current doc site](https://monflabs.github.io/nashorn/): user's guide, extension guide, standard libraries, engine internals, and the option and built-in reference. |
 
 Two practical properties worth knowing: `nashorn-core` has **no dependencies at
 all** — it generates bytecode with the JDK's own `java.lang.classfile` — and
@@ -135,33 +135,34 @@ Deliberately **not** implemented: proper tail calls, and ECMA-402
 `Atomics.pause` and import defer belong to ES2027 and are out of scope for now.
 
 Beyond the specification, the engine ships optional
-[standard libraries](doc/nashorn/libraries/overview.md) — timers,
+[standard libraries](https://monflabs.github.io/nashorn/#/libraries/overview.md) — timers,
 `queueMicrotask`, `atob`/`btoa`, `fetch` — an
-[event loop](doc/nashorn/libraries/overview.md#the-event-loop), a
-[Chrome DevTools Protocol debugger](doc/nashorn/guide/debugging.md), and an
-experimental [Node module resolver](doc/nashorn/libraries/node.md)
+[event loop](https://monflabs.github.io/nashorn/#/libraries/overview.md?id=the-event-loop), a
+[Chrome DevTools Protocol debugger](https://monflabs.github.io/nashorn/#/guide/debugging.md), and an
+experimental [Node module resolver](https://monflabs.github.io/nashorn/#/libraries/node.md)
 (`fs`, `buffer`, `os`, `path`).
 
 ## Documentation
 
-- **[The documentation site](doc/nashorn/README.md)** — user's guide (embedding,
-  Java interop, [script libraries](doc/nashorn/extending/script-libraries.md),
-  [modules](doc/nashorn/guide/modules.md),
-  [debugging with Chrome DevTools or VS Code](doc/nashorn/guide/debugging.md)), a
+- **[The documentation site](https://monflabs.github.io/nashorn/)** — user's guide (embedding,
+  Java interop, [script libraries](https://monflabs.github.io/nashorn/#/extending/script-libraries.md),
+  [modules](https://monflabs.github.io/nashorn/#/guide/modules.md),
+  [debugging with Chrome DevTools or VS Code](https://monflabs.github.io/nashorn/#/guide/debugging.md)), a
   technical guide to the engine's internals, and the
-  [option](doc/nashorn/reference/options.md) and
-  [built-in](doc/nashorn/reference/builtins.md) reference.
-- **[JavaDoc](https://www.javadoc.io/doc/org.monflabs.nashorn/nashorn-core)** — the
-  public API.
+  [option](https://monflabs.github.io/nashorn/#/reference/options.md) and
+  [built-in](https://monflabs.github.io/nashorn/#/reference/builtins.md) reference.
+- **[API javadoc](https://monflabs.github.io/nashorn/#/reference/api.md)** — the
+  public API, generated into the site from the same revision; also on
+  [javadoc.io](https://www.javadoc.io/doc/org.monflabs.nashorn/nashorn-core).
 - **[Changes from upstream](doc/CHANGES-FROM-UPSTREAM.md)** — the language this
   fork adds, the new APIs, the flags that changed.
 - **[Conformance](doc/CONFORMANCE.md)** — what `test262` says, and what the
   exclusions actually contain.
-- **[Performance](doc/nashorn/internals/performance.md)** and the
-  [catalogue of optimizations over 15.7](doc/nashorn/reference/optimizations.md).
+- **[Performance](https://monflabs.github.io/nashorn/#/internals/performance.md)** and the
+  [catalogue of optimizations over 15.7](https://monflabs.github.io/nashorn/#/reference/optimizations.md).
 
 To try the engine interactively, build and run
-[the playground](doc/nashorn/guide/playground.md):
+[the playground](https://monflabs.github.io/nashorn/#/guide/playground.md):
 
 ```
 mvn -pl playground -am package
@@ -246,8 +247,8 @@ report, `-Prun` to execute a sample script through the engine, and `-Prelease` t
 build the signed artifacts for publication.
 
 Cutting a release, and the version-numbering rules that go with it, are
-[Building](doc/nashorn/project/building.md) and
-[Releasing](doc/nashorn/project/releasing.md).
+[Building](https://monflabs.github.io/nashorn/#/project/building.md) and
+[Releasing](https://monflabs.github.io/nashorn/#/project/releasing.md).
 
 ## Contributing
 
