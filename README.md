@@ -161,8 +161,17 @@ experimental [Node module resolver](https://monflabs.github.io/nashorn/#/librari
 - **[Performance](https://monflabs.github.io/nashorn/#/internals/performance.md)** and the
   [catalogue of optimizations over 15.7](https://monflabs.github.io/nashorn/#/reference/optimizations.md).
 
-To try the engine interactively, build and run
-[the playground](https://monflabs.github.io/nashorn/#/guide/playground.md):
+To try the engine interactively, download
+[the playground](https://monflabs.github.io/nashorn/#/guide/playground.md) from the
+[latest release](https://github.com/monflabs/nashorn/releases/latest) — one jar, nothing to
+build:
+
+```
+java -jar nashorn-playground-2026.0.0-all.jar
+```
+
+Or build it from source, which is what you want when the playground should run your own engine
+changes:
 
 ```
 mvn -pl playground -am package

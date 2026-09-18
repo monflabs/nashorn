@@ -2,7 +2,26 @@
 
 The reactor ships a small Swing application whose whole purpose is to let you try the engine:
 a library of samples with an editor, a console, and the debugger a click away. It is an example
-application rather than a library — built as an executable jar, not published to Maven Central.
+application rather than a library — an executable jar attached to each GitHub release, not a
+Maven Central artifact.
+
+## Getting it
+
+**A ready-to-run jar is attached to every GitHub release** — nothing to build, and the only
+requirement is a JDK 25 or newer:
+
+```
+# https://github.com/monflabs/nashorn/releases/latest
+java -jar nashorn-playground-2026.0.0-all.jar
+```
+
+Download it from the
+[latest release](https://github.com/monflabs/nashorn/releases/latest) (about 6 MB, everything
+shaded in: the engine, the debugger, the Node modules and the UI), or go straight to
+[nashorn-playground-2026.0.0-all.jar](https://github.com/monflabs/nashorn/releases/download/v2026.0.0/nashorn-playground-2026.0.0-all.jar).
+
+Building it yourself works too, and is what to do when you want the playground to run *your*
+engine changes:
 
 ```
 mvn -pl playground -am package

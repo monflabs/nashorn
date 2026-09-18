@@ -85,9 +85,9 @@ is a niche `sh`, Node and Python have taken, and ECMAScript covers what remains.
 dependency, [creating](guide/engine-setup.md) and [using](guide/using-the-engine.md) engines, calling
 script from Java and Java from script, building custom host objects, ES modules, threads and realms.
 It ends with [debugging scripts](guide/debugging.md) from Chrome DevTools or VS Code, and with [the
-playground](guide/playground.md) — a runnable sample browser (`java -jar
-playground/target/nashorn-playground-2026.0.0-all.jar` after `mvn -pl playground -am package`) whose
-library walks the language and the extensions one sample at a time.
+playground](guide/playground.md) — a runnable sample browser, [downloadable as one
+jar](https://github.com/monflabs/nashorn/releases/latest) from any release, whose library walks the
+language and the extensions one sample at a time.
 
 **[Extensions and Enhancements](extending/apis.md)** — for giving scripts more than the language: the
 public APIs an extension is built from, [objects implemented in Java](extending/java-objects.md) with
