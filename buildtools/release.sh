@@ -37,10 +37,12 @@
 # release from a pushed main has already rebuilt it.
 #
 # SECURITY - the script holds no secrets and puts none on a command line:
-#   * Central token   -> read by Maven from ~/.m2/settings.xml <server id=central>.
-#                        Encrypt it with `mvn --encrypt-password` + a master
-#                        password in settings-security.xml so it is not on disk
-#                        in the clear.
+#   * Central token   -> kept in the macOS Keychain (generic password, service
+#                        "central-token"; CENTRAL_TOKEN_ITEM to change it). The
+#                        script reads it into CENTRAL_TOKEN for this run only,
+#                        and ~/.m2/settings.xml <server id=central> uses it as
+#                        <password>${env.CENTRAL_TOKEN}</password>. An already
+#                        set CENTRAL_TOKEN is used as is (e.g. on CI).
 #   * GPG passphrase  -> supplied interactively by gpg-agent/pinentry at sign
 #                        time; never passed as -Dgpg.passphrase.
 #   * GitHub auth     -> the `gh` CLI keyring; the script never sees a token.
@@ -144,8 +146,27 @@ else
   die "gpg with a secret key is required; Central needs signed artifacts"
 fi
 
-grep -q '<id>central</id>' "${HOME}/.m2/settings.xml" 2>/dev/null \
-  || warn "no <server><id>central</id> found in ~/.m2/settings.xml; a real deploy needs the Portal token"
+# The Central Portal token: settings.xml reads it from the environment, and it is
+# kept in the macOS Keychain, read here for this run only (never printed).
+CENTRAL_TOKEN_ITEM="${CENTRAL_TOKEN_ITEM:-central-token}"
+if [ "${RELEASE_SKIP_CENTRAL:-}" != "1" ]; then
+  if ! grep -q '<id>central</id>' "${HOME}/.m2/settings.xml" 2>/dev/null; then
+    gate "no <server><id>central</id> in ~/.m2/settings.xml; a real deploy needs the Portal token"
+  elif ! grep -qF '${env.CENTRAL_TOKEN}' "${HOME}/.m2/settings.xml"; then
+    warn "the central server of ~/.m2/settings.xml does not use \${env.CENTRAL_TOKEN}: the token is read from settings.xml, not from the Keychain"
+  elif [ -n "${CENTRAL_TOKEN:-}" ]; then
+    note "Central token: from the CENTRAL_TOKEN environment variable"
+  elif command -v security >/dev/null 2>&1 \
+      && CENTRAL_TOKEN="$(security find-generic-password -s "$CENTRAL_TOKEN_ITEM" -w 2>/dev/null)" \
+      && [ -n "$CENTRAL_TOKEN" ]; then
+    export CENTRAL_TOKEN
+    note "Central token: read from the Keychain (item ${CENTRAL_TOKEN_ITEM})"
+  else
+    gate "no Central token: store it in the Keychain once with
+      security add-generic-password -a \"\$USER\" -s ${CENTRAL_TOKEN_ITEM} -w
+    (it prompts for the token), or set CENTRAL_TOKEN"
+  fi
+fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 [ "$branch" = "$RELEASE_BRANCH" ] || gate "on branch '$branch', expected '$RELEASE_BRANCH' (set RELEASE_BRANCH to override)"

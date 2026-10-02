@@ -97,20 +97,30 @@ Commit the bump (poms, docs, changelog) before releasing.
       <server>
         <id>central</id>
         <username>TOKEN_USERNAME</username>
-        <password>TOKEN_PASSWORD</password>
+        <password>${env.CENTRAL_TOKEN}</password>
       </server>
     </servers>
   </settings>
   ```
 
-  Prefer an **encrypted** password — `mvn --encrypt-password` with a master
-  password in `~/.m2/settings-security.xml` — so the token is not on disk in the
-  clear.
+  The password half of the token is not in the file: it is kept in the **macOS
+  Keychain**, stored once with (the command prompts for it, so it is not on a
+  command line)
+
+  ```bash
+  security add-generic-password -a "$USER" -s central-token -w
+  ```
+
+  `release.sh` reads it into `CENTRAL_TOKEN` for the run only
+  (`CENTRAL_TOKEN_ITEM` names another item; a `CENTRAL_TOKEN` already set, e.g.
+  on CI, is used as is). macOS asks the first time whether `security` may read
+  the item. When the token is regenerated on the Portal, update both halves:
+  the username in `settings.xml`, the password with the same command plus `-U`.
 - **`gh` logged in** (`gh auth login`) with push rights to the repository.
 
-No secret is ever passed on a command line: Maven reads the token from
-`settings.xml`, gpg-agent prompts for the passphrase at sign time, and `gh` uses
-its own keyring.
+No secret is ever passed on a command line: the token comes from the Keychain
+through the environment, gpg-agent prompts for the passphrase at sign time, and
+`gh` uses its own keyring.
 
 ## Dry run first
 
