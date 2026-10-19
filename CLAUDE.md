@@ -24,6 +24,7 @@ JEP 486 (permanent Security Manager disablement) removed `@CallerSensitive` from
 | `debugger` | `nashorn-debugger` | **yes** — the Chrome DevTools Protocol frontend of the debugger |
 | `node` | `nashorn-node` | **yes** — experimental Node-compat module resolver (fs, buffer, os, path); version-locked to core |
 | `playground` | `nashorn-playground` | no — a Swing sample browser, shaded into an executable `-all` jar |
+| `playground-cheerpj` | `nashorn-playground-cheerpj` | no — the playground for the browser: a shaded jar that CheerpJ runs from `doc/nashorn/playground/`, copied there by `buildtools/build-playground-site.sh` |
 
 ## Build and test
 
@@ -430,6 +431,7 @@ Time Machine backup once turned every metric into a 2× "regression".
 
 ## Conventions
 
+- **All work goes on the `monflabs_enhancements` branch, never directly on `main`.** Commit there, and do not merge, fast-forward or push it to `main` until the user explicitly asks — typically when releasing.
 - OpenJDK project rules still apply (`.jcheck/conf`): commits titled `<JBS-bug-id>: <synopsis>`, one reviewer, whitespace checked on `.java`.
 - **Copyright headers — follow the `copyright-headers` skill (`.claude/skills/copyright-headers/`) on every file you create or modify, of any type.** In short: a file *derived* from OpenJDK Nashorn (i.e. present on the `openjdk-original` branch) keeps its original Oracle/contributor notices and gains a `Copyright (c) 2026, Philippe Riand.` line plus a `Modifications beginning <date> by Philippe Riand` notice; a *new* file for this fork uses the GPLv2+Classpath-exception header with Philippe Riand as sole copyright holder and grantor and **no** Oracle reference; never add a Classpath Exception where it was absent; leave third-party code (`doubleconv`, `joni`, vendored assets), the pristine `doc/nashorn-original` copies and the repo licence files untouched. Before committing, run `.claude/skills/copyright-headers/check-headers.sh` and fix anything it flags.
 - Compilation runs with `-Xlint:all`; keep new code warning-free.

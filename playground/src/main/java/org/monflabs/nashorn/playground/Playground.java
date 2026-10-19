@@ -27,6 +27,7 @@ import java.awt.Taskbar;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
+import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -48,6 +49,16 @@ public final class Playground {
      * @param args {@code --dark} or {@code --light} to force the theme; otherwise the system's
      */
     public static void main(final String[] args) {
+        open(args, frame -> { });
+    }
+
+    /**
+     * Opens the window, letting the caller adjust the frame before it is shown - the
+     * browser (CheerpJ) build makes it undecorated and maximized, to fill the page.
+     * @param args {@code --dark} or {@code --light} to force the theme; otherwise the system's
+     * @param beforeShow called on the event dispatch thread with the frame, before it is made visible
+     */
+    public static void open(final String[] args, final Consumer<? super PlaygroundFrame> beforeShow) {
         final boolean dark = theme(args);
         if (SystemInfo.isMacOS) {
             System.setProperty("apple.laf.useScreenMenuBar", "true");
@@ -64,6 +75,7 @@ public final class Playground {
             installIcon();
             try {
                 final PlaygroundFrame frame = new PlaygroundFrame(SampleLibrary.load(), dark);
+                beforeShow.accept(frame);
                 frame.setVisible(true);
             } catch (final IOException e) {
                 throw new IllegalStateException("cannot load the samples", e);

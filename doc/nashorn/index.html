@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Nashorn Monflabs</title>
+  <title>Nashorn Documentation</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="vendor/vue.css">
+  <!-- Galta's theme, dark/light with a switcher: https://github.com/boopathikumar018/docsify-darklight-theme
+       (vendored: its Google Fonts import and CDN toggle icons are inlined so the site stays offline) -->
+  <link rel="stylesheet" href="vendor/darklight-theme/style.min.css" title="docsify-darklight-theme" type="text/css">
 </head>
 <body>
   <div id="app">Loading documentation…</div>
   <script>
     window.$docsify = {
-      name: 'Nashorn Monflabs',
+      name: 'Nashorn Documentation',
       loadSidebar: true,
       alias: { '/.*/_sidebar.md': '/_sidebar.md' },
       subMaxLevel: 3,
@@ -19,11 +21,14 @@
       relativePath: true,
       noEmoji: true,
       notFoundPage: false,
+      // The browser's preference wins; this is the fallback, and the reader's choice is remembered
+      darklightTheme: { defaultTheme: 'light' },
       search: { placeholder: 'Search', noData: 'No results', maxLevel: 3, depth: 3 }
     };
   </script>
   <script src="vendor/docsify.min.js"></script>
   <script src="vendor/search.min.js"></script>
+  <script src="vendor/darklight-theme/index.min.js"></script>
   <script src="vendor/prism-java.min.js"></script>
   <script src="vendor/prism-bash.min.js"></script>
   <script src="vendor/prism-json.min.js"></script>

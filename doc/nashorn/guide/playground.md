@@ -30,6 +30,13 @@ java -jar playground/target/nashorn-playground-2026.0.0-all.jar
 
 (`--dark` or `--light` forces the theme; by default it follows the system.)
 
+### In the browser
+
+The **[Playground in the browser](../playground/index.html ':ignore')** link in this site's sidebar
+runs the same application in the page, through [CheerpJ](https://cheerpj.com) — no Java to
+install. It opens in the mode, light or dark, the site is showing. Expect a slow first start: it
+downloads a Java runtime compiled to WebAssembly.
+
 ## The samples
 
 The tree on the left holds five categories, read straight out of the jar's resources:

@@ -1,0 +1,117 @@
+<!doctype html>
+<!--
+Copyright (c) 2026, Philippe Riand. All rights reserved.
+DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+
+This code is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 only, as
+published by the Free Software Foundation.  Philippe Riand designates this
+particular file as subject to the "Classpath" exception as provided
+in the LICENSE file that accompanied this code.
+
+This code is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+version 2 for more details (a copy is included in the LICENSE file that
+accompanied this code).
+
+You should have received a copy of the GNU General Public License version
+2 along with this work; if not, write to the Free Software Foundation,
+Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nashorn Playground</title>
+    <!-- CheerpJ runs the playground's Java (Swing) application in the browser. An early
+         release: the first loader whose runtime accepts Java 25, which the engine needs. -->
+    <script src="https://cjrtnc.leaningtech.com/20261001_3641/loader.js"></script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      #bar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 10;
+        padding: 4px 10px;
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.85);
+        border-bottom-left-radius: 6px;
+      }
+      #loading {
+        position: absolute;
+        top: 40%;
+        width: 100%;
+        text-align: center;
+        color: #555;
+      }
+      #cheerpj {
+        width: 100vw;
+        height: 100vh;
+      }
+      /* The mode of the documentation site (see the script below) */
+      body.dark {
+        background: #1e1e1e;
+        color: #ccc;
+      }
+      body.dark #bar {
+        background: rgba(40, 40, 40, 0.85);
+      }
+      body.dark #bar a {
+        color: #8ab4f8;
+      }
+      body.dark #loading {
+        color: #aaa;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bar"><a href="../">Nashorn documentation</a></div>
+    <div id="loading">Loading the Nashorn playground (a Java application running in your browser)...</div>
+    <div id="cheerpj"></div>
+    <script>
+      // The mode the documentation site shows: the reader's choice (stored by the
+      // docsify-darklight-theme plugin), else the system preference, else light
+      function siteTheme() {
+        let theme = null;
+        try {
+          theme = localStorage.getItem("DARK_LIGHT_THEME");
+        } catch (e) {
+          // Storage not available: the system preference
+        }
+        if (theme !== "dark" && theme !== "light") {
+          theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        return theme;
+      }
+      const theme = siteTheme();
+      document.body.classList.toggle("dark", theme === "dark");
+
+      (async function () {
+        // CheerpJ maps "/app/" to the ROOT of this web server, not to the folder of
+        // this page. The site is served at / locally but under /nashorn/ on GitHub
+        // Pages, so the jar URL is built from this page's own path.
+        const dir = location.pathname.replace(/[^/]*$/, "");
+        const jar = "/app" + dir + "nashorn-playground-cheerpj.jar";
+        try {
+          await cheerpjInit({ version: 25 });
+          cheerpjCreateDisplay(-1, -1, document.getElementById("cheerpj"));
+          document.getElementById("loading").remove();
+          // The playground starts in the same mode
+          await cheerpjRunMain("org.monflabs.nashorn.playground.cheerpj.PlaygroundCheerpJ", jar, "--" + theme);
+        } catch (e) {
+          document.getElementById("loading").textContent =
+            "The playground could not be started: " + e;
+        }
+      })();
+    </script>
+  </body>
+</html>

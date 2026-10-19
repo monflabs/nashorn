@@ -1,5 +1,6 @@
 # Publishes the docsify documentation site to GitHub Pages, with the javadoc
-# of the three published artifacts generated into it.
+# of the three published artifacts and the browser (CheerpJ) playground
+# generated into it.
 #
 # The javadoc is built here rather than checked in, so the site always
 # documents the revision it was published from - buildtools/build-javadoc.sh
@@ -45,12 +46,17 @@ jobs:
       - name: Generate the javadoc into the site
         run: ./buildtools/build-javadoc.sh
 
+      # Writes doc/nashorn/playground/nashorn-playground-cheerpj.jar, which the
+      # page beside it runs in the browser through CheerpJ.
+      - name: Build the browser playground into the site
+        run: ./buildtools/build-playground-site.sh
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       # doc/nashorn is the site root: index.html, the markdown, the vendored
-      # docsify assets, the javadoc just generated, and the .nojekyll that
-      # keeps Pages from hiding _sidebar.md.
+      # docsify assets, the javadoc and the playground just generated, and the
+      # .nojekyll that keeps Pages from hiding _sidebar.md.
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
         with:

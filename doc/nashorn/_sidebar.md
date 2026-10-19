@@ -10,6 +10,7 @@
   - [Threads and concurrency](/guide/concurrency.md)
   - [Debugging scripts](/guide/debugging.md)
   - [The playground](/guide/playground.md)
+  - [Playground in the browser](playground/index.html ':ignore')
 
 - **Extensions and Enhancements**
   - [Extension APIs](/extending/apis.md)
