@@ -35,6 +35,7 @@ import static org.monflabs.nashorn.internal.runtime.JSType.getAccessorTypeIndex;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.SwitchPoint;
+import java.lang.ref.WeakReference;
 import jdk.dynalink.CallSiteDescriptor;
 import jdk.dynalink.linker.GuardedInvocation;
 import jdk.dynalink.linker.LinkRequest;
@@ -96,6 +97,8 @@ final class SetMethodCreator {
     private class SetMethod {
         private final MethodHandle methodHandle;
         private final Property property;
+        /** Whether this declares a let or const: its guard holds the map weakly. */
+        private final boolean declaration;
 
         /**
          * Creates a new lookup result.
@@ -103,9 +106,14 @@ final class SetMethodCreator {
          * @param property the property object. Can be null in case we're creating a new property in the global object.
          */
         SetMethod(final MethodHandle methodHandle, final Property property) {
+            this(methodHandle, property, false);
+        }
+
+        SetMethod(final MethodHandle methodHandle, final Property property, final boolean declaration) {
             assert methodHandle != null;
             this.methodHandle = methodHandle;
             this.property     = property;
+            this.declaration  = declaration;
         }
 
         /**
@@ -117,8 +125,16 @@ final class SetMethodCreator {
             // getGuard returns a map guard that casts its argument to ScriptObject, and if that fails, we need to
             // relink on ClassCastException.
             final boolean explicitInstanceOfCheck = NashornGuards.explicitInstanceOfCheck(desc, request);
-            return new GuardedInvocation(methodHandle, NashornGuards.getGuard(sobj, property, desc, explicitInstanceOfCheck),
-                    (SwitchPoint)null, explicitInstanceOfCheck ? null : ClassCastException.class);
+            // An inherited property (a setter on a prototype) is linked against the prototype that
+            // owns it: the link must go when the prototypes change, the owner deleting it included,
+            // as for an inherited getter (ScriptObject#findGetMethod)
+            final SwitchPoint[] protoSwitchPoints = find != null && !find.isSelf()
+                    ? sobj.getProtoSwitchPoints(getName(), find.getOwner()) : null;
+            final MethodHandle guard = declaration
+                    ? NashornGuards.getWeakGuard(sobj, property, desc, explicitInstanceOfCheck)
+                    : NashornGuards.getGuard(sobj, property, desc, explicitInstanceOfCheck);
+            return new GuardedInvocation(methodHandle, guard,
+                    protoSwitchPoints, explicitInstanceOfCheck ? null : ClassCastException.class);
         }
     }
 
@@ -161,8 +177,9 @@ final class SetMethodCreator {
             final MethodHandle fastSetter = find.replaceProperty(newProperty).getSetter(type, isStrict, request);
             final MethodHandle slowSetter = MH.insertArguments(ScriptObject.DECLARE_AND_SET, 1, getName()).asType(fastSetter.type());
 
-            // cas map used as guard, if true that means we can do the set fast
-            MethodHandle casMap = MH.insertArguments(ScriptObject.CAS_MAP, 1, oldMap, newMap);
+            // cas map used as guard, if true that means we can do the set fast; the maps are held
+            // weakly, as each declaration of a scope sees a different one
+            MethodHandle casMap = MH.insertArguments(ScriptObject.CAS_MAP_WEAK, 1, new WeakReference<>(oldMap), new WeakReference<>(newMap));
             casMap = MH.dropArguments(casMap, 1, type);
             casMap = MH.asType(casMap, casMap.type().changeParameterType(0, Object.class));
             methodHandle = MH.guardWithTest(casMap, fastSetter, slowSetter);
@@ -179,7 +196,7 @@ final class SetMethodCreator {
         } else {
             boundHandle = methodHandle;
         }
-        return new SetMethod(boundHandle, property);
+        return new SetMethod(boundHandle, property, NashornCallSiteDescriptor.isDeclaration(desc) && property.needsDeclaration());
     }
 
     private SetMethod createGlobalPropertySetter() {

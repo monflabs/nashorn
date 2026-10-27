@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.monflabs.nashorn.internal.codegen.Compiler.CompilationPhases;
 import org.monflabs.nashorn.internal.ir.Block;
+import org.monflabs.nashorn.internal.ir.CallNode;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.LiteralNode;
 import org.monflabs.nashorn.internal.ir.Node;
@@ -49,6 +50,7 @@ import org.monflabs.nashorn.internal.ir.debug.PrintVisitor;
 import org.monflabs.nashorn.internal.ir.visitor.NodeVisitor;
 import org.monflabs.nashorn.internal.ir.visitor.SimpleNodeVisitor;
 import org.monflabs.nashorn.internal.runtime.CodeInstaller;
+import org.monflabs.nashorn.internal.runtime.ECMAException;
 import org.monflabs.nashorn.internal.runtime.RecompilableScriptFunctionData;
 import org.monflabs.nashorn.internal.runtime.ScriptEnvironment;
 import org.monflabs.nashorn.internal.runtime.logging.DebugLogger;
@@ -144,12 +146,28 @@ abstract class CompilationPhase {
             FunctionNode newFunctionNode;
 
             //ensure elementTypes, postsets and presets exist for splitter and arraynodes
-            newFunctionNode = transformFunction(fn, new SimpleNodeVisitor() {
+            final SimpleNodeVisitor initializer = new SimpleNodeVisitor() {
                 @Override
                 public LiteralNode<?> leaveLiteralNode(final LiteralNode<?> literalNode) {
                     return literalNode.initialize(lc);
                 }
+            };
+            newFunctionNode = transformFunction(fn, initializer);
+
+            // a call whose arguments alone are too large for a method passes them as an array
+            // literal, which the splitter knows how to divide (and which is initialized in turn)
+            final boolean[] rewritten = new boolean[1];
+            newFunctionNode = transformFunction(newFunctionNode, new SimpleNodeVisitor() {
+                @Override
+                public Node leaveCallNode(final CallNode callNode) {
+                    final CallNode result = Splitter.splittableArguments(callNode);
+                    rewritten[0] |= result != callNode;
+                    return result;
+                }
             });
+            if (rewritten[0]) {
+                newFunctionNode = transformFunction(newFunctionNode, initializer);
+            }
 
             newFunctionNode = new Splitter(compiler, newFunctionNode, outermostCompileUnit).split(newFunctionNode, true);
             newFunctionNode = transformFunction(newFunctionNode, new SplitIntoFunctions(compiler));
@@ -457,6 +475,9 @@ abstract class CompilationPhase {
                 } else {
                     throw e;
                 }
+            } catch (final ECMAException e) {
+                // an error of the script, as a function too large to compile
+                throw e;
             } catch (final Throwable e) {
                 // Provide source file and line number being compiled when the assertion occurred
                 throw new AssertionError("Failed generating bytecode for " + fn.getSourceName() + ":" + codegen.getLastLineNumber(), e);

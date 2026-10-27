@@ -67,6 +67,7 @@ import org.monflabs.nashorn.internal.codegen.types.Type;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.debug.BytecodePrinter;
 import org.monflabs.nashorn.internal.runtime.Context;
+import org.monflabs.nashorn.internal.runtime.ECMAErrors;
 import org.monflabs.nashorn.internal.runtime.PropertyMap;
 import org.monflabs.nashorn.internal.runtime.RewriteException;
 import org.monflabs.nashorn.internal.runtime.ScriptObject;
@@ -704,6 +705,28 @@ public class ClassEmitter {
             throw new AssertionError();
         }
 
+        try {
+            return buildClassFile();
+        } catch (final IllegalArgumentException e) {
+            if (isClassFileLimit(e)) {
+                // a JVM limit of the class file (constant pool entries, code length, fields), not
+                // a bug: a function too large to compile is an error of the script's
+                throw ECMAErrors.rangeError("code.too.large", e.getMessage());
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Whether the class file API refused the class for exceeding one of the format's limits: an
+     * index past the 65,535 entries of the constant pool, a method past 65,535 bytes of code.
+     */
+    private static boolean isClassFileLimit(final IllegalArgumentException e) {
+        final String message = e.getMessage();
+        return message != null && (message.contains("is not a valid index") || message.contains("outside the allowed range"));
+    }
+
+    private byte[] buildClassFile() {
         return CLASS_FILE.build(className, clb -> {
             clb.withVersion(CLASS_VERSION, 0);
             clb.withFlags(ACC_PUBLIC | ACC_SUPER);

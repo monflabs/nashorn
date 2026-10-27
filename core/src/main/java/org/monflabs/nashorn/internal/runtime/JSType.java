@@ -84,6 +84,25 @@ public enum JSType {
     /** The type name as returned by ECMAScript "typeof" operator*/
     private final String typeName;
 
+    /**
+     * The longest string the engine makes, as V8's: (2^29 - 24) characters. A string operation
+     * that would exceed it throws RangeError ("Invalid string length") rather than running the
+     * JVM out of heap, or past the length a Java array can have; the specification leaves the
+     * limit to the implementation.
+     */
+    public static final int MAX_STRING_LENGTH = (1 << 29) - 24;
+
+    /**
+     * Throws the RangeError of a string longer than {@link #MAX_STRING_LENGTH}.
+     *
+     * @param length the length of the string about to be made
+     */
+    public static void checkStringLength(final long length) {
+        if (length > MAX_STRING_LENGTH) {
+            throw ECMAErrors.rangeError("invalid.string.length");
+        }
+    }
+
     /** Max value for an uint32 in JavaScript */
     public static final long MAX_UINT = 0xFFFF_FFFFL;
 
@@ -1591,11 +1610,17 @@ public enum JSType {
      * @throws UnwarrantedOptimismException if overflow occurs
      */
     public static int mulExact(final int x, final int y, final int programPoint) throws UnwarrantedOptimismException {
+        final int result;
         try {
-            return Math.multiplyExact(x, y);
+            result = Math.multiplyExact(x, y);
         } catch (final ArithmeticException e) {
             throw new UnwarrantedOptimismException((double)x * (double)y, programPoint);
         }
+        if (result == 0 && (x | y) < 0) {
+            // 0 times a negative number is -0, which no int represents
+            throw new UnwarrantedOptimismException(-0.0, programPoint);
+        }
+        return result;
     }
 
     /**
@@ -1618,6 +1643,10 @@ public enum JSType {
         }
         final int rem = x % y;
         if (rem == 0) {
+            if (x == 0 && y < 0) {
+                // 0 / -n is -0, which an int cannot hold
+                throw new UnwarrantedOptimismException(-0.0, programPoint);
+            }
             return res;
         }
         // go directly to double here, as anything with non zero remainder is a floating point number in JavaScript

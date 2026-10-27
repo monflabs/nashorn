@@ -124,3 +124,9 @@ judgement on a small difference, re-run on an idle machine with an explicit band
 `-Dperf.tolerance=0.02`. Before trusting a single run, check nothing else is
 loading the machine — a Time Machine backup once turned every metric into a 2x
 "regression".
+
+## Checking robustness
+
+A change to code generation, and above all to the optimistic pipeline, should also go through
+the fuzzer and the other harnesses of JavascriptPerformance: see
+[Robustness testing](robustness.md).

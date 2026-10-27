@@ -62,10 +62,9 @@ public final class ConsString implements CharSequence {
         assert isString(right);
         this.left = left;
         this.right = right;
-        length = left.length() + right.length();
-        if (length < 0) {
-            throw new IllegalArgumentException("too big concatenated String");
-        }
+        final long total = (long)left.length() + right.length();
+        JSType.checkStringLength(total);
+        length = (int)total;
     }
 
     @Override

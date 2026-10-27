@@ -156,6 +156,14 @@ public final class BinaryNode extends Expression implements Assignment<Expressio
      * @return true if the operator is BigInt-capable
      */
     /**
+     * A comma expression's value is its right operand's, so it is a guess if that is.
+     */
+    @Override
+    public boolean isOptimisticGuess() {
+        return isTokenType(TokenType.COMMARIGHT) ? rhs.isOptimisticGuess() : super.isOptimisticGuess();
+    }
+
+    /**
      * Whether this operation may have to be carried out on BigInts, so that it
      * is compiled as a runtime call on objects rather than as unboxed
      * arithmetic. That is when both operands are object-typed - a BigInt

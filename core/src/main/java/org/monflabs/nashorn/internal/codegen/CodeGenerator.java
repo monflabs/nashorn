@@ -510,6 +510,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             return;
         }
         if (expression instanceof IdentNode && ((IdentNode)expression).getSymbol().isConst()) {
+            // ES2015 9.2.1.2.5 SetMutableBinding: a binding not yet initialized is a ReferenceError before it is an
+            // immutable one (x = 1; const x = 0)
+            checkTemporalDeadZone((IdentNode)expression);
             method.load(((IdentNode)expression).getSymbol().getName()).invoke(ScriptRuntime.THROW_CONST_TYPE_ERROR);
         }
     }
@@ -716,19 +719,36 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final Expression rhs = binaryNode.rhs();
         Type widestOperandType = binaryNode.getWidestOperandType();
         if (widestOperandType == Type.INT && BinaryNode.isBigIntCapable(binaryNode.tokenType())
-                && isIntGuess(lhs) && isIntGuess(rhs)) {
-            // ES2020: a bitwise operator on two optimistic int guesses. Loaded with an int upper bound the guesses
+                && (isIntGuess(lhs) && !rhs.getType().widerThan(Type.INT) || isIntGuess(rhs) && !lhs.getType().widerThan(Type.INT))) {
+            // ES2020: a bitwise operator on an optimistic int guess. Loaded with an int upper bound the guess
             // would go unguarded (any Number coerces to int silently, so there was nothing to guard) - but a BigInt
-            // does not coerce, it makes the operation a BigInt one. A number upper bound keeps the guards, so a
-            // BigInt deoptimizes the guess to an object and the operator's object path takes over. The operands
-            // still load as ints: the bound only stops the guard from being elided.
+            // does not coerce, it makes the operation a BigInt one, or a TypeError only once the other operand has
+            // been evaluated (BigInt.asUintN(8, x) | (1 >= y) must read y first). A number upper bound keeps the
+            // guards, so a BigInt deoptimizes the guess to an object and the operator's object path takes over. The
+            // operands still load as ints: the bound only stops the guard from being elided.
             widestOperandType = Type.NUMBER;
+        } else if (widestOperandType == Type.INT && BinaryNode.isBigIntCapable(binaryNode.tokenType())
+                && (isNumberGuess(lhs) || isNumberGuess(rhs))) {
+            // The same for a guess of a double, which a number bound does not guard either: after a deoptimization
+            // at v = BigInt(0), v was guessed a double for what it held before, and v ^ v converted the BigInt. Each
+            // operand keeps its guard under an object bound, and both are made ints once both are evaluated.
+            final TypeBounds guarded = new TypeBounds(Type.INT, Type.OBJECT);
+            loadExpression(lhs, guarded, false);
+            loadExpression(rhs, guarded, false);
+            if (method.peekType(1) != Type.INT) {
+                method.swap().convert(Type.INT).swap();
+            }
+            return method.convert(Type.INT);
         }
         return loadBinaryOperands(lhs, rhs, TypeBounds.UNBOUNDED.notWiderThan(widestOperandType), false, false);
     }
 
     private static boolean isIntGuess(final Expression expr) {
         return expr.getType() == Type.INT && expr.isOptimisticGuess();
+    }
+
+    private static boolean isNumberGuess(final Expression expr) {
+        return expr.getType() == Type.NUMBER && expr.isOptimisticGuess();
     }
 
     private MethodEmitter loadBinaryOperands(final Expression lhs, final Expression rhs, final TypeBounds explicitOperandBounds, final boolean baseAlreadyOnStack, final boolean forceConversionSeparation) {
@@ -930,6 +950,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         TypeBounds booleanToInt() {
             return maybeNew(CodeGenerator.booleanToInt(narrowest), CodeGenerator.booleanToInt(widest));
+        }
+
+        /**
+         * The bounds of a numeric operation whose result is wanted within these. Unlike {@link #booleanToInt()}, a
+         * boolean upper bound becomes a number one: an int bound would truncate the operation's value before its
+         * truthiness is taken, and -0.5 or -Infinity would test false.
+         */
+        TypeBounds booleanToNumeric() {
+            return maybeNew(CodeGenerator.booleanToInt(narrowest), widest == Type.BOOLEAN ? Type.NUMBER : widest);
         }
 
         TypeBounds objectToNumber() {
@@ -1576,7 +1605,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         if(bodyCanThrow) {
             assert !method.isReachable();
             method._catch(recoveryLabel);
-            popScopeException();
+            popScopeException(block);
             method.athrow();
         }
         if(afterCatchLabel != null) {
@@ -1606,12 +1635,15 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * number of scopes that needs to be popped in case a rest-of continuation handler encounters an exception while
      * performing a ToPrimitive conversion.
      */
-    private void popScopeException() {
+    private void popScopeException(final LexicalContextNode scoped) {
         popScope();
         final ContinuationInfo ci = getContinuationInfo();
         if(ci != null) {
             final Label catchLabel = ci.catchLabel;
-            if(catchLabel != METHOD_BOUNDARY && catchLabel == catchLabels.peek()) {
+            // only a scope that is open at the continuation point is on the scope chain the continuation handler has
+            // when its conversion throws: one entered after it, as a block later in the same try, is not
+            if(catchLabel != METHOD_BOUNDARY && catchLabel == catchLabels.peek()
+                    && ci.openAtTarget != null && ci.openAtTarget.contains(scoped)) {
                 ++ci.exceptionScopePops;
             }
         }
@@ -1861,6 +1893,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     @Override
                     void loadStack() {
                         loadExpressionAsObject(node.getBase());
+                        if (node.isOptional() && currentOptionalChainEnd != null) {
+                            // a?.m(): a nullish base short-circuits the chain, call included
+                            emitOptionalGuard();
+                        }
                         method.dup();
                         // NOTE: not using a nested OptimisticOperation on this dynamicGet, as we expect to get back
                         // a callable object. Nobody in their right mind would optimistically type this call site.
@@ -1912,6 +1948,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     @Override
                     void loadStack() {
                         loadExpressionAsObject(node.getBase());
+                        if (node.isOptional() && currentOptionalChainEnd != null) {
+                            // a?.[k](): a nullish base short-circuits the chain, call included
+                            emitOptionalGuard();
+                        }
                         method.dup();
                         if (node.isPrivate()) {
                             // ES2022 private method call: read the method out of
@@ -1958,7 +1998,31 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 // same path a.b() takes.
                 final Expression inner = node.getExpression();
                 if (inner instanceof AccessNode || inner instanceof IndexNode) {
-                    inner.accept(this);
+                    // An optional link of the chain that sees a nullish base short-circuits the
+                    // chain, not the call: (a?.b.c)() calls undefined. Its guard jumps here.
+                    final Label nullish = new Label("optional_callee_nullish");
+                    final Label savedEnd = currentOptionalChainEnd;
+                    currentOptionalChainEnd = nullish;
+                    try {
+                        inner.accept(this);
+                    } finally {
+                        currentOptionalChainEnd = savedEnd;
+                    }
+                    if (nullish.isReachable()) {
+                        final Label done = new Label("optional_callee_done");
+                        method._goto(done);
+                        method.label(nullish);
+                        // 13.3.6.2 EvaluateCall: the arguments are evaluated before the
+                        // callee is found not to be a function
+                        for (final Expression arg : args) {
+                            loadExpressionUnbounded(arg);
+                            method.pop();
+                        }
+                        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "NOT_A_FUNCTION",
+                                "(Ljava/lang/Object;)Ljava/lang/Throwable;");
+                        method.athrow();
+                        method.label(done);
+                    }
                     return false;
                 }
                 return enterDefault(node);
@@ -2094,11 +2158,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
      * look outwards - stopping at the first block that introduces a scope of its
      * own, which would mean the creator on the stack belongs to something else.
      */
-    private boolean hasScopeCreator() {
+    private boolean hasScopeCreator(final ForNode forNode) {
         for (final Iterator<Block> blocks = lc.getBlocks(); blocks.hasNext();) {
             final Block block = blocks.next();
             if (block.providesScopeCreator()) {
-                return true;
+                // the nearest creator may be an enclosing loop's: a nested loop whose own block needs
+                // no scope (nothing captures its binding) would otherwise make each of its turns a
+                // fresh, empty copy of the enclosing loop's scope, and lose that loop's binding
+                return block.providesScopeCreatorFor(forNode);
             }
             if (block.needsScope()) {
                 return false;
@@ -2142,7 +2209,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             method.ifeq(breakLabel);
         }
 
-        if (forNode.needsScopeCreator() && hasScopeCreator()) {
+        if (forNode.needsScopeCreator() && hasScopeCreator(forNode)) {
             // ES2015 13.7.5.13: a loop that binds lexically gives each of its
             // turns a scope of its own, made before the binding is given its
             // value - so the scope the head was evaluated in, which a function
@@ -2670,7 +2737,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private static boolean isSpread(final Expression element) {
         return element instanceof UnaryNode unary
-                && (unary.isTokenType(TokenType.SPREAD_ARRAY) || unary.isTokenType(TokenType.SPREAD_ARGUMENT));
+                && (unary.isTokenType(TokenType.SPREAD_ARRAY) || unary.isTokenType(TokenType.SPREAD_ARGUMENT)
+                        || unary.isTokenType(TokenType.SPREAD_ELEMENTS));
     }
 
     /**
@@ -2687,11 +2755,19 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 new FunctionSignature(false, false, Type.OBJECT, 0).toString());
 
         for (final Expression element : elements) {
+            if (element == null) {
+                // an elision (13.2.4.1 ArrayAccumulation) only advances the length: [...a, , b]
+                // has a hole there, not an undefined element
+                method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "SPREAD_ELISION",
+                        new FunctionSignature(false, false, Type.OBJECT, 1).toString());
+                continue;
+            }
             final boolean spread = isSpread(element);
-            // an elision contributes undefined, as reading a hole would
             loadExpressionAsObject(spread ? ((UnaryNode)element).getExpression() : element);
             method.invokestatic(CompilerConstants.className(ScriptRuntime.class),
-                    spread ? "SPREAD_APPEND_ALL" : "SPREAD_APPEND",
+                    !spread ? "SPREAD_APPEND"
+                            : ((UnaryNode)element).isTokenType(TokenType.SPREAD_ELEMENTS) ? "SPREAD_APPEND_ELEMENTS"
+                            : "SPREAD_APPEND_ALL",
                     new FunctionSignature(false, false, Type.OBJECT, 2).toString());
         }
     }
@@ -2955,11 +3031,59 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 new FunctionSignature(false, false, Type.OBJECT, 3).toString());
     }
 
+    /**
+     * The presets of a primitive array literal loaded as an Object array, see {@link #containsContinuationPoint}.
+     */
+    private static Object boxedPresets(final Object presets, final ArrayType arrayType) {
+        if (arrayType != Type.OBJECT_ARRAY || presets instanceof Object[]) {
+            return presets;
+        }
+        final int length = java.lang.reflect.Array.getLength(presets);
+        final Object[] boxed = new Object[length];
+        for (int i = 0; i < length; i++) {
+            boxed[i] = java.lang.reflect.Array.get(presets, i);
+        }
+        return boxed;
+    }
+
+    /**
+     * Whether a continuation of this rest-of method resumes inside the expression, at one of its program points. A
+     * nested function has program points of its own, and is not looked into.
+     */
+    private boolean containsContinuationPoint(final Expression expression) {
+        final int[] entryPoints = getContinuationEntryPoints();
+        final boolean[] found = {false};
+        expression.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public boolean enterDefault(final Node node) {
+                if (found[0]) {
+                    return false;
+                }
+                if (node instanceof Optimistic optimistic) {
+                    final int programPoint = optimistic.getProgramPoint();
+                    for (final int entryPoint : entryPoints) {
+                        if (entryPoint == programPoint) {
+                            found[0] = true;
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        });
+        return found[0];
+    }
+
     private void loadArray(final ArrayLiteralNode arrayLiteralNode, final ArrayType arrayType) {
         assert arrayType == Type.INT_ARRAY || arrayType == Type.NUMBER_ARRAY || arrayType == Type.OBJECT_ARRAY;
 
         final Expression[]     nodes    = arrayLiteralNode.getValue();
-        final Object           presets  = arrayLiteralNode.getPresets();
+        final Object           presets  = boxedPresets(arrayLiteralNode.getPresets(), arrayType);
         final int[]            postsets = arrayLiteralNode.getPostsets();
         final List<Splittable.SplitRange> ranges   = arrayLiteralNode.getSplitRanges();
 
@@ -2981,6 +3105,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         if(postsets.length > 0) {
+            if (useOptimisticTypes() && method.getStackSize() > 1) {
+                // The stack under the literal goes into locals before the array takes its
+                // temporary: an optimistic operation around the literal ([x].length >= y) does
+                // that first, and its deoptimized version, which has none, must lay its locals out
+                // the same way, or a continuation from an element reads another value as the
+                // array. Where the stack was already stored, this stores nothing.
+                storeStackInLocals(0);
+            }
             final int arraySlot = method.getUsedSlotsWithLiveTemporaries();
             method.storeTemp(arrayType, arraySlot);
             for (final int postset : postsets) {
@@ -3117,7 +3249,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if (hasSpread(arrayLiteral.getValue())) {
                 loadSpreadArray(arrayLiteral.getValue());
             } else {
-                final ArrayType atype = arrayLiteral.getArrayType();
+                ArrayType atype = arrayLiteral.getArrayType();
+                if (atype != Type.OBJECT_ARRAY && isRestOf() && containsContinuationPoint(arrayLiteral)) {
+                    // A rest-of method that resumes inside the literal takes over the array the interrupted
+                    // method was filling, whose element type need not be this one: an element's type can narrow
+                    // across a deoptimization (a guess beside an operand that has widened), and an element already
+                    // stored can hold what no primitive array does. An Object array holds any of them.
+                    atype = Type.OBJECT_ARRAY;
+                }
                 loadArray(arrayLiteral, atype);
                 globalAllocateArray(atype);
             }
@@ -3284,6 +3423,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 }};
         }
 
+        if (useOptimisticTypes() && method.getStackSize() > 0) {
+            // As for an array literal (see loadArray): the stack under the literal goes into locals
+            // before the object takes its temporary, so that a deoptimized version, in which an
+            // operation around the literal stored it first, lays its locals out the same way.
+            storeStackInLocals(0);
+        }
         if (ranges != null) {
             oc.createObject(method);
             loadSplitLiteral(oc, ranges, Type.typeFor(oc.getAllocatorClass()));
@@ -4118,11 +4263,9 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                          * bind obj.thrown to the script catch var. Or else bind the
                          * caught object itself to the script catch var.
                          */
-                        final Label notEcmaException = new Label("no_ecma_exception");
-                        method.load(vmException, EXCEPTION_TYPE).dup()._instanceof(ECMAException.class).ifeq(notEcmaException);
-                        method.checkcast(ECMAException.class); //TODO is this necessary?
-                        method.getField(ECMAException.THROWN);
-                        method.label(notEcmaException);
+                        method.load(vmException, EXCEPTION_TYPE);
+                        method.invokestatic(CompilerConstants.className(ScriptRuntime.class), "CATCH_VALUE",
+                                "(Ljava/lang/Throwable;)Ljava/lang/Object;");
                     }
                 }.store();
             }
@@ -4479,7 +4622,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
             if(bodyCanThrow) {
                 method._catch(catchLabel);
-                popScopeException();
+                popScopeException(body);
                 method.athrow();
                 if(reachable) {
                     method.label(exitLabel);
@@ -4490,7 +4633,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     }
 
     private void loadADD(final UnaryNode unaryNode, final TypeBounds resultBounds) {
-        loadExpression(unaryNode.getExpression(), resultBounds.booleanToInt().notWiderThan(Type.NUMBER));
+        loadExpression(unaryNode.getExpression(), resultBounds.booleanToNumeric().notWiderThan(Type.NUMBER));
         if(method.peekType() == Type.BOOLEAN) {
             // It's a no-op in bytecode, but we must make sure it is treated as an int for purposes of type signatures
             method.convert(Type.INT);
@@ -4503,6 +4646,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             // ES2020: as for a bitwise operator on two guesses (see loadBinaryOperands) - an int upper bound would
             // elide the guard, and ~BigInt is a BigInt operation, not a conversion; the operand still loads as int
             loadExpression(operand, TypeBounds.UNBOUNDED.notWiderThan(Type.NUMBER));
+            method.convert(Type.INT);
+        } else if (useOptimisticTypes() && isOptimisticGuess(operand)) {
+            // a guess typed double is no less a guess (a global v-- deoptimized to a double, then 0n), and a number
+            // upper bound would elide its guard too, as a number is what it already is: only an object bound keeps it
+            loadExpression(operand, new TypeBounds(operand.getType(), Type.OBJECT));
             method.convert(Type.INT);
         } else {
             loadExpression(operand, TypeBounds.INT);
@@ -4525,11 +4673,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         }
 
         final TypeBounds typeBounds  = new TypeBounds(type, Type.NUMBER);
+        // ES2020: as for -x (see loadSUB), a guess may turn out to be a BigInt, which must deoptimize the step to the
+        // object path rather than be converted to a number (a TypeError); bounded by a number, the guess would load
+        // unguarded. It still loads as a number.
+        final TypeBounds operandBounds = useOptimisticTypes() && isOptimisticGuess(operand)
+                ? new TypeBounds(type, Type.OBJECT) : typeBounds;
 
         new SelfModifyingStore<UnaryNode>(unaryNode, operand) {
 
             private void loadRhs() {
-                loadExpression(operand, typeBounds, true);
+                loadExpression(operand, operandBounds, true);
             }
 
             @Override
@@ -4773,12 +4926,19 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
     private void loadSUB(final UnaryNode unaryNode, final TypeBounds resultBounds) {
         final Type type = unaryNode.getType();
         assert type.isNumeric();
-        final TypeBounds numericBounds = resultBounds.booleanToInt();
+        final TypeBounds numericBounds = resultBounds.booleanToNumeric();
         new OptimisticOperation(unaryNode, numericBounds) {
             @Override
             void loadStack() {
                 final Expression expr = unaryNode.getExpression();
-                loadExpression(expr, numericBounds.notWiderThan(Type.NUMBER));
+                TypeBounds operandBounds = numericBounds.notWiderThan(Type.NUMBER);
+                if (useOptimisticTypes() && isOptimisticGuess(expr)) {
+                    // ES2020: a guess may turn out to be a BigInt, which -x negates as one. Bounded by a number, the
+                    // guess would load unguarded and the BigInt be converted (a TypeError), where it must deoptimize
+                    // to the object path. It still loads as a number.
+                    operandBounds = new TypeBounds(operandBounds.narrowest, Type.OBJECT);
+                }
+                loadExpression(expr, operandBounds);
             }
             @Override
             void consumeStack() {
@@ -4857,11 +5017,32 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 boolean forceConversionSeparation = false;
                 if(isOptimistic) {
                     operandBounds = new TypeBounds(binaryNode.getType(), Type.OBJECT);
+                    if (binaryNode.lhs().getType().isBoolean() && !binaryNode.rhs().getType().isBoolean()) {
+                        loadBooleanLeftOperand(binaryNode.lhs(), binaryNode.rhs(), operandBounds);
+                        return;
+                    }
                 } else {
                     // Non-optimistic, non-FP +. Allow it to overflow.
                     final Type widestOperationType = binaryNode.getWidestOperationType();
-                    operandBounds = new TypeBounds(Type.narrowest(binaryNode.getWidestOperandType(), resultBounds.widest), widestOperationType);
+                    // An operand that is a number only on a guess may turn out to be a string, and the + a
+                    // concatenation: bounded by a number, the guess would load unguarded and be converted
+                    // (5e-324 + "-1" would add -1), where it must deoptimize. It still loads as a number.
+                    final boolean guessed = useOptimisticTypes() && widestOperationType.isNumeric()
+                            && isGuessedNumericOperation(binaryNode.lhs(), binaryNode.rhs());
+                    operandBounds = new TypeBounds(Type.narrowest(binaryNode.getWidestOperandType(), resultBounds.widest),
+                            guessed ? Type.OBJECT : widestOperationType);
                     forceConversionSeparation = widestOperationType.narrowerThan(resultBounds.widest);
+                    if (useOptimisticTypes() && binaryNode.lhs().getType().isBoolean() && isOptimisticGuess(binaryNode.rhs())) {
+                        // as in the optimistic case, the guess would deoptimize with the boolean on the stack already
+                        // converted to a number (throw true + f() was "1" + f())
+                        final Type narrowest = Type.narrowest(Type.widest(Type.INT, undefinedToNumber(binaryNode.rhs().getType())), operandBounds.widest);
+                        final Type operandType = operandBounds.notNarrowerThan(narrowest).narrowest;
+                        loadExpression(binaryNode.lhs(), TypeBounds.OBJECT);
+                        loadExpression(binaryNode.rhs(), TypeBounds.UNBOUNDED.notNarrowerThan(narrowest));
+                        method.swap().convert(operandType).swap();
+                        method.convert(operandType);
+                        return;
+                    }
                 }
                 loadBinaryOperands(binaryNode.lhs(), binaryNode.rhs(), operandBounds, false, forceConversionSeparation);
             }
@@ -4871,6 +5052,22 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 method.add(getProgramPoint());
             }
         }.emit();
+    }
+
+    /**
+     * Loads the operands of an optimistic {@code +} whose left operand is a boolean. Converted to an int before the
+     * right operand loads, as {@link #loadBinaryOperands} would, the boolean would be an int on the stack if the right
+     * operand deoptimized, and the rest-of method would add 1 where it should concatenate "true". Nor can it stay a
+     * boolean, which a deoptimization also spills as an int. So it is boxed, and converted only once the right
+     * operand is on the stack.
+     */
+    private void loadBooleanLeftOperand(final Expression lhs, final Expression rhs, final TypeBounds explicitOperandBounds) {
+        final Type narrowestOperandType = Type.narrowest(Type.widest(Type.INT, undefinedToNumber(rhs.getType())), explicitOperandBounds.widest);
+        final TypeBounds operandBounds = explicitOperandBounds.notNarrowerThan(narrowestOperandType);
+        loadExpression(lhs, TypeBounds.OBJECT);
+        loadExpression(rhs, operandBounds);
+        method.swap().convert(operandBounds.within(Type.INT)).swap();
+        method.convert(operandBounds.within(method.peekType()));
     }
 
     private void loadAND_OR(final BinaryNode binaryNode, final TypeBounds resultBounds, final boolean isAnd) {
@@ -4897,6 +5094,12 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         final TypeBounds outBounds = resultBounds.notNarrowerThan(narrowestOperandType);
         final JoinPredecessorExpression lhs = (JoinPredecessorExpression)binaryNode.lhs();
+        if (lhs.getType().widerThan(outBounds.widest)
+                || useOptimisticTypes() && outBounds.widest.narrowerThan(Type.OBJECT) && isOptimisticGuess(lhs.getExpression())) {
+            // a guess is narrowed too: bounded by the result, it would load unguarded, converted
+            loadAND_ORNarrowed(binaryNode, outBounds, isAnd, isCurrentDiscard);
+            return;
+        }
         final boolean lhsConvert = LocalVariableConversion.hasLiveConversion(lhs);
         final Label evalRhs = lhsConvert ? new Label("eval_rhs") : null;
 
@@ -4929,6 +5132,44 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         final JoinPredecessorExpression rhs = (JoinPredecessorExpression)binaryNode.rhs();
         loadMaybeDiscard(isCurrentDiscard, rhs, outBounds);
         method.beforeJoinPoint(rhs);
+        method.label(skip);
+    }
+
+    /**
+     * {@code &&} and {@code ||} whose result is wanted narrower than the left operand is (an int, for a bitwise
+     * operand). The left operand's truth is its own: converted first, [1] or "a" or 0.5 would test as the 0 they convert
+     * to. So it is loaded as it is, tested, and converted only on the branch where it is the result.
+     */
+    private void loadAND_ORNarrowed(final BinaryNode binaryNode, final TypeBounds outBounds, final boolean isAnd, final boolean isCurrentDiscard) {
+        final JoinPredecessorExpression lhs = (JoinPredecessorExpression)binaryNode.lhs();
+        final JoinPredecessorExpression rhs = (JoinPredecessorExpression)binaryNode.rhs();
+        final Label lhsResult = new Label("lhs_result");
+        final Label skip = new Label("skip");
+
+        loadExpression(lhs, new TypeBounds(outBounds.narrowest, Type.OBJECT));
+        if (!isCurrentDiscard) {
+            method.dup();
+        }
+        method.convert(Type.BOOLEAN);
+        if (isAnd) {
+            method.ifeq(lhsResult);
+        } else {
+            method.ifne(lhsResult);
+        }
+
+        if (!isCurrentDiscard) {
+            method.pop();
+        }
+        loadMaybeDiscard(isCurrentDiscard, rhs, outBounds);
+        final Type resultType = isCurrentDiscard ? null : method.peekType();
+        method.beforeJoinPoint(rhs);
+        method._goto(skip);
+
+        method.label(lhsResult);
+        if (!isCurrentDiscard) {
+            method.convert(resultType);
+        }
+        method.beforeJoinPoint(lhs);
         method.label(skip);
     }
 
@@ -5212,11 +5453,20 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
         protected abstract void op(OptimisticOperation oo);
 
+        /**
+         * The widest type the operation may produce.
+         * @param widestOperationType the widest type of the operation, from its operands' types
+         * @return the upper bound of the operation's type
+         */
+        protected Type upperBound(final Type widestOperationType) {
+            return widestOperationType;
+        }
+
         @Override
         protected void evaluate() {
             final Expression lhs = assignNode.lhs();
             final Expression rhs = assignNode.rhs();
-            final Type widestOperationType = assignNode.getWidestOperationType();
+            final Type widestOperationType = upperBound(assignNode.getWidestOperationType());
             final TypeBounds bounds = new TypeBounds(assignNode.getType(), widestOperationType);
             new OptimisticOperation(assignNode, bounds) {
                 @Override
@@ -5228,7 +5478,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                         final Type operandType = Type.widest(booleanToInt(objectToNumber(lhs.getType())), booleanToInt(objectToNumber(rhs.getType())));
                         forceConversionSeparation = operandType.narrowerThan(widestOperationType);
                     }
-                    loadBinaryOperands(lhs, rhs, bounds, true, forceConversionSeparation);
+                    if (bounds.widest.isObject() && isGuessedUndefinedOperation(lhs, rhs)) {
+                        loadGuessedUndefinedOperands(lhs, rhs, bounds, true);
+                    } else {
+                        loadBinaryOperands(lhs, rhs, bounds, true, forceConversionSeparation);
+                    }
                 }
                 @Override
                 void consumeStack() {
@@ -5258,6 +5512,16 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
 
     private void loadASSIGN_ADD(final BinaryNode binaryNode) {
         new BinaryOptimisticSelfAssignment(binaryNode) {
+            @Override
+            protected Type upperBound(final Type widestOperationType) {
+                // As for a +: an operand that is an optimistic guess may turn out to be an object, and the sum a
+                // string. Bounded by a number, a guess that is an object would be converted to one ({} += 1.5 would
+                // be NaN), where it must deoptimize.
+                return useOptimisticTypes() && (isGuessedNumericOperation(binaryNode.lhs(), binaryNode.rhs())
+                        || isGuessedUndefinedOperation(binaryNode.lhs(), binaryNode.rhs()))
+                        ? Type.OBJECT : widestOperationType;
+            }
+
             @Override
             protected void op(final OptimisticOperation oo) {
                 assert !(binaryNode.getType().isObject() && oo.isOptimistic);
@@ -5427,11 +5691,14 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         protected abstract void op(int programPoint);
 
         protected void evaluate(final BinaryNode node, final TypeBounds resultBounds) {
-            final TypeBounds numericBounds = resultBounds.booleanToInt().objectToNumber();
+            // A test takes the truth of the operation's value: an int bound would truncate it first (1 / 2, 9 / 0
+            // and 65536 * 65536 tested false), and a non-optimistic int operation would wrap, so it is done in doubles
+            final TypeBounds numericBounds = resultBounds.widest == Type.BOOLEAN
+                    ? new TypeBounds(Type.NUMBER, Type.NUMBER) : resultBounds.booleanToInt().objectToNumber();
             new OptimisticOperation(node, numericBounds) {
                 @Override
                 void loadStack() {
-                    final TypeBounds operandBounds;
+                    TypeBounds operandBounds;
                     boolean forceConversionSeparation = false;
                     if(numericBounds.narrowest == Type.NUMBER) {
                         // Result should be double always. Propagate it into the operands so we don't have lots of I2D
@@ -5448,6 +5715,23 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                                     numericBounds.widest), Type.NUMBER);
                             forceConversionSeparation = true;
                         }
+                    }
+                    if (useOptimisticTypes() && operandBounds.narrowest == Type.NUMBER && operandBounds.widest == Type.NUMBER
+                            && (isOptimisticGuess(node.lhs()) || isOptimisticGuess(node.rhs()))) {
+                        // a guess bounded by a number would load unguarded and be converted, so a BigInt threw
+                        // its TypeError before the other operand was evaluated (f() / y++ never read y); bounded
+                        // by an object it keeps its guard, and still loads as the number it is. An operand that
+                        // loads as an object (one pending at a continuation, say) is converted only once both
+                        // are on the stack. The same holds of a division done in doubles because it is no longer
+                        // optimistic: (v5 / b) === o converted a null-prototype v5 before it read an undeclared b.
+                        final TypeBounds guardedBounds = new TypeBounds(Type.NUMBER, Type.OBJECT);
+                        loadExpression(node.lhs(), guardedBounds, false);
+                        loadExpression(node.rhs(), guardedBounds, false);
+                        if (method.peekType(1) != Type.NUMBER) {
+                            method.swap().convert(Type.NUMBER).swap();
+                        }
+                        method.convert(Type.NUMBER);
+                        return;
                     }
                     loadBinaryOperands(node.lhs(), node.rhs(), operandBounds, false, forceConversionSeparation);
                 }
@@ -6143,6 +6427,99 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         return false;
     }
 
+    /**
+     * Stores the values on the operand stack that are not loads of local variables into temporary
+     * local variables, and loads them back, so that a continuation finds them in locals (see
+     * OptimisticOperation#emit).
+     *
+     * @param ignoreArgCount the number of topmost values not to count among the live locals
+     * @return the number of live local slots
+     */
+    private int storeStackInLocals(final int ignoreArgCount) {
+
+        final int stackSize = method.getStackSize();
+        final Type[] stackTypes = method.getTypesFromStack(stackSize);
+        final int[] localLoadsOnStack = method.getLocalLoadsOnStack(0, stackSize);
+        final int usedSlots = method.getUsedSlotsWithLiveTemporaries();
+
+        final int firstIgnored = stackSize - ignoreArgCount;
+        // Find the first value on the stack (from the bottom) that is not a load from a local variable.
+        int firstNonLoad = 0;
+        while(firstNonLoad < firstIgnored && localLoadsOnStack[firstNonLoad] != Label.Stack.NON_LOAD) {
+            firstNonLoad++;
+        }
+
+        // Only do the store/load if first non-load is not an ignored argument. Otherwise, do nothing and return
+        // the number of used slots as the number of live local variables.
+        if(firstNonLoad >= firstIgnored) {
+            return usedSlots;
+        }
+
+        // Find the number of new temporary local variables that we need; it's the number of values on the stack that
+        // are not direct loads of existing local variables.
+        int tempSlotsNeeded = 0;
+        for(int i = firstNonLoad; i < stackSize; ++i) {
+            if(localLoadsOnStack[i] == Label.Stack.NON_LOAD) {
+                tempSlotsNeeded += stackTypes[i].getSlots();
+            }
+        }
+
+        // Ensure all values on the stack that weren't directly loaded from a local variable are stored in a local
+        // variable. We're starting from highest local variable index, so that in case ignoreArgCount > 0 the ignored
+        // ones end up at the end of the local variable table.
+        int lastTempSlot = usedSlots + tempSlotsNeeded;
+        int ignoreSlotCount = 0;
+        for(int i = stackSize; i -- > firstNonLoad;) {
+            final int loadSlot = localLoadsOnStack[i];
+            if(loadSlot == Label.Stack.NON_LOAD) {
+                final Type type = stackTypes[i];
+                final int slots = type.getSlots();
+                lastTempSlot -= slots;
+                if(i >= firstIgnored) {
+                    ignoreSlotCount += slots;
+                }
+                method.storeTemp(type, lastTempSlot);
+            } else {
+                method.pop();
+            }
+        }
+        assert lastTempSlot == usedSlots; // used all temporary locals
+
+        final List<Type> localTypesList = method.getLocalVariableTypes();
+
+        // Load values back on stack.
+        for(int i = firstNonLoad; i < stackSize; ++i) {
+            final int loadSlot = localLoadsOnStack[i];
+            final Type stackType = stackTypes[i];
+            final boolean isLoad = loadSlot != Label.Stack.NON_LOAD;
+            final int lvarSlot = isLoad ? loadSlot : lastTempSlot;
+            final Type lvarType = localTypesList.get(lvarSlot);
+            method.load(lvarType, lvarSlot);
+            if(isLoad) {
+                // Conversion operators (I2L etc.) preserve "load"-ness of the value despite the fact that, in the
+                // strict sense they are creating a derived value from the loaded value. This special behavior of
+                // on-stack conversion operators is necessary to accommodate for differences in local variable types
+                // after deoptimization; having a conversion operator throw away "load"-ness would create different
+                // local variable table shapes between optimism-failed code and its deoptimized rest-of method).
+                // After we load the value back, we need to redo the conversion to the stack type if stack type is
+                // different.
+                // NOTE: this would only strictly be necessary for widening conversions (I2L, L2D, I2D), and not for
+                // narrowing ones (L2I, D2L, D2I) as only widening conversions are the ones that can get eliminated
+                // in a deoptimized method, as their original input argument got widened. Maybe experiment with
+                // throwing away "load"-ness for narrowing conversions in MethodEmitter.convert()?
+                method.convert(stackType);
+            } else {
+                // temporary stores never needs a convert, as their type is always the same as the stack type.
+                assert lvarType == stackType;
+                lastTempSlot += lvarType.getSlots();
+            }
+        }
+        // used all temporaries
+        assert lastTempSlot == usedSlots + tempSlotsNeeded;
+
+        return lastTempSlot - ignoreSlotCount;
+    }
+
     private abstract class OptimisticOperation {
         final boolean isOptimistic;
         // expression and optimistic are the same reference
@@ -6223,7 +6600,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                 if(currentContinuationEntryPoint) {
                     final ContinuationInfo ci = getContinuationInfo();
                     assert ci != null : "no continuation info found for " + lc.getCurrentFunction();
-                    assert !ci.hasTargetLabel(); // No duplicate program points
+                    assert !ci.hasTargetLabel() : "duplicate program point " + programPoint; // No duplicate program points
                     ci.setTargetLabel(afterConsumeStack);
                     ci.getHandlerLabel().markAsOptimisticContinuationHandlerFor(afterConsumeStack);
                     // Can't rely on targetLabel.stack.localVariableTypes.length, as it can be higher due to effectively
@@ -6235,6 +6612,11 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
                     ci.setReturnValueType(method.peekType());
                     ci.lineNumber = getLastLineNumber();
                     ci.catchLabel = catchLabels.peek();
+                    ci.enclosingCatchLabels = new ArrayList<>(catchLabels);
+                    ci.openAtTarget = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                    for (final Iterator<LexicalContextNode> nodes = lc.getAllNodes(); nodes.hasNext();) {
+                        ci.openAtTarget.add(nodes.next());
+                    }
                 }
             }
         }
@@ -6257,88 +6639,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if(!optimisticOrContinuation) {
                 return -1; // NOTE: correct value to return is lc.getUsedSlotCount(), but it wouldn't be used anyway
             }
-
-            final int stackSize = method.getStackSize();
-            final Type[] stackTypes = method.getTypesFromStack(stackSize);
-            final int[] localLoadsOnStack = method.getLocalLoadsOnStack(0, stackSize);
-            final int usedSlots = method.getUsedSlotsWithLiveTemporaries();
-
-            final int firstIgnored = stackSize - ignoreArgCount;
-            // Find the first value on the stack (from the bottom) that is not a load from a local variable.
-            int firstNonLoad = 0;
-            while(firstNonLoad < firstIgnored && localLoadsOnStack[firstNonLoad] != Label.Stack.NON_LOAD) {
-                firstNonLoad++;
-            }
-
-            // Only do the store/load if first non-load is not an ignored argument. Otherwise, do nothing and return
-            // the number of used slots as the number of live local variables.
-            if(firstNonLoad >= firstIgnored) {
-                return usedSlots;
-            }
-
-            // Find the number of new temporary local variables that we need; it's the number of values on the stack that
-            // are not direct loads of existing local variables.
-            int tempSlotsNeeded = 0;
-            for(int i = firstNonLoad; i < stackSize; ++i) {
-                if(localLoadsOnStack[i] == Label.Stack.NON_LOAD) {
-                    tempSlotsNeeded += stackTypes[i].getSlots();
-                }
-            }
-
-            // Ensure all values on the stack that weren't directly loaded from a local variable are stored in a local
-            // variable. We're starting from highest local variable index, so that in case ignoreArgCount > 0 the ignored
-            // ones end up at the end of the local variable table.
-            int lastTempSlot = usedSlots + tempSlotsNeeded;
-            int ignoreSlotCount = 0;
-            for(int i = stackSize; i -- > firstNonLoad;) {
-                final int loadSlot = localLoadsOnStack[i];
-                if(loadSlot == Label.Stack.NON_LOAD) {
-                    final Type type = stackTypes[i];
-                    final int slots = type.getSlots();
-                    lastTempSlot -= slots;
-                    if(i >= firstIgnored) {
-                        ignoreSlotCount += slots;
-                    }
-                    method.storeTemp(type, lastTempSlot);
-                } else {
-                    method.pop();
-                }
-            }
-            assert lastTempSlot == usedSlots; // used all temporary locals
-
-            final List<Type> localTypesList = method.getLocalVariableTypes();
-
-            // Load values back on stack.
-            for(int i = firstNonLoad; i < stackSize; ++i) {
-                final int loadSlot = localLoadsOnStack[i];
-                final Type stackType = stackTypes[i];
-                final boolean isLoad = loadSlot != Label.Stack.NON_LOAD;
-                final int lvarSlot = isLoad ? loadSlot : lastTempSlot;
-                final Type lvarType = localTypesList.get(lvarSlot);
-                method.load(lvarType, lvarSlot);
-                if(isLoad) {
-                    // Conversion operators (I2L etc.) preserve "load"-ness of the value despite the fact that, in the
-                    // strict sense they are creating a derived value from the loaded value. This special behavior of
-                    // on-stack conversion operators is necessary to accommodate for differences in local variable types
-                    // after deoptimization; having a conversion operator throw away "load"-ness would create different
-                    // local variable table shapes between optimism-failed code and its deoptimized rest-of method).
-                    // After we load the value back, we need to redo the conversion to the stack type if stack type is
-                    // different.
-                    // NOTE: this would only strictly be necessary for widening conversions (I2L, L2D, I2D), and not for
-                    // narrowing ones (L2I, D2L, D2I) as only widening conversions are the ones that can get eliminated
-                    // in a deoptimized method, as their original input argument got widened. Maybe experiment with
-                    // throwing away "load"-ness for narrowing conversions in MethodEmitter.convert()?
-                    method.convert(stackType);
-                } else {
-                    // temporary stores never needs a convert, as their type is always the same as the stack type.
-                    assert lvarType == stackType;
-                    lastTempSlot += lvarType.getSlots();
-                }
-            }
-            // used all temporaries
-            assert lastTempSlot == usedSlots + tempSlotsNeeded;
-
-            return lastTempSlot - ignoreSlotCount;
+            return storeStackInLocals(ignoreArgCount);
         }
 
         private void addUnwarrantedOptimismHandlerLabel(final List<Type> localTypes, final Label label) {
@@ -6472,6 +6773,49 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             assert !narrowest.isObject();
             return narrowest;
         }
+    }
+
+    /**
+     * Whether an arithmetic operation on two numbers rests on a guess: both operands are typed as numbers, so that they
+     * load as numbers whatever the operation's upper bound, and one of them is a number only on a guess - which may turn
+     * out to be a string (a + concatenates) or a BigInt (which no operator converts to a number).
+     */
+    private static boolean isGuessedNumericOperation(final Expression lhs, final Expression rhs) {
+        return lhs.getType().isNumeric() && rhs.getType().isNumeric() && (isOptimisticGuess(lhs) || isOptimisticGuess(rhs));
+    }
+
+    /**
+     * Whether an arithmetic operation on a number and undefined rests on a guess: one operand is undefined, which is
+     * NaN to the operation, and the other a number only on a guess ({} += undefined concatenates).
+     */
+    private static boolean isGuessedUndefinedOperation(final Expression lhs, final Expression rhs) {
+        final Type lhsType = lhs.getType();
+        final Type rhsType = rhs.getType();
+        return lhsType == Type.UNDEFINED && isOptimisticGuess(rhs) || rhsType == Type.UNDEFINED && isOptimisticGuess(lhs);
+    }
+
+    /**
+     * Loads the operands of a {@link #isGuessedUndefinedOperation}: the guess guarded, so that it deoptimizes if it is
+     * not a number, and undefined as the number it is to the operation, NaN. Neither load converts anything with a side
+     * effect, so the order of the conversions is not observable.
+     */
+    private void loadGuessedUndefinedOperands(final Expression lhs, final Expression rhs, final TypeBounds bounds, final boolean baseAlreadyOnStack) {
+        final Type type = Type.widest(bounds.narrowest, Type.NUMBER);
+        loadExpression(lhs, isOptimisticGuess(lhs) ? new TypeBounds(type, Type.OBJECT) : TypeBounds.exact(type), baseAlreadyOnStack);
+        loadExpression(rhs, isOptimisticGuess(rhs) ? new TypeBounds(type, Type.OBJECT) : TypeBounds.exact(type), false);
+    }
+
+    /** Whether an expression is loaded as a number on a guess that it may turn out not to be one. */
+    private static boolean isOptimisticGuess(final Expression expr) {
+        // a comma expression and a conditional have the value of an operand they do not convert
+        if (expr instanceof BinaryNode comma && comma.isTokenType(TokenType.COMMARIGHT)) {
+            return isOptimisticGuess(comma.rhs());
+        }
+        if (expr instanceof TernaryNode ternary) {
+            return expr.getType().isNumeric() && (isOptimisticGuess(ternary.getTrueExpression().getExpression())
+                    || isOptimisticGuess(ternary.getFalseExpression().getExpression()));
+        }
+        return expr instanceof Optimistic optimistic && isOptimistic(optimistic) && expr.getType().isNumeric();
     }
 
     private static boolean isOptimistic(final Optimistic optimistic) {
@@ -6802,6 +7146,10 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         private int lineNumber;
         // The active catch label, in case the continuation point is in a try/catch block
         private Label catchLabel;
+        // All the catch labels enclosing the continuation point, innermost first
+        private List<Label> enclosingCatchLabels;
+        // The lexical context nodes open at the continuation point
+        private java.util.Set<LexicalContextNode> openAtTarget;
         // The number of scopes that need to be popped before control is transferred to the catch label.
         private int exceptionScopePops;
 
@@ -6871,6 +7219,100 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
         return continuationInfo;
     }
 
+    /**
+     * A try block converts, at its entry, the local variables its catch block reads as another type, so that every path
+     * into the catch finds them in the slot that type has. A continuation that resumes inside the try block enters it
+     * without passing there, and restores only the slots its target reads: a catch block (or the catch-all of a
+     * finally) that a throw from the rest of the try reaches would read a slot never stored. So every slot an enclosing
+     * catch expects that the target does not read is given here the value of the symbol, converted from a slot of the
+     * same symbol that was restored, or from the slot array, still on the stack, for a symbol dead at the target.
+     */
+    private void initializeCatchConversions(final ContinuationInfo ci, final List<Type> lvarTypes, final BitSet symbolBoundary, final int lvarCount) {
+        if (ci.enclosingCatchLabels == null) {
+            return;
+        }
+        for (final Label catchLabel : ci.enclosingCatchLabels) {
+            if (catchLabel == METHOD_BOUNDARY || catchLabel.getStack() == null) {
+                continue;
+            }
+            final List<Type> catchTypes = catchLabel.getStack().getLocalVariableTypesCopy();
+            int symbolStart = 0;
+            // the index of the symbol's element in the slot array, as the restoring loop counts it
+            int symbolIndex = 0;
+            while (symbolStart < lvarCount) {
+                // the slots of one symbol run up to the next symbol boundary
+                int symbolEnd = symbolStart;
+                while (symbolEnd < lvarCount - 1 && !symbolBoundary.get(symbolEnd)) {
+                    symbolEnd++;
+                }
+                int source = -1;
+                for (int slot = symbolStart; slot <= symbolEnd; slot += Math.max(1, lvarTypes.get(slot).getSlots())) {
+                    if (!lvarTypes.get(slot).isUnknown()) {
+                        source = slot;
+                        break;
+                    }
+                }
+                for (int slot = symbolStart; slot <= symbolEnd && slot < catchTypes.size();) {
+                    final Type catchType = catchTypes.get(slot);
+                    if (!catchType.isUnknown() && lvarTypes.get(slot).isUnknown()) {
+                        if (source >= 0) {
+                            method.load(lvarTypes.get(source), source);
+                            method.convert(catchType);
+                        } else {
+                            // the symbol is dead at the target, so no slot of it was restored: its value is
+                            // still the one the interrupted method saved
+                            method.dup();
+                            method.load(symbolIndex).arrayload();
+                            convertSlotValue(catchType, lvarCount);
+                        }
+                        method.storeHidden(catchType, slot, false);
+                        lvarTypes.set(slot, catchType);
+                        if (source < 0) {
+                            source = slot;
+                        }
+                    }
+                    slot += Math.max(1, catchType.isUnknown() ? 1 : catchType.getSlots());
+                }
+                symbolStart = symbolEnd + 1;
+                symbolIndex++;
+            }
+        }
+    }
+
+    /**
+     * Converts a value of the RewriteException's slot array, on the stack, to the type of the slot it is restored to.
+     * The exception itself is in the temporary at {@code lvarCount}.
+     */
+    private void convertSlotValue(final Type lvarType, final int lvarCount) {
+        final Type rewriteExceptionType = Type.typeFor(RewriteException.class);
+        final Class<?> typeClass = lvarType.getTypeClass();
+        // Deoptimization in array initializers can cause arrays to undergo component type widening
+        if(typeClass == int[].class) {
+            method.load(rewriteExceptionType, lvarCount);
+            method.invoke(RewriteException.TO_INT_ARRAY);
+        } else if(typeClass == long[].class) {
+            method.load(rewriteExceptionType, lvarCount);
+            method.invoke(RewriteException.TO_LONG_ARRAY);
+        } else if(typeClass == double[].class) {
+            method.load(rewriteExceptionType, lvarCount);
+            method.invoke(RewriteException.TO_DOUBLE_ARRAY);
+        } else if(typeClass == Object[].class) {
+            method.load(rewriteExceptionType, lvarCount);
+            method.invoke(RewriteException.TO_OBJECT_ARRAY);
+        } else {
+            if(!(typeClass.isPrimitive() || typeClass == Object.class)) {
+                // NOTE: this can only happen with dead stores. E.g. for the program "1; []; f();" in which the
+                // call to f() will deoptimize the call site, but it'll expect :return to have the type
+                // NativeArray. However, in the more optimal version, :return's only live type is int, therefore
+                // "{O}:return = []" is a dead store, and the variable will be sent into the continuation as
+                // Undefined, however NativeArray can't hold Undefined instance.
+                method.loadType(Type.getInternalName(typeClass));
+                method.invoke(RewriteException.INSTANCE_OR_NULL);
+            }
+            method.convert(lvarType);
+        }
+    }
+
     private void generateContinuationHandler() {
         if (!isRestOf()) {
             return;
@@ -6906,29 +7348,7 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             if(!lvarType.isUnknown()) {
                 method.dup();
                 method.load(arrayIndex).arrayload();
-                final Class<?> typeClass = lvarType.getTypeClass();
-                // Deoptimization in array initializers can cause arrays to undergo component type widening
-                if(typeClass == long[].class) {
-                    method.load(rewriteExceptionType, lvarCount);
-                    method.invoke(RewriteException.TO_LONG_ARRAY);
-                } else if(typeClass == double[].class) {
-                    method.load(rewriteExceptionType, lvarCount);
-                    method.invoke(RewriteException.TO_DOUBLE_ARRAY);
-                } else if(typeClass == Object[].class) {
-                    method.load(rewriteExceptionType, lvarCount);
-                    method.invoke(RewriteException.TO_OBJECT_ARRAY);
-                } else {
-                    if(!(typeClass.isPrimitive() || typeClass == Object.class)) {
-                        // NOTE: this can only happen with dead stores. E.g. for the program "1; []; f();" in which the
-                        // call to f() will deoptimize the call site, but it'll expect :return to have the type
-                        // NativeArray. However, in the more optimal version, :return's only live type is int, therefore
-                        // "{O}:return = []" is a dead store, and the variable will be sent into the continuation as
-                        // Undefined, however NativeArray can't hold Undefined instance.
-                        method.loadType(Type.getInternalName(typeClass));
-                        method.invoke(RewriteException.INSTANCE_OR_NULL);
-                    }
-                    method.convert(lvarType);
-                }
+                convertSlotValue(lvarType, lvarCount);
                 method.storeHidden(lvarType, lvarIndex, false);
             }
             final int nextLvarIndex = lvarIndex + lvarType.getSlots();
@@ -6937,6 +7357,8 @@ final class CodeGenerator extends NodeOperatorVisitor<CodeGeneratorLexicalContex
             }
             lvarIndex = nextLvarIndex;
         }
+        // the slot array is still on the stack
+        initializeCatchConversions(ci, lvarTypes, symbolBoundary, lvarCount);
         if (AssertsEnabled.assertsEnabled()) {
             method.load(arrayIndex);
             method.invoke(RewriteException.ASSERT_ARRAY_LENGTH);

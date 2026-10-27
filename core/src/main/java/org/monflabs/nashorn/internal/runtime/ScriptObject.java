@@ -227,7 +227,11 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
     /** Method handle for getting the property map of a ScriptObject */
     public static final Call GET_MAP = virtualCallNoLookup(ScriptObject.class, "getMap", PropertyMap.class);
 
+    /** Method handle allocating the spill of a new scope whose map has spill properties */
+    public static final Call ALLOCATE_SPILL = virtualCallNoLookup(ScriptObject.class, "allocateSpill", void.class, int.class);
+
     static final MethodHandle CAS_MAP           = findOwnMH_V("compareAndSetMap", boolean.class, PropertyMap.class, PropertyMap.class);
+    static final MethodHandle CAS_MAP_WEAK      = findOwnMH_V("compareAndSetMapWeak", boolean.class, java.lang.ref.WeakReference.class, java.lang.ref.WeakReference.class);
     static final MethodHandle EXTENSION_CHECK   = findOwnMH_V("extensionCheck", boolean.class, boolean.class, String.class);
     static final MethodHandle ENSURE_SPILL_SIZE = findOwnMH_V("ensureSpillSize", Object.class, int.class);
 
@@ -1042,6 +1046,17 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param propertyFlags flags for the new property
      * @param value       the new value
      */
+    /**
+     * CreateDataProperty over an own property the object has: an object literal or a spread into
+     * one replaces an accessor it defined earlier under the key, where it stands.
+     *
+     * @param oldProperty the accessor property
+     * @param value       the value of the data property that replaces it
+     */
+    final void redefineAsDataProperty(final Property oldProperty, final Object value) {
+        redefineOwnProperty(oldProperty, oldProperty.getKey(), 0, value);
+    }
+
     private void redefineOwnProperty(final Property oldProperty, final Object key, final int propertyFlags, final Object value) {
         WellKnownSymbols.note(key);
         erasePropertyValue(oldProperty);
@@ -1352,8 +1367,15 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             modifyOwnProperty(oldProperty, oldProperty.getFlags(),
                     getter != null ? getter : accessor.getGetterFunction(this),
                     setter != null ? setter : accessor.getSetterFunction(this));
+        } else if (oldProperty != null) {
+            // a data property the literal wrote earlier ({a: 1, b: 2, get a() {}}) becomes the
+            // accessor where it stands: own keys keep the order the key was first created in
+            modifyOwnProperty(oldProperty, oldProperty.getFlags(), getter, setter);
         } else {
-            addOwnProperty(newUserAccessors(realKey, oldProperty != null ? oldProperty.getFlags() : 0, getter, setter));
+            // an index whose value the literal (or a spread into it) put in the array data is
+            // replaced, not shadowed
+            checkIntegerKey(realKey);
+            addOwnProperty(newUserAccessors(realKey, 0, getter, setter));
         }
     }
 
@@ -1490,6 +1512,24 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param newMap Replacement map.
      * @return true if the operation succeeded.
      */
+    /**
+     * {@link #compareAndSetMap} for a call site that must not keep the maps alive: a declaration
+     * of a let or const, whose map is a different one at each declaration of a scope, so that
+     * holding them would keep every intermediate map of the scope. A map that is gone is not the
+     * object's map, or the map to give it: the call site takes its slow path.
+     *
+     * @param oldMap Map prior to manipulation.
+     * @param newMap Replacement map.
+     * @return true if the operation succeeded.
+     */
+    @SuppressWarnings("unused")
+    private boolean compareAndSetMapWeak(final java.lang.ref.WeakReference<PropertyMap> oldMap,
+            final java.lang.ref.WeakReference<PropertyMap> newMap) {
+        final PropertyMap o = oldMap.get();
+        final PropertyMap n = newMap.get();
+        return o != null && n != null && compareAndSetMap(o, n);
+    }
+
     protected final boolean compareAndSetMap(final PropertyMap oldMap, final PropertyMap newMap) {
         if (oldMap == this.map) {
             this.map = newMap;
@@ -1615,15 +1655,21 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
      * @param newProto Prototype to set.
      */
     public final void setProtoFromLiteral(final Object newProto) {
-        if (newProto == null || newProto instanceof ScriptObject) {
-            setPrototypeOf(newProto);
-        } else {
-            // Some non-object, non-null. Then, we need to set
-            // Object.prototype as the new __proto__
-            //
-            // var obj = { __proto__ : 34 };
-            // print(obj.__proto__ === Object.prototype); // => true
-            setPrototypeOf(Global.objectPrototype());
+        // Some non-object, non-null: Object.prototype is the __proto__
+        //
+        // var obj = { __proto__ : 34 };
+        // print(obj.__proto__ === Object.prototype); // => true
+        final ScriptObject literalProto = newProto == null || newProto instanceof ScriptObject
+                ? (ScriptObject)newProto : Global.objectPrototype();
+        // The literal's map is the one every literal of its shape shares, all of which have
+        // Object.prototype for __proto__: one with another prototype - null included, which is
+        // the prototype a new literal starts with, so that setProto saw no change - gets a map
+        // of its own, or a call site linked against the shared map would read an inherited
+        // property through the wrong prototype
+        proto = literalProto;
+        if (literalProto != Global.objectPrototype()) {
+            getMap().protoChanged();
+            setMap(getMap().changeProto(literalProto));
         }
     }
 
@@ -4227,6 +4273,18 @@ public abstract class ScriptObject implements PropertyAccess, Cloneable {
             return !StructureLoader.isSingleFieldStructure(type.getName());
         }
     };
+
+    /**
+     * Allocates the spill of a new object whose map was made with spill properties: a scope with
+     * more variables than its structure class has fields (see {@code FieldObjectCreator}).
+     *
+     * @param length the spill length of the map
+     */
+    public final void allocateSpill(final int length) {
+        if (length > 0) {
+            ensureSpillSize(length - 1);
+        }
+    }
 
     Object ensureSpillSize(final int slot) {
         final int oldLength = objectSpill == null ? 0 : objectSpill.length;

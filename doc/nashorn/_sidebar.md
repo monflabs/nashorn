@@ -58,5 +58,6 @@
 - **Contributors**
   - [Building](/project/building.md)
   - [GitHub Actions](/project/workflows.md)
+  - [Robustness testing](/project/robustness.md)
   - [Releasing](/project/releasing.md)
   - [The documentation site](/project/documentation.md)

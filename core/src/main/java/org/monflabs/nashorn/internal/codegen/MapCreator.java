@@ -34,6 +34,7 @@ import static org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex.isValidArr
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.monflabs.nashorn.internal.ir.Symbol;
 import org.monflabs.nashorn.internal.runtime.AccessorProperty;
 import org.monflabs.nashorn.internal.runtime.Property;
@@ -73,6 +74,18 @@ public class MapCreator<T> {
      * @return New map populated with accessor properties.
      */
     PropertyMap makeFieldMap(final boolean hasArguments, final boolean dualFields, final int fieldCount, final int fieldMaximum, final boolean evalCode) {
+        return makeFieldMap(hasArguments, dualFields, fieldCount, fieldMaximum, evalCode, Map.of(), 0);
+    }
+
+    /**
+     * Constructs a property map based on a set of fields, and spill slots for the symbols that
+     * did not get one.
+     *
+     * @param spillSlots  the spill slot of each symbol stored in the spill rather than a field
+     * @param spillLength the number of spill slots
+     */
+    PropertyMap makeFieldMap(final boolean hasArguments, final boolean dualFields, final int fieldCount, final int fieldMaximum,
+            final boolean evalCode, final Map<Symbol, Integer> spillSlots, final int spillLength) {
         final List<Property> properties = new ArrayList<>();
         assert tuples != null;
 
@@ -83,17 +96,20 @@ public class MapCreator<T> {
 
             if (symbol != null && !isValidArrayIndex(getArrayIndex(key))) {
                 final int      flags    = getPropertyFlags(symbol, hasArguments, evalCode, dualFields);
-                final Property property = new AccessorProperty(
-                        key,
-                        flags,
-                        structure,
-                        symbol.getFieldIndex(),
-                        initialType);
+                final Integer  spillSlot = spillSlots.get(symbol);
+                final Property property = spillSlot != null
+                        ? new SpillProperty(key, flags, spillSlot, Object.class)
+                        : new AccessorProperty(
+                            key,
+                            flags,
+                            structure,
+                            symbol.getFieldIndex(),
+                            initialType);
                 properties.add(property);
             }
         }
 
-        return PropertyMap.newMap(properties, structure.getName(), fieldCount, fieldMaximum, 0);
+        return PropertyMap.newMap(properties, structure.getName(), fieldCount, fieldMaximum, spillLength);
     }
 
     PropertyMap makeSpillMap(final boolean hasArguments, final boolean dualFields) {

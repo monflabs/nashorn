@@ -29,6 +29,7 @@
 
 package org.monflabs.nashorn.internal.runtime;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -149,6 +150,16 @@ public final class PropertyHashMap implements Map <Object, Property> {
     private Property[] properties;
 
     /**
+     * Whether {@link #list} may hold a property that was replaced since (only in a hashed map):
+     * replacing a property updates its bin, and leaves the chronological list, which only gives
+     * the order of the keys, as it is. Rebuilding the list up to the property, as for a removal,
+     * made each replacement copy most of the list - a scope of N let declarations, each of which
+     * replaces its binding's property, cost O(N^2). The current property of a key is the one its
+     * bin holds.
+     */
+    private final boolean staleList;
+
+    /**
      * Empty map constructor.
      */
     private PropertyHashMap() {
@@ -157,6 +168,7 @@ public final class PropertyHashMap implements Map <Object, Property> {
         this.bins      = null;
         this.queue     = null;
         this.list      = null;
+        this.staleList = false;
     }
 
     /**
@@ -175,6 +187,13 @@ public final class PropertyHashMap implements Map <Object, Property> {
         }
         this.list      = map.list;
         this.threshold = map.bins != null ? threeQuarters(map.bins.length) : 0;
+        this.staleList = map.staleList;
+        assert !staleList || bins != null || queue != null : "a stale list needs the bins to resolve it";
+    }
+
+    /** The current property of a list element. */
+    private Property current(final Element element) {
+        return staleList ? findElement(element.getKey()).getProperty() : element.getProperty();
     }
 
     /**
@@ -279,7 +298,7 @@ public final class PropertyHashMap implements Map <Object, Property> {
             final Property[] array = new Property[size];
             int i = size;
             for (Element element = list; element != null; element = element.getLink()) {
-                array[--i] = element.getProperty();
+                array[--i] = current(element);
             }
             properties = array;
         }
@@ -329,10 +348,10 @@ public final class PropertyHashMap implements Map <Object, Property> {
      *
      * @return Populated bins.
      */
-    private static Element[] rehash(final Element list, final int binSize) {
+    private Element[] rehash(final Element list, final int binSize) {
         final Element[] newBins = new Element[binSize];
         for (Element element = list; element != null; element = element.getLink()) {
-            final Property property = element.getProperty();
+            final Property property = current(element);
             final Object   key      = property.getKey();
             final int      binIndex = binIndex(newBins, key);
 
@@ -383,17 +402,20 @@ public final class PropertyHashMap implements Map <Object, Property> {
      * @return {@link MapBuilder} for the new size.
      */
     private MapBuilder newMapBuilder(final int newSize) {
-        if (bins == null && newSize < LIST_THRESHOLD) {
-            return new MapBuilder(bins, list, size, false);
+        final MapBuilder builder;
+        if (bins == null && queue == null && newSize < LIST_THRESHOLD) {
+            builder = new MapBuilder(bins, list, size, false);
         } else if (newSize > threshold) {
-            return new MapBuilder(rehash(list, binsNeeded(newSize)), list, size, true);
+            builder = new MapBuilder(rehash(list, binsNeeded(newSize)), list, size, true);
         } else if (shouldCloneBins(size, newSize)) {
-            return new MapBuilder(cloneBins(), list, size, true);
+            builder = new MapBuilder(cloneBins(), list, size, true);
         } else if (queue == null) {
-            return new MapBuilder(bins, list, size, false);
+            builder = new MapBuilder(bins, list, size, false);
         } else {
-            return new MapBuilder(queue, list, size, false);
+            builder = new MapBuilder(queue, list, size, false);
         }
+        builder.staleList = staleList;
+        return builder;
     }
 
     /**
@@ -552,7 +574,7 @@ public final class PropertyHashMap implements Map <Object, Property> {
     public Set<Entry<Object, Property>> entrySet() {
         final HashSet<Entry<Object, Property>> set = new HashSet<>();
         for (Element element = list; element != null; element = element.getLink()) {
-            set.add(element);
+            set.add(staleList ? findElement(element.getKey()) : element);
         }
         return Collections.unmodifiableSet(set);
     }
@@ -739,6 +761,9 @@ public final class PropertyHashMap implements Map <Object, Property> {
         /** Number of properties. */
         private int size;
 
+        /** Whether the list may hold replaced properties (see PropertyHashMap#staleList). */
+        private boolean staleList;
+
         MapBuilder(final Element[] bins, final Element list, final int size, final boolean hasOwnBins) {
             this.bins  = bins;
             this.hasOwnBins = hasOwnBins;
@@ -804,9 +829,38 @@ public final class PropertyHashMap implements Map <Object, Property> {
                 } else if (qhead != null) {
                     qhead = replaceInList(qhead, key, property);
                 }
+                // the list keeps the key's place; the bins have its property
+                staleList = true;
+                return;
             }
 
             list = replaceInList(list, key, property);
+        }
+
+        /** The current property of a key, from the bins or the queue. */
+        private Property lookUp(final Object key) {
+            Element element = findElement(bins[binIndex(bins, key)], key);
+            if (element == null) {
+                element = findElement(qhead, key);
+            }
+            return element.getProperty();
+        }
+
+        /** Brings the list up to date, before the map stops using bins. */
+        private void refreshList() {
+            if (!staleList) {
+                return;
+            }
+            final List<Property> chronological = new ArrayList<>();
+            for (Element element = list; element != null; element = element.getLink()) {
+                chronological.add(lookUp(element.getKey()));
+            }
+            Element fresh = null;
+            for (int i = chronological.size() - 1; i >= 0; i--) {
+                fresh = new Element(fresh, chronological.get(i));
+            }
+            list = fresh;
+            staleList = false;
         }
 
         /**
@@ -825,6 +879,7 @@ public final class PropertyHashMap implements Map <Object, Property> {
                         bins[binIndex] = removeFromList(bin, key);
                     } else {
                         // Go back to list-only representation for small maps
+                        refreshList();
                         bins = null;
                         qhead = null;
                     }

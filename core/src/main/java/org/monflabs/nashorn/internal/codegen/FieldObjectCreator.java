@@ -38,7 +38,9 @@ import static org.monflabs.nashorn.internal.codegen.ObjectClassGenerator.getPadd
 import static org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex.getArrayIndex;
 import static org.monflabs.nashorn.internal.runtime.arrays.ArrayIndex.isValidArrayIndex;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.monflabs.nashorn.internal.codegen.types.Type;
 import org.monflabs.nashorn.internal.ir.Symbol;
 import org.monflabs.nashorn.internal.runtime.Context;
@@ -61,6 +63,18 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
     private int                           fieldCount;
     private int                           paddedFieldCount;
     private int                           paramCount;
+
+    /**
+     * The most fields a scope's structure class has. A class holds at most 65,535 fields and its
+     * constant pool as many entries, which each field takes several of (twice over with dual
+     * fields): a scope with more variables, as a function of 33,000 let declarations, keeps the
+     * rest in its spill, like any object that grew past its fields.
+     */
+    static final int MAX_SCOPE_FIELDS = 2048;
+
+    /** The spill slot of each variable of a large scope that does not get a field. */
+    private final Map<Symbol, Integer>    spillSlots = new HashMap<>();
+    private int                           spillCount;
 
     /** call site flags to be used for invocations */
     private final int callSiteFlags;
@@ -118,8 +132,18 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
             } else {
                 method.invoke(constructorNoLookup(className, PropertyMap.class, ScriptObject.class));
             }
+            allocateSpill(method);
         } else {
             method.invoke(constructorNoLookup(className, PropertyMap.class));
+        }
+    }
+
+    /** Allocates the spill of the new scope on the stack, when some of its variables live there. */
+    private void allocateSpill(final MethodEmitter method) {
+        if (spillCount > 0) {
+            method.dup();
+            method.load(spillCount);
+            method.invoke(ScriptObject.ALLOCATE_SPILL);
         }
     }
 
@@ -147,6 +171,7 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
         // We create a scope identical to the currently active one, so use its parent as our parent
         method.invoke(ScriptObject.GET_PROTO);
         method.invoke(constructorNoLookup(className, PropertyMap.class, ScriptObject.class));
+        allocateSpill(method);
     }
 
     @Override
@@ -160,7 +185,11 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
             if (tuple.symbol != null && tuple.value != null) {
                 final int index = getArrayIndex(tuple.key);
                 method.dup();
-                if (!isValidArrayIndex(index)) {
+                if (spillSlots.containsKey(tuple.symbol)) {
+                    // a variable of a large scope that lives in the spill
+                    loadTuple(method, tuple, false);
+                    method.dynamicSet(tuple.key, callSiteFlags, false);
+                } else if (!isValidArrayIndex(index)) {
                     putField(method, tuple.key, tuple.symbol.getFieldIndex(), tuple);
                 } else {
                     putSlot(method, ArrayIndex.toLongIndex(index), tuple);
@@ -175,7 +204,8 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
     @Override
     protected PropertyMap makeMap() {
         assert propertyMap == null : "property map already initialized";
-        propertyMap = newMapCreator(fieldObjectClass).makeFieldMap(hasArguments(), codegen.useDualFields(), fieldCount, paddedFieldCount, evalCode);
+        propertyMap = newMapCreator(fieldObjectClass).makeFieldMap(hasArguments(), codegen.useDualFields(), fieldCount, paddedFieldCount, evalCode,
+                spillSlots, spillCount);
         return propertyMap;
     }
 
@@ -253,7 +283,11 @@ public abstract class FieldObjectCreator<T> extends ObjectCreator<T> {
                 if (hasArguments() && symbol.isParam()) {
                     symbol.setFieldIndex(paramCount++);
                 } else if (!isValidArrayIndex(getArrayIndex(tuple.key))) {
-                    symbol.setFieldIndex(fieldCount++);
+                    if (isScope() && fieldCount >= MAX_SCOPE_FIELDS) {
+                        spillSlots.put(symbol, spillCount++);
+                    } else {
+                        symbol.setFieldIndex(fieldCount++);
+                    }
                 }
             }
         }

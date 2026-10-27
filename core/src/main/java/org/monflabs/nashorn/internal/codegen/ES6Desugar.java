@@ -66,6 +66,7 @@ import org.monflabs.nashorn.internal.ir.UnaryNode;
 import org.monflabs.nashorn.internal.ir.VarNode;
 import org.monflabs.nashorn.internal.ir.WhileNode;
 import org.monflabs.nashorn.internal.ir.visitor.NodeVisitor;
+import org.monflabs.nashorn.internal.ir.visitor.SimpleNodeVisitor;
 import org.monflabs.nashorn.internal.parser.Token;
 import org.monflabs.nashorn.internal.parser.TokenType;
 
@@ -1849,7 +1850,7 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
         // to a constant is a TypeError.
         declaring = forNode.declaresHead();
 
-        ForNode loop = forNode;
+        ForNode loop = markIterableDeadZone(forNode, pattern);
         final List<Statement> hoisted = new ArrayList<>();
         if (pattern) {
             final String element = newTemporary();
@@ -1873,6 +1874,58 @@ final class ES6Desugar extends NodeVisitor<LexicalContext> {
             hoisted.add(loop);
         }
         return hoisted;
+    }
+
+    /**
+     * Marks a read of the loop's own lexical binding from the expression it iterates, as the symbol assignment does
+     * for a plain {@code for (let x of [x])} - but a pattern's names are about to move into the body, and a
+     * {@code for await} loop is about to become a while loop, so neither would be seen there. ES2015 13.7.5.12
+     * evaluates the expression with the names bound and uninitialised: reading one is a ReferenceError, whatever
+     * binding of that name stands outside the loop. A function written there is not read until it is called.
+     */
+    private ForNode markIterableDeadZone(final ForNode forNode, final boolean pattern) {
+        final JoinPredecessorExpression modify = forNode.getModify();
+        if (!forNode.hasPerIterationScope() || modify == null || !(pattern || forNode.isForAwait())) {
+            return forNode;
+        }
+        final Set<String> names = new HashSet<>();
+        patternNames(forNode.getInit(), names);
+        if (names.isEmpty()) {
+            return forNode;
+        }
+        return forNode.setModify(lc, (JoinPredecessorExpression)modify.accept(new SimpleNodeVisitor() {
+            @Override
+            public boolean enterFunctionNode(final FunctionNode functionNode) {
+                return false;
+            }
+
+            @Override
+            public Node leaveIdentNode(final IdentNode identNode) {
+                return !identNode.isPropertyName() && names.contains(identNode.getName()) ? identNode.markDead() : identNode;
+            }
+        }));
+    }
+
+    /** The names a binding target binds: an identifier, or those of a pattern's elements, but not of its defaults. */
+    private static void patternNames(final Expression target, final Set<String> into) {
+        if (target == null) {
+            return;
+        }
+        if (target instanceof IdentNode name) {
+            into.add(name.getName());
+        } else if (target instanceof UnaryNode rest && rest.isTokenType(TokenType.SPREAD_ARRAY)) {
+            patternNames(rest.getExpression(), into);
+        } else if (target instanceof BinaryNode withDefault && withDefault.isTokenType(TokenType.ASSIGN)) {
+            patternNames(withDefault.lhs(), into);
+        } else if (target instanceof ArrayLiteralNode array) {
+            for (final Expression element : array.getValue()) {
+                patternNames(element, into);
+            }
+        } else if (target instanceof ObjectNode object) {
+            for (final PropertyNode property : object.getElements()) {
+                patternNames(objectPatternTarget(property), into);
+            }
+        }
     }
 
     /**

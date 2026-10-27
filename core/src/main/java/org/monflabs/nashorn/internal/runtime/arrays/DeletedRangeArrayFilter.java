@@ -241,6 +241,11 @@ final class DeletedRangeArrayFilter extends ArrayFilter {
 
     @Override
     public ArrayData slice(final long from, final long to) {
-        return new DeletedRangeArrayFilter(underlying.slice(from, to), Math.max(0, lo - from), Math.max(0, hi - from));
+        // Only the part of the deleted range inside [from, to) carries over; clamping both ends
+        // to 0 would turn a range wholly before from into a hole at the slice's first element.
+        final long newLo = Math.max(lo, from) - from;
+        final long newHi = Math.min(hi, to - 1) - from;
+        final ArrayData sliced = underlying.slice(from, to);
+        return newLo > newHi ? sliced : new DeletedRangeArrayFilter(sliced, newLo, newHi);
     }
 }

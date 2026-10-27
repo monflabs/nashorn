@@ -272,6 +272,25 @@ public final class ECMAErrors {
     }
 
     /**
+     * The message of {@link #stackOverflow}, formatted when this class is initialized: a stack
+     * overflow is converted where the stack is nearly exhausted, too little to load and format
+     * a message, which could leave the classes involved unusable for the rest of the JVM.
+     */
+    private static final String CALL_STACK_EXCEEDED = getMessage("range.error.call.stack.exceeded");
+
+    /**
+     * The RangeError of a call stack that ran out, as other engines throw it, made of the JVM's
+     * {@code StackOverflowError}: what a script catches, and what an embedder gets when no script
+     * catches it.
+     *
+     * @param cause the StackOverflowError
+     * @return the resulting {@link ECMAException}
+     */
+    public static ECMAException stackOverflow(final StackOverflowError cause) {
+        return error(Context.getGlobal().newRangeError(CALL_STACK_EXCEEDED), cause);
+    }
+
+    /**
      * Create a reference error (ECMA 15.11.6.3)
      *
      * @param msgId   resource tag for error message

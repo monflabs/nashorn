@@ -2093,7 +2093,8 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
             return str;
         }
 
-        final int padding = (int)Math.min(max - str.length(), Integer.MAX_VALUE - str.length());
+        JSType.checkStringLength(max);
+        final int padding = (int)(max - str.length());
         final StringBuilder sb = new StringBuilder(padding);
         while (sb.length() < padding) {
             sb.append(filler, 0, Math.min(filler.length(), padding - sb.length()));
@@ -2122,6 +2123,7 @@ public final class NativeString extends ScriptObject implements OptimisticBuilti
         if ((long)times * str.length() > JSType.MAX_UINT) {
             throw rangeError("invalid.repeat.count", ScriptRuntime.safeToString(count));
         }
+        JSType.checkStringLength((long)times * str.length());
         return str.repeat(times);
     }
 

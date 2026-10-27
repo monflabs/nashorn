@@ -79,6 +79,8 @@ public final class RewriteException extends Exception {
     /** Call for populating an array with local variable state */
     private static final Call POPULATE_ARRAY           = staticCall(MethodHandles.lookup(), RewriteException.class, "populateArray", Object[].class, Object[].class, int.class, Object[].class);
 
+    /** Call for converting an array to an int array. */
+    public static final Call TO_INT_ARRAY    = staticCallNoLookup(RewriteException.class, "toIntArray",    int[].class, Object.class, RewriteException.class);
     /** Call for converting an array to a long array. */
     public static final Call TO_LONG_ARRAY   = staticCallNoLookup(RewriteException.class, "toLongArray",   long[].class, Object.class, RewriteException.class);
     /** Call for converting an array to a double array. */
@@ -188,6 +190,53 @@ public final class RewriteException extends Exception {
 
     /**
      * Continuation handler calls this method when a local variable carried over into the continuation is expected to be
+     * an int array in the continued method. It is normally an int array in the original method too, but it can be an
+     * Object array there: the type of an array literal element is not monotonic across a deoptimization, since an
+     * element computed generically from an optimistic operand ({@code o.x * i}, with {@code i} an optimistic int) is
+     * a primitive once that operand has widened.
+     * @param obj the object that has to be converted into an int array
+     * @param e the exception being processed
+     * @return an int array
+     */
+    public static int[] toIntArray(final Object obj, final RewriteException e) {
+        if(obj instanceof int[]) {
+            return (int[])obj;
+        }
+
+        if(!(obj instanceof Object[])) {
+            // a dead store, as for instanceOrNull
+            return null;
+        }
+
+        final Object[] in = (Object[])obj;
+        final int[] out = new int[in.length];
+        for(int i = 0; i < in.length; ++i) {
+            final Number n = elementNumber(in, i);
+            if(n != null) {
+                final double d = n.doubleValue();
+                if((int)d != d || d == 0 && 1 / d < 0) {
+                    throw new IllegalStateException("array element " + i + " is not an int: " + n);
+                }
+                out[i] = (int)d;
+            }
+        }
+        return e.replaceByteCodeValue(in, out);
+    }
+
+    /**
+     * The element of an Object array literal that a continuation expects as a primitive: a number, or null for an
+     * element the interrupted method had not stored yet.
+     */
+    private static Number elementNumber(final Object[] in, final int i) {
+        final Object v = in[i];
+        if(v == null || v instanceof Number) {
+            return (Number)v;
+        }
+        throw new IllegalStateException("array element " + i + " is not a number: " + v.getClass().getName());
+    }
+
+    /**
+     * Continuation handler calls this method when a local variable carried over into the continuation is expected to be
      * a long array in the continued method. Normally, it will also be a long array in the original (interrupted by
      * deoptimization) method, but it can actually be an int array that underwent widening in the new code version.
      * @param obj the object that has to be converted into a long array
@@ -197,6 +246,21 @@ public final class RewriteException extends Exception {
     public static long[] toLongArray(final Object obj, final RewriteException e) {
         if(obj instanceof long[]) {
             return (long[])obj;
+        }
+
+        if(obj == null || !obj.getClass().isArray()) {
+            // a dead store, as for instanceOrNull: the temporary of an array literal that was
+            // already built ([x].length >= x--), which the handler still lists with an array type
+            return null;
+        }
+
+        if(obj instanceof Object[] in) {
+            final long[] out = new long[in.length];
+            for(int i = 0; i < in.length; ++i) {
+                final Number n = elementNumber(in, i);
+                out[i] = n == null ? 0 : n.longValue();
+            }
+            return e.replaceByteCodeValue(in, out);
         }
 
         assert obj instanceof int[];
@@ -222,6 +286,22 @@ public final class RewriteException extends Exception {
             return (double[])obj;
         }
 
+        if(obj == null || !obj.getClass().isArray()) {
+            // a dead store, as for instanceOrNull: the temporary of an array literal that was
+            // already built ([x].length >= x--), which the handler still lists with an array type
+            return null;
+        }
+
+        if(obj instanceof Object[] in) {
+            // an element whose type narrowed across the deoptimization, see toIntArray
+            final double[] out = new double[in.length];
+            for(int i = 0; i < in.length; ++i) {
+                final Number n = elementNumber(in, i);
+                out[i] = n == null ? 0 : n.doubleValue();
+            }
+            return e.replaceByteCodeValue(in, out);
+        }
+
         assert obj instanceof int[] || obj instanceof long[];
 
         final int l = Array.getLength(obj);
@@ -244,6 +324,12 @@ public final class RewriteException extends Exception {
     public static Object[] toObjectArray(final Object obj, final RewriteException e) {
         if(obj instanceof Object[]) {
             return (Object[])obj;
+        }
+
+        if(obj == null || !obj.getClass().isArray()) {
+            // a dead store, as for instanceOrNull: the temporary of an array literal that was
+            // already built ([x].length >= x--), which the handler still lists with an array type
+            return null;
         }
 
         assert obj instanceof int[] || obj instanceof long[] || obj instanceof double[] : obj + " is " + obj.getClass().getName();

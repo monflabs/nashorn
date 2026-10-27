@@ -408,9 +408,11 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
     public final void defineOwnProperty(final int index, final Object value) {
         assert isValidArrayIndex(index) : "invalid array index";
         final long longIndex = ArrayIndex.toLongIndex(index);
-        if (longIndex >= getArray().length()) {
-            // make array big enough to hold..
-            setArray(getArray().ensure(longIndex));
+        final long oldLength = getArray().length();
+        if (longIndex >= oldLength) {
+            // make array big enough to hold.. and leave the indices it skips holes, as ScriptObject does: ensure
+            // fills them, so defining index 1 of [...[]] made a[0] a null that "0 in a" saw
+            setArray(getArray().ensure(longIndex).safeDelete(oldLength, longIndex - 1, false));
         }
         setArray(getArray().set(index, value, false));
     }
@@ -607,6 +609,19 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String toLocaleString(final Object self) {
+        final Object object = JSType.toScriptObject(self);
+        final java.util.Set<Object> joining = JOINING.get();
+        if (!joining.add(object)) {
+            return "";
+        }
+        try {
+            return toLocaleStringOf(self);
+        } finally {
+            joining.remove(object);
+        }
+    }
+
+    private static String toLocaleStringOf(final Object self) {
         final StringBuilder sb = new StringBuilder();
         final Iterator<Object> iter = arrayLikeIterator(self, true);
 
@@ -933,8 +948,9 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
         final boolean isScriptObject = isScriptArray || obj instanceof ScriptObject;
 
         // ES2015 22.1.3.1.1: Symbol.isConcatSpreadable overrides the decision
-        // either way. The flag keeps the lookup off concat until one is installed.
-        if (WellKnownSymbols.isConcatSpreadableInstalled() && obj instanceof ScriptObject sobj) {
+        // either way. The flag keeps the lookup off concat until one is installed,
+        // except on a proxy, whose get trap sees the lookup happen.
+        if ((WellKnownSymbols.isConcatSpreadableInstalled() || obj instanceof NativeProxy) && obj instanceof ScriptObject sobj) {
             final Object spreadable = sobj.get(NativeSymbol.isConcatSpreadable);
             if (spreadable != ScriptRuntime.UNDEFINED) {
                 if (JSType.toBoolean(spreadable)) {
@@ -946,9 +962,10 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             }
         }
 
-        if (obj instanceof NativeProxy proxy) {
+        if (obj instanceof NativeProxy proxy && isScriptArray) {
             // there is no array data behind a proxy to walk: every element has
-            // to be asked for, which is what its handler is there to answer
+            // to be asked for, which is what its handler is there to answer. A
+            // proxy for anything but an array is a single element, as any object.
             spreadThroughProperties(list, proxy);
             return;
         }
@@ -986,6 +1003,31 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE)
     public static String join(final Object self, final Object separator) {
+        final Object object = JSType.toScriptObject(self);
+        // An array that holds itself, directly or not, joins to the empty string where it recurs, as every other
+        // engine has it: followed to the letter the join never ends, and the stack overflowed into a RangeError.
+        final java.util.Set<Object> joining = JOINING.get();
+        if (!joining.add(object)) {
+            return "";
+        }
+        try {
+            return joinOf(object, self, separator);
+        } finally {
+            joining.remove(object);
+        }
+    }
+
+    /** The arrays a join or toLocaleString on this thread is in the middle of, by identity. */
+    private static final ThreadLocal<java.util.Set<Object>> JOINING =
+            ThreadLocal.withInitial(() -> java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+
+    private static String joinOf(final Object object, final Object self, final Object separator) {
+        if (object instanceof ScriptObject sobj && !ScriptObject.isArray(sobj)) {
+            final java.util.TreeSet<Long> keys = indexedKeys(sobj);
+            if (keys != null) {
+                return joinPlain(sobj, keys, separator);
+            }
+        }
         final StringBuilder    sb   = new StringBuilder();
         final Iterator<Object> iter = arrayLikeIterator(self, true);
         final String           sep  = separator == ScriptRuntime.UNDEFINED ? "," : JSType.toString(separator);
@@ -994,15 +1036,102 @@ public final class NativeArray extends ScriptObject implements OptimisticBuiltin
             final Object obj = iter.next();
 
             if (obj != null && obj != ScriptRuntime.UNDEFINED) {
-                sb.append(JSType.toString(obj));
+                final String str = JSType.toString(obj);
+                JSType.checkStringLength((long)sb.length() + str.length());
+                sb.append(str);
             }
 
             if (iter.hasNext()) {
+                JSType.checkStringLength((long)sb.length() + sep.length());
                 sb.append(sep);
             }
         }
 
         return sb.toString();
+    }
+
+    /**
+     * join of an ordinary array-like object - {length: n} and its kin, which the length makes as long as it likes. An
+     * index that neither the object nor its prototypes hold reads as undefined, and reading it does nothing anyone can
+     * see: between the keys there are only separators, whose length is known. So the gaps are counted rather than read
+     * one at a time (a length of 2^53 - 1 would take 2^29 turns to reach the string limit), and the RangeError comes
+     * where the reads one at a time would have thrown it.
+     */
+    private static String joinPlain(final ScriptObject sobj, final java.util.TreeSet<Long> initialKeys, final Object separator) {
+        final long length = toLength(sobj.getLength());
+        final String sep = separator == ScriptRuntime.UNDEFINED ? "," : JSType.toString(separator);
+        final StringBuilder sb = new StringBuilder();
+        java.util.TreeSet<Long> keys = initialKeys;
+        long k = 0;
+        while (k < length) {
+            final Long next = keys == null ? Long.valueOf(k) : keys.ceiling(k);
+            final long target = next == null ? length : Math.min(next, length);
+            // the absent elements k .. target - 1 each add a separator, but for the last element of all
+            final long separators = Math.min(target, length - 1) - k;
+            if (separators > 0 && !sep.isEmpty()) {
+                if (separators > (JSType.MAX_STRING_LENGTH - sb.length()) / sep.length()) {
+                    JSType.checkStringLength(JSType.MAX_STRING_LENGTH + 1L);
+                }
+                sb.append(sep.repeat((int)separators));
+            }
+            if (target >= length) {
+                break;
+            }
+            k = target;
+            final Object obj = sobj.get((double)k);
+            if (obj != null && obj != ScriptRuntime.UNDEFINED) {
+                final String str = JSType.toString(obj);
+                JSType.checkStringLength((long)sb.length() + str.length());
+                sb.append(str);
+            }
+            // a getter or a toString may have added or removed keys, or made the object exotic
+            keys = indexedKeys(sobj);
+            if (k + 1 < length) {
+                JSType.checkStringLength((long)sb.length() + sep.length());
+                sb.append(sep);
+            }
+            k++;
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The integer keys an ordinary object and its prototypes hold, or null when one of them is not ordinary (a proxy, a
+     * typed array, a string, an arguments object...), whose reads may be seen, or holds too many elements to list.
+     */
+    private static java.util.TreeSet<Long> indexedKeys(final ScriptObject sobj) {
+        final Global global = Global.instance();
+        final java.util.TreeSet<Long> keys = new java.util.TreeSet<>();
+        for (ScriptObject s = sobj; s != null; s = s.getProto()) {
+            final boolean ordinary = s.getClass().getPackageName().equals("org.monflabs.nashorn.internal.scripts")
+                    || s == Global.objectPrototype() || s == global.getArrayPrototype();
+            if (!ordinary) {
+                return null;
+            }
+            final ArrayData data = s.getArray();
+            final long dataLength = data.length();
+            if (dataLength > 1 << 16) {
+                return null;
+            }
+            for (int i = 0; i < dataLength; i++) {
+                if (data.has(i)) {
+                    keys.add((long)i);
+                }
+            }
+            for (final Property property : s.getMap().getProperties()) {
+                if (property.getKey() instanceof String key && !key.isEmpty() && key.length() <= 16) {
+                    try {
+                        final long index = Long.parseLong(key);
+                        if (index >= 0 && Long.toString(index).equals(key)) {
+                            keys.add(index);
+                        }
+                    } catch (final NumberFormatException e) {
+                        // not an integer key
+                    }
+                }
+            }
+        }
+        return keys;
     }
 
     /**

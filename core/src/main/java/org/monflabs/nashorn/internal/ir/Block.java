@@ -539,6 +539,26 @@ public class Block extends Node implements BreakableNode, Terminal, Flags<Block>
     }
 
     /**
+     * Whether this block provides its scope object creator for the given loop: that the loop is
+     * the one it was created to hold, not a loop nested further in, which binds in a scope of its
+     * own, or in none.
+     *
+     * @param loop the for-in or for-of loop
+     * @return true if the loop's per-iteration scope is made by this block's creator
+     */
+    public boolean providesScopeCreatorFor(final ForNode loop) {
+        if (!providesScopeCreator()) {
+            return false;
+        }
+        for (final Statement statement : statements) {
+            if (lexicalIterationLoop(statement) == loop) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The for-in or for-of loop this block was created to hold, if the statement
      * is one that binds afresh on every iteration.
      *

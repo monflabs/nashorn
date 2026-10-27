@@ -143,21 +143,11 @@ public final class NativeBigInt extends ScriptObject {
 
     /** ES2020 StringToBigInt: an empty or whitespace-only string is 0n, a bad one a SyntaxError. */
     private static BigInteger stringToBigInt(final String str) {
-        final String trimmed = str.trim();
-        if (trimmed.isEmpty()) {
-            return BigInteger.ZERO;
-        }
-        try {
-            if (trimmed.length() > 2 && trimmed.charAt(0) == '0') {
-                final char c = trimmed.charAt(1);
-                if (c == 'x' || c == 'X') { return new BigInteger(trimmed.substring(2), 16); }
-                if (c == 'o' || c == 'O') { return new BigInteger(trimmed.substring(2), 8); }
-                if (c == 'b' || c == 'B') { return new BigInteger(trimmed.substring(2), 2); }
-            }
-            return new BigInteger(trimmed, 10);
-        } catch (final NumberFormatException e) {
+        final BigInteger value = ScriptRuntime.stringToBigInt(str);
+        if (value == null) {
             throw syntaxError("cant.convert.to.bigint", "\"" + str + "\"");
         }
+        return value;
     }
 
     /**

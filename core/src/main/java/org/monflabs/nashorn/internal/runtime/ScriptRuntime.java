@@ -143,6 +143,24 @@ public final class ScriptRuntime {
     public static final Call APPLY = staticCall(MethodHandles.lookup(), ScriptRuntime.class, "apply", Object.class, ScriptFunction.class, Object.class, Object[].class);
 
     /**
+     * The value a catch clause binds for a Java throwable: the thrown value of a JavaScript
+     * exception, a RangeError for a stack overflow (which other engines throw where the JVM throws
+     * a Java error), or the throwable itself.
+     *
+     * @param t what was caught
+     * @return the value of the catch parameter
+     */
+    public static Object CATCH_VALUE(final Throwable t) {
+        if (t instanceof ECMAException ecma) {
+            return ecma.thrown;
+        }
+        if (t instanceof StackOverflowError overflow) {
+            return ECMAErrors.stackOverflow(overflow).thrown;
+        }
+        return t;
+    }
+
+    /**
      * Throws a reference error for an undefined variable.
      */
     public static final Call THROW_REFERENCE_ERROR = staticCall(MethodHandles.lookup(), ScriptRuntime.class, "throwReferenceError", void.class, String.class);
@@ -771,6 +789,9 @@ public final class ScriptRuntime {
         JobQueue.enterScript();
         try {
             return target.invoke(self, args);
+        } catch (final StackOverflowError e) {
+            // uncaught by the script: the RangeError it would have caught
+            throw ECMAErrors.stackOverflow(e);
         } catch (final RuntimeException | Error e) {
             throw e;
         } catch (final Throwable t) {
@@ -912,7 +933,12 @@ public final class ScriptRuntime {
             return xVal == yVal;
         }
 
-        if (xType == JSType.STRING || yType == JSType.BOOLEAN) {
+        if (xType == JSType.STRING) {
+            // either may be a ConsString, which a String is never equal to
+            return x.toString().equals(y.toString());
+        }
+
+        if (xType == JSType.BOOLEAN) {
             return x.equals(y);
         }
 
@@ -1211,7 +1237,7 @@ public final class ScriptRuntime {
             if (by.signum() < 0) {
                 throw rangeError("bigint.negative.exponent");
             }
-            return bx.pow(by.intValueExact());
+            return bigIntPow(bx, by);
         }
         requireSameNumericType(ny, false);
         return Math.pow((Double) nx, (Double) ny);
@@ -1271,6 +1297,52 @@ public final class ScriptRuntime {
         return JSType.toInt32((Double) nx) ^ JSType.toInt32((Double) ny);
     }
 
+    /**
+     * The most bits a BigInt result may have (V8's limit, 2^30): past it an operation throws
+     * RangeError, where BigInteger would throw an ArithmeticException for a shift count or an
+     * exponent past the int range, or exhaust the heap below it.
+     */
+    private static final long MAX_BIGINT_BITS = 1L << 30;
+
+    /** BigInt::leftShift (6.1.6.2.9): a negative count shifts right. */
+    private static BigInteger bigIntShiftLeft(final BigInteger x, final BigInteger count) {
+        if (x.signum() == 0) {
+            return BigInteger.ZERO;
+        }
+        if (count.signum() < 0) {
+            return bigIntShiftRight(x, count.negate());
+        }
+        if (count.bitLength() > 31 || x.bitLength() + count.longValue() > MAX_BIGINT_BITS) {
+            throw rangeError("bigint.too.big");
+        }
+        return x.shiftLeft(count.intValue());
+    }
+
+    /** BigInt::signedRightShift (6.1.6.2.10): past every bit, 0n or -1n. */
+    private static BigInteger bigIntShiftRight(final BigInteger x, final BigInteger count) {
+        if (count.signum() < 0) {
+            return bigIntShiftLeft(x, count.negate());
+        }
+        if (count.bitLength() > 31) {
+            return x.signum() < 0 ? BigInteger.ONE.negate() : BigInteger.ZERO;
+        }
+        return x.shiftRight(count.intValue());
+    }
+
+    /** BigInt::exponentiate (6.1.6.2.3) for a non-negative exponent. */
+    private static BigInteger bigIntPow(final BigInteger base, final BigInteger exponent) {
+        if (base.signum() == 0) {
+            return exponent.signum() == 0 ? BigInteger.ONE : BigInteger.ZERO;
+        }
+        if (base.abs().equals(BigInteger.ONE)) {
+            return base.signum() > 0 || !exponent.testBit(0) ? BigInteger.ONE : BigInteger.ONE.negate();
+        }
+        if (exponent.bitLength() > 31 || (long)(base.bitLength() - 1) * exponent.longValue() > MAX_BIGINT_BITS) {
+            throw rangeError("bigint.too.big");
+        }
+        return base.pow(exponent.intValue());
+    }
+
     /** ES2020 left shift, BigInt-aware. @param x value @param y shift @return result */
     public static Object SHL(final Object x, final Object y) {
         if (isNumberBox(x) && isNumberBox(y)) {
@@ -1280,7 +1352,7 @@ public final class ScriptRuntime {
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
             requireSameNumericType(ny, true);
-            return bx.shiftLeft(((BigInteger) ny).intValueExact());
+            return bigIntShiftLeft(bx, (BigInteger) ny);
         }
         requireSameNumericType(ny, false);
         return JSType.toInt32((Double) nx) << (JSType.toInt32((Double) ny) & 31);
@@ -1295,7 +1367,7 @@ public final class ScriptRuntime {
         final Object ny = toNumeric(y);
         if (nx instanceof BigInteger bx) {
             requireSameNumericType(ny, true);
-            return bx.shiftRight(((BigInteger) ny).intValueExact());
+            return bigIntShiftRight(bx, (BigInteger) ny);
         }
         requireSameNumericType(ny, false);
         return JSType.toInt32((Double) nx) >> (JSType.toInt32((Double) ny) & 31);
@@ -1672,23 +1744,54 @@ public final class ScriptRuntime {
         return new BigDecimal(num).toBigIntegerExact().equals(bi);
     }
 
-    /** StringToBigInt that answers null rather than throwing, for loose equality. */
+    /** StringToBigInt that answers null rather than throwing, for loose equality and the relational operators. */
     private static BigInteger parseBigInt(final String str) {
-        final String t = str.trim();
-        if (t.isEmpty()) {
+        return stringToBigInt(str);
+    }
+
+    /**
+     * ES2020 StringToBigInt: an empty or whitespace-only string is 0n, one outside the StringIntegerLiteral grammar
+     * null. The grammar is checked here: BigInteger, and String.trim, would trim anything up to U+0020 (a NUL among
+     * them) where only the JavaScript white space goes - and String.trim missed U+00A0 and its kin - take any Unicode
+     * digit, and a sign after a 0x prefix. So a NUL followed by 3 was loosely equal to 3n, and a no-break space followed by 3 was not.
+     *
+     * @param str the string
+     * @return its BigInt value, or null if it has none
+     */
+    public static BigInteger stringToBigInt(final String str) {
+        int start = 0;
+        int end = str.length();
+        while (start < end && Lexer.isJSWhitespace(str.charAt(start))) {
+            start++;
+        }
+        while (end > start && Lexer.isJSWhitespace(str.charAt(end - 1))) {
+            end--;
+        }
+        if (start == end) {
             return BigInteger.ZERO;
         }
-        try {
-            if (t.length() > 2 && t.charAt(0) == '0') {
-                final char c = t.charAt(1);
-                if (c == 'x' || c == 'X') { return new BigInteger(t.substring(2), 16); }
-                if (c == 'o' || c == 'O') { return new BigInteger(t.substring(2), 8); }
-                if (c == 'b' || c == 'B') { return new BigInteger(t.substring(2), 2); }
-            }
-            return new BigInteger(t, 10);
-        } catch (final NumberFormatException e) {
+        final String trimmed = str.substring(start, end);
+        int radix = 10;
+        int digits = 0;
+        if (trimmed.length() > 2 && trimmed.charAt(0) == '0') {
+            final char c = trimmed.charAt(1);
+            if (c == 'x' || c == 'X') { radix = 16; digits = 2; }
+            if (c == 'o' || c == 'O') { radix = 8; digits = 2; }
+            if (c == 'b' || c == 'B') { radix = 2; digits = 2; }
+        }
+        if (radix == 10 && (trimmed.charAt(0) == '+' || trimmed.charAt(0) == '-')) {
+            digits = 1;
+        }
+        if (digits == trimmed.length()) {
             return null;
         }
+        for (int i = digits; i < trimmed.length(); i++) {
+            final char c = trimmed.charAt(i);
+            if (c >= 128 || Character.digit(c, radix) < 0) {
+                return null;
+            }
+        }
+        return new BigInteger(digits == 2 ? trimmed.substring(2) : trimmed, radix);
     }
 
     private static boolean isUndefinedAndNull(final JSType xType, final JSType yType) {
@@ -2283,6 +2386,19 @@ public final class ScriptRuntime {
     }
 
     /**
+     * Appends a hole to an array under construction: an elision of a literal that also has a
+     * spread element, which makes the array longer without an element there.
+     *
+     * @param array the array being built
+     * @return the array, so that appends chain on the stack
+     */
+    public static Object SPREAD_ELISION(final Object array) {
+        final NativeArray target = (NativeArray)array;
+        target.set("length", (double)(target.getArray().length() + 1), 0);
+        return target;
+    }
+
+    /**
      * Appends everything an iterable yields - the {@code ...xs} itself.
      *
      * @param array    the array being built
@@ -2294,6 +2410,36 @@ public final class ScriptRuntime {
         final Iterator<?> iterator = toES6Iterator(iterable);
         while (iterator.hasNext()) {
             target.set((int)target.getArray().length(), iterator.next(), 0);
+        }
+        return target;
+    }
+
+    /**
+     * The TypeError of a call whose callee is not a function, for the compiled code to throw: a
+     * parenthesized optional chain that short-circuited, as in {@code (a?.b.c)()}.
+     *
+     * @param callee the value that was to be called
+     * @return the error
+     */
+    public static Throwable NOT_A_FUNCTION(final Object callee) {
+        return typeError("not.a.function", safeToString(callee));
+    }
+
+    /**
+     * Appends the elements of an array the compiler made of a call's arguments, in order and
+     * without the iteration protocol (see {@code Splitter#splittableArguments}): the arguments as
+     * they were written.
+     *
+     * @param array    the array being built
+     * @param elements the array literal holding the arguments
+     * @return the array, so that appends chain on the stack
+     */
+    public static Object SPREAD_APPEND_ELEMENTS(final Object array, final Object elements) {
+        final NativeArray target = (NativeArray)array;
+        final NativeArray source = (NativeArray)elements;
+        final long length = source.getArray().length();
+        for (int i = 0; i < length; i++) {
+            target.set((int)target.getArray().length(), source.getArray().getObject(i), 0);
         }
         return target;
     }
@@ -3073,6 +3219,13 @@ public final class ScriptRuntime {
     public static void DEFINE_LITERAL_PROPERTY(final Object object, final Object key, final Object value) {
         final ScriptObject sobj = (ScriptObject)object;
         final Object name = JSType.toPropertyKey(key);
+        final Property existing = sobj.getMap().findProperty(name);
+        if (existing instanceof UserAccessorProperty) {
+            // an accessor the literal defined earlier under the key is replaced where it stands,
+            // where a write would call its setter
+            sobj.redefineAsDataProperty(existing, value);
+            return;
+        }
         if (!ArrayIndex.isValidArrayIndex(ArrayIndex.getArrayIndex(name)) && sobj.getMap().findProperty(name) == null) {
             sobj.addOwnProperty(name, 0, value);
             return;
@@ -3137,7 +3290,9 @@ public final class ScriptRuntime {
                 continue;
             }
             if (src.getOwnPropertyDescriptor(key) instanceof PropertyDescriptor described && described.isEnumerable()) {
-                target.set(key, src.get(key), NashornCallSiteDescriptor.CALLSITE_STRICT);
+                // CreateDataProperty: defined, not set, so that an accessor the literal has under the key is
+                // replaced rather than called, and an own "__proto__" does not reparent the target
+                DEFINE_LITERAL_PROPERTY(target, key, src.get(key));
             }
         }
     }

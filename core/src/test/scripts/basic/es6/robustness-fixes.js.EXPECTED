@@ -1,0 +1,65 @@
+switch: zero num1 d
+deleted setter: true
+12000 arguments: 12000
+optional calls: undefined true true true throw TypeError throw TypeError
+arguments evaluated: throw TypeError 1
+holes: 4 false false
+stack overflow: throw RangeError
+string length: throw RangeError throw RangeError
+bigint: 0 0 -1 -1 throw RangeError
+literal proto: throw TypeError null
+switch in finally: ok
+replace d flag: a-b-
+program points: 420000
+scope fields: 5
+boolean add: trueq falseq trueq falseq 2
+same value: true true true
+literal temp: NaN
+unary test: t t t false
+object add assign: [object Object]1.5
+literal redefinition: [["0",5],["1",1]] [["0",5],["1",1]] [["1",6]] [["x",2]]
+nested loop binding: 1 1 2 2 p
+negate bigint: 9223372036854775808
+spread over accessor: {"0":"a"} {"y":2} ["y",""]
+bigint decrement: 4
+guess concatenated: 0
+undefined plus guess: ReferenceError
+call to int32: 0 0 -1 0
+object add undefined: [object Object]undefined
+call to int32, objects: 3 -4 9 -6
+bigint strings: SyntaxError 8 8 SyntaxError SyntaxError SyntaxError 5 false false false false
+and/or narrowed: 3 3 0 3 5
+head dead zone: ReferenceError
+parseInt rounding: 1.2345678901234569e+23 1.2089258196146292e+24
+negative zero product: true true -Infinity
+join huge length: RangeError
+join keys: a,,c x,,,late ,,
+for-of in finally: 2 3.5
+continuation catch: TypeError
+array literal narrowed: NaN
+Math boolean argument: number true number number number
+negative zero quotient: true -2 true
+literal getter order: name,p name,p
+dead in finally: undefined undefined
+const assignment in TDZ: ReferenceError,ReferenceError,ReferenceError,TypeError
+thrown boolean sum: true-0
+thrown boolean sum: falses
+BigInt operand order: ReferenceError,ReferenceError,TypeError1
+concat proxy: 4 true false Symbol(Symbol.isConcatSpreadable)
+subclass map: NaN NaN
+subclass map: A,B,A,B
+JSON wrapper prototypes: [0,"",false] {}
+comma and conditional guesses: -8,-8,7
+assigned in optional chain: 0,1 [[1.5,null],[2,9],[1.5,null]]
+arithmetic truth: t t t t
+negated string: NaN,-42
+slice past holes: a,b a,b <hole>,w x,<hole>
+resumed operand: false
+guess over object: 0,1,NaN,NaN,TypeError,TypeError
+cyclic join: 0,,-1 0,,-1 NaN 1,2,
+pending then live: 101,2
+define skips: 2 false 1
+bigint string compare: false false true true false
+pending decrement: NaN -1
+strict division: ReferenceError
+bitwise double guess: 0 3 -4

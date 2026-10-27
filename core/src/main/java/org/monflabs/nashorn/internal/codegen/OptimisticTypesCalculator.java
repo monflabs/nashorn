@@ -32,8 +32,11 @@ package org.monflabs.nashorn.internal.codegen;
 import static org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException.isValid;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Deque;
+import java.util.List;
+import org.monflabs.nashorn.internal.codegen.types.Type;
 import org.monflabs.nashorn.internal.ir.AccessNode;
 import org.monflabs.nashorn.internal.ir.BaseNode;
 import org.monflabs.nashorn.internal.ir.BinaryNode;
@@ -77,6 +80,9 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     private static final String NEW_TARGET = "new.target";
 
     final Deque<BitSet> neverOptimistic = new ArrayDeque<>();
+
+    // In a rest-of compilation, the program points of the values already on the stack at the continuation point.
+    private BitSet pendingAtContinuation;
 
     OptimisticTypesCalculator(final Compiler compiler) {
         this.compiler = compiler;
@@ -150,7 +156,8 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     private static boolean hasSpreadArgument(final CallNode callNode) {
         for (final Expression arg : callNode.getArgs()) {
             if (arg instanceof UnaryNode unary
-                    && (unary.isTokenType(TokenType.SPREAD_ARGUMENT) || unary.isTokenType(TokenType.SPREAD_ARRAY))) {
+                    && (unary.isTokenType(TokenType.SPREAD_ARGUMENT) || unary.isTokenType(TokenType.SPREAD_ARRAY)
+                        || unary.isTokenType(TokenType.SPREAD_ELEMENTS))) {
                 return true;
             }
         }
@@ -191,6 +198,9 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
             // This is a nested function, and we're doing on-demand compilation. In these compilations, we never descend
             // into nested functions.
             return false;
+        }
+        if (neverOptimistic.isEmpty() && compiler.getContinuationEntryPoints() != null) {
+            pendingAtContinuation = PendingOperands.find(functionNode, compiler.getContinuationEntryPoints()[0]);
         }
         neverOptimistic.push(new BitSet());
         return true;
@@ -305,6 +315,18 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
     private Expression leaveOptimistic(final Optimistic opt) {
         final int pp = opt.getProgramPoint();
         if(isValid(pp) && !neverOptimistic.peek().get(pp)) {
+            if (pendingAtContinuation != null && neverOptimistic.size() == 1 && pendingAtContinuation.get(pp)) {
+                // The value was computed by the method that deoptimized, and arrives here as an object: typed narrower
+                // than that method typed it, it would be converted without a guard - undefined became 0 in
+                // "undefined <= (v * 1000 >>> 0)" once v's deoptimization made the comparison an int one. As the
+                // widest type it passes through, and the operation consuming it converts it. Recorded as
+                // invalidated, so a later recompilation agrees: typed as its guess again, the operation it feeds
+                // narrowed with it while a guess beside it, never checked here, had not deoptimized - a string
+                // held in a local the operation initialized then arrived at the next continuation as 0.
+                final Type pessimistic = opt.getMostPessimisticType();
+                compiler.addInvalidatedProgramPoint(pp, pessimistic);
+                return (Expression)opt.setType(pessimistic);
+            }
             return (Expression)opt.setType(compiler.getOptimisticType(opt));
         }
         return (Expression)opt;
@@ -323,6 +345,94 @@ final class OptimisticTypesCalculator extends SimpleNodeVisitor {
         final JoinPredecessorExpression test = loopNode.getTest();
         if(test != null) {
             tagNeverOptimistic(test.getExpression());
+        }
+    }
+
+    /**
+     * Finds the optimistic expressions whose values are on the stack when the continuation point of a rest-of method
+     * is reached: the operands evaluated before the one the continuation point is in, in every enclosing expression up
+     * to the statement.
+     */
+    private static final class PendingOperands extends SimpleNodeVisitor {
+        private final FunctionNode root;
+        private final int entryPoint;
+        private final BitSet pending = new BitSet();
+        // Per open node, the expressions among its children that have been evaluated; STATEMENT for a statement.
+        private static final List<Expression> STATEMENT = List.of();
+        private final Deque<List<Expression>> evaluated = new ArrayDeque<>();
+        private boolean found;
+
+        private PendingOperands(final FunctionNode root, final int entryPoint) {
+            this.root = root;
+            this.entryPoint = entryPoint;
+        }
+
+        static BitSet find(final FunctionNode functionNode, final int entryPoint) {
+            final PendingOperands finder = new PendingOperands(functionNode, entryPoint);
+            functionNode.accept(finder);
+            return finder.pending.isEmpty() ? null : finder.pending;
+        }
+
+        @Override
+        protected boolean enterDefault(final Node node) {
+            if (found) {
+                return false;
+            }
+            if (node instanceof Optimistic && ((Optimistic)node).getProgramPoint() == entryPoint) {
+                found = true;
+                for (final List<Expression> siblings : evaluated) {
+                    if (siblings == STATEMENT) {
+                        break;
+                    }
+                    for (final Expression sibling : siblings) {
+                        markValue(sibling);
+                    }
+                }
+                return false;
+            }
+            evaluated.push(node instanceof Expression ? new ArrayList<>() : STATEMENT);
+            return true;
+        }
+
+        @Override
+        protected Node leaveDefault(final Node node) {
+            evaluated.pop();
+            if (node instanceof Expression && !evaluated.isEmpty() && evaluated.peek() != STATEMENT) {
+                evaluated.peek().add((Expression)node);
+            }
+            return node;
+        }
+
+        @Override
+        public boolean enterFunctionNode(final FunctionNode functionNode) {
+            // Only the function being compiled: a nested one numbers its own program points.
+            return functionNode == root && enterDefault(functionNode);
+        }
+
+        private void markValue(final Expression expr) {
+            if (expr.isSelfModifying()) {
+                // an increment or a compound assignment answers a value of the type it computes in, never one left
+                // unguarded; and widened, a scope one is emitted without the temporary that holds its base, so every
+                // later local moved down a slot from where the deoptimized method saved it (the callee of a call
+                // pending beside v0-- was restored from the slot of its this)
+                return;
+            }
+            if (expr instanceof Optimistic && isValid(((Optimistic)expr).getProgramPoint())) {
+                pending.set(((Optimistic)expr).getProgramPoint());
+            } else if (expr instanceof JoinPredecessorExpression) {
+                markValue(((JoinPredecessorExpression)expr).getExpression());
+            } else if (expr instanceof TernaryNode) {
+                markValue(((TernaryNode)expr).getTrueExpression());
+                markValue(((TernaryNode)expr).getFalseExpression());
+            } else if (expr instanceof BinaryNode) {
+                final BinaryNode binaryNode = (BinaryNode)expr;
+                if (binaryNode.isTokenType(TokenType.COMMARIGHT)) {
+                    markValue(binaryNode.rhs());
+                } else if (binaryNode.isLogical()) {
+                    markValue(binaryNode.lhs());
+                    markValue(binaryNode.rhs());
+                }
+            }
         }
     }
 }

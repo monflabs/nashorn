@@ -116,18 +116,6 @@ public final class NativeMath extends ScriptObject {
         return x == Integer.MIN_VALUE? Math.abs((double)x) : Math.abs(x);
     }
 
-    /**
-     * ECMA 15.8.2.1 abs(x) - specialization for long values
-     *
-     * @param self  self reference
-     * @param x     argument
-     *
-     * @return abs of argument
-     */
-    @SpecializedFunction
-    public static long abs(final Object self, final long x) {
-        return Math.abs(x);
-    }
 
     /**
      * ECMA 15.8.2.1 abs(x) - specialization for double values
@@ -274,18 +262,6 @@ public final class NativeMath extends ScriptObject {
         return x;
     }
 
-    /**
-     * ECMA 15.8.2.6 ceil(x) - specialized version for longs
-     *
-     * @param self  self reference
-     * @param x     argument
-     *
-     * @return ceil of argument
-     */
-    @SpecializedFunction
-    public static long ceil(final Object self, final long x) {
-        return x;
-    }
 
     /**
      * ECMA 15.8.2.6 ceil(x) - specialized version for doubles
@@ -365,18 +341,6 @@ public final class NativeMath extends ScriptObject {
         return x;
     }
 
-    /**
-     * ECMA 15.8.2.9 floor(x) - specialized version for longs
-     *
-     * @param self  self reference
-     * @param x     argument
-     *
-     * @return floor of argument
-     */
-    @SpecializedFunction
-    public static long floor(final Object self, final long x) {
-        return x;
-    }
 
     /**
      * ECMA 15.8.2.9 floor(x) - specialized version for doubles
@@ -467,19 +431,6 @@ public final class NativeMath extends ScriptObject {
         return Math.max(x, y);
     }
 
-    /**
-     * ECMA 15.8.2.11 max(x) - specialized version for longs
-     *
-     * @param self  self reference
-     * @param x     first argument
-     * @param y     second argument
-     *
-     * @return largest value of x and y
-     */
-    @SpecializedFunction
-    public static long max(final Object self, final long x, final long y) {
-        return Math.max(x, y);
-    }
 
     /**
      * ECMA 15.8.2.11 max(x) - specialized version for doubles
@@ -559,19 +510,6 @@ public final class NativeMath extends ScriptObject {
         return Math.min(x, y);
     }
 
-    /**
-     * ECMA 15.8.2.12 min(x) - specialized version for longs
-     *
-     * @param self  self reference
-     * @param x     first argument
-     * @param y     second argument
-     *
-     * @return smallest value of x and y
-     */
-    @SpecializedFunction
-    public static long min(final Object self, final long x, final long y) {
-        return Math.min(x, y);
-    }
 
     /**
      * ECMA 15.8.2.12 min(x) - specialized version for doubles

@@ -282,7 +282,7 @@ public final class Symbol implements Comparable<Symbol>, Cloneable, Serializable
                ((flags & HAS_OBJECT_VALUE) == 0 ? 0 : 1);
     }
 
-    private boolean isSlotted() {
+    public boolean isSlotted() {
         return firstSlot != -1 && ((flags & HAS_SLOT) != 0);
     }
 

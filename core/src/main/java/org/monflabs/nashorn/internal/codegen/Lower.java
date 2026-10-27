@@ -350,7 +350,9 @@ final class Lower extends NodeOperatorVisitor<BlockLexicalContext> implements Lo
         final Node test = caseNode.getTest();
         if (test instanceof LiteralNode) {
             final LiteralNode<?> lit = (LiteralNode<?>)test;
-            if (lit.isNumeric() && !(lit.getValue() instanceof Integer)) {
+            // a BigInt (case 0n:) is numeric but has no int representation: it stays as it is
+            if (lit.isNumeric() && !(lit.getValue() instanceof Integer)
+                    && !(lit.getValue() instanceof java.math.BigInteger)) {
                 if (JSType.isRepresentableAsInt(lit.getNumber())) {
                     return caseNode.setTest((Expression)LiteralNode.newInstance(lit, lit.getInt32()).accept(this));
                 }

@@ -38,6 +38,7 @@ import org.monflabs.nashorn.internal.ir.AccessNode;
 import org.monflabs.nashorn.internal.ir.BinaryNode;
 import org.monflabs.nashorn.internal.ir.CallNode;
 import org.monflabs.nashorn.internal.ir.Expression;
+import org.monflabs.nashorn.internal.ir.ForNode;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.IdentNode;
 import org.monflabs.nashorn.internal.ir.IndexNode;
@@ -46,6 +47,7 @@ import org.monflabs.nashorn.internal.ir.Optimistic;
 import org.monflabs.nashorn.internal.ir.UnaryNode;
 import org.monflabs.nashorn.internal.ir.VarNode;
 import org.monflabs.nashorn.internal.ir.visitor.SimpleNodeVisitor;
+import org.monflabs.nashorn.internal.runtime.UnwarrantedOptimismException;
 
 /**
  * Find program points in the code that are needed for optimistic assumptions
@@ -55,13 +57,18 @@ class ProgramPoints extends SimpleNodeVisitor {
     private final IntDeque nextProgramPoint = new IntDeque();
     private final Set<Node> noProgramPoint = new HashSet<>();
 
+    /**
+     * The next program point of the current function, or {@link #NO_PROGRAM_POINT} when it has
+     * used them all: a call site encodes its program point in the bits of its flags that are
+     * left, so a function has at most {@code MAX_PROGRAM_POINT_VALUE} of them. Past that, as in a
+     * function of tens of thousands of expressions, the rest is compiled without optimistic types.
+     */
     private int next() {
         final int next = nextProgramPoint.getAndIncrement();
-        if(next > MAX_PROGRAM_POINT_VALUE) {
-            throw new AssertionError("Function has more than " + MAX_PROGRAM_POINT_VALUE + " program points");
-        }
-        return next;
+        return next > MAX_PROGRAM_POINT_VALUE ? NO_PROGRAM_POINT : next;
     }
+
+    private static final int NO_PROGRAM_POINT = -1;
 
     @Override
     public boolean enterFunctionNode(final FunctionNode functionNode) {
@@ -79,7 +86,11 @@ class ProgramPoints extends SimpleNodeVisitor {
         if (noProgramPoint.contains(optimistic)) {
             return (Expression)optimistic;
         }
-        return (Expression)(optimistic.canBeOptimistic() ? optimistic.setProgramPoint(next()) : optimistic);
+        if (!optimistic.canBeOptimistic()) {
+            return (Expression)optimistic;
+        }
+        final int programPoint = next();
+        return (Expression)(programPoint == NO_PROGRAM_POINT ? optimistic : optimistic.setProgramPoint(programPoint));
     }
 
     @Override
@@ -102,6 +113,21 @@ class ProgramPoints extends SimpleNodeVisitor {
             return identNode;
         }
         return setProgramPoint(identNode);
+    }
+
+    @Override
+    public Node leaveForNode(final ForNode forNode) {
+        // The binding of a for-in or for-of loop takes each value optimistically, as a plain "for (x of xs)" does
+        // through its identifier's program point. The internal identifier a destructuring binding is desugared
+        // through gets none as an internal one, and would be converted optimistically at no program point to resume.
+        if (forNode.isForInOrOf() && forNode.getInit() instanceof IdentNode init && init.isInternal()
+                && !UnwarrantedOptimismException.isValid(init.getProgramPoint())) {
+            final int programPoint = next();
+            if (programPoint != NO_PROGRAM_POINT) {
+                return forNode.setInit(lc, (Expression)init.setProgramPoint(programPoint));
+            }
+        }
+        return forNode;
     }
 
     @Override

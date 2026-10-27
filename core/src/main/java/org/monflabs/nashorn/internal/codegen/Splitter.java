@@ -32,10 +32,13 @@ package org.monflabs.nashorn.internal.codegen;
 import static org.monflabs.nashorn.internal.codegen.CompilerConstants.SPLIT_PREFIX;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.monflabs.nashorn.internal.ir.Block;
+import org.monflabs.nashorn.internal.ir.CallNode;
+import org.monflabs.nashorn.internal.ir.Expression;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.LiteralNode;
 import org.monflabs.nashorn.internal.ir.LiteralNode.ArrayLiteralNode;
@@ -45,8 +48,11 @@ import org.monflabs.nashorn.internal.ir.PropertyNode;
 import org.monflabs.nashorn.internal.ir.SplitNode;
 import org.monflabs.nashorn.internal.ir.Splittable;
 import org.monflabs.nashorn.internal.ir.Statement;
+import org.monflabs.nashorn.internal.ir.UnaryNode;
 import org.monflabs.nashorn.internal.ir.VarNode;
 import org.monflabs.nashorn.internal.ir.visitor.SimpleNodeVisitor;
+import org.monflabs.nashorn.internal.parser.Token;
+import org.monflabs.nashorn.internal.parser.TokenType;
 import org.monflabs.nashorn.internal.runtime.Context;
 import org.monflabs.nashorn.internal.runtime.logging.DebugLogger;
 import org.monflabs.nashorn.internal.runtime.logging.Loggable;
@@ -302,6 +308,46 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
         return newBlock;
     }
 
+    /**
+     * A call whose argument list alone weighs more than a method can hold - a tagged template with
+     * thousands of substitutions, f(a1, ..., a10000) - cannot be split, being a single expression.
+     * Its arguments become the elements of an array literal, which can, passed as one
+     * {@link TokenType#SPREAD_ELEMENTS} argument: the call reads the elements of that array, in
+     * order, without the iteration protocol a written spread would use, so nothing observable
+     * changes.
+     *
+     * @param callNode a call
+     * @return the call, or the same call with its arguments in an array literal
+     */
+    static CallNode splittableArguments(final CallNode callNode) {
+        final List<Expression> args = callNode.getArgs();
+        if (args.size() < 2) {
+            return callNode;
+        }
+        long weight = 0;
+        for (final Expression arg : args) {
+            if (arg instanceof UnaryNode unary && (unary.isTokenType(TokenType.SPREAD_ARGUMENT)
+                    || unary.isTokenType(TokenType.SPREAD_ARRAY) || unary.isTokenType(TokenType.SPREAD_ELEMENTS))) {
+                return callNode;
+            }
+            weight += WeighNodes.weigh(arg) + WeighNodes.AASTORE_WEIGHT;
+        }
+        if (weight < SPLIT_THRESHOLD) {
+            return callNode;
+        }
+        final long token = Token.recast(callNode.getToken(), TokenType.ARRAY);
+        final Expression array = LiteralNode.newInstance(token, callNode.getFinish(), args);
+        final Expression spread = new UnaryNode(Token.recast(callNode.getToken(), TokenType.SPREAD_ELEMENTS), array);
+        return callNode.setArgs(Collections.singletonList(spread));
+    }
+
+    /**
+     * The weight of storing one element of a split array literal: dup, the index (up to a
+     * sipush), the store. AASTORE_WEIGHT alone counted 2, so that a range of thousands of
+     * light elements - the arguments of a long call - came out past the 64 KB of a method.
+     */
+    private static final long ELEMENT_STORE_WEIGHT = 5;
+
     @SuppressWarnings("rawtypes")
     @Override
     public Node leaveLiteralNode(final LiteralNode literal) {
@@ -329,7 +375,7 @@ final class Splitter extends SimpleNodeVisitor implements Loggable {
                 final Node element = value[postset];
 
                 final long elementWeight = WeighNodes.weigh(element);
-                totalWeight += WeighNodes.AASTORE_WEIGHT + elementWeight;
+                totalWeight += ELEMENT_STORE_WEIGHT + elementWeight;
 
                 if (totalWeight >= SPLIT_THRESHOLD) {
                     final CompileUnit unit = compiler.findUnit(totalWeight - elementWeight);

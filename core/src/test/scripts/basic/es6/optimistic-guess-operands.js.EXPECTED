@@ -19,6 +19,6 @@ missing key at a double site: undefined undefined undefined
 with scope untouched by the compiler: 7 wanted,seen,get,fallback
 const per iteration: 1,x,2.5
 tdz: ReferenceError
-tdz: TypeError
+tdz: ReferenceError
 hidden class at an optimistic site: v v function
 unary on undefined: -1 NaN NaN

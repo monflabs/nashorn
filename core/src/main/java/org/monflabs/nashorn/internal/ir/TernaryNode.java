@@ -69,6 +69,14 @@ public final class TernaryNode extends Expression {
         this.falseExpr = falseExpr;
     }
 
+    /**
+     * A conditional's value is one of its branches', so it is a guess if either is.
+     */
+    @Override
+    public boolean isOptimisticGuess() {
+        return getTrueExpression().isOptimisticGuess() || getFalseExpression().isOptimisticGuess();
+    }
+
     @Override
     public Node accept(final NodeVisitor<? extends LexicalContext> visitor) {
         if (visitor.enterTernaryNode(this)) {

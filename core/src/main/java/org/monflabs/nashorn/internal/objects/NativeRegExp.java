@@ -1036,6 +1036,11 @@ public final class NativeRegExp extends ScriptObject {
         // every match had been made before any replacement
         final RegExpResult last = new RegExpResult(str, lastStart, lastGroups, buildGroupObject(lastGroups, regexp));
         if (hasIndices) {
+            // the walk ended on a failed search, which left the matcher without a match: the
+            // indices are those of the last match, made again
+            if (!matched1) {
+                matcher.search(lastStart);
+            }
             last.setIndices(buildIndices(matcher, lastGroups));
         }
         globalObject.setLastRegExpResult(last);

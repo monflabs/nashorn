@@ -190,6 +190,8 @@ public final class GlobalFunctions {
         int digit;
         // we should see at least one valid digit
         boolean entered = false;
+        final int firstDigit = idx;
+        int end = idx;
         while (idx < length) {
             digit = fastDigit(str.charAt(idx++), radix);
             if (digit < 0) {
@@ -197,10 +199,16 @@ public final class GlobalFunctions {
             }
             // we have seen at least one valid digit in the specified radix
             entered = true;
+            end = idx;
             result *= radix;
             result += digit;
         }
 
+        if (entered && result >= 0x1p53) {
+            // past 2^53 every step of the loop rounds, and the errors add up; the value of the digits rounded once
+            // is the one 18.2.5 asks for of a radix of 10 or a power of 2, and the closest for any other
+            result = new java.math.BigInteger(str.substring(firstDigit, end), radix).doubleValue();
+        }
         return entered ? (negative ? -result : result) : Double.NaN;
     }
 

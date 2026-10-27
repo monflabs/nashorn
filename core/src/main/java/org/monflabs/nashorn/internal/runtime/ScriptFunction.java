@@ -699,7 +699,14 @@ public class ScriptFunction extends ScriptObject {
                 proxy.unwrap();
             }
             if (newProto instanceof ScriptObject prototype) {
-                final ScriptObject allocated = data.allocate(getAllocatorMap(prototype));
+                // An object's map stands for its prototype, which is what lets a call site linked for an inherited
+                // property guard on the map alone. The allocator map is cached for this function's own prototype,
+                // so an object built for another one (a subclass instance) takes the map the allocator map keeps
+                // for that prototype - one per prototype, and the same one each time.
+                final ScriptObject ownPrototype = getAllocatorPrototype();
+                final PropertyMap ownMap = getAllocatorMap(ownPrototype);
+                final ScriptObject allocated = data.allocate(prototype == ownPrototype || ownMap == null
+                        ? ownMap : ownMap.changeProto(prototype));
                 if (allocated != null) {
                     allocated.setInitialProto(prototype);
                     // the object was built from another constructor's prototype,

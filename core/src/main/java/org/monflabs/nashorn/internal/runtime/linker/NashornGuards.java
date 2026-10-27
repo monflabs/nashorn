@@ -54,6 +54,7 @@ public final class NashornGuards {
     private static final MethodHandle IS_SCRIPTOBJECT     = findOwnMH("isScriptObject", boolean.class, Object.class);
     private static final MethodHandle IS_NOT_JSOBJECT     = findOwnMH("isNotJSObject", boolean.class, Object.class);
     private static final MethodHandle SAME_OBJECT         = findOwnMH("sameObject", boolean.class, Object.class, WeakReference.class);
+    private static final MethodHandle IS_MAP_WEAK         = findOwnMH("isMapWeak", boolean.class, Object.class, WeakReference.class);
     //TODO - maybe put this back in ScriptFunction instead of the ClassCastException.class relinkage
     //private static final MethodHandle IS_SCRIPTFUNCTION = findOwnMH("isScriptFunction", boolean.class, Object.class);
 
@@ -228,6 +229,39 @@ public final class NashornGuards {
         return self instanceof ScriptObject && ((ScriptObject)self).getMap() == map;
     }
 
+
+    @SuppressWarnings("unused")
+    private static boolean isMapWeak(final Object self, final WeakReference<PropertyMap> ref) {
+        final PropertyMap map = ref.get();
+        return map != null && self instanceof ScriptObject && ((ScriptObject)self).getMap() == map;
+    }
+
+    /**
+     * {@link #getGuard} holding the map weakly, for a call site that must not keep it alive (see
+     * {@code ScriptObject#compareAndSetMapWeak}): a map that is gone is no object's map, and the
+     * site relinks.
+     *
+     * @param sobj the first object in the prototype chain
+     * @param property the property
+     * @param desc the callsite descriptor
+     * @param explicitInstanceOfCheck true if we should do an explicit script object instanceof check instead of just casting
+     * @return method handle for guard
+     */
+    public static MethodHandle getWeakGuard(final ScriptObject sobj, final Property property, final CallSiteDescriptor desc, final boolean explicitInstanceOfCheck) {
+        if (!needsGuard(property, desc)) {
+            return null;
+        }
+        final MethodHandle mapGuard = MH.insertArguments(IS_MAP_WEAK, 1, new WeakReference<>(sobj.getMap()));
+        if (NashornCallSiteDescriptor.isScope(desc) && sobj.isScope()) {
+            if (property != null && property.isBound() && !property.canChangeType()) {
+                return getIdentityGuard(sobj);
+            }
+            if (!(sobj instanceof Global) && (property == null || property.isConfigurable())) {
+                return combineGuards(getIdentityGuard(sobj), mapGuard);
+            }
+        }
+        return mapGuard;
+    }
 
     @SuppressWarnings("unused")
     private static boolean sameObject(final Object self, final WeakReference<ScriptObject> ref) {

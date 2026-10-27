@@ -240,9 +240,9 @@ public final class NativeJSON extends ScriptObject {
 
         // modifiable 'space' - parameter is final
         Object modSpace = space;
-        if (modSpace instanceof NativeNumber) {
+        if (isNumberObject(modSpace)) {
             modSpace = JSType.toNumber(JSType.toPrimitive(modSpace, Number.class));
-        } else if (modSpace instanceof NativeString) {
+        } else if (isStringObject(modSpace)) {
             modSpace = JSType.toString(JSType.toPrimitive(modSpace, String.class));
         }
 
@@ -270,6 +270,16 @@ public final class NativeJSON extends ScriptObject {
         return str("", wrapper, state);
     }
 
+    // ES2015 20.1.3, 21.1.3, 19.3.3: Number.prototype, String.prototype and Boolean.prototype are themselves
+    // Number, String and Boolean objects (of 0, "" and false), which JSON unwraps like any other
+    private static boolean isNumberObject(final Object obj) {
+        return obj instanceof NativeNumber || obj != null && obj == Global.instance().getNumberPrototype();
+    }
+
+    private static boolean isStringObject(final Object obj) {
+        return obj instanceof NativeString || obj != null && obj == Global.instance().getStringPrototype();
+    }
+
     /**
      * Adds one element of a replacer array to the list of names to serialize.
      *
@@ -282,8 +292,7 @@ public final class NativeJSON extends ScriptObject {
         final String item;
         if (element instanceof String || element instanceof ConsString) {
             item = element.toString();
-        } else if (element instanceof Number || element instanceof NativeNumber
-                || element instanceof NativeString) {
+        } else if (element instanceof Number || isNumberObject(element) || isStringObject(element)) {
             item = JSType.toString(element);
         } else {
             return;
@@ -384,12 +393,15 @@ public final class NativeJSON extends ScriptObject {
         }
         final boolean isObj = (value instanceof ScriptObject);
         if (isObj) {
-            if (value instanceof NativeNumber) {
+            if (isNumberObject(value)) {
                 value = JSType.toNumber(value);
-            } else if (value instanceof NativeString) {
+            } else if (isStringObject(value)) {
                 value = JSType.toString(value);
             } else if (value instanceof NativeBoolean) {
                 value = ((NativeBoolean)value).booleanValue();
+            } else if (value == Global.instance().getBooleanPrototype()) {
+                // its [[BooleanData]] is false
+                value = false;
             } else if (value instanceof NativeBigInt) {
                 throw typeError("bigint.serialize");
             }

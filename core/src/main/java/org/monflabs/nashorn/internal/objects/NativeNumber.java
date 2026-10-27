@@ -382,7 +382,7 @@ public final class NativeNumber extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static boolean isFinite(final Object self, final Object value) {
-        return value instanceof Number number
+        return isNumberValue(value) && value instanceof Number number
                 && !Double.isNaN(number.doubleValue())
                 && !Double.isInfinite(number.doubleValue());
     }
@@ -398,7 +398,7 @@ public final class NativeNumber extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static boolean isNaN(final Object self, final Object value) {
-        return value instanceof Number number && Double.isNaN(number.doubleValue());
+        return isNumberValue(value) && value instanceof Number number && Double.isNaN(number.doubleValue());
     }
 
     /**
@@ -410,11 +410,16 @@ public final class NativeNumber extends ScriptObject {
      */
     @Function(attributes = Attribute.NOT_ENUMERABLE, where = Where.CONSTRUCTOR)
     public static boolean isInteger(final Object self, final Object value) {
-        if (!(value instanceof Number number)) {
+        if (!isNumberValue(value) || !(value instanceof Number number)) {
             return false;
         }
         final double d = number.doubleValue();
         return !Double.isNaN(d) && !Double.isInfinite(d) && Math.floor(d) == d;
+    }
+
+    /** Whether a value is a Number: a BigInt is a java.lang.Number too, and the Number.is* tests are false for it. */
+    private static boolean isNumberValue(final Object value) {
+        return !(value instanceof java.math.BigInteger);
     }
 
     /**

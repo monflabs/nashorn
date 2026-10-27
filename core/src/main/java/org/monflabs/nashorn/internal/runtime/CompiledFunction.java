@@ -674,15 +674,18 @@ final class CompiledFunction {
                 handleRewriteException = OptimisticReturnFilters.filterOptimisticReturnValue(handleRewriteException,
                         callSiteReturnType, callerProgramPoint);
             }
-        } else if(isOptimistic) {
-            // Required so that rewrite exception has the same return type. It'd be okay to do it even if we weren't
-            // optimistic, but it isn't necessary as the linker upstream will eventually convert the return type.
-            inv = changeReturnType(inv, callSiteReturnType);
+        } else {
+            // Converted here, with ToInt32 or ToNumber, rather than left to the linker upstream: its conversion to an
+            // int is the one for a Java argument, which goes through a saturated long (1e29 would be -1). Required
+            // anyway when optimistic, so that the rewrite exception handler has the same return type.
+            inv = changeToScriptReturnType(inv, callSiteReturnType);
         }
 
         if(isOptimistic) {
             assert handleRewriteException != null;
-            final MethodHandle typedHandleRewriteException = changeReturnType(handleRewriteException, inv.type().returnType());
+            final MethodHandle typedHandleRewriteException = isValid(callerProgramPoint)
+                    ? changeReturnType(handleRewriteException, inv.type().returnType())
+                    : changeToScriptReturnType(handleRewriteException, inv.type().returnType());
             return MH.catchException(inv, RewriteException.class, typedHandleRewriteException);
         }
         return inv;
@@ -694,6 +697,22 @@ final class CompiledFunction {
 
     private static MethodHandle changeReturnType(final MethodHandle mh, final Class<?> newReturnType) {
         return Bootstrap.getLinkerServices().asType(mh, mh.type().changeReturnType(newReturnType));
+    }
+
+    /**
+     * Changes the return type with the conversions of a script: a script call site asks for an int where it takes
+     * ToInt32 of the value (a bitwise operand), and for a number where it takes ToNumber.
+     */
+    private static MethodHandle changeToScriptReturnType(final MethodHandle mh, final Class<?> newReturnType) {
+        final Class<?> returnType = mh.type().returnType();
+        if (returnType != newReturnType && (newReturnType == int.class || newReturnType == double.class)
+                && returnType != void.class && returnType != boolean.class) {
+            // the conversions take an Object: a ScriptObject or a String return is widened to one first
+            final MethodHandle widened = returnType.isPrimitive() || returnType == Object.class
+                    ? mh : MH.asType(mh, mh.type().changeReturnType(Object.class));
+            return org.monflabs.nashorn.internal.lookup.Lookup.filterReturnType(widened, newReturnType);
+        }
+        return changeReturnType(mh, newReturnType);
     }
 
     @SuppressWarnings("unused")

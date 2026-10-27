@@ -73,6 +73,7 @@ import org.monflabs.nashorn.internal.ir.JoinPredecessorExpression;
 import org.monflabs.nashorn.internal.ir.ForNode;
 import org.monflabs.nashorn.internal.ir.FunctionNode;
 import org.monflabs.nashorn.internal.ir.IdentNode;
+import org.monflabs.nashorn.internal.ir.OptionalChainNode;
 import org.monflabs.nashorn.internal.ir.LexicalContext;
 import org.monflabs.nashorn.internal.ir.LexicalContextNode;
 import org.monflabs.nashorn.internal.ir.LiteralNode;
@@ -151,6 +152,14 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     }
 
     private final Deque<Set<String>> thisProperties = new ArrayDeque<>();
+
+    /**
+     * How many optional chains enclose the current node. A chain that short-circuits jumps to its end past the rest
+     * of it, and the jump carries no local variable conversions: a local the chain assigns after one of its guards
+     * would reach the end typed as the assignment left it on one path and as it was on the other, and code after the
+     * chain read the slot of a type the short-circuit never stored. Such a local is kept in scope instead.
+     */
+    private int optionalChainDepth;
     private final Map<String, Symbol> globalSymbols = new HashMap<>(); //reuse the same global symbol
     private final Compiler compiler;
     private final boolean isOnDemand;
@@ -883,7 +892,31 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
     }
 
     @Override
+    public boolean enterOptionalChainNode(final OptionalChainNode optionalChainNode) {
+        optionalChainDepth++;
+        return true;
+    }
+
+    @Override
+    public Node leaveOptionalChainNode(final OptionalChainNode optionalChainNode) {
+        optionalChainDepth--;
+        return optionalChainNode;
+    }
+
+    private void scopeIfAssignedInOptionalChain(final Expression target) {
+        if (optionalChainDepth > 0 && target instanceof IdentNode ident) {
+            final Symbol symbol = ident.getSymbol();
+            if (symbol != null && !symbol.isScope() && !symbol.isThis() && !symbol.isInternal()) {
+                Symbol.setSymbolIsScope(lc, symbol);
+            }
+        }
+    }
+
+    @Override
     public Node leaveBinaryNode(final BinaryNode binaryNode) {
+        if (binaryNode.isAssignment()) {
+            scopeIfAssignedInOptionalChain(binaryNode.lhs());
+        }
         if (binaryNode.isTokenType(TokenType.ASSIGN)) {
             return leaveASSIGN(binaryNode);
         }
@@ -912,6 +945,9 @@ final class AssignSymbols extends SimpleNodeVisitor implements Loggable {
 
     @Override
     public Node leaveUnaryNode(final UnaryNode unaryNode) {
+        if (unaryNode.isAssignment()) {
+            scopeIfAssignedInOptionalChain(unaryNode.getExpression());
+        }
         if (unaryNode.tokenType() == TokenType.TYPEOF) {
             return leaveTYPEOF(unaryNode);
         } else {

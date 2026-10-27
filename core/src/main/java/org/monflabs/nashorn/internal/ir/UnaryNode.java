@@ -327,7 +327,10 @@ public final class UnaryNode extends Expression implements Assignment<Expression
         if(type == null) {
             return widest;
         }
-        return Type.narrowest(widest, Type.widest(type, undefinedToNumber(expression.getType())));
+        // An object operand (a string, say) says nothing about the result's type beyond the
+        // widest one: -"a1" is a number, never a string.
+        final Type operandType = undefinedToNumber(expression.getType());
+        return Type.narrowest(widest, Type.widest(type, operandType.isObject() ? widest : operandType));
     }
 
     /**

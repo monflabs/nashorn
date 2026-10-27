@@ -1241,8 +1241,13 @@ public class Lexer extends Scanner {
                 }
                 restoreState(expressionLexer.saveState());
 
+                if (ch0 != '}') {
+                    // the source ended in a substitution: `a${b
+                    error(Lexer.message("missing.close.quote"), TEMPLATE, position, limit);
+                    return;
+                }
+
                 // scan next middle or tail of the template literal
-                assert ch0 == '}';
                 type = TEMPLATE_MIDDLE;
 
                 // Skip over rbrace and record beginning of string content.
@@ -1710,8 +1715,10 @@ public class Lexer extends Scanner {
             } else if (isStringDelimiter(ch0)) {
                 // Scan and add a string.
                 scanString(true);
-            } else if (Character.isDigit(ch0)) {
-                // Scan and add a number.
+            } else if (ch0 >= '0' && ch0 <= '9') {
+                // Scan and add a number: ASCII digits only (11.8.3) - an Arabic-Indic digit is
+                // a Unicode digit to Character.isDigit, but scanNumber does not consume it, and
+                // the lexer would add tokens for it forever.
                 scanNumber();
             } else if (isTemplateDelimiter(ch0)) {
                 // Backquote is a template literal.

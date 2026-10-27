@@ -1150,7 +1150,9 @@ public class MethodEmitter {
     }
 
     void markDeadLocalVariable(final Symbol symbol) {
-        if(!symbol.isDead()) {
+        // a symbol with no slot (the tag of a switch in a copy of a finally block that was not
+        // given one) has nothing to mark
+        if(!symbol.isDead() && symbol.isSlotted()) {
             markDeadSlots(symbol.getFirstSlot(), symbol.slotCount());
         }
     }
@@ -2671,7 +2673,11 @@ public class MethodEmitter {
         while(next != null) {
             final Symbol symbol = next.getSymbol();
             if(next.isLive()) {
-                emitLocalVariableConversion(next, true);
+                // a symbol with no slot (the tag of a switch in a copy of a finally block that
+                // was not given one) has nothing to convert
+                if(symbol.isSlotted()) {
+                    emitLocalVariableConversion(next, true);
+                }
             } else {
                 markDeadLocalVariable(symbol);
             }
